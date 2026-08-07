@@ -41,20 +41,37 @@ export function groupDatesByWeek(dates) {
 
   const d1Date = sorted[sorted.length - 1]; // D-1 is the last available date
 
+  // Parse D-1 date and find its Monday (start of current week)
+  const d1 = new Date(d1Date + 'T00:00:00');
+  const d1Day = d1.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const d1DayOffset = d1Day === 0 ? 6 : d1Day - 1; // offset from Monday (Mon=0, Tue=1, ..., Sun=6)
+
+  const currentWeekMonday = new Date(d1);
+  currentWeekMonday.setDate(d1.getDate() - d1DayOffset);
+
+  const prevWeekMonday = new Date(currentWeekMonday);
+  prevWeekMonday.setDate(currentWeekMonday.getDate() - 7);
+
+  const toDateStr = (dt) => dt.toISOString().slice(0, 10);
+
+  const currentMondayStr = toDateStr(currentWeekMonday);
+  const prevMondayStr = toDateStr(prevWeekMonday);
+
   const weekCurrent = [];
   const weekPrev = [];
 
-  sorted.forEach((dStr, idx) => {
-    if (idx >= sorted.length - 3) {
+  sorted.forEach(dStr => {
+    if (dStr >= currentMondayStr && dStr <= d1Date) {
       weekCurrent.push(dStr);
-    } else {
+    } else if (dStr >= prevMondayStr && dStr < currentMondayStr) {
       weekPrev.push(dStr);
     }
+    // Dates older than prevWeekMonday are excluded
   });
 
   return {
-    weekPrev: weekPrev.length > 0 ? weekPrev : sorted.slice(0, Math.max(1, sorted.length - 3)),
-    weekCurrent: weekCurrent.length > 0 ? weekCurrent : sorted.slice(-3),
+    weekPrev,
+    weekCurrent,
     d1Date
   };
 }
