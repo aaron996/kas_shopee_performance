@@ -7,6 +7,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
+import { supabase } from './utils/supabaseClient';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -39,6 +40,52 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
+
+  // Listen for Supabase Authentication State changes
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        const email = session.user.email.toLowerCase();
+        if (isAllowedEmail(email)) {
+          const userObj = {
+            email,
+            name: email.split('@')[0],
+            isDevAdmin: isDevAdminEmail(email),
+            supabaseUser: session.user
+          };
+          localStorage.setItem('ghn_user', JSON.stringify(userObj));
+          setCurrentUser(userObj);
+        } else {
+          supabase.auth.signOut();
+          localStorage.removeItem('ghn_user');
+          setCurrentUser(null);
+        }
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) {
+        const email = session.user.email.toLowerCase();
+        if (isAllowedEmail(email)) {
+          const userObj = {
+            email,
+            name: email.split('@')[0],
+            isDevAdmin: isDevAdminEmail(email),
+            supabaseUser: session.user
+          };
+          localStorage.setItem('ghn_user', JSON.stringify(userObj));
+          setCurrentUser(userObj);
+        } else {
+          supabase.auth.signOut();
+          localStorage.removeItem('ghn_user');
+          setCurrentUser(null);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleResetDefaultData = () => {
     setPickRows(createDefaultPickDataset());
@@ -77,7 +124,8 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
     setCurrentUser(null);
   };
