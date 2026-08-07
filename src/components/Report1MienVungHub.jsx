@@ -167,23 +167,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                     TUẦN W-1 (TRỌN VẸN)
                   </th>
                 )}
-                {/* Week Cur: daily dates up to day before D-1 */}
-                {weekCur.slice(0, -1).length > 0 && (
-                  <th colSpan={weekCur.slice(0, -1).length}>TUẦN HIỆN TẠI</th>
+                {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
+                {weekCur.length > 0 && (
+                  <th colSpan={weekCur.length + 1}>TUẦN HIỆN TẠI</th>
                 )}
-                {/* Header merge for D-1 Date + Vol D-1 */}
-                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
-                  {formatDateLabel(d1Date)}
-                </th>
-                {/* Header merge for WTD % + Vol WTD */}
-                <th colSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                {/* Header merge for WTD (spanning both rows) */}
+                <th colSpan="2" rowSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   Tốt nhất<br />6 tuần
                 </th>
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem' }}>
+                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', verticalAlign: 'middle' }}>
                   Cùng ngày<br />tháng trước
                 </th>
               </tr>
@@ -196,12 +192,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                 {weekCur.slice(0, -1).map(d => (
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
-                {/* D-1 headers */}
-                <th style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>% Ontime</th>
-                <th style={{ background: '#004b82' }}>Vol D-1</th>
-                {/* WTD headers */}
-                <th style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>% WTD</th>
-                <th style={{ background: '#00365e' }}>Vol WTD</th>
+                {/* D-1 header (merged over 2 cols, replacing % Ontime and Vol D-1) */}
+                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                  {formatDateLabel(d1Date)}
+                </th>
               </tr>
             </thead>
 

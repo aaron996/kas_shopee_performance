@@ -4,7 +4,7 @@
 export const MIEN_REGIONS = {
   'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO'],
   'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB'],
-  'Miền Nam': ['DNB', 'HCM', 'ĐCL', 'TNB']
+  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'ĐCL', 'TNB']
 };
 
 export const MIEN_ORDER = ['Miền Bắc', 'Miền Trung', 'Miền Nam'];

@@ -345,6 +345,7 @@ table.mtx-table thead th {
   font-family: var(--font-sans);
   text-align: center;
   border-color: rgba(255, 255, 255, 0.2);
+  white-space: pre-wrap;
 }
 
 table.mtx-table thead th.lbl {

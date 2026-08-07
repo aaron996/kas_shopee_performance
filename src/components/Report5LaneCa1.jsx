@@ -98,21 +98,17 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
                   </th>
                 )}
                 {weekCurBeforeD1.length > 0 && (
-                  <th colSpan={weekCurBeforeD1.length}>TUẦN HIỆN TẠI</th>
+                  <th colSpan={weekCurBeforeD1.length + 2}>TUẦN HIỆN TẠI</th>
                 )}
-                {/* D-1 header group */}
-                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
-                  {formatDateLabel(d1Date)}
-                </th>
                 {/* WTD header group */}
-                <th colSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colSpan="2" rowSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday LM */}
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   Tốt nhất<br />6 tuần
                 </th>
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem' }}>
+                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', verticalAlign: 'middle' }}>
                   Cùng ngày<br />tháng trước
                 </th>
               </tr>
@@ -125,12 +121,10 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
                 {weekCurBeforeD1.map(d => (
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
-                {/* D-1 sub-headers */}
-                <th style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>% Ca 1</th>
-                <th style={{ background: '#004b82' }}>Vol D-1</th>
-                {/* WTD sub-headers */}
-                <th style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>% WTD</th>
-                <th style={{ background: '#00365e' }}>Vol WTD</th>
+                {/* D-1 header */}
+                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                  {formatDateLabel(d1Date)}
+                </th>
               </tr>
             </thead>
 

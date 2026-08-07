@@ -31,7 +31,7 @@ export function formatDateLabel(dateStr) {
   const parts = dateStr.split('-');
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);
-  return `${day}/${month} ${getWeekdayName(dateStr)}`;
+  return `${day}/${month}\n${getWeekdayName(dateStr)}`;
 }
 
 // Group dates into Week W-1 and Week WTD
