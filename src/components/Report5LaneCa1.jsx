@@ -1,10 +1,8 @@
 import React, { useMemo } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
-import { createDefaultCa1Dataset } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 
-export default function Report5LaneCa1({ searchTerm }) {
-  const ca1Rows = useMemo(() => createDefaultCa1Dataset(), []);
+export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);

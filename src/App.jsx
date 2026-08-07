@@ -5,7 +5,7 @@ import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
-import { createDefaultPickDataset, createDefaultDeliDataset } from './data/defaultDataset';
+import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { supabase } from './utils/supabaseClient';
 
@@ -37,6 +37,7 @@ export default function App() {
 
   const [pickRows, setPickRows] = useState(() => createDefaultPickDataset());
   const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
+  const [ca1Rows, setCa1Rows] = useState(() => createDefaultCa1Dataset());
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
@@ -92,6 +93,7 @@ export default function App() {
   const handleResetDefaultData = () => {
     setPickRows(createDefaultPickDataset());
     setDeliRows(createDefaultDeliDataset());
+    setCa1Rows(createDefaultCa1Dataset());
     setSyncStatus({ isLive: false, text: 'Default Dataset' });
   };
 
@@ -105,6 +107,7 @@ export default function App() {
     if (res.success) {
       setPickRows(res.pickData);
       setDeliRows(res.deliData);
+      if (res.ca1Data) setCa1Rows(res.ca1Data);
       setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
@@ -171,6 +174,7 @@ export default function App() {
 
         {activeTab === 'report5' && (
           <Report5LaneCa1
+            ca1Rows={ca1Rows}
             searchTerm={searchTerm}
           />
         )}
