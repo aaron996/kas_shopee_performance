@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, FileSpreadsheet, MessageSquareText, RefreshCw, Filter, Search, ArrowRightLeft } from 'lucide-react';
+import { Layers, FileSpreadsheet, MessageSquareText, RefreshCw, Filter, Search, ArrowRightLeft, Radio } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -10,7 +10,10 @@ export default function Header({
   setSearchTerm, 
   onOpenSummary, 
   onOpenDataSource,
-  onResetData
+  onResetData,
+  onSyncLiveSheet,
+  isSyncing,
+  syncStatus
 }) {
   const tabs = [
     { id: 'report1', label: '4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
@@ -25,13 +28,18 @@ export default function Header({
           <div>
             <div className="brand-name">Báo Cáo Điều Hành Ontime Vùng Giao</div>
             <div className="brand-subtitle">
-              GHN Operations Management System • Sheet: <code>1eZCDlKCrZVZAac...</code>
+              GHN Operations System • Sheet: <code>1eZCDlKCrZVZAac...</code>
             </div>
           </div>
         </div>
 
         <div className="nav-actions">
-          <button className="nav-btn primary" onClick={onOpenSummary}>
+          <button className="nav-btn primary" onClick={onSyncLiveSheet} disabled={isSyncing}>
+            <Radio size={16} className={isSyncing ? 'animate-spin' : ''} />
+            {isSyncing ? 'Đang Tải Sheet...' : 'Sync Live Data Google Sheet'}
+          </button>
+
+          <button className="nav-btn" onClick={onOpenSummary}>
             <MessageSquareText size={16} />
             Nhận Xét D-1 vs D-8
           </button>
@@ -95,11 +103,11 @@ export default function Header({
         </div>
 
         <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <span>Status: <strong style={{ color: syncStatus?.isLive ? '#0F6E56' : '#92400E' }}>{syncStatus?.text || 'Ready'}</strong></span>
+          <span>•</span>
           <span>D-1: <strong>05/08/2026</strong></span>
           <span>•</span>
           <span>Tuần WTD: <strong>Tuần 32</strong></span>
-          <span>•</span>
-          <span style={{ color: '#0F6E56', fontWeight: 600 }}>● Connected</span>
         </div>
       </div>
     </header>

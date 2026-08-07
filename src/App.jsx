@@ -5,6 +5,7 @@ import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import { createDefaultPickDataset, createDefaultDeliDataset } from './data/defaultDataset';
+import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('report1');
@@ -17,9 +18,35 @@ export default function App() {
   const [pickRows, setPickRows] = useState(() => createDefaultPickDataset());
   const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Default Dataset' });
+
   const handleResetDefaultData = () => {
     setPickRows(createDefaultPickDataset());
     setDeliRows(createDefaultDeliDataset());
+    setSyncStatus({ isLive: false, text: 'Default Dataset' });
+  };
+
+  const handleSyncLiveSheet = async () => {
+    setIsSyncing(true);
+    setSyncStatus({ isLive: false, text: 'Đang tải Sheet...' });
+
+    const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA');
+    setIsSyncing(false);
+
+    if (res.success) {
+      setPickRows(res.pickData);
+      setDeliRows(res.deliData);
+      setSyncStatus({ isLive: true, text: 'Live Sheet Synced' });
+    } else {
+      if (res.error === 'FILE_PRIVATE') {
+        alert('⚠️ Google Sheet hiện tại đang ở chế độ Riêng tư (Private).\n\nHãy đổi quyền truy cập trong Google Sheet sang "Anyone with link can view" (Bất kỳ ai có liên kết đều có thể xem) để web app tự động đọc live!');
+        setIsDataSourceOpen(true);
+      } else {
+        alert(`Lỗi kết nối Google Sheet: ${res.error}`);
+      }
+      setSyncStatus({ isLive: false, text: 'Sync Failed (Private)' });
+    }
   };
 
   return (
@@ -35,6 +62,9 @@ export default function App() {
         onOpenSummary={() => setIsSummaryOpen(true)}
         onOpenDataSource={() => setIsDataSourceOpen(true)}
         onResetData={handleResetDefaultData}
+        onSyncLiveSheet={handleSyncLiveSheet}
+        isSyncing={isSyncing}
+        syncStatus={syncStatus}
       />
 
       {/* Main View Area */}
