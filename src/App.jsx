@@ -57,6 +57,7 @@ export default function App() {
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
           setCurrentUser(userObj);
         } else {
+          alert(`⚠️ Truy cập bị từ chối:\n\nTài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`);
           supabase.auth.signOut();
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
@@ -77,6 +78,7 @@ export default function App() {
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
           setCurrentUser(userObj);
         } else {
+          alert(`⚠️ Truy cập bị từ chối:\n\nTài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`);
           supabase.auth.signOut();
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
