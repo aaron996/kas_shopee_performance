@@ -4,10 +4,29 @@ import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
+import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ghn_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email && isAllowedEmail(parsed.email)) {
+          return {
+            ...parsed,
+            isDevAdmin: isDevAdminEmail(parsed.email)
+          };
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+
   const [activeTab, setActiveTab] = useState('report1');
   const [clientFilter, setClientFilter] = useState('SPB');
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,7 +60,9 @@ export default function App() {
     } else {
       if (res.error === 'FILE_PRIVATE') {
         alert('⚠️ Google Sheet hiện tại đang ở chế độ Riêng tư (Private).\n\nHãy đổi quyền truy cập trong Google Sheet sang "Anyone with link can view" (Bất kỳ ai có liên kết đều có thể xem) để web app tự động đọc live!');
-        setIsDataSourceOpen(true);
+        if (currentUser && currentUser.isDevAdmin) {
+          setIsDataSourceOpen(true);
+        }
       } else {
         alert(`Lỗi kết nối Google Sheet: ${res.error}`);
       }
@@ -49,13 +70,26 @@ export default function App() {
     }
   };
 
-  // Auto-sync live data on page mount
+  // Auto-sync live data on page mount if authenticated
   useEffect(() => {
-    handleSyncLiveSheet();
-  }, []);
+    if (currentUser) {
+      handleSyncLiveSheet();
+    }
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('ghn_user');
+    setCurrentUser(null);
+  };
 
   return (
     <div className="app-container">
+      {/* Authentication Protection Modal */}
+      <AuthModal
+        isOpen={!currentUser}
+        onLoginSuccess={(user) => setCurrentUser(user)}
+      />
+
       {/* Header Navigation & Filter Bar */}
       <Header
         activeTab={activeTab}
@@ -70,6 +104,8 @@ export default function App() {
         onSyncLiveSheet={handleSyncLiveSheet}
         isSyncing={isSyncing}
         syncStatus={syncStatus}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main View Area */}
@@ -99,14 +135,16 @@ export default function App() {
         clientFilter={clientFilter}
       />
 
-      {/* Sheet Data Source Manager Modal */}
-      <DataSourceManagerModal
-        isOpen={isDataSourceOpen}
-        onClose={() => setIsDataSourceOpen(false)}
-        onUpdatePickData={(rows) => setPickRows(rows)}
-        onUpdateDeliData={(rows) => setDeliRows(rows)}
-        onResetDefault={handleResetDefaultData}
-      />
+      {/* Sheet Data Source Manager Modal (Only visible for dev admin) */}
+      {currentUser && currentUser.isDevAdmin && (
+        <DataSourceManagerModal
+          isOpen={isDataSourceOpen}
+          onClose={() => setIsDataSourceOpen(false)}
+          onUpdatePickData={(rows) => setPickRows(rows)}
+          onUpdateDeliData={(rows) => setDeliRows(rows)}
+          onResetDefault={handleResetDefaultData}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Layers, HelpCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 
@@ -48,6 +48,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
   const { weekPrev: pWPrev, weekCurrent: pWCur, d1Date: pD1 } = useMemo(() => groupDatesByWeek(pickDates), [pickDates]);
   const { weekPrev: dWPrev, weekCurrent: dWCur, d1Date: dD1 } = useMemo(() => groupDatesByWeek(deliDates), [deliDates]);
 
+  // Helper row value extractor for flexible column names (handling mau_deli vs mau_del)
+  const getRowVal = (r, primaryCol, fallbackCol) => {
+    if (r[primaryCol] !== undefined && r[primaryCol] !== null) return Number(r[primaryCol]) || 0;
+    if (fallbackCol && r[fallbackCol] !== undefined && r[fallbackCol] !== null) return Number(r[fallbackCol]) || 0;
+    return 0;
+  };
+
   // Render individual matrix table component
   const renderMetricTable = (title, metricKey, isDeli = false) => {
     const rows = isDeli ? filteredDeli : filteredPick;
@@ -55,15 +62,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
     const weekPrev = isDeli ? dWPrev : pWPrev;
     const weekCur = isDeli ? dWCur : pWCur;
     const d1Date = isDeli ? dD1 : pD1;
-    const target = TARGET_KPIS[title] || 90.0;
-
-    const totalCol = isDeli ? 'mau_del' : 'mau_pu';
-    const ontimeCol = metricKey === '1st' ? (isDeli ? 'ontime_del_1st' : 'ontime_pu_1st') : (isDeli ? 'ontime_del_odr' : 'ontime_pu_opr');
+    const target = TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0));
 
     // Aggregate totals by date & entity
-    // We compute: Region-level data, Miền-level data, TOÀN QUỐC data, and Hub-level data
     const dateEntityMap = {}; // key: ${entityType}_${entityId}_${dateStr}
-
     let tableMinPct = target;
 
     rows.forEach(r => {
@@ -72,8 +74,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
       const hub = r.hub;
       const mien = Object.keys(MIEN_REGIONS).find(m => MIEN_REGIONS[m].includes(reg)) || 'Miền Khác';
 
-      const tot = r[totalCol] || 0;
-      const ont = r[ontimeCol] || 0;
+      const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
+      const ont = isDeli 
+        ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
+        : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
 
       // Hub level
       const hKey = `HUB_${reg}_${hub}_${d}`;
@@ -92,10 +96,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
         const bOntKey = metricKey === '1st' ? 'best_l6w_ontime_1st' : (isDeli ? 'best_l6w_ontime_odr' : 'best_l6w_ontime_opr');
         const sOntKey = metricKey === '1st' ? 'sameday_lm_ontime_1st' : (isDeli ? 'sameday_lm_ontime_odr' : 'sameday_lm_ontime_opr');
 
-        dateEntityMap[rKey].bestVol += (r[bVolKey] || 0);
-        dateEntityMap[rKey].bestOnt += (r[bOntKey] || 0);
-        dateEntityMap[rKey].sameVol += (r.sameday_lm_vol || 0);
-        dateEntityMap[rKey].sameOnt += (r[sOntKey] || 0);
+        dateEntityMap[rKey].bestVol += getRowVal(r, bVolKey);
+        dateEntityMap[rKey].bestOnt += getRowVal(r, bOntKey);
+        dateEntityMap[rKey].sameVol += getRowVal(r, 'sameday_lm_vol');
+        dateEntityMap[rKey].sameOnt += getRowVal(r, sOntKey);
       }
 
       // Mền level
@@ -268,7 +272,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                       const d1RegData = dateEntityMap[`REG_${reg}_${d1Date}`] || { tot: 0, ont: 0, bestVol: 0, bestOnt: 0, sameVol: 0, sameOnt: 0 };
                       const regD1Pct = d1RegData.tot > 0 ? (d1RegData.ont / d1RegData.tot) * 100 : null;
 
-                      // Calculate comparison diffs
                       const bestPct = d1RegData.bestVol > 0 ? (d1RegData.bestOnt / d1RegData.bestVol) * 100 : null;
                       const samePct = d1RegData.sameVol > 0 ? (d1RegData.sameOnt / d1RegData.sameVol) * 100 : null;
 
@@ -282,8 +285,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                       rows.filter(r => r.region === reg).forEach(r => {
                         if (!hubMap[r.hub]) hubMap[r.hub] = 0;
                         if (r.report_date === d1Date) {
-                          const tot = r[totalCol] || 0;
-                          const ont = r[ontimeCol] || 0;
+                          const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
+                          const ont = isDeli 
+                            ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
+                            : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
                           hubMap[r.hub] += (tot - ont);
                         }
                       });
@@ -400,8 +405,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
 
       {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false)}
       {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false)}
-      {renderMetricTable('Mục 2.1: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true)}
-      {renderMetricTable('Mục 2.2: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true)}
+      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true)}
+      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true)}
     </div>
   );
 }

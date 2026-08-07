@@ -36,20 +36,15 @@ export function formatDateLabel(dateStr) {
 
 // Group dates into Week W-1 and Week WTD
 export function groupDatesByWeek(dates) {
-  // Sort dates ascending
   const sorted = [...dates].sort();
   if (sorted.length === 0) return { weekPrev: [], weekCurrent: [], d1Date: '' };
 
   const d1Date = sorted[sorted.length - 1]; // D-1 is the last available date
 
-  // We assign dates to weekPrev vs weekCurrent
-  // Find ISO week numbers or last 7 days vs previous
   const weekCurrent = [];
   const weekPrev = [];
 
-  // Group by week using date objects
   sorted.forEach((dStr, idx) => {
-    // If date is within 7 days of D-1 and same week boundary
     if (idx >= sorted.length - 3) {
       weekCurrent.push(dStr);
     } else {
@@ -73,11 +68,9 @@ export function getContinuousColorStyle(val, target, minVal) {
     return { backgroundColor: '#FFFFFF', color: '#1e293b' };
   }
   
-  // Continuous linear interpolation between white (#FFFFFF) and red (#E8362C)
   const effectiveMin = Math.min(minVal, target - 10);
   const ratio = Math.min(1, Math.max(0, (target - val) / (target - effectiveMin)));
   
-  // Interpolate RGB from 255,255,255 to 232,54,44
   const r = Math.round(255 - ratio * (255 - 232));
   const g = Math.round(255 - ratio * (255 - 54));
   const b = Math.round(255 - ratio * (255 - 44));
@@ -124,13 +117,11 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
   const filteredPick = clientFilter === 'ALL' ? pickRows : pickRows.filter(r => r.client_name === clientFilter);
   const filteredDeli = clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
 
-  // Get sorted dates
   const dates = [...new Set(filteredPick.map(r => r.report_date))].sort();
   if (dates.length < 2) return 'Cần ít nhất dữ liệu của 2 ngày để so sánh.';
 
   const d1Date = dates[dates.length - 1];
   
-  // Calculate D-8 date (7 days prior to D-1)
   const d1Obj = new Date(d1Date);
   const d8Obj = new Date(d1Obj);
   d8Obj.setDate(d8Obj.getDate() - 7);
@@ -138,22 +129,24 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
   const d8DateStr = d8Obj.toISOString().split('T')[0];
   const d8Date = dates.includes(d8DateStr) ? d8DateStr : dates[0];
 
-  // Helper aggregate totals
-  const aggMetrics = (rows, dStr) => {
+  const aggMetrics = (rowsP, rowsD, dStr) => {
     let totP = 0, ont1stP = 0, ontOprP = 0;
     let totD = 0, ont1stD = 0, ontOdrD = 0;
 
-    rows.filter(r => r.report_date === dStr).forEach(r => {
-      if (r.mau_pu !== undefined) {
-        totP += r.mau_pu;
-        ont1stP += r.ontime_pu_1st;
-        ontOprP += r.ontime_pu_opr;
-      }
-      if (r.mau_del !== undefined) {
-        totD += r.mau_del;
-        ont1stD += r.ontime_del_1st;
-        ontOdrD += r.ontime_del_odr;
-      }
+    rowsP.filter(r => r.report_date === dStr).forEach(r => {
+      totP += (r.mau_pu || 0);
+      ont1stP += (r.ontime_pu_1st || 0);
+      ontOprP += (r.ontime_pu_opr || 0);
+    });
+
+    rowsD.filter(r => r.report_date === dStr).forEach(r => {
+      const mauD = r.mau_deli !== undefined ? r.mau_deli : (r.mau_del || 0);
+      const ont1st = r.ontime_deli_1st !== undefined ? r.ontime_deli_1st : (r.ontime_del_1st || 0);
+      const ontOdr = r.ontime_deli_odr !== undefined ? r.ontime_deli_odr : (r.ontime_del_odr || 0);
+
+      totD += Number(mauD) || 0;
+      ont1stD += Number(ont1st) || 0;
+      ontOdrD += Number(ontOdr) || 0;
     });
 
     return {
@@ -164,16 +157,15 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
     };
   };
 
-  const d1M = aggMetrics([...filteredPick, ...filteredDeli], d1Date);
-  const d8M = aggMetrics([...filteredPick, ...filteredDeli], d8Date);
+  const d1M = aggMetrics(filteredPick, filteredDeli, d1Date);
+  const d8M = aggMetrics(filteredPick, filteredDeli, d8Date);
 
-  // Calculate Region level performance at D-1 for Top 3 lowest
   const regionPickMap = {};
   filteredPick.filter(r => r.report_date === d1Date).forEach(r => {
     if (!regionPickMap[r.region]) regionPickMap[r.region] = { tot: 0, ont1st: 0, ontOpr: 0 };
-    regionPickMap[r.region].tot += r.mau_pu;
-    regionPickMap[r.region].ont1st += r.ontime_pu_1st;
-    regionPickMap[r.region].ontOpr += r.ontime_pu_opr;
+    regionPickMap[r.region].tot += (r.mau_pu || 0);
+    regionPickMap[r.region].ont1st += (r.ontime_pu_1st || 0);
+    regionPickMap[r.region].ontOpr += (r.ontime_pu_opr || 0);
   });
 
   const lowestPickRegions = Object.keys(regionPickMap).map(reg => {
@@ -188,9 +180,13 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
   const regionDeliMap = {};
   filteredDeli.filter(r => r.report_date === d1Date).forEach(r => {
     if (!regionDeliMap[r.region]) regionDeliMap[r.region] = { tot: 0, ont1st: 0, ontOdr: 0 };
-    regionDeliMap[r.region].tot += r.mau_del;
-    regionDeliMap[r.region].ont1st += r.ontime_del_1st;
-    regionDeliMap[r.region].ontOdr += r.ontime_del_odr;
+    const mauD = r.mau_deli !== undefined ? r.mau_deli : (r.mau_del || 0);
+    const ont1st = r.ontime_deli_1st !== undefined ? r.ontime_deli_1st : (r.ontime_del_1st || 0);
+    const ontOdr = r.ontime_deli_odr !== undefined ? r.ontime_deli_odr : (r.ontime_del_odr || 0);
+
+    regionDeliMap[r.region].tot += Number(mauD) || 0;
+    regionDeliMap[r.region].ont1st += Number(ont1st) || 0;
+    regionDeliMap[r.region].ontOdr += Number(ontOdr) || 0;
   });
 
   const lowestDeliRegions = Object.keys(regionDeliMap).map(reg => {

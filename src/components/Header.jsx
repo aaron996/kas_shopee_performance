@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, FileSpreadsheet, MessageSquareText, RefreshCw, Filter, Search, ArrowRightLeft, Radio } from 'lucide-react';
+import { Layers, FileSpreadsheet, MessageSquareText, Filter, Search, ArrowRightLeft, Radio, LogOut, UserCheck } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -10,10 +10,11 @@ export default function Header({
   setSearchTerm, 
   onOpenSummary, 
   onOpenDataSource,
-  onResetData,
   onSyncLiveSheet,
   isSyncing,
-  syncStatus
+  syncStatus,
+  currentUser,
+  onLogout
 }) {
   const tabs = [
     { id: 'report1', label: '4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
@@ -34,6 +35,16 @@ export default function Header({
         </div>
 
         <div className="nav-actions">
+          {currentUser && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.15)', padding: '0.35rem 0.75rem', borderRadius: '20px', fontSize: '0.8rem', border: '1px solid rgba(255,255,255,0.25)' }}>
+              <UserCheck size={14} style={{ color: '#4ADE80' }} />
+              <span>{currentUser.email}</span>
+              {currentUser.isDevAdmin && (
+                <span style={{ background: '#F15A22', color: 'white', fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '8px', fontWeight: 'bold', marginLeft: '0.2rem' }}>DEV ADMIN</span>
+              )}
+            </div>
+          )}
+
           <button className="nav-btn primary" onClick={onSyncLiveSheet} disabled={isSyncing}>
             <Radio size={16} className={isSyncing ? 'animate-spin' : ''} />
             {isSyncing ? 'Đang Tải Sheet...' : 'Sync Live Data Google Sheet'}
@@ -43,15 +54,18 @@ export default function Header({
             <MessageSquareText size={16} />
             Nhận Xét D-1 vs D-8
           </button>
-          
-          <button className="nav-btn" onClick={onOpenDataSource}>
-            <FileSpreadsheet size={16} />
-            Quản Lý Nguồn Sheet
-          </button>
 
-          <button className="nav-btn" onClick={onResetData} title="Khôi phục dữ liệu mẫu chuẩn">
-            <RefreshCw size={15} />
-            Reset Sample
+          {/* Nút Quản Lý Nguồn Sheet CHỈ HIỆN VỚI TÀI KHOẢN DEV / ADMIN (luongthevinh996@gmail.com hoặc vinhlt@ghn.vn) */}
+          {currentUser && currentUser.isDevAdmin && (
+            <button className="nav-btn" onClick={onOpenDataSource} style={{ background: '#F15A22', borderColor: '#F15A22' }}>
+              <FileSpreadsheet size={16} />
+              Quản Lý Nguồn Sheet
+            </button>
+          )}
+
+          <button className="nav-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
+            <LogOut size={15} />
+            Đăng Xuất
           </button>
         </div>
       </div>
