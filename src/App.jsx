@@ -7,6 +7,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
+import { groupDatesByWeek } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 
 export default function App() {
@@ -30,7 +31,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('report1');
   const [clientFilter, setClientFilter] = useState('SPB');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [expandAllHubs, setExpandAllHubs] = useState(false);
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
@@ -135,6 +136,20 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  // Extract dynamic date info for the Header
+  const allDates = [...new Set(pickRows.map(r => r.report_date))].filter(Boolean).sort();
+  const { d1Date, weekCurrent } = groupDatesByWeek(allDates);
+  // Get week number from the first day of current week
+  const getWeekNumber = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const start = new Date(d.getFullYear(), 0, 1);
+    const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
+    return Math.ceil((d.getDay() + 1 + days) / 7);
+  };
+  const weekNum = weekCurrent?.[0] ? getWeekNumber(weekCurrent[0]) : '';
+  const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
+
   return (
     <div className="app-container">
       {/* Authentication Protection Modal */}
@@ -149,8 +164,10 @@ export default function App() {
         setActiveTab={setActiveTab}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
+        expandAllHubs={expandAllHubs}
+        setExpandAllHubs={setExpandAllHubs}
+        d1DateFormatted={d1DateFormatted}
+        weekNum={weekNum}
         onOpenSummary={() => setIsSummaryOpen(true)}
         onOpenDataSource={() => setIsDataSourceOpen(true)}
         onResetData={handleResetDefaultData}
@@ -168,14 +185,13 @@ export default function App() {
             pickRows={pickRows}
             deliRows={deliRows}
             clientFilter={clientFilter}
-            searchTerm={searchTerm}
+            expandAllHubs={expandAllHubs}
           />
         )}
 
         {activeTab === 'report5' && (
           <Report5LaneCa1
             ca1Rows={ca1Rows}
-            searchTerm={searchTerm}
           />
         )}
       </main>

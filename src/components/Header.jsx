@@ -6,13 +6,14 @@ export default function Header({
   setActiveTab, 
   clientFilter, 
   setClientFilter, 
-  searchTerm, 
-  setSearchTerm, 
+  expandAllHubs,
+  setExpandAllHubs,
+  d1DateFormatted,
+  weekNum,
   onOpenSummary, 
   onOpenDataSource,
   onSyncLiveSheet,
   isSyncing,
-  syncStatus,
   currentUser,
   onLogout
 }) {
@@ -28,9 +29,6 @@ export default function Header({
           <div className="brand-logo">GHN KAS</div>
           <div>
             <div className="brand-name">Báo Cáo Điều Hành Ontime Vùng Giao</div>
-            <div className="brand-subtitle">
-              GHN Operations System • Sheet: <code>1eZCDlKCrZVZAac...</code>
-            </div>
           </div>
         </div>
 
@@ -103,25 +101,22 @@ export default function Header({
             <option value="ALL">Toàn Bộ Client (SPB + SPE)</option>
           </select>
 
-          <div className="filter-label" style={{ marginLeft: '1rem' }}>
-            <Search size={15} /> Tìm kiếm Vùng / Hub:
-          </div>
-          <input 
-            type="text" 
-            className="filter-input" 
-            placeholder="Gõ mã vùng/hub (vd: HNO, DBB, Cầu Giấy)..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '240px' }}
-          />
+          {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số) */}
+          {activeTab === 'report1' && (
+            <button 
+              className={`nav-btn ${expandAllHubs ? 'primary' : ''}`}
+              onClick={() => setExpandAllHubs(!expandAllHubs)}
+              style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: expandAllHubs ? 'var(--ghn-blue)' : '#f1f5f9', color: expandAllHubs ? 'white' : '#475569', border: '1px solid #cbd5e1' }}
+            >
+              {expandAllHubs ? 'Thu Gọn Về Vùng' : 'Mở Tất Cả Hubs'}
+            </button>
+          )}
         </div>
 
         <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <span>Status: <strong style={{ color: syncStatus?.isLive ? '#0F6E56' : '#92400E' }}>{syncStatus?.text || 'Ready'}</strong></span>
+          <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           <span>•</span>
-          <span>D-1: <strong>05/08/2026</strong></span>
-          <span>•</span>
-          <span>Tuần WTD: <strong>Tuần 32</strong></span>
+          <span>Tuần WTD: <strong>Tuần {weekNum || '...'}</strong></span>
         </div>
       </div>
     </header>

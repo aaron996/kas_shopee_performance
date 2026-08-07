@@ -3,7 +3,7 @@ import { ArrowRightLeft } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
-export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
+export default function Report5LaneCa1({ ca1Rows = [] }) {
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
@@ -22,10 +22,6 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
 
   const renderLaneTable = (laneName) => {
     let laneData = ca1Rows.filter(r => r.lane === laneName);
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      laneData = laneData.filter(r => r.vung_giao.toLowerCase().includes(term));
-    }
 
     // Get list of regions/provinces for this lane sorted by D-1 volume descending
     const regVolMap = {};

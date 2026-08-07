@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, searchTerm }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs }) {
   const [expandedRegions, setExpandedRegions] = useState({});
 
   const toggleRegion = (regKey) => {
@@ -22,24 +22,22 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
     setExpandedRegions({});
   };
 
+  useEffect(() => {
+    if (expandAllHubs) {
+      expandAll();
+    } else {
+      collapseAll();
+    }
+  }, [expandAllHubs]);
+
   // Filter rows by client
   const filteredPick = useMemo(() => {
-    let list = clientFilter === 'ALL' ? pickRows : pickRows.filter(r => r.client_name === clientFilter);
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      list = list.filter(r => r.region.toLowerCase().includes(term) || r.hub.toLowerCase().includes(term));
-    }
-    return list;
-  }, [pickRows, clientFilter, searchTerm]);
+    return clientFilter === 'ALL' ? pickRows : pickRows.filter(r => r.client_name === clientFilter);
+  }, [pickRows, clientFilter]);
 
   const filteredDeli = useMemo(() => {
-    let list = clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      list = list.filter(r => r.region.toLowerCase().includes(term) || r.hub.toLowerCase().includes(term));
-    }
-    return list;
-  }, [deliRows, clientFilter, searchTerm]);
+    return clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
+  }, [deliRows, clientFilter]);
 
   // Extract date list
   const pickDates = useMemo(() => [...new Set(filteredPick.map(r => r.report_date))].sort(), [filteredPick]);
@@ -149,10 +147,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
           <div className="metric-title">
             <span>{title}</span>
             <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-secondary" onClick={expandAll}>Mở tất cả Hubs</button>
-            <button className="btn-secondary" onClick={collapseAll}>Thu gọn về Vùng</button>
           </div>
         </div>
 
