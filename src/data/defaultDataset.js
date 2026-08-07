@@ -178,7 +178,7 @@ export function createDefaultCa1Dataset() {
   const rows = [];
 
   lanes.forEach(lane => {
-    const regions = lane.includes('Metro') ? ['TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'DBB', 'TTB', 'TNB', 'DNB'];
+    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - GXT', 'DBB', 'TTB', 'TNB', 'DNB'];
     regions.forEach(vung_giao => {
       dates.forEach(ngay => {
         const tong_don = 1200 + Math.floor(Math.random() * 1500);

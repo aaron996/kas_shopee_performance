@@ -11,7 +11,20 @@ export default function Report5LaneCa1({ ca1Rows = [] }) {
   // Split weekCurrent into days up to D-2 and D-1 separately (matching 4 chỉ số layout)
   const weekCurBeforeD1 = useMemo(() => weekCurrent.slice(0, -1), [weekCurrent]);
 
-  const lanes = ['Intra City', 'Cross Metro*', 'Cross Metro', 'Cross Region', 'Intra Region'];
+  const lanes = ['Intra City', 'Intra Region', 'Cross Region', 'Cross Metro', 'Cross Metro*'];
+
+  const getProvinceMap = (reg) => {
+    const map = {
+      'HCM': 'Hồ Chí Minh',
+      'HCM - GXT': 'Hồ Chí Minh',
+      'HNO': 'Hà Nội',
+      'TTB': 'Đà Nẵng',
+      'DBB': 'Hải Phòng',
+      'DNB': 'Đồng Nai',
+      'TNB': 'Cần Thơ'
+    };
+    return map[reg] || reg;
+  };
 
   // Flexible column value extractor (handles different column naming between default & live sheet)
   const getVal = (r, primary, fallback) => {
@@ -22,6 +35,14 @@ export default function Report5LaneCa1({ ca1Rows = [] }) {
 
   const renderLaneTable = (laneName) => {
     let laneData = ca1Rows.filter(r => r.lane === laneName);
+    
+    // Map regions to provinces for Cross Metro*
+    if (laneName === 'Cross Metro*') {
+      laneData = laneData.map(r => ({
+        ...r,
+        vung_giao: getProvinceMap(r.vung_giao)
+      }));
+    }
 
     // Get list of regions/provinces for this lane sorted by D-1 volume descending
     const regVolMap = {};
@@ -129,7 +150,7 @@ export default function Report5LaneCa1({ ca1Rows = [] }) {
             <tbody>
               {/* TOÀN LANE ROW */}
               <tr className="all-row">
-                <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN LANE ({laneName})</td>
+                <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN LANE {laneName.toUpperCase()}</td>
                 {weekPrev.map((d, idx) => {
                   const s = getStats(() => true, [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
