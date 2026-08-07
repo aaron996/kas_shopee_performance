@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
+import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
 export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
 
@@ -91,7 +92,8 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
             <thead>
               {/* Row 1: Week Group Headers — matching 4 chỉ số layout */}
               <tr>
-                <th rowSpan="2" className="lbl">{col1Label}</th>
+                <th rowSpan="2" className="lbl lbl-1">Miền</th>
+                <th rowSpan="2" className="lbl lbl-2">{col1Label}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
                     TUẦN W-1 (TRỌN VẸN)
@@ -131,7 +133,7 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
             <tbody>
               {/* TOÀN LANE ROW */}
               <tr className="all-row">
-                <td className="lbl">TOÀN LANE ({laneName})</td>
+                <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN LANE ({laneName})</td>
                 {weekPrev.map((d, idx) => {
                   const s = getStats(() => true, [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
@@ -157,64 +159,96 @@ export default function Report5LaneCa1({ ca1Rows = [], searchTerm }) {
               </tr>
 
               {/* REGION / PROVINCE ROWS */}
-              {sortedRegions.map(reg => {
-                const regD1 = getStats(r => r.vung_giao === reg, [d1Date]);
-                const regWtd = getStats(r => r.vung_giao === reg, weekCurrent);
+              {/* REGION / PROVINCE ROWS */}
+              {(() => {
+                const getMienForReg = (reg) => {
+                  for (const mien of MIEN_ORDER) {
+                    if (MIEN_REGIONS[mien].includes(reg)) return mien;
+                  }
+                  return 'Khác';
+                };
 
-                // Historical comparison — flexible column names (live: best_l6w_vol / samedaylastmonth_vol)
-                const regSample = laneData.find(r => r.vung_giao === reg && r.ngay === d1Date);
-                const bestVol = regSample ? (getVal(regSample, 'best_l6w_vol_ca1', 'best_l6w_vol')) : 0;
-                const bestCa1 = regSample ? (getVal(regSample, 'best_l6w_ca1')) : 0;
-                const sameVol = regSample ? (getVal(regSample, 'sameday_lm_vol', 'samedaylastmonth_vol')) : 0;
-                const sameCa1 = regSample ? (getVal(regSample, 'sameday_lm_ca1', 'samedaylastmonth_ca1')) : 0;
+                const mienGroups = {};
+                sortedRegions.forEach(reg => {
+                  const mien = getMienForReg(reg);
+                  if (!mienGroups[mien]) mienGroups[mien] = [];
+                  mienGroups[mien].push(reg);
+                });
 
-                const bestPct = bestVol > 0 ? (bestCa1 / bestVol) * 100 : null;
-                const samePct = sameVol > 0 ? (sameCa1 / sameVol) * 100 : null;
+                const sortedMiens = MIEN_ORDER.filter(m => mienGroups[m]).concat(mienGroups['Khác'] ? ['Khác'] : []);
 
-                const diffBest = regD1.pct !== null && bestPct !== null ? regD1.pct - bestPct : null;
-                const diffSame = regD1.pct !== null && samePct !== null ? regD1.pct - samePct : null;
+                return sortedMiens.map(mien => {
+                  const regs = mienGroups[mien];
+                  return (
+                    <React.Fragment key={mien}>
+                      {regs.map((reg, idx) => {
+                        const regD1 = getStats(r => r.vung_giao === reg, [d1Date]);
+                        const regWtd = getStats(r => r.vung_giao === reg, weekCurrent);
 
-                return (
-                  <tr key={reg}>
-                    <td className="lbl"><strong>{reg}</strong></td>
-                    {weekPrev.map((d, idx) => {
-                      const s = getStats(r => r.vung_giao === reg, [d]);
-                      return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
-                    })}
-                    {weekCurBeforeD1.map(d => {
-                      const s = getStats(r => r.vung_giao === reg, [d]);
-                      return <td key={d} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
-                    })}
-                    {/* D-1 */}
-                    <td className="sep" style={getContinuousColorStyle(regD1.pct, laneMaxPct, laneMinPct)}>{formatPct(regD1.pct)}</td>
-                    <td>{formatVol(regD1.tot)}</td>
-                    {/* WTD */}
-                    <td className="sep" style={getContinuousColorStyle(regWtd.pct, laneMaxPct, laneMinPct)}>{formatPct(regWtd.pct)}</td>
-                    <td>{formatVol(regWtd.tot)}</td>
+                        const regSample = laneData.find(r => r.vung_giao === reg && r.ngay === d1Date);
+                        const bestVol = regSample ? (getVal(regSample, 'best_l6w_vol_ca1', 'best_l6w_vol')) : 0;
+                        const bestCa1 = regSample ? (getVal(regSample, 'best_l6w_ca1')) : 0;
+                        const sameVol = regSample ? (getVal(regSample, 'sameday_lm_vol', 'samedaylastmonth_vol')) : 0;
+                        const sameCa1 = regSample ? (getVal(regSample, 'sameday_lm_ca1', 'samedaylastmonth_ca1')) : 0;
 
-                    {/* Best 6W Diff */}
-                    <td>
-                      {diffBest !== null ? (
-                        <span className={`diff-badge ${diffBest >= 0 ? 'up' : 'down'}`}>
-                          {formatDiff(diffBest)}
-                        </span>
-                      ) : '–'}
-                    </td>
-                    {/* Sameday LM Diff */}
-                    <td>
-                      {diffSame !== null ? (
-                        <span className={`diff-badge ${diffSame >= 0 ? 'up' : 'down'}`}>
-                          {formatDiff(diffSame)}
-                        </span>
-                      ) : '–'}
-                    </td>
-                  </tr>
-                );
-              })}
+                        const bestPct = bestVol > 0 ? (bestCa1 / bestVol) * 100 : null;
+                        const samePct = sameVol > 0 ? (sameCa1 / sameVol) * 100 : null;
+
+                        const diffBest = regD1.pct !== null && bestPct !== null ? regD1.pct - bestPct : null;
+                        const diffSame = regD1.pct !== null && samePct !== null ? regD1.pct - samePct : null;
+                        
+                        const rowStyle = idx === 0 ? { borderTop: '2.5px solid var(--ghn-blue)' } : {};
+
+                        return (
+                          <tr key={reg} style={rowStyle}>
+                            {idx === 0 && (
+                              <td rowSpan={regs.length} className="lbl lbl-1" style={{ color: '#0063AA', fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem', background: '#f8fafc' }}>
+                                {mien}
+                              </td>
+                            )}
+                            <td className="lbl lbl-2"><strong>{reg}</strong></td>
+                            {weekPrev.map((d, dIdx) => {
+                              const s = getStats(r => r.vung_giao === reg, [d]);
+                              return <td key={d} className={dIdx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
+                            })}
+                            {weekCurBeforeD1.map(d => {
+                              const s = getStats(r => r.vung_giao === reg, [d]);
+                              return <td key={d} style={getContinuousColorStyle(s.pct, laneMaxPct, laneMinPct)}>{formatPct(s.pct)}</td>;
+                            })}
+                            {/* D-1 */}
+                            <td className="sep" style={getContinuousColorStyle(regD1.pct, laneMaxPct, laneMinPct)}>{formatPct(regD1.pct)}</td>
+                            <td>{formatVol(regD1.tot)}</td>
+                            {/* WTD */}
+                            <td className="sep" style={getContinuousColorStyle(regWtd.pct, laneMaxPct, laneMinPct)}>{formatPct(regWtd.pct)}</td>
+                            <td>{formatVol(regWtd.tot)}</td>
+
+                            {/* Best 6W Diff */}
+                            <td>
+                              {diffBest !== null ? (
+                                <span className={`diff-badge ${diffBest >= 0 ? 'up' : 'down'}`}>
+                                  {formatDiff(diffBest)}
+                                </span>
+                              ) : '–'}
+                            </td>
+                            {/* Sameday LM Diff */}
+                            <td>
+                              {diffSame !== null ? (
+                                <span className={`diff-badge ${diffSame >= 0 ? 'up' : 'down'}`}>
+                                  {formatDiff(diffSame)}
+                                </span>
+                              ) : '–'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                });
+              })()}
 
               {/* SẢN LƯỢNG (TỔNG ĐƠN) ROW — Volume Row at Bottom */}
-              <tr className="all-row" style={{ borderTop: '2px solid #cbd5e1' }}>
-                <td className="lbl" style={{ fontStyle: 'italic' }}>Sản lượng (tổng đơn)</td>
+              <tr className="all-row" style={{ borderTop: '2.5px solid #cbd5e1' }}>
+                <td colSpan="2" className="lbl lbl-1" style={{ fontStyle: 'italic', position: 'sticky', left: 0, zIndex: 10 }}>Sản lượng (tổng đơn)</td>
                 {weekPrev.map((d, idx) => {
                   const s = getStats(() => true, [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={{ fontWeight: 600 }}>{formatVol(s.tot)}</td>;

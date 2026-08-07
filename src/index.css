@@ -348,24 +348,58 @@ table.mtx-table thead th {
   white-space: pre-wrap;
 }
 
-table.mtx-table thead th.lbl {
-  background: var(--ghn-blue);
-  color: white;
+table.mtx-table thead th.lbl-1, table.mtx-table td.lbl-1 {
   text-align: left;
   position: sticky;
   left: 0;
   z-index: 10;
   font-family: var(--font-sans);
+  min-width: 80px;
+  max-width: 100px;
+}
+table.mtx-table thead th.lbl-1 {
+  background: var(--ghn-blue);
+  color: white;
+  z-index: 12;
+}
+table.mtx-table td.lbl-1 {
+  background: #f8fafc;
+  font-weight: bold;
+  border-right: 1px solid var(--border);
 }
 
-table.mtx-table td.lbl {
+table.mtx-table thead th.lbl-2, table.mtx-table td.lbl-2 {
   text-align: left;
+  position: sticky;
+  left: 80px;
+  z-index: 9;
   font-family: var(--font-sans);
-  font-weight: 500;
+  min-width: 120px;
+  max-width: 180px;
+}
+table.mtx-table thead th.lbl-2 {
+  background: var(--ghn-blue);
+  color: white;
+  z-index: 11;
+}
+table.mtx-table td.lbl-2 {
+  background: white;
+  border-right: 1.5px solid var(--border-strong);
+}
+
+/* Also support the old single .lbl for simple rows spanning both */
+table.mtx-table thead th.lbl, table.mtx-table td.lbl {
+  text-align: left;
   position: sticky;
   left: 0;
+  z-index: 10;
+  font-family: var(--font-sans);
   background: white;
-  z-index: 5;
+}
+table.mtx-table thead th.lbl {
+  background: var(--ghn-blue);
+  color: white;
+  z-index: 12;
 }
 
 /* Alternate Row Types */

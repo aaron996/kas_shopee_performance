@@ -161,7 +161,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
             <thead>
               {/* Row 1: Week Titles */}
               <tr>
-                <th rowSpan="2" className="lbl">Miền / Vùng / Hub</th>
+                <th rowSpan="2" className="lbl lbl-1">Miền</th>
+                <th rowSpan="2" className="lbl lbl-2">Vùng / Hub</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
                     TUẦN W-1 (TRỌN VẸN)
@@ -202,7 +203,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
             <tbody>
               {/* 1. TOÀN QUỐC ROW */}
               <tr className="all-row">
-                <td className="lbl">TOÀN QUỐC</td>
+                <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
@@ -231,11 +232,41 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
               {/* 2. MIỀN & VÙNG ROWS */}
               {MIEN_ORDER.map(mien => {
                 const mienStats = calcStats(`MIEN_${mien}`, weekCur);
+                
+                // Sort regions in this Miền by D-1 volume descending
+                const sortedRegions = [...MIEN_REGIONS[mien]].sort((a, b) => {
+                  const volA = dateEntityMap[`REG_${a}_${d1Date}`]?.tot || 0;
+                  const volB = dateEntityMap[`REG_${b}_${d1Date}`]?.tot || 0;
+                  return volB - volA;
+                });
+                
+                // Calculate total rowSpan for the Miền column
+                // 1 (Miền total row) + number of regions + number of expanded top 10 hubs in this Miền
+                let totalRowSpan = 1 + sortedRegions.length;
+                sortedRegions.forEach(reg => {
+                  if (expandedRegions[reg]) {
+                    const hubMap = {};
+                    rows.filter(r => r.region === reg).forEach(r => {
+                      if (!hubMap[r.hub]) hubMap[r.hub] = 0;
+                      if (r.report_date === d1Date) {
+                        const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
+                        const ont = isDeli 
+                          ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
+                          : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+                        hubMap[r.hub] += (tot - ont);
+                      }
+                    });
+                    const top10Hubs = Object.keys(hubMap).sort((a, b) => hubMap[b] - hubMap[a]).slice(0, 10);
+                    totalRowSpan += top10Hubs.length;
+                  }
+                });
+
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row">
-                      <td className="lbl" style={{ color: '#0063AA' }}>{mien}</td>
+                    <tr className="grp-row" style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
+                      <td rowSpan={totalRowSpan} className="lbl lbl-1" style={{ color: '#0063AA', fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
+                      <td className="lbl lbl-2" style={{ color: '#0063AA', fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
                         return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
@@ -261,7 +292,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                     </tr>
 
                     {/* Vùng Rows inside Miền */}
-                    {MIEN_REGIONS[mien].map(reg => {
+                    {sortedRegions.map(reg => {
                       const isExpanded = !!expandedRegions[reg];
                       const d1RegData = dateEntityMap[`REG_${reg}_${d1Date}`] || { tot: 0, ont: 0, bestVol: 0, bestOnt: 0, sameVol: 0, sameOnt: 0 };
                       const regD1Pct = d1RegData.tot > 0 ? (d1RegData.ont / d1RegData.tot) * 100 : null;
@@ -294,7 +325,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                       return (
                         <React.Fragment key={reg}>
                           <tr>
-                            <td className="lbl">
+                            <td className="lbl lbl-2">
                               <button className="toggle-btn" onClick={() => toggleRegion(reg)}>
                                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               </button>
@@ -339,7 +370,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, s
                             const hubWtd = calcStats(`HUB_${reg}_${hub}`, weekCur);
                             return (
                               <tr key={hub} className="sub-row">
-                                <td className="lbl">{hub}</td>
+                                <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{hub}</td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(`HUB_${reg}_${hub}`, [d]);
                                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
