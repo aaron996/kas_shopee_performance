@@ -52,7 +52,12 @@ export function groupDatesByWeek(dates) {
   const prevWeekMonday = new Date(currentWeekMonday);
   prevWeekMonday.setDate(currentWeekMonday.getDate() - 7);
 
-  const toDateStr = (dt) => dt.toISOString().slice(0, 10);
+  const toDateStr = (dt) => {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   const currentMondayStr = toDateStr(currentWeekMonday);
   const prevMondayStr = toDateStr(prevWeekMonday);
