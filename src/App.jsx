@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
@@ -19,7 +19,7 @@ export default function App() {
   const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Default Dataset' });
+  const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
 
   const handleResetDefaultData = () => {
     setPickRows(createDefaultPickDataset());
@@ -37,7 +37,7 @@ export default function App() {
     if (res.success) {
       setPickRows(res.pickData);
       setDeliRows(res.deliData);
-      setSyncStatus({ isLive: true, text: 'Live Sheet Synced' });
+      setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
         alert('⚠️ Google Sheet hiện tại đang ở chế độ Riêng tư (Private).\n\nHãy đổi quyền truy cập trong Google Sheet sang "Anyone with link can view" (Bất kỳ ai có liên kết đều có thể xem) để web app tự động đọc live!');
@@ -45,9 +45,14 @@ export default function App() {
       } else {
         alert(`Lỗi kết nối Google Sheet: ${res.error}`);
       }
-      setSyncStatus({ isLive: false, text: 'Sync Failed (Private)' });
+      setSyncStatus({ isLive: false, text: 'Sync Failed' });
     }
   };
+
+  // Auto-sync live data on page mount
+  useEffect(() => {
+    handleSyncLiveSheet();
+  }, []);
 
   return (
     <div className="app-container">
