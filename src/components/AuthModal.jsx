@@ -133,13 +133,13 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
           <form onSubmit={handleEmailSignIn}>
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.4rem' }}>
-                Email GHN / Google Work Account:
+                Địa chỉ Email:
               </label>
               <input
                 type="email"
                 className="filter-input"
                 style={{ width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.9rem' }}
-                placeholder="vd: vinhlt@ghn.vn hoặc luongthevinh996@gmail.com"
+                placeholder="Nhập địa chỉ email của bạn..."
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 disabled={loading}
@@ -147,18 +147,9 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
             </div>
 
             <button type="submit" className="nav-btn primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem' }}>
-              <Mail size={18} /> Send Supabase Auth Magic Link
+              <Mail size={18} /> Gửi Magic Link Đăng Nhập
             </button>
           </form>
-
-          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '1.25rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontWeight: 600, color: '#004b82', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <Lock size={13} /> Bảo mật Supabase Authentication:
-            </div>
-            • Duyệt truy cập: email <strong>@ghn.vn</strong> và Dev (<code>luongthevinh996@gmail.com</code>).
-            <br />
-            • Quản lý Nguồn Sheet: chỉ dành cho tài khoản Admin/Dev.
-          </div>
         </div>
       </div>
     </div>
