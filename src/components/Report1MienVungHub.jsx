@@ -1,10 +1,36 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Layers } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { ChevronRight, ChevronDown, Layers, ArrowUp } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs }) {
   const [expandedRegions, setExpandedRegions] = useState({});
+  const [showHomeBtn, setShowHomeBtn] = useState(false);
+
+  const refP1st = useRef(null);
+  const refPOpr = useRef(null);
+  const refD1st = useRef(null);
+  const refDOdr = useRef(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowHomeBtn(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToRef = (ref) => {
+    if (ref && ref.current) {
+      const y = ref.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
 
   const toggleRegion = (regKey) => {
     setExpandedRegions(prev => ({ ...prev, [regKey]: !prev[regKey] }));
@@ -53,8 +79,49 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     return 0;
   };
 
+  // KPI Cards Data Calculation
+  const kpiCards = useMemo(() => {
+    if (!pD1) return [];
+
+    const d1Date = pD1;
+    const d8Obj = new Date(d1Date);
+    d8Obj.setDate(d8Obj.getDate() - 7);
+    const d8DateStr = d8Obj.toISOString().split('T')[0];
+    const d8Date = pickDates.includes(d8DateStr) ? d8DateStr : pickDates[0];
+
+    const getAgg = (rows, dateStr, isDeli, metricKey) => {
+      let tot = 0, ont = 0;
+      rows.filter(r => r.report_date === dateStr).forEach(r => {
+        const t = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
+        const o = isDeli 
+          ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
+          : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+        tot += t;
+        ont += o;
+      });
+      return { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : 0 };
+    };
+
+    const p1stD1 = getAgg(filteredPick, d1Date, false, '1st');
+    const poprD1 = getAgg(filteredPick, d1Date, false, 'OPR');
+    const d1stD1 = getAgg(filteredDeli, d1Date, true, '1st');
+    const dodrD1 = getAgg(filteredDeli, d1Date, true, 'ODR');
+
+    const p1stD8 = getAgg(filteredPick, d8Date, false, '1st');
+    const poprD8 = getAgg(filteredPick, d8Date, false, 'OPR');
+    const d1stD8 = getAgg(filteredDeli, d8Date, true, '1st');
+    const dodrD8 = getAgg(filteredDeli, d8Date, true, 'ODR');
+
+    return [
+      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, ref: refP1st },
+      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, ref: refPOpr },
+      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, ref: refD1st },
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, ref: refDOdr }
+    ];
+  }, [pD1, filteredPick, filteredDeli, pickDates]);
+
   // Render individual matrix table component
-  const renderMetricTable = (title, metricKey, isDeli = false) => {
+  const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null) => {
     const rows = isDeli ? filteredDeli : filteredPick;
     const dateList = isDeli ? deliDates : pickDates;
     const weekPrev = isDeli ? dWPrev : pWPrev;
@@ -142,7 +209,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     });
 
     return (
-      <div className="metric-block" key={title}>
+      <div className="metric-block" key={title} ref={sectionRef}>
         <div className="metric-header">
           <div className="metric-title">
             <span>{title}</span>
@@ -422,10 +489,58 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       </div>
 
-      {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false)}
-      {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false)}
-      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true)}
-      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true)}
+      {/* KPI Cards Section */}
+      <div className="kpi-cards-wrapper">
+        <div className="kpi-cards-header">
+          TỔNG QUAN D-1 <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>so sánh với cùng thứ tuần trước (D-8)</span>
+        </div>
+        <div className="kpi-cards-container">
+          {kpiCards.map(card => {
+            const diff = card.d1.pct - card.d8.pct;
+            const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
+            const lateVol = card.d1.tot - card.d1.ont;
+            const isGood = card.d1.pct >= card.target;
+            
+            return (
+              <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref)}>
+                <div className="kpi-card-title">
+                  <span>{card.title}</span>
+                  <span className="kpi-card-target">≥{card.target}%</span>
+                </div>
+                <div className="kpi-card-main">
+                  <span className={`kpi-card-pct ${isGood ? 'good' : ''}`}>
+                    {card.d1.pct.toFixed(1)}%
+                  </span>
+                  <span className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}>
+                    {diffStr}
+                  </span>
+                </div>
+                
+                {/* Visual line */}
+                <div className="kpi-card-chart">
+                  <div className="kpi-card-chart-line" style={{ background: isGood ? '#0F6E56' : '#A13B2A' }}></div>
+                </div>
+
+                <div className="kpi-card-stats">
+                  <span>{formatVol(card.d1.tot)} đơn</span>
+                  <span className="late">{formatVol(lateVol)} trễ</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st)}
+      {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr)}
+      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st)}
+      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr)}
+      
+      {showHomeBtn && (
+        <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">
+          <ArrowUp size={24} />
+        </button>
+      )}
     </div>
   );
 }
