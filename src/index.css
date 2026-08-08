@@ -797,3 +797,124 @@ th.sep, td.sep {
     font-size: 1.5rem;
   }
 }
+
+/* Section Pulse Glow animation when clicked from KPI Card */
+@keyframes sectionGlowPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(241, 90, 34, 0.4);
+    border: 2px solid #F15A22;
+  }
+  50% {
+    box-shadow: 0 0 18px 4px rgba(241, 90, 34, 0.35);
+    border: 2px solid #F15A22;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(241, 90, 34, 0);
+    border: 2px solid transparent;
+  }
+}
+
+.metric-block.section-pulse-glow {
+  animation: sectionGlowPulse 1.6s ease-in-out forwards;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+/* Sub-row Expand Slide & Fade Animation */
+@keyframes subRowSlideFade {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+tr.sub-row {
+  animation: subRowSlideFade 0.22s ease-out forwards;
+}
+
+/* Table Row & Cell Crosshair Hover Highlight */
+table.mtx-table tbody tr:hover td:not(.lbl) {
+  background-color: rgba(241, 90, 34, 0.07) !important;
+  transition: background-color 0.15s ease;
+}
+
+table.mtx-table tbody tr:hover td.lbl-2 {
+  background-color: #f1f5f9 !important;
+  color: #004b82 !important;
+}
+
+/* Sticky Mini KPI Top Bar */
+.sticky-kpi-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.4rem 1rem;
+  animation: slideDownHeader 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes slideDownHeader {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sticky-kpi-bar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.sticky-title {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sticky-kpi-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sticky-kpi-item:hover {
+  background: rgba(241, 90, 34, 0.85);
+  border-color: #F15A22;
+  transform: translateY(-1px);
+}
+
+.sticky-kpi-item .pct.good {
+  color: #34d399;
+}
+
+.sticky-kpi-item .pct.bad {
+  color: #f87171;
+}

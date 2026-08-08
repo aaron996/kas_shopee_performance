@@ -3,9 +3,124 @@ import { ChevronRight, ChevronDown, Layers, ArrowUp } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 
+function SparklineChart({ card, isGood }) {
+  const [hoverIndex, setHoverIndex] = useState(null);
+
+  if (!card.history || card.history.length < 2) {
+    return <div style={{ height: '2px', background: isGood ? '#0F6E56' : '#A13B2A', width: '100%', marginTop: '18px' }} />;
+  }
+
+  const h = card.history;
+  const dates = card.historyDates || [];
+  const actualMin = Math.min(...h);
+  const actualMax = Math.max(...h);
+  const diff = actualMax - actualMin;
+  const padding = Math.max(diff * 0.4, 5);
+  
+  const min = Math.min(actualMin - padding, card.target - 2);
+  const max = Math.max(actualMax + padding, card.target + 2);
+  const range = max - min || 1;
+  
+  const coords = h.map((val, idx) => {
+    const x = (idx / (h.length - 1)) * 100;
+    const y = 100 - ((val - min) / range) * 100;
+    return { x, y, val, date: dates[idx] };
+  });
+
+  let pathD = `M ${coords[0].x},${coords[0].y}`;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i];
+    const p1 = coords[i + 1];
+    const cx = (p0.x + p1.x) / 2;
+    pathD += ` C ${cx},${p0.y} ${cx},${p1.y} ${p1.x},${p1.y}`;
+  }
+
+  const areaD = `${pathD} L 100,100 L 0,100 Z`;
+  const targetY = 100 - ((card.target - min) / range) * 100;
+  const lastPt = coords[coords.length - 1];
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const pctX = (mouseX / rect.width) * 100;
+    
+    let closestIdx = 0;
+    let minDist = Infinity;
+    coords.forEach((pt, idx) => {
+      const dist = Math.abs(pt.x - pctX);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIdx = idx;
+      }
+    });
+    setHoverIndex(closestIdx);
+  };
+
+  const activePt = hoverIndex !== null ? coords[hoverIndex] : null;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {activePt && (
+        <div style={{
+          position: 'absolute',
+          top: '-32px',
+          left: `${Math.min(Math.max(activePt.x, 18), 82)}%`,
+          transform: 'translateX(-50%)',
+          background: '#0f172a',
+          color: '#fff',
+          padding: '3px 8px',
+          borderRadius: '6px',
+          fontSize: '0.7rem',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          zIndex: 25,
+          border: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          {activePt.date ? formatDateLabel(activePt.date).replace('\n', ' ') : ''}: <span style={{ color: isGood ? '#34d399' : '#f87171' }}>{activePt.val.toFixed(1)}%</span>
+        </div>
+      )}
+      <svg
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 100"
+        style={{ overflow: 'visible', cursor: 'crosshair' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        <defs>
+          <linearGradient id={`spark-grad-${card.id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+
+        {targetY >= 0 && targetY <= 100 && (
+          <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
+        )}
+        <path d={areaD} fill={`url(#spark-grad-${card.id})`} />
+        <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+        
+        <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} />
+
+        {activePt && (
+          <>
+            <line x1={activePt.x} y1="0" x2={activePt.x} y2="100" stroke="#64748b" strokeWidth="1" strokeDasharray="2,2" vectorEffect="non-scaling-stroke" />
+            <circle cx={activePt.x} cy={activePt.y} r="4" fill="#38bdf8" stroke="#fff" strokeWidth="1.5" />
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs }) {
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  const [highlightedSection, setHighlightedSection] = useState(null);
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -15,12 +130,17 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   useEffect(() => {
     const handleScroll = () => {
       setShowHomeBtn(window.scrollY > 300);
+      setShowStickyBar(window.scrollY > 450);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToRef = (ref) => {
+  const scrollToRef = (ref, sectionId) => {
+    if (sectionId) {
+      setHighlightedSection(sectionId);
+      setTimeout(() => setHighlightedSection(null), 1800);
+    }
     if (ref && ref.current) {
       const y = ref.current.getBoundingClientRect().top + window.scrollY - 80;
       window.scrollTo({ top: y, behavior: 'smooth' });
@@ -138,12 +258,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const dodrD8 = getAgg(filteredDeli, deliD8, true, 'ODR');
 
     const getHistory = (rows, datesArr, d1Str, isDeli, metricKey) => {
-      if (!d1Str || !datesArr.length) return [];
+      if (!d1Str || !datesArr.length) return { vals: [], dates: [] };
       const d1Idx = datesArr.indexOf(d1Str);
       const endIdx = d1Idx !== -1 ? d1Idx : datesArr.length - 1;
       const startIdx = Math.max(0, endIdx - 13);
       const histDates = datesArr.slice(startIdx, endIdx + 1);
-      return histDates.map(dStr => getAgg(rows, dStr, isDeli, metricKey).pct);
+      return {
+        vals: histDates.map(dStr => getAgg(rows, dStr, isDeli, metricKey).pct),
+        dates: histDates
+      };
     };
 
     const p1stHist = getHistory(filteredPick, pickDates, pD1, false, '1st');
@@ -152,15 +275,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const dodrHist = getHistory(filteredDeli, deliDates, dD1, true, 'ODR');
 
     return [
-      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist, ref: refP1st },
-      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist, ref: refPOpr },
-      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist, ref: refDOdr }
+      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist.vals, historyDates: p1stHist.dates, ref: refP1st },
+      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
+      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr }
     ];
   }, [pD1, dD1, filteredPick, filteredDeli, pickDates, deliDates]);
 
   // Render individual matrix table component
-  const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null) => {
+  const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null, sectionId = null) => {
     const rows = isDeli ? filteredDeli : filteredPick;
     const dateList = isDeli ? deliDates : pickDates;
     const weekPrev = isDeli ? dWPrev : pWPrev;
@@ -247,8 +370,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       });
     });
 
+    const isHighlighted = highlightedSection === sectionId;
+
     return (
-      <div className="metric-block" key={title} ref={sectionRef}>
+      <div className={`metric-block ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
         <div className="metric-header">
           <div className="metric-title">
             <span>{title}</span>
@@ -528,6 +653,36 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       </div>
 
+  return (
+    <div>
+      {/* Sticky Mini KPI Top Bar */}
+      {showStickyBar && (
+        <div className="sticky-kpi-bar">
+          <div className="sticky-kpi-bar-inner">
+            <span className="sticky-title">KPI Nationwide:</span>
+            {kpiCards.map(card => {
+              const isGood = card.d1.pct >= card.target;
+              return (
+                <button key={card.id} className="sticky-kpi-item" onClick={() => scrollToRef(card.ref, card.id)}>
+                  <span className="name">{card.title}</span>
+                  <span className={`pct ${isGood ? 'good' : 'bad'}`}>{card.d1.pct.toFixed(1)}%</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="section-header">
+        <h2 className="section-title">
+          <Layers size={22} style={{ color: '#F15A22' }} />
+          4 chỉ số nationwide
+        </h2>
+        <div className="section-desc">
+          Báo cáo điều hành — Theo dõi 1st Pickup, OPR, 1st Deli, ODR theo phân cấp 3 tầng với thang màu liên tục trắng→đỏ.
+        </div>
+      </div>
+
       {/* KPI Cards Section */}
       <div className="kpi-cards-wrapper">
         <div className="kpi-cards-header">
@@ -541,7 +696,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             const isGood = card.d1.pct >= card.target;
             
             return (
-              <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref)}>
+              <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref, card.id)}>
                 <div className="kpi-card-title">
                   <span>{card.title}</span>
                   <span className="kpi-card-target">≥{card.target}%</span>
@@ -557,59 +712,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 
                 {/* Visual sparkline */}
                 <div className="kpi-card-chart">
-                  {card.history && card.history.length > 1 ? (
-                    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
-                      <defs>
-                        <linearGradient id={`spark-grad-${card.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.2" />
-                          <stop offset="100%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      {(() => {
-                        const h = card.history;
-                        const actualMin = Math.min(...h);
-                        const actualMax = Math.max(...h);
-                        const diff = actualMax - actualMin;
-                        const padding = Math.max(diff * 0.4, 5);
-                        
-                        const min = Math.min(actualMin - padding, card.target - 2);
-                        const max = Math.max(actualMax + padding, card.target + 2);
-                        const range = max - min || 1;
-                        
-                        const coords = h.map((val, idx) => {
-                          const x = (idx / (h.length - 1)) * 100;
-                          const y = 100 - ((val - min) / range) * 100;
-                          return { x, y };
-                        });
-
-                        // Generate smooth cubic bezier path
-                        let pathD = `M ${coords[0].x},${coords[0].y}`;
-                        for (let i = 0; i < coords.length - 1; i++) {
-                          const p0 = coords[i];
-                          const p1 = coords[i + 1];
-                          const cx = (p0.x + p1.x) / 2;
-                          pathD += ` C ${cx},${p0.y} ${cx},${p1.y} ${p1.x},${p1.y}`;
-                        }
-
-                        const areaD = `${pathD} L 100,100 L 0,100 Z`;
-                        const targetY = 100 - ((card.target - min) / range) * 100;
-                        const lastPt = coords[coords.length - 1];
-
-                        return (
-                          <>
-                            {targetY >= 0 && targetY <= 100 && (
-                              <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
-                            )}
-                            <path d={areaD} fill={`url(#spark-grad-${card.id})`} />
-                            <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
-                            <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} />
-                          </>
-                        );
-                      })()}
-                    </svg>
-                  ) : (
-                    <div style={{ height: '2px', background: isGood ? '#0F6E56' : '#A13B2A', width: '100%', marginTop: '18px' }}></div>
-                  )}
+                  <SparklineChart card={card} isGood={isGood} />
                 </div>
 
                 <div className="kpi-card-stats">
@@ -622,10 +725,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       </div>
 
-      {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st)}
-      {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr)}
-      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st)}
-      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr)}
+      {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
+      {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
+      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
+      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
       
       {showHomeBtn && (
         <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">
