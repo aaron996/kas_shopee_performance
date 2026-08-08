@@ -136,19 +136,6 @@ export function getPercentile3ColorStyle(val, p25, p75) {
   return { backgroundColor: 'rgba(225, 45, 35, 0.85)', color: '#FFFFFF', fontWeight: '600' };
 }
 
-export function getPercentile3ColorStyle(val, p25, p75) {
-  if (val === null || val === undefined || isNaN(val)) {
-    return { backgroundColor: '#F5F4F1', color: '#64748b' };
-  }
-  if (val >= p75) {
-    return { backgroundColor: '#EAF3DE', color: '#0F6E56', fontWeight: '600' };
-  }
-  if (val >= p25) {
-    return { backgroundColor: '#FEF3C7', color: '#92400E' };
-  }
-  return { backgroundColor: '#F7D9D4', color: '#A13B2A', fontWeight: '600' };
-}
-
 // Generate D-1 vs D-8 Executive Summary Text for Telegram
 export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB') {
   if (!pickRows || pickRows.length === 0) return 'Chưa có dữ liệu để tổng hợp.';
