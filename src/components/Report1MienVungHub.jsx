@@ -643,18 +643,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   return (
     <div>
-      <div className="section-header">
-        <h2 className="section-title">
-          <Layers size={22} style={{ color: '#F15A22' }} />
-          4 chỉ số nationwide
-        </h2>
-        <div className="section-desc">
-          Báo cáo điều hành — Theo dõi 1st Pickup, OPR, 1st Deli, ODR theo phân cấp 3 tầng với thang màu liên tục trắng→đỏ.
-        </div>
-      </div>
-
-  return (
-    <div>
       {/* Sticky Mini KPI Top Bar */}
       {showStickyBar && (
         <div className="sticky-kpi-bar">
