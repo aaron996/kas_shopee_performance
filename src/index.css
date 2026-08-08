@@ -745,7 +745,11 @@ th.sep, td.sep {
   opacity: 1;
 }
 
-/* Mobile Optimization for Data Tables */
+table.mtx-table th.col-summary {
+  width: 80px;
+  font-size: 0.75rem;
+}
+
 @media (max-width: 1024px) {
   .kpi-cards-container {
     grid-template-columns: repeat(2, 1fr);
@@ -753,12 +757,95 @@ th.sep, td.sep {
 }
 
 @media (max-width: 768px) {
+  .navbar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .nav-header {
+    margin-bottom: 0.25rem;
+    gap: 0.5rem;
+  }
+
+  .brand-name {
+    font-size: 0.95rem;
+  }
+
+  .nav-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 0.25rem;
+    gap: 0.4rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-btn {
+    white-space: nowrap;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
   .main-content {
-    padding: 0.5rem;
+    padding: 0.4rem;
+  }
+
+  .section-header {
+    margin-bottom: 0.4rem;
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+  }
+
+  .section-desc {
+    display: none;
+  }
+
+  .kpi-cards-wrapper {
+    margin-bottom: 0.5rem;
+  }
+
+  .kpi-cards-header {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
   }
 
   .kpi-cards-container {
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 0.5rem;
+    padding-bottom: 0.4rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kpi-card {
+    flex: 0 0 135px;
+    min-width: 135px;
+    padding: 0.45rem 0.55rem;
+    scroll-snap-align: start;
+  }
+
+  .kpi-card-title {
+    font-size: 0.72rem;
+  }
+
+  .kpi-card-pct {
+    font-size: 1.25rem;
+  }
+
+  .kpi-card-diff {
+    font-size: 0.72rem;
+  }
+
+  .kpi-card-chart {
+    height: 22px;
+    margin: 0.2rem 0;
+  }
+
+  .kpi-card-stats {
+    font-size: 0.68rem;
   }
   
   .mtx-wrap {
@@ -778,6 +865,11 @@ th.sep, td.sep {
     min-width: 0;
     line-height: 1.1;
   }
+
+  table.mtx-table th.col-summary {
+    width: auto !important;
+    font-size: 0.5rem !important;
+  }
   
   table.mtx-table thead th.lbl-1, table.mtx-table td.lbl-1 {
     position: static;
@@ -791,10 +883,6 @@ th.sep, td.sep {
     min-width: unset;
     max-width: unset;
     width: 45px;
-  }
-
-  .kpi-card-pct {
-    font-size: 1.5rem;
   }
 }
 

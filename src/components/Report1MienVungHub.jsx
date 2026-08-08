@@ -402,10 +402,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th rowSpan="2" className="col-summary" style={{ borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   Tốt nhất<br />6 tuần
                 </th>
-                <th rowSpan="2" style={{ width: '80px', fontSize: '0.75rem', verticalAlign: 'middle' }}>
+                <th rowSpan="2" className="col-summary" style={{ verticalAlign: 'middle' }}>
                   Cùng ngày<br />tháng trước
                 </th>
               </tr>
