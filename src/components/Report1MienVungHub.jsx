@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, Layers, ArrowUp } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 
 function SparklineChart({ card, isGood }) {
   const [hoverIndex, setHoverIndex] = useState(null);
@@ -372,6 +372,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
     const isHighlighted = highlightedSection === sectionId;
 
+    const prevWeekNum = weekPrev.length > 0 ? getWeekNumber(weekPrev[weekPrev.length - 1]) : '';
+    const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
+
     return (
       <div className={`metric-block ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
         <div className="metric-header">
@@ -390,12 +393,14 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 <th rowSpan="2" className="lbl lbl-2">Vùng / Hub</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
-                    TUẦN W-1 (TRỌN VẸN)
+                    TUẦN W-1 {prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}
                   </th>
                 )}
                 {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
                 {weekCur.length > 0 && (
-                  <th colSpan={weekCur.length + 1}>TUẦN HIỆN TẠI</th>
+                  <th colSpan={weekCur.length + 1}>
+                    TUẦN HIỆN TẠI {curWeekNum ? `(Tuần ${curWeekNum})` : ''}
+                  </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
                 <th colSpan="2" rowSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>

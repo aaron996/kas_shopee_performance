@@ -884,6 +884,11 @@ table.mtx-table th.col-summary {
     max-width: unset;
     width: 45px;
   }
+
+  .sticky-kpi-bar {
+    top: 48px;
+    padding: 0.3rem 0.5rem;
+  }
 }
 
 /* Section Pulse Glow animation when clicked from KPI Card */
@@ -934,20 +939,20 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   font-weight: 700;
 }
 
-/* Sticky Mini KPI Top Bar */
+/* Sticky Mini KPI Top Bar (positioned directly below navbar) */
 .sticky-kpi-bar {
   position: fixed;
-  top: 0;
+  top: 60px;
   left: 0;
   right: 0;
-  z-index: 999;
-  background: rgba(15, 23, 42, 0.88);
+  z-index: 99;
+  background: rgba(0, 46, 84, 0.95);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 0.4rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.35rem 1rem;
   animation: slideDownHeader 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes slideDownHeader {

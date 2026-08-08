@@ -34,6 +34,17 @@ export function formatDateLabel(dateStr) {
   return `${day}/${month}\n${getWeekdayName(dateStr)}`;
 }
 
+export function getWeekNumber(dateStr) {
+  if (!dateStr) return '';
+  const p = dateStr.split('-');
+  const dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  dt.setHours(0, 0, 0, 0);
+  dt.setDate(dt.getDate() + 3 - (dt.getDay() + 6) % 7);
+  const week1 = new Date(dt.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((dt.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  return weekNum;
+}
+
 // Group dates into Week W-1 and Week WTD
 export function groupDatesByWeek(dates) {
   // Sort dates chronologically using proper Date parsing (since unpadded strings sort incorrectly)
