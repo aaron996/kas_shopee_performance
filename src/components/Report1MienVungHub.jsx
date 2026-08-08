@@ -137,11 +137,25 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const d1stD8 = getAgg(filteredDeli, deliD8, true, '1st');
     const dodrD8 = getAgg(filteredDeli, deliD8, true, 'ODR');
 
+    const getHistory = (rows, datesArr, d1Str, isDeli, metricKey) => {
+      if (!d1Str || !datesArr.length) return [];
+      const d1Idx = datesArr.indexOf(d1Str);
+      const endIdx = d1Idx !== -1 ? d1Idx : datesArr.length - 1;
+      const startIdx = Math.max(0, endIdx - 13);
+      const histDates = datesArr.slice(startIdx, endIdx + 1);
+      return histDates.map(dStr => getAgg(rows, dStr, isDeli, metricKey).pct);
+    };
+
+    const p1stHist = getHistory(filteredPick, pickDates, pD1, false, '1st');
+    const poprHist = getHistory(filteredPick, pickDates, pD1, false, 'OPR');
+    const d1stHist = getHistory(filteredDeli, deliDates, dD1, true, '1st');
+    const dodrHist = getHistory(filteredDeli, deliDates, dD1, true, 'ODR');
+
     return [
-      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, ref: refP1st },
-      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, ref: refPOpr },
-      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, ref: refDOdr }
+      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist, ref: refP1st },
+      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist, ref: refPOpr },
+      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist, ref: refD1st },
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist, ref: refDOdr }
     ];
   }, [pD1, dD1, filteredPick, filteredDeli, pickDates, deliDates]);
 
@@ -517,7 +531,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       {/* KPI Cards Section */}
       <div className="kpi-cards-wrapper">
         <div className="kpi-cards-header">
-          TỔNG QUAN D-1 <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>so sánh với cùng thứ tuần trước (D-8)</span>
+          TỔNG QUAN D-1
         </div>
         <div className="kpi-cards-container">
           {kpiCards.map(card => {
@@ -542,8 +556,36 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 </div>
                 
                 {/* Visual line */}
-                <div className="kpi-card-chart">
-                  <div className="kpi-card-chart-line" style={{ background: isGood ? '#0F6E56' : '#A13B2A' }}></div>
+                <div className="kpi-card-chart" style={{ height: '30px', margin: '8px 0', position: 'relative' }}>
+                  {card.history && card.history.length > 1 ? (
+                    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100">
+                      {(() => {
+                        const h = card.history;
+                        const min = Math.min(...h, card.target - 2);
+                        const max = Math.max(...h, card.target + 2);
+                        const range = max - min || 1;
+                        
+                        const points = h.map((val, idx) => {
+                          const x = (idx / (h.length - 1)) * 100;
+                          const y = 100 - ((val - min) / range) * 100;
+                          return `${x},${y}`;
+                        }).join(' ');
+
+                        const targetY = 100 - ((card.target - min) / range) * 100;
+
+                        return (
+                          <>
+                            {targetY >= 0 && targetY <= 100 && (
+                              <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="rgba(0,0,0,0.15)" strokeWidth="2" strokeDasharray="4,4" />
+                            )}
+                            <polyline fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="4" points={points} strokeLinejoin="round" strokeLinecap="round" />
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  ) : (
+                    <div className="kpi-card-chart-line" style={{ background: isGood ? '#0F6E56' : '#A13B2A' }}></div>
+                  )}
                 </div>
 
                 <div className="kpi-card-stats">
