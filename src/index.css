@@ -289,7 +289,7 @@ body {
 }
 
 .metric-header {
-  background: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
+  background: var(--surface);
   padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--border);
   display: flex;
