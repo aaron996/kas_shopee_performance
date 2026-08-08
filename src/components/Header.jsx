@@ -26,9 +26,21 @@ export default function Header({
     <header className="navbar">
       <div className="nav-header">
         <div className="brand-title">
+          <img 
+            src="/ghn-logo.png" 
+            alt="GHN Logistics" 
+            style={{ 
+              height: '36px', 
+              background: '#ffffff', 
+              padding: '4px 6px', 
+              borderRadius: '8px', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              objectFit: 'contain'
+            }} 
+          />
           <div className="brand-logo">GHN KAS</div>
           <div>
-            <div className="brand-name">Báo Cáo Điều Hành Ontime Vùng Giao</div>
+            <div className="brand-name">Báo Cáo Điều Hành Shopee</div>
           </div>
         </div>
 
