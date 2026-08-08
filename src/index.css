@@ -1166,3 +1166,18 @@ body.dark-mode .modal-footer {
   border-top-color: #233252;
   background-color: #0f1629;
 }
+
+body.dark-mode .table-legend {
+  background-color: #131c31 !important;
+  border-top-color: #233252 !important;
+  color: #94a3b8 !important;
+}
+
+body.dark-mode .legend-title {
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode .legend-box-good {
+  background-color: #131c31 !important;
+  border: 1px solid #33466e !important;
+}
