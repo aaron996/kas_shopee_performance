@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, FileSpreadsheet, MessageSquareText, Filter, Search, ArrowRightLeft, Radio, LogOut, UserCheck } from 'lucide-react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -8,14 +8,11 @@ export default function Header({
   setClientFilter, 
   expandAllHubs,
   setExpandAllHubs,
-  d1DateFormatted,
-  weekNum,
   onOpenSummary, 
-  onOpenDataSource,
-  onSyncLiveSheet,
-  isSyncing,
   currentUser,
-  onLogout
+  onLogout,
+  isDarkMode,
+  setIsDarkMode
 }) {
   const tabs = [
     { id: 'report1', label: '4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
@@ -25,22 +22,21 @@ export default function Header({
   return (
     <header className="navbar">
       <div className="nav-header">
-        <div className="brand-title">
+        <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <img 
             src="/ghn-logo.png" 
             alt="GHN Logistics" 
             style={{ 
-              height: '36px', 
+              height: '70px', 
               background: '#ffffff', 
-              padding: '4px 6px', 
-              borderRadius: '8px', 
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '6px 12px', 
+              borderRadius: '12px', 
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
               objectFit: 'contain'
             }} 
           />
-          <div className="brand-logo">GHN KAS</div>
           <div>
-            <div className="brand-name">Báo Cáo Điều Hành Shopee</div>
+            <div className="brand-name" style={{ fontSize: '1.4rem', fontWeight: 800 }}>Báo Cáo Điều Hành Shopee</div>
           </div>
         </div>
 
@@ -55,23 +51,21 @@ export default function Header({
             </div>
           )}
 
-          <button className="nav-btn primary" onClick={onSyncLiveSheet} disabled={isSyncing}>
-            <Radio size={16} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Đang Tải Sheet...' : 'Sync Live Data Google Sheet'}
+          {/* Nút Chuyển Đổi Giao Diện Sáng / Tối */}
+          <button 
+            className="nav-btn" 
+            onClick={() => setIsDarkMode(!isDarkMode)} 
+            title={isDarkMode ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
+            style={{ background: isDarkMode ? '#f59e0b' : 'rgba(255,255,255,0.18)', color: isDarkMode ? '#000' : '#fff', fontWeight: 600, border: 'none' }}
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{isDarkMode ? 'Giao Diện Sáng' : 'Giao Diện Tối'}</span>
           </button>
 
           <button className="nav-btn" onClick={onOpenSummary}>
             <MessageSquareText size={16} />
             Nhận Xét D-1 vs D-8
           </button>
-
-          {/* Nút Quản Lý Nguồn Sheet CHỈ HIỆN VỚI TÀI KHOẢN DEV / ADMIN (luongthevinh996@gmail.com hoặc vinhlt@ghn.vn) */}
-          {currentUser && currentUser.isDevAdmin && (
-            <button className="nav-btn" onClick={onOpenDataSource} style={{ background: '#F15A22', borderColor: '#F15A22' }}>
-              <FileSpreadsheet size={16} />
-              Quản Lý Nguồn Sheet
-            </button>
-          )}
 
           <button className="nav-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
             <LogOut size={15} />

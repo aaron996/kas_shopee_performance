@@ -87,42 +87,56 @@ export function groupDatesByWeek(dates) {
   };
 }
 
-// Color calculations
+// Color calculations with Dark Mode support
 export function getContinuousColorStyle(val, target, minVal) {
+  const isDark = typeof document !== 'undefined' && document.body.classList.contains('dark-mode');
+
   if (val === null || val === undefined || isNaN(val)) {
-    return { backgroundColor: '#F5F4F1', color: '#64748b' };
+    return { backgroundColor: isDark ? '#1e293b' : '#F5F4F1', color: isDark ? '#94a3b8' : '#64748b' };
   }
   if (val >= target) {
-    return { backgroundColor: '#FFFFFF', color: '#1e293b' };
+    return { backgroundColor: isDark ? '#172134' : '#FFFFFF', color: isDark ? '#f8fafc' : '#1e293b' };
   }
   
   const effectiveMin = Math.min(minVal, target - 10);
   const ratio = Math.min(1, Math.max(0, (target - val) / (target - effectiveMin)));
   
-  const r = Math.round(255 - ratio * (255 - 232));
-  const g = Math.round(255 - ratio * (255 - 54));
-  const b = Math.round(255 - ratio * (255 - 44));
+  if (isDark) {
+    const r = Math.round(23 + ratio * (185 - 23));
+    const g = Math.round(33 - ratio * (33 - 28));
+    const b = Math.round(52 - ratio * (52 - 28));
+    return {
+      backgroundColor: `rgb(${r}, ${g}, ${b})`,
+      color: '#FFFFFF',
+      fontWeight: ratio > 0.4 ? '600' : 'normal'
+    };
+  } else {
+    const r = Math.round(255 - ratio * (255 - 232));
+    const g = Math.round(255 - ratio * (255 - 54));
+    const b = Math.round(255 - ratio * (255 - 44));
+    const textColor = ratio >= 0.6 ? '#FFFFFF' : (ratio >= 0.3 ? '#8A1F16' : '#1e293b');
 
-  const textColor = ratio >= 0.6 ? '#FFFFFF' : (ratio >= 0.3 ? '#8A1F16' : '#1e293b');
-
-  return {
-    backgroundColor: `rgb(${r}, ${g}, ${b})`,
-    color: textColor,
-    fontWeight: ratio > 0.4 ? '600' : 'normal'
-  };
+    return {
+      backgroundColor: `rgb(${r}, ${g}, ${b})`,
+      color: textColor,
+      fontWeight: ratio > 0.4 ? '600' : 'normal'
+    };
+  }
 }
 
 export function getFixed3TierColorStyle(val, target) {
+  const isDark = typeof document !== 'undefined' && document.body.classList.contains('dark-mode');
+
   if (val === null || val === undefined || isNaN(val)) {
-    return { backgroundColor: '#F5F4F1', color: '#64748b' };
+    return { backgroundColor: isDark ? '#1e293b' : '#F5F4F1', color: isDark ? '#94a3b8' : '#64748b' };
   }
   if (val >= target) {
-    return { backgroundColor: '#EAF3DE', color: '#0F6E56', fontWeight: '600' };
+    return { backgroundColor: isDark ? '#064e3b' : '#EAF3DE', color: isDark ? '#6ee7b7' : '#0F6E56', fontWeight: '600' };
   }
   if (val >= target - 2.0) {
-    return { backgroundColor: '#EDEBE6', color: '#5C5850' };
+    return { backgroundColor: isDark ? '#334155' : '#EDEBE6', color: isDark ? '#cbd5e1' : '#5C5850' };
   }
-  return { backgroundColor: '#F7D9D4', color: '#A13B2A', fontWeight: '600' };
+  return { backgroundColor: isDark ? '#7f1d1d' : '#F7D9D4', color: isDark ? '#fca5a5' : '#A13B2A', fontWeight: '600' };
 }
 
 export function getPercentile3ColorStyle(val, p25, p75) {

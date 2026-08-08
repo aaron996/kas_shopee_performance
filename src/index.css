@@ -1010,3 +1010,95 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 .sticky-kpi-item .pct.bad {
   color: #f87171;
 }
+
+/* ==========================================================================
+   DARK MODE STYLES & OVERRIDES
+   ========================================================================== */
+body.dark-mode {
+  --bg-main: #0b0f19;
+  --surface: #172134;
+  --surface-hover: #223048;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border: #2e3d56;
+  --border-strong: #3e506e;
+
+  background-color: #0b0f19;
+  color: #f8fafc;
+}
+
+body.dark-mode .metric-block,
+body.dark-mode .kpi-card,
+body.dark-mode .modal-card,
+body.dark-mode .auth-card {
+  background-color: #172134;
+  border-color: #2e3d56;
+  color: #f8fafc;
+}
+
+body.dark-mode .kpi-card-title,
+body.dark-mode .kpi-cards-header,
+body.dark-mode .section-title {
+  color: #f8fafc;
+}
+
+body.dark-mode .kpi-card-subtitle,
+body.dark-mode .section-desc {
+  color: #94a3b8;
+}
+
+body.dark-mode .filter-bar {
+  background-color: #172134 !important;
+  border-color: #2e3d56 !important;
+  color: #f8fafc !important;
+}
+
+body.dark-mode .filter-select {
+  background-color: #0b0f19;
+  color: #f8fafc;
+  border-color: #2e3d56;
+}
+
+body.dark-mode table.mtx-table {
+  background-color: #172134;
+  color: #f8fafc;
+  border-color: #2e3d56;
+}
+
+body.dark-mode table.mtx-table th {
+  background-color: #0f172a;
+  color: #cbd5e1;
+  border-color: #334155;
+}
+
+body.dark-mode table.mtx-table td {
+  border-color: #2e3d56;
+}
+
+body.dark-mode table.mtx-table td.lbl-1 {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+body.dark-mode table.mtx-table td.lbl-2 {
+  background-color: #1a2436 !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode table.mtx-table tbody tr:hover td {
+  box-shadow: inset 0 0 0 9999px rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .sticky-kpi-bar {
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .modal-header {
+  border-bottom-color: #2e3d56;
+}
+
+body.dark-mode .modal-footer {
+  border-top-color: #2e3d56;
+  background-color: #131b2e;
+}

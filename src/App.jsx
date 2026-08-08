@@ -36,6 +36,20 @@ export default function App() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('ghn_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('ghn_theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('ghn_theme', 'light');
+    }
+  }, [isDarkMode]);
+
   const [pickRows, setPickRows] = useState(() => createDefaultPickDataset());
   const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
   const [ca1Rows, setCa1Rows] = useState(() => createDefaultCa1Dataset());
@@ -169,13 +183,10 @@ export default function App() {
         d1DateFormatted={d1DateFormatted}
         weekNum={weekNum}
         onOpenSummary={() => setIsSummaryOpen(true)}
-        onOpenDataSource={() => setIsDataSourceOpen(true)}
-        onResetData={handleResetDefaultData}
-        onSyncLiveSheet={handleSyncLiveSheet}
-        isSyncing={isSyncing}
-        syncStatus={syncStatus}
         currentUser={currentUser}
         onLogout={handleLogout}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
       />
 
       {/* Main View Area */}
