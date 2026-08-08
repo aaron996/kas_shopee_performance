@@ -495,8 +495,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
                     <tr className="grp-row" style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
-                      <td rowSpan={totalRowSpan} className="lbl lbl-1" style={{ color: '#0063AA', fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
-                      <td className="lbl lbl-2" style={{ color: '#0063AA', fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
+                      <td rowSpan={totalRowSpan} className="lbl lbl-1" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
+                      <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
                         return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;

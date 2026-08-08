@@ -1012,34 +1012,49 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 }
 
 /* ==========================================================================
-   DARK MODE STYLES & OVERRIDES
+   LUXURY SLATE NAVY DARK MODE
    ========================================================================== */
 body.dark-mode {
-  --bg-main: #0b0f19;
-  --surface: #172134;
-  --surface-hover: #223048;
-  --text-main: #f8fafc;
+  --bg-main: #0b1329;
+  --surface: #131c31;
+  --surface-hover: #1c2843;
+  --text-main: #f1f5f9;
   --text-muted: #94a3b8;
-  --border: #2e3d56;
-  --border-strong: #3e506e;
+  --border: #233252;
+  --border-strong: #33466e;
 
-  background-color: #0b0f19;
-  color: #f8fafc;
+  background-color: #0b1329;
+  color: #f1f5f9;
 }
 
 body.dark-mode .metric-block,
 body.dark-mode .kpi-card,
 body.dark-mode .modal-card,
 body.dark-mode .auth-card {
-  background-color: #172134;
-  border-color: #2e3d56;
-  color: #f8fafc;
+  background-color: #131c31;
+  border-color: #233252;
+  color: #f1f5f9;
+}
+
+body.dark-mode .metric-header {
+  background: #1a2642 !important;
+  border-bottom: 1px solid #233252 !important;
+}
+
+body.dark-mode .metric-title {
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode .metric-target {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
 }
 
 body.dark-mode .kpi-card-title,
 body.dark-mode .kpi-cards-header,
 body.dark-mode .section-title {
-  color: #f8fafc;
+  color: #f1f5f9;
 }
 
 body.dark-mode .kpi-card-subtitle,
@@ -1048,41 +1063,90 @@ body.dark-mode .section-desc {
 }
 
 body.dark-mode .filter-bar {
-  background-color: #172134 !important;
-  border-color: #2e3d56 !important;
-  color: #f8fafc !important;
+  background-color: #131c31 !important;
+  border-color: #233252 !important;
+  color: #f1f5f9 !important;
 }
 
 body.dark-mode .filter-select {
-  background-color: #0b0f19;
-  color: #f8fafc;
-  border-color: #2e3d56;
+  background-color: #0b1329;
+  color: #f1f5f9;
+  border-color: #233252;
 }
 
 body.dark-mode table.mtx-table {
-  background-color: #172134;
-  color: #f8fafc;
-  border-color: #2e3d56;
+  background-color: #131c31;
+  color: #f1f5f9;
+  border-color: #233252;
 }
 
 body.dark-mode table.mtx-table th {
-  background-color: #0f172a;
+  background-color: #0d162b;
   color: #cbd5e1;
-  border-color: #334155;
+  border-color: #233252;
 }
 
 body.dark-mode table.mtx-table td {
-  border-color: #2e3d56;
+  border-color: #233252;
+}
+
+/* Dark Mode Row Type Colors */
+body.dark-mode tr.all-row {
+  background: #1c2742 !important;
+  border-color: var(--ghn-orange) !important;
+}
+
+body.dark-mode tr.all-row td,
+body.dark-mode tr.all-row td.lbl {
+  background: #1c2742 !important;
+  color: #ff9d76 !important;
+}
+
+body.dark-mode tr.grp-row {
+  background: #151d33 !important;
+}
+
+body.dark-mode tr.grp-row td,
+body.dark-mode tr.grp-row td.lbl {
+  background: #151d33 !important;
+  color: #38bdf8 !important;
+}
+
+body.dark-mode tr.sub-row {
+  background: #0f1629 !important;
+}
+
+body.dark-mode tr.sub-row td,
+body.dark-mode tr.sub-row td.lbl {
+  background: #0f1629 !important;
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode tr.vol-row {
+  background: #182239 !important;
+}
+
+body.dark-mode tr.vol-row td {
+  background: #182239 !important;
+  color: #94a3b8 !important;
 }
 
 body.dark-mode table.mtx-table td.lbl-1 {
-  background-color: #1e293b !important;
-  color: #f8fafc !important;
+  background-color: #1a253e !important;
+  color: #38bdf8 !important;
 }
 
 body.dark-mode table.mtx-table td.lbl-2 {
-  background-color: #1a2436 !important;
-  color: #e2e8f0 !important;
+  background-color: #141d33 !important;
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .diff-badge.up {
+  color: #34d399 !important;
+}
+
+body.dark-mode .diff-badge.down {
+  color: #f87171 !important;
 }
 
 body.dark-mode table.mtx-table tbody tr:hover td {
@@ -1090,15 +1154,15 @@ body.dark-mode table.mtx-table tbody tr:hover td {
 }
 
 body.dark-mode .sticky-kpi-bar {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(11, 19, 41, 0.94);
   border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
 body.dark-mode .modal-header {
-  border-bottom-color: #2e3d56;
+  border-bottom-color: #233252;
 }
 
 body.dark-mode .modal-footer {
-  border-top-color: #2e3d56;
-  background-color: #131b2e;
+  border-top-color: #233252;
+  background-color: #0f1629;
 }
