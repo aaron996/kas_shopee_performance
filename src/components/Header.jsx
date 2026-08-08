@@ -8,6 +8,8 @@ export default function Header({
   setClientFilter, 
   expandAllHubs,
   setExpandAllHubs,
+  d1DateFormatted,
+  weekNum,
   onOpenSummary, 
   currentUser,
   onLogout,
