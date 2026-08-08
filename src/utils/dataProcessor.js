@@ -36,13 +36,18 @@ export function formatDateLabel(dateStr) {
 
 // Group dates into Week W-1 and Week WTD
 export function groupDatesByWeek(dates) {
-  const sorted = [...dates].sort();
+  // Sort dates chronologically using proper Date parsing (since unpadded strings sort incorrectly)
+  const parseToLocal = (dStr) => {
+    const p = dStr.split('-');
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  };
+  
+  const sorted = [...dates].sort((a, b) => parseToLocal(a) - parseToLocal(b));
   if (sorted.length === 0) return { weekPrev: [], weekCurrent: [], d1Date: '' };
 
   const d1Date = sorted[sorted.length - 1]; // D-1 is the last available date
 
-  // Parse D-1 date and find its Monday (start of current week)
-  const d1 = new Date(d1Date + 'T00:00:00');
+  const d1 = parseToLocal(d1Date);
   const d1Day = d1.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   const d1DayOffset = d1Day === 0 ? 6 : d1Day - 1; // offset from Monday (Mon=0, Tue=1, ..., Sun=6)
 
@@ -52,26 +57,16 @@ export function groupDatesByWeek(dates) {
   const prevWeekMonday = new Date(currentWeekMonday);
   prevWeekMonday.setDate(currentWeekMonday.getDate() - 7);
 
-  const toDateStr = (dt) => {
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, '0');
-    const d = String(dt.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  const currentMondayStr = toDateStr(currentWeekMonday);
-  const prevMondayStr = toDateStr(prevWeekMonday);
-
   const weekCurrent = [];
   const weekPrev = [];
 
   sorted.forEach(dStr => {
-    if (dStr >= currentMondayStr && dStr <= d1Date) {
+    const dt = parseToLocal(dStr);
+    if (dt >= currentWeekMonday && dt <= d1) {
       weekCurrent.push(dStr);
-    } else if (dStr >= prevMondayStr && dStr < currentMondayStr) {
+    } else if (dt >= prevWeekMonday && dt < currentWeekMonday) {
       weekPrev.push(dStr);
     }
-    // Dates older than prevWeekMonday are excluded
   });
 
   return {
@@ -144,11 +139,27 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
 
   const d1Date = dates[dates.length - 1];
   
-  const d1Obj = new Date(d1Date);
+  const parseToLocal = (dStr) => {
+    const p = dStr.split('-');
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  };
+
+  const d1Obj = parseToLocal(d1Date);
   const d8Obj = new Date(d1Obj);
   d8Obj.setDate(d8Obj.getDate() - 7);
 
-  const d8DateStr = d8Obj.toISOString().split('T')[0];
+  const toDateStr = (dt) => {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  let d8DateStr = toDateStr(d8Obj);
+  if (!dates.includes(d8DateStr)) {
+    const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
+    if (dates.includes(unpadded)) d8DateStr = unpadded;
+  }
   const d8Date = dates.includes(d8DateStr) ? d8DateStr : dates[0];
 
   const aggMetrics = (rowsP, rowsD, dStr) => {

@@ -99,9 +99,28 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
     const getD8 = (d1Str, datesArr) => {
       if (!d1Str) return null;
-      const d8Obj = new Date(d1Str);
+      const p = d1Str.split('-');
+      const d8Obj = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
       d8Obj.setDate(d8Obj.getDate() - 7);
-      const d8Str = d8Obj.toISOString().split('T')[0];
+      
+      const toDateStr = (dt) => {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      };
+      
+      let d8Str = toDateStr(d8Obj);
+      
+      // If the dates array has unpadded dates like '2026-8-7', the above padded string might not match!
+      // But wait, the dates in datesArr are exactly what's mapped from report_date.
+      // Assuming datesArr contains padded dates (or unpadded), we should find a match.
+      // To be safe, just try both or assume datesArr format matches what they gave.
+      if (!datesArr.includes(d8Str)) {
+        // Try unpadded?
+        const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
+        if (datesArr.includes(unpadded)) d8Str = unpadded;
+      }
       return datesArr.includes(d8Str) ? d8Str : datesArr[0];
     };
 
