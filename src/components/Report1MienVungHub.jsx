@@ -81,16 +81,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   // KPI Cards Data Calculation
   const kpiCards = useMemo(() => {
-    if (!pD1) return [];
-
-    const d1Date = pD1;
-    const d8Obj = new Date(d1Date);
-    d8Obj.setDate(d8Obj.getDate() - 7);
-    const d8DateStr = d8Obj.toISOString().split('T')[0];
-    const d8Date = pickDates.includes(d8DateStr) ? d8DateStr : pickDates[0];
+    if (!pD1 && !dD1) return [];
 
     const getAgg = (rows, dateStr, isDeli, metricKey) => {
       let tot = 0, ont = 0;
+      if (!dateStr) return { tot, ont, pct: 0 };
       rows.filter(r => r.report_date === dateStr).forEach(r => {
         const t = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
         const o = isDeli 
@@ -102,15 +97,26 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       return { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : 0 };
     };
 
-    const p1stD1 = getAgg(filteredPick, d1Date, false, '1st');
-    const poprD1 = getAgg(filteredPick, d1Date, false, 'OPR');
-    const d1stD1 = getAgg(filteredDeli, d1Date, true, '1st');
-    const dodrD1 = getAgg(filteredDeli, d1Date, true, 'ODR');
+    const getD8 = (d1Str, datesArr) => {
+      if (!d1Str) return null;
+      const d8Obj = new Date(d1Str);
+      d8Obj.setDate(d8Obj.getDate() - 7);
+      const d8Str = d8Obj.toISOString().split('T')[0];
+      return datesArr.includes(d8Str) ? d8Str : datesArr[0];
+    };
 
-    const p1stD8 = getAgg(filteredPick, d8Date, false, '1st');
-    const poprD8 = getAgg(filteredPick, d8Date, false, 'OPR');
-    const d1stD8 = getAgg(filteredDeli, d8Date, true, '1st');
-    const dodrD8 = getAgg(filteredDeli, d8Date, true, 'ODR');
+    const pickD8 = getD8(pD1, pickDates);
+    const deliD8 = getD8(dD1, deliDates);
+
+    const p1stD1 = getAgg(filteredPick, pD1, false, '1st');
+    const poprD1 = getAgg(filteredPick, pD1, false, 'OPR');
+    const d1stD1 = getAgg(filteredDeli, dD1, true, '1st');
+    const dodrD1 = getAgg(filteredDeli, dD1, true, 'ODR');
+
+    const p1stD8 = getAgg(filteredPick, pickD8, false, '1st');
+    const poprD8 = getAgg(filteredPick, pickD8, false, 'OPR');
+    const d1stD8 = getAgg(filteredDeli, deliD8, true, '1st');
+    const dodrD8 = getAgg(filteredDeli, deliD8, true, 'ODR');
 
     return [
       { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, ref: refP1st },
@@ -118,7 +124,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, ref: refD1st },
       { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, ref: refDOdr }
     ];
-  }, [pD1, filteredPick, filteredDeli, pickDates]);
+  }, [pD1, dD1, filteredPick, filteredDeli, pickDates, deliDates]);
 
   // Render individual matrix table component
   const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null) => {
