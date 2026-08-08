@@ -555,36 +555,60 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   </span>
                 </div>
                 
-                {/* Visual line */}
-                <div className="kpi-card-chart" style={{ height: '30px', margin: '8px 0', position: 'relative' }}>
+                {/* Visual sparkline */}
+                <div className="kpi-card-chart">
                   {card.history && card.history.length > 1 ? (
-                    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+                      <defs>
+                        <linearGradient id={`spark-grad-${card.id}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.2" />
+                          <stop offset="100%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
                       {(() => {
                         const h = card.history;
-                        const min = Math.min(...h, card.target - 2);
-                        const max = Math.max(...h, card.target + 2);
+                        const actualMin = Math.min(...h);
+                        const actualMax = Math.max(...h);
+                        const diff = actualMax - actualMin;
+                        const padding = Math.max(diff * 0.4, 5);
+                        
+                        const min = Math.min(actualMin - padding, card.target - 2);
+                        const max = Math.max(actualMax + padding, card.target + 2);
                         const range = max - min || 1;
                         
-                        const points = h.map((val, idx) => {
+                        const coords = h.map((val, idx) => {
                           const x = (idx / (h.length - 1)) * 100;
                           const y = 100 - ((val - min) / range) * 100;
-                          return `${x},${y}`;
-                        }).join(' ');
+                          return { x, y };
+                        });
 
+                        // Generate smooth cubic bezier path
+                        let pathD = `M ${coords[0].x},${coords[0].y}`;
+                        for (let i = 0; i < coords.length - 1; i++) {
+                          const p0 = coords[i];
+                          const p1 = coords[i + 1];
+                          const cx = (p0.x + p1.x) / 2;
+                          pathD += ` C ${cx},${p0.y} ${cx},${p1.y} ${p1.x},${p1.y}`;
+                        }
+
+                        const areaD = `${pathD} L 100,100 L 0,100 Z`;
                         const targetY = 100 - ((card.target - min) / range) * 100;
+                        const lastPt = coords[coords.length - 1];
 
                         return (
                           <>
                             {targetY >= 0 && targetY <= 100 && (
-                              <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="rgba(0,0,0,0.15)" strokeWidth="2" strokeDasharray="4,4" />
+                              <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
                             )}
-                            <polyline fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="4" points={points} strokeLinejoin="round" strokeLinecap="round" />
+                            <path d={areaD} fill={`url(#spark-grad-${card.id})`} />
+                            <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} />
                           </>
                         );
                       })()}
                     </svg>
                   ) : (
-                    <div className="kpi-card-chart-line" style={{ background: isGood ? '#0F6E56' : '#A13B2A' }}></div>
+                    <div style={{ height: '2px', background: isGood ? '#0F6E56' : '#A13B2A', width: '100%', marginTop: '18px' }}></div>
                   )}
                 </div>
 

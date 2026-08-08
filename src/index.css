@@ -701,22 +701,9 @@ th.sep, td.sep {
 .kpi-card-diff.down { color: #A13B2A; }
 
 .kpi-card-chart {
-  height: 20px;
-  background: #f1f5f9;
-  border-radius: 4px;
-  margin-bottom: 0.75rem;
+  height: 38px;
+  margin: 0.25rem 0 0.5rem 0;
   position: relative;
-  overflow: hidden;
-}
-
-.kpi-card-chart-line {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #A13B2A;
-  transform: translateY(-50%);
 }
 
 .kpi-card-stats {
