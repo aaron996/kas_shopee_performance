@@ -630,9 +630,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
         <div className="table-legend">
           <div className="legend-items">
-            <span style={{ fontWeight: 600, color: '#334155' }}>Rule màu (Thang liên tục trắng → đỏ):</span>
+            <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu (Thang liên tục):</span>
             <div className="legend-item">
-              <div className="legend-box" style={{ background: '#FFFFFF' }}></div>
+              <div className="legend-box legend-box-good"></div>
               <span>≥ {target.toFixed(0)}% (Đạt target)</span>
             </div>
             <div className="legend-item">

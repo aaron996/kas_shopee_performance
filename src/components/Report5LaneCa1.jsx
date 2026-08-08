@@ -295,9 +295,9 @@ export default function Report5LaneCa1({ ca1Rows = [] }) {
 
         <div className="table-legend">
           <div className="legend-items">
-            <span style={{ fontWeight: 600, color: '#334155' }}>Thang màu liên tục (Trắng → Đỏ):</span>
+            <span className="legend-title" style={{ fontWeight: 600 }}>Thang màu liên tục:</span>
             <div className="legend-item">
-              <div className="legend-box" style={{ background: '#FFFFFF' }}></div>
+              <div className="legend-box legend-box-good"></div>
               <span>Cao nhất ({laneMaxPct.toFixed(1)}%)</span>
             </div>
             <div className="legend-item">
