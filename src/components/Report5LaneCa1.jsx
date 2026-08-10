@@ -1,12 +1,32 @@
-import React, { useMemo } from 'react';
-import { ArrowRightLeft } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ArrowRightLeft, Download, Grid } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
 export default function Report5LaneCa1({ ca1Rows = [] }) {
+  const [density, setDensity] = useState('comfortable');
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
+
+  const handleExportCSV = () => {
+    const headers = ['Lane', 'Vung Giao', 'Ngay', 'Tong Don', 'Don Hub Giao Ca 1', '% Ca 1'];
+    const csvRows = [headers.join(',')];
+
+    ca1Rows.forEach(r => {
+      const tot = Number(r.tong_don) || 0;
+      const ca1 = Number(r.don_hub_giao_ca1) || 0;
+      const pct = tot > 0 ? ((ca1 / tot) * 100).toFixed(2) : '0';
+      csvRows.push([`"${r.lane}"`, `"${r.vung_giao}"`, `"${r.ngay}"`, tot, ca1, `${pct}%`].join(','));
+    });
+
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `GHN_Shopee_Ca1_Lane_Matrix_${d1Date || 'D1'}.csv`;
+    link.click();
+  };
 
   // Split weekCurrent into days up to D-2 and D-1 separately (matching 4 chỉ số layout)
   const weekCurBeforeD1 = useMemo(() => weekCurrent.slice(0, -1), [weekCurrent]);
@@ -312,17 +332,53 @@ export default function Report5LaneCa1({ ca1Rows = [] }) {
 
   return (
     <div>
-      <div className="section-header">
-        <h2 className="section-title">
-          <ArrowRightLeft size={22} style={{ color: '#F15A22' }} />
-          % ca 1 theo lane
-        </h2>
-        <div className="section-desc">
-          Tỷ lệ đơn hàng về đến hub giao trước 09:00 sáng ngày SLA giao (Ca 1 cutoff), phân theo 5 loại Lane.
+      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 className="section-title">
+            <ArrowRightLeft size={22} style={{ color: '#F15A22' }} />
+            % ca 1 theo lane
+          </h2>
+          <div className="section-desc">
+            Tỷ lệ đơn hàng về đến hub giao trước 09:00 sáng ngày SLA giao (Ca 1 cutoff), phân theo 5 loại Lane.
+          </div>
+        </div>
+
+        {/* View Controls: Density & Export */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '8px', padding: '2px' }}>
+            <button 
+              className={`btn-secondary ${density === 'comfortable' ? 'primary' : ''}`}
+              onClick={() => setDensity('comfortable')}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
+              title="Khoảng cách dòng thoáng"
+            >
+              <Grid size={13} /> Thoáng
+            </button>
+            <button 
+              className={`btn-secondary ${density === 'compact' ? 'primary' : ''}`}
+              onClick={() => setDensity('compact')}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
+              title="Nén dày dòng dữ liệu"
+            >
+              <Grid size={13} /> Dày
+            </button>
+          </div>
+
+          <button 
+            className="btn-secondary"
+            onClick={handleExportCSV}
+            title="Tải dữ liệu dạng CSV (Mở bằng Excel)"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#0F6E56', color: 'white', border: 'none' }}
+          >
+            <Download size={15} />
+            <span>Xuất Excel</span>
+          </button>
         </div>
       </div>
 
-      {lanes.map(lane => renderLaneTable(lane))}
+      <div className={`density-${density}`}>
+        {lanes.map(lane => renderLaneTable(lane))}
+      </div>
     </div>
   );
 }

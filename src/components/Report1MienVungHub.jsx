@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronDown, Layers, ArrowUp } from 'lucide-react';
+import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 
@@ -121,6 +121,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
+  const [density, setDensity] = useState('comfortable'); // 'comfortable' | 'compact'
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -150,7 +152,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
 
   const toggleRegion = (regKey) => {
     setExpandedRegions(prev => ({ ...prev, [regKey]: !prev[regKey] }));
@@ -197,6 +198,98 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     if (r[primaryCol] !== undefined && r[primaryCol] !== null) return Number(r[primaryCol]) || 0;
     if (fallbackCol && r[fallbackCol] !== undefined && r[fallbackCol] !== null) return Number(r[fallbackCol]) || 0;
     return 0;
+  };
+
+  // Operational Risk Alert Hubs (Scanning D-1 for highest absolute late volume)
+  const riskAlertHubs = useMemo(() => {
+    if (!pD1 && !dD1) return [];
+
+    const hubLateList = [];
+
+    // Check Pickup D-1
+    if (pD1) {
+      const pickD1Rows = filteredPick.filter(r => r.report_date === pD1);
+      pickD1Rows.forEach(r => {
+        const tot = getRowVal(r, 'mau_pu');
+        const ont = getRowVal(r, 'ontime_pu_1st');
+        const late = tot - ont;
+        const pct = tot > 0 ? (ont / tot) * 100 : 100;
+        if (late > 0 && pct < 97) {
+          hubLateList.push({
+            hub: r.hub,
+            region: r.region,
+            metric: '1st Pickup',
+            pct,
+            late,
+            tot,
+            target: 97,
+            ref: refP1st,
+            sectionId: 'p1st'
+          });
+        }
+      });
+    }
+
+    // Check Deli D-1
+    if (dD1) {
+      const deliD1Rows = filteredDeli.filter(r => r.report_date === dD1);
+      deliD1Rows.forEach(r => {
+        const tot = getRowVal(r, 'mau_deli', 'mau_del');
+        const ont = getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st');
+        const late = tot - ont;
+        const pct = tot > 0 ? (ont / tot) * 100 : 100;
+        if (late > 0 && pct < 95) {
+          hubLateList.push({
+            hub: r.hub,
+            region: r.region,
+            metric: '1st Deli',
+            pct,
+            late,
+            tot,
+            target: 95,
+            ref: refD1st,
+            sectionId: 'd1st'
+          });
+        }
+      });
+    }
+
+    // Sort by absolute late volume descending and pick top 4
+    return hubLateList.sort((a, b) => b.late - a.late).slice(0, 4);
+  }, [pD1, dD1, filteredPick, filteredDeli]);
+
+  const handleRiskChipClick = (chip) => {
+    // Expand region
+    setExpandedRegions(prev => ({ ...prev, [chip.region]: true }));
+    // Scroll to metric table section
+    scrollToRef(chip.ref, chip.sectionId);
+  };
+
+  // Export Matrix Data to CSV
+  const handleExportCSV = () => {
+    const headers = ['Mền', 'Vùng', 'Hub', 'Report Date', 'Total Vol', 'Ontime Vol', '% Ontime'];
+    const csvRows = [headers.join(',')];
+
+    filteredPick.forEach(r => {
+      const tot = getRowVal(r, 'mau_pu');
+      const ont = getRowVal(r, 'ontime_pu_1st');
+      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
+      csvRows.push([`"Pickup"`, `"${r.region}"`, `"${r.hub}"`, `"${r.report_date}"`, tot, ont, `${pct}%`].join(','));
+    });
+
+    filteredDeli.forEach(r => {
+      const tot = getRowVal(r, 'mau_deli', 'mau_del');
+      const ont = getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st');
+      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
+      csvRows.push([`"Deli"`, `"${r.region}"`, `"${r.hub}"`, `"${r.report_date}"`, tot, ont, `${pct}%`].join(','));
+    });
+
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `GHN_Shopee_Performance_Matrix_${pD1 || 'D1'}.csv`;
+    link.click();
   };
 
   // KPI Cards Data Calculation
@@ -647,7 +740,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   return (
-    <div>
+    <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>
       {/* Sticky Mini KPI Top Bar */}
       {showStickyBar && (
         <div className="sticky-kpi-bar">
@@ -666,15 +759,87 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       )}
 
-      <div className="section-header">
-        <h2 className="section-title">
-          <Layers size={22} style={{ color: '#F15A22' }} />
-          4 chỉ số nationwide
-        </h2>
-        <div className="section-desc">
-          Báo cáo điều hành — Theo dõi 1st Pickup, OPR, 1st Deli, ODR theo phân cấp 3 tầng với thang màu liên tục trắng→đỏ.
+      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 className="section-title">
+            <Layers size={22} style={{ color: '#F15A22' }} />
+            4 chỉ số nationwide
+          </h2>
+          <div className="section-desc">
+            Báo cáo điều hành — Theo dõi 1st Pickup, OPR, 1st Deli, ODR theo phân cấp 3 tầng với thang màu liên tục trắng→đỏ.
+          </div>
+        </div>
+
+        {/* View Controls: Density, Fullscreen & Export */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          {/* Table Density Selector */}
+          <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '8px', padding: '2px' }}>
+            <button 
+              className={`btn-secondary ${density === 'comfortable' ? 'primary' : ''}`}
+              onClick={() => setDensity('comfortable')}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
+              title="Khoảng cách dòng thoáng"
+            >
+              <Grid size={13} /> Thoáng
+            </button>
+            <button 
+              className={`btn-secondary ${density === 'compact' ? 'primary' : ''}`}
+              onClick={() => setDensity('compact')}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
+              title="Nén dày dòng dữ liệu"
+            >
+              <Grid size={13} /> Dày
+            </button>
+          </div>
+
+          {/* Fullscreen Toggle Button */}
+          <button 
+            className="btn-secondary"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình Monitoring'}
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            <span>{isFullscreen ? 'Thu Nhỏ' : 'Toàn Màn Hình'}</span>
+          </button>
+
+          {/* Export CSV Button */}
+          <button 
+            className="btn-secondary"
+            onClick={handleExportCSV}
+            title="Tải bảng dữ liệu dạng CSV (Mở được bằng Excel)"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#0F6E56', color: 'white', border: 'none' }}
+          >
+            <Download size={15} />
+            <span>Xuất Excel</span>
+          </button>
         </div>
       </div>
+
+      {/* Operational Risk Alert Bar (Auto-generated 1-click Hub Chips) */}
+      {riskAlertHubs.length > 0 && (
+        <div className="risk-alert-bar">
+          <div className="risk-alert-title">
+            <AlertTriangle size={17} className="risk-alert-icon" />
+            <span>HUBS CẦN CAN THIỆP D-1:</span>
+          </div>
+          <div className="risk-chips-list">
+            {riskAlertHubs.map((chip, idx) => (
+              <button 
+                key={`${chip.hub}_${idx}`} 
+                className="risk-chip"
+                onClick={() => handleRiskChipClick(chip)}
+                title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
+              >
+                <span className="risk-chip-hub">{chip.hub}</span>
+                <span className="risk-chip-metric">({chip.metric})</span>
+                <span className="risk-chip-pct">{chip.pct.toFixed(1)}%</span>
+                <span className="risk-chip-late">-{formatVol(chip.late)} trễ</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards Section */}
       <div className="kpi-cards-wrapper">
@@ -718,10 +883,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       </div>
 
-      {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
-      {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
-      {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
-      {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
+      <div className={`density-${density}`}>
+        {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
+        {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
+        {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
+        {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
+      </div>
       
       {showHomeBtn && (
         <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">
