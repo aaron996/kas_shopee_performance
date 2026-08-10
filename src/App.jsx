@@ -7,7 +7,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
-import { groupDatesByWeek, generateExecutiveSummary } from './utils/dataProcessor';
+import { groupDatesByWeek } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import { Layers, ArrowRightLeft } from 'lucide-react';
 
@@ -33,7 +33,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('report1');
   const [clientFilter, setClientFilter] = useState('SPB');
   const [expandAllHubs, setExpandAllHubs] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
@@ -151,12 +150,6 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // 1-Click Quick Copy Executive Brief to Clipboard (For Zalo / Telegram)
-  const handleCopyZaloQuick = () => {
-    const brief = generateExecutiveSummary(pickRows, deliRows, clientFilter);
-    navigator.clipboard.writeText(brief);
-  };
-
   // Extract dynamic date info for the Header
   const allDates = [...new Set(pickRows.map(r => r.report_date))].filter(Boolean).sort();
   const { d1Date, weekCurrent } = groupDatesByWeek(allDates);
@@ -193,9 +186,6 @@ export default function App() {
         onLogout={handleLogout}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        onCopyZaloQuick={handleCopyZaloQuick}
       />
 
       {/* Main View Area */}
@@ -206,14 +196,12 @@ export default function App() {
             deliRows={deliRows}
             clientFilter={clientFilter}
             expandAllHubs={expandAllHubs}
-            searchTerm={searchTerm}
           />
         )}
 
         {activeTab === 'report5' && (
           <Report5LaneCa1
             ca1Rows={ca1Rows}
-            searchTerm={searchTerm}
           />
         )}
       </main>

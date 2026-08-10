@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, Search, Copy, Check } from 'lucide-react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -14,21 +14,8 @@ export default function Header({
   currentUser,
   onLogout,
   isDarkMode,
-  setIsDarkMode,
-  searchTerm,
-  setSearchTerm,
-  onCopyZaloQuick
+  setIsDarkMode
 }) {
-  const [copiedQuick, setCopiedQuick] = React.useState(false);
-
-  const handleQuickCopy = () => {
-    if (onCopyZaloQuick) {
-      onCopyZaloQuick();
-      setCopiedQuick(true);
-      setTimeout(() => setCopiedQuick(false), 2000);
-    }
-  };
-
   const tabs = [
     { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
     { id: 'report5', label: '2. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
@@ -59,16 +46,6 @@ export default function Header({
               )}
             </div>
           )}
-
-          {/* Quick Copy Zalo Brief Button */}
-          <button 
-            className="nav-btn quick-zalo-btn" 
-            onClick={handleQuickCopy}
-            title="Copy tóm tắt chỉ số D-1 định dạng đẹp mắt gửi nhóm Zalo/Telegram"
-          >
-            {copiedQuick ? <Check size={15} style={{ color: '#4ADE80' }} /> : <Copy size={15} />}
-            <span>{copiedQuick ? 'Đã Copy Zalo!' : 'Copy Zalo Brief'}</span>
-          </button>
 
           {/* Theme Toggle Button */}
           <button 
@@ -109,7 +86,7 @@ export default function Header({
         })}
       </div>
 
-      {/* Sub-header Filter & Search Bar */}
+      {/* Sub-header Filter Bar */}
       <div className="filter-bar">
         <div className="filter-group">
           <div className="filter-label">
@@ -135,21 +112,6 @@ export default function Header({
               {expandAllHubs ? 'Thu Gọn Về Vùng' : 'Mở Tất Cả Hubs'}
             </button>
           )}
-
-          {/* Live Search Input */}
-          <div className="search-input-wrapper">
-            <Search size={14} className="search-icon" />
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Tìm tên Hub, Vùng, Seller..." 
-              value={searchTerm || ''}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button className="clear-search-btn" onClick={() => setSearchTerm('')}>×</button>
-            )}
-          </div>
         </div>
 
         <div className="meta-date-info">
