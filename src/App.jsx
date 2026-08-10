@@ -5,7 +5,7 @@ import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
-import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset } from './data/defaultDataset';
+import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { groupDatesByWeek } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
@@ -54,6 +54,12 @@ export default function App() {
   const [pickRows, setPickRows] = useState(() => createDefaultPickDataset());
   const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
   const [ca1Rows, setCa1Rows] = useState(() => createDefaultCa1Dataset());
+
+  // Initialize selected regions with all regions
+  const allRegions = React.useMemo(() => {
+    return Object.values(MIEN_REGIONS).flat();
+  }, []);
+  const [selectedRegions, setSelectedRegions] = useState(allRegions);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
@@ -163,6 +169,19 @@ export default function App() {
   const weekNum = weekCurrent?.[0] ? getWeekNumber(weekCurrent[0]) : '';
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
 
+  // Filter datasets based on selectedRegions
+  const filteredPickRows = React.useMemo(() => {
+    return pickRows.filter(r => selectedRegions.includes(r.region));
+  }, [pickRows, selectedRegions]);
+
+  const filteredDeliRows = React.useMemo(() => {
+    return deliRows.filter(r => selectedRegions.includes(r.region));
+  }, [deliRows, selectedRegions]);
+
+  const filteredCa1Rows = React.useMemo(() => {
+    return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao));
+  }, [ca1Rows, selectedRegions]);
+
   return (
     <div className="app-container">
       {/* Authentication Protection Modal */}
@@ -177,6 +196,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
+        selectedRegions={selectedRegions}
+        setSelectedRegions={setSelectedRegions}
         expandAllHubs={expandAllHubs}
         setExpandAllHubs={setExpandAllHubs}
         d1DateFormatted={d1DateFormatted}
@@ -192,16 +213,18 @@ export default function App() {
       <main className="main-content">
         {activeTab === 'report1' && (
           <Report1MienVungHub
-            pickRows={pickRows}
-            deliRows={deliRows}
+            pickRows={filteredPickRows}
+            deliRows={filteredDeliRows}
             clientFilter={clientFilter}
             expandAllHubs={expandAllHubs}
+            selectedRegions={selectedRegions}
           />
         )}
 
         {activeTab === 'report5' && (
           <Report5LaneCa1
-            ca1Rows={ca1Rows}
+            ca1Rows={filteredCa1Rows}
+            selectedRegions={selectedRegions}
           />
         )}
       </main>

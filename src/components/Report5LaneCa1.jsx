@@ -3,7 +3,7 @@ import { ArrowRightLeft, Download, Grid } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
-export default function Report5LaneCa1({ ca1Rows = [] }) {
+export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [] }) {
   const [density, setDensity] = useState('comfortable');
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);

@@ -116,7 +116,7 @@ function SparklineChart({ card, isGood }) {
   );
 }
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [] }) {
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -554,10 +554,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
               {/* 2. MIỀN & VÙNG ROWS */}
               {MIEN_ORDER.map(mien => {
+                const filteredMienRegions = MIEN_REGIONS[mien].filter(r => selectedRegions.length === 0 || selectedRegions.includes(r));
+                if (filteredMienRegions.length === 0) return null;
+
                 const mienStats = calcStats(`MIEN_${mien}`, weekCur);
                 
                 // Sort regions in this Miền by D-1 volume descending
-                const sortedRegions = [...MIEN_REGIONS[mien]].sort((a, b) => {
+                const sortedRegions = [...filteredMienRegions].sort((a, b) => {
                   const volA = dateEntityMap[`REG_${a}_${d1Date}`]?.tot || 0;
                   const volB = dateEntityMap[`REG_${b}_${d1Date}`]?.tot || 0;
                   return volB - volA;

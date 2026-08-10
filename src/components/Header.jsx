@@ -1,11 +1,14 @@
-import React from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, MapPin, CheckSquare, Square } from 'lucide-react';
+import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({ 
   activeTab, 
   setActiveTab, 
   clientFilter, 
   setClientFilter, 
+  selectedRegions,
+  setSelectedRegions,
   expandAllHubs,
   setExpandAllHubs,
   d1DateFormatted,
@@ -20,6 +23,37 @@ export default function Header({
     { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
     { id: 'report5', label: '2. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
   ];
+
+  const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
+  const regionMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (regionMenuRef.current && !regionMenuRef.current.contains(event.target)) {
+        setIsRegionMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const allRegions = React.useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
+  
+  const handleToggleRegion = (region) => {
+    if (selectedRegions.includes(region)) {
+      setSelectedRegions(selectedRegions.filter(r => r !== region));
+    } else {
+      setSelectedRegions([...selectedRegions, region]);
+    }
+  };
+
+  const handleToggleAllRegions = () => {
+    if (selectedRegions.length === allRegions.length) {
+      setSelectedRegions([]);
+    } else {
+      setSelectedRegions([...allRegions]);
+    }
+  };
 
   const handleHomeClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -109,6 +143,44 @@ export default function Header({
             <option value="SPE">SPE (Shopee Express)</option>
             <option value="ALL">Toàn Bộ Client (SPB + SPE)</option>
           </select>
+
+          {/* Region Multi-select Filter */}
+          <div className="filter-label" style={{ marginLeft: '0.5rem' }}>
+            <MapPin size={15} /> Vùng:
+          </div>
+          <div className="custom-dropdown" ref={regionMenuRef}>
+            <button 
+              className="dropdown-toggle" 
+              onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
+              title={selectedRegions.length === allRegions.length ? "Đã chọn tất cả vùng" : `Đã chọn ${selectedRegions.length} vùng`}
+            >
+              <span>{selectedRegions.length === allRegions.length ? "Tất Cả Vùng" : `Đã chọn (${selectedRegions.length})`}</span>
+            </button>
+
+            {isRegionMenuOpen && (
+              <div className="dropdown-menu">
+                <div className="dropdown-header" onClick={handleToggleAllRegions}>
+                  {selectedRegions.length === allRegions.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
+                  <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
+                </div>
+                <div className="dropdown-divider"></div>
+                
+                <div className="dropdown-scroll-area">
+                  {Object.keys(MIEN_REGIONS).map(mien => (
+                    <div key={mien} className="dropdown-section">
+                      <div className="dropdown-section-title">{mien}</div>
+                      {MIEN_REGIONS[mien].map(reg => (
+                        <div key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)}>
+                          {selectedRegions.includes(reg) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
+                          <span>{reg}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số & Ca làm việc) */}
           {activeTab === 'report1' && (
