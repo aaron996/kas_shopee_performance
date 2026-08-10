@@ -21,10 +21,18 @@ export default function Header({
     { id: 'report5', label: '2. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
   ];
 
+  const handleHomeClick = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <header className="navbar">
       <div className="nav-header">
-        <div className="brand-title">
+        <div 
+          className="brand-title" 
+          onClick={handleHomeClick}
+          title="Trở về đầu trang"
+        >
           <img 
             src="/ghn-logo.png" 
             alt="GHN Logistics" 
