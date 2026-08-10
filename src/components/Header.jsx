@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon } from 'lucide-react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, Award, Clock, Target, Search, Copy, Check } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -14,64 +14,83 @@ export default function Header({
   currentUser,
   onLogout,
   isDarkMode,
-  setIsDarkMode
+  setIsDarkMode,
+  searchTerm,
+  setSearchTerm,
+  onCopyZaloQuick
 }) {
+  const [copiedQuick, setCopiedQuick] = React.useState(false);
+
+  const handleQuickCopy = () => {
+    if (onCopyZaloQuick) {
+      onCopyZaloQuick();
+      setCopiedQuick(true);
+      setTimeout(() => setCopiedQuick(false), 2000);
+    }
+  };
+
   const tabs = [
-    { id: 'report1', label: '4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
-    { id: 'report5', label: '% ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
+    { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
+    { id: 'report2', label: '2. Top VIP Seller', desc: 'Xếp hạng đơn trễ theo Seller', icon: Award },
+    { id: 'report3', label: '3. Ca làm việc %GTC', desc: 'Tỷ lệ GTC Ca 1 & Ca 2', icon: Clock },
+    { id: 'report4', label: '4. Focus 1 Vùng', desc: 'Phân tích tập trung 1 Vùng', icon: Target },
+    { id: 'report5', label: '5. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
   ];
 
   return (
     <header className="navbar">
       <div className="nav-header">
-        <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="brand-title">
           <img 
             src="/ghn-logo.png" 
             alt="GHN Logistics" 
-            style={{ 
-              height: '70px', 
-              background: '#ffffff', 
-              padding: '6px 12px', 
-              borderRadius: '12px', 
-              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-              objectFit: 'contain'
-            }} 
+            className="header-brand-logo"
           />
           <div>
-            <div className="brand-name" style={{ fontSize: '1.4rem', fontWeight: 800 }}>Báo Cáo Điều Hành Shopee</div>
+            <div className="brand-name">Báo Cáo Điều Hành Shopee</div>
+            <div className="brand-subtitle">GHN Performance Management System</div>
           </div>
         </div>
 
         <div className="nav-actions">
           {currentUser && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.15)', padding: '0.35rem 0.75rem', borderRadius: '20px', fontSize: '0.8rem', border: '1px solid rgba(255,255,255,0.25)' }}>
+            <div className="user-badge-container">
               <UserCheck size={14} style={{ color: '#4ADE80' }} />
               <span>{currentUser.email}</span>
               {currentUser.isDevAdmin && (
-                <span style={{ background: '#F15A22', color: 'white', fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '8px', fontWeight: 'bold', marginLeft: '0.2rem' }}>DEV ADMIN</span>
+                <span className="dev-admin-tag">DEV ADMIN</span>
               )}
             </div>
           )}
 
-          {/* Nút Chuyển Đổi Giao Diện Sáng / Tối */}
+          {/* Quick Copy Zalo Brief Button */}
           <button 
-            className="nav-btn" 
+            className="nav-btn quick-zalo-btn" 
+            onClick={handleQuickCopy}
+            title="Copy tóm tắt chỉ số D-1 định dạng đẹp mắt gửi nhóm Zalo/Telegram"
+          >
+            {copiedQuick ? <Check size={15} style={{ color: '#4ADE80' }} /> : <Copy size={15} />}
+            <span>{copiedQuick ? 'Đã Copy Zalo!' : 'Copy Zalo Brief'}</span>
+          </button>
+
+          {/* Theme Toggle Button */}
+          <button 
+            className="nav-btn theme-toggle-btn" 
             onClick={() => setIsDarkMode(!isDarkMode)} 
             title={isDarkMode ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
-            style={{ background: isDarkMode ? '#f59e0b' : 'rgba(255,255,255,0.18)', color: isDarkMode ? '#000' : '#fff', fontWeight: 600, border: 'none' }}
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            <span>{isDarkMode ? 'Giao Diện Sáng' : 'Giao Diện Tối'}</span>
+            <span className="theme-toggle-text">{isDarkMode ? 'Giao Diện Sáng' : 'Giao Diện Tối'}</span>
           </button>
 
           <button className="nav-btn" onClick={onOpenSummary}>
             <MessageSquareText size={16} />
-            Nhận Xét D-1 vs D-8
+            <span className="btn-text-responsive">Nhận Xét D-1</span>
           </button>
 
           <button className="nav-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
             <LogOut size={15} />
-            Đăng Xuất
+            <span className="btn-text-responsive">Đăng Xuất</span>
           </button>
         </div>
       </div>
@@ -93,8 +112,8 @@ export default function Header({
         })}
       </div>
 
-      {/* Sub-header Filter Bar */}
-      <div className="filter-bar" style={{ marginTop: '0.75rem', borderRadius: '8px' }}>
+      {/* Sub-header Filter & Search Bar */}
+      <div className="filter-bar">
         <div className="filter-group">
           <div className="filter-label">
             <Filter size={15} /> Scope Client:
@@ -109,24 +128,40 @@ export default function Header({
             <option value="ALL">Toàn Bộ Client (SPB + SPE)</option>
           </select>
 
-          {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số) */}
+          {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số & Ca làm việc) */}
           {activeTab === 'report1' && (
             <button 
               className={`nav-btn ${expandAllHubs ? 'primary' : ''}`}
               onClick={() => setExpandAllHubs(!expandAllHubs)}
-              style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', background: expandAllHubs ? 'var(--ghn-blue)' : '#f1f5f9', color: expandAllHubs ? 'white' : '#475569', border: '1px solid #cbd5e1' }}
+              style={{ padding: '0.4rem 0.8rem', background: expandAllHubs ? 'var(--ghn-blue)' : '#f1f5f9', color: expandAllHubs ? 'white' : '#475569', border: '1px solid #cbd5e1' }}
             >
               {expandAllHubs ? 'Thu Gọn Về Vùng' : 'Mở Tất Cả Hubs'}
             </button>
           )}
+
+          {/* Live Search Input */}
+          <div className="search-input-wrapper">
+            <Search size={14} className="search-icon" />
+            <input 
+              type="text" 
+              className="search-input" 
+              placeholder="Tìm tên Hub, Vùng, Seller..." 
+              value={searchTerm || ''}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="clear-search-btn" onClick={() => setSearchTerm('')}>×</button>
+            )}
+          </div>
         </div>
 
-        <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div className="meta-date-info">
           <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           <span>•</span>
-          <span>Tuần WTD: <strong>Tuần {weekNum || '...'}</strong></span>
+          <span>WTD: <strong>Tuần {weekNum || '...'}</strong></span>
         </div>
       </div>
     </header>
   );
 }
+
