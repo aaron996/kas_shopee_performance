@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
-import Report2TopSeller from './components/Report2TopSeller';
-import Report3CaHub from './components/Report3CaHub';
-import Report4Focus1Vung from './components/Report4Focus1Vung';
 import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
@@ -12,7 +9,7 @@ import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dat
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { groupDatesByWeek, generateExecutiveSummary } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
-import { Layers, Award, Clock, Target, ArrowRightLeft } from 'lucide-react';
+import { Layers, ArrowRightLeft } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -201,7 +198,7 @@ export default function App() {
         onCopyZaloQuick={handleCopyZaloQuick}
       />
 
-      {/* Main View Area (Renders all 5 reports) */}
+      {/* Main View Area */}
       <main className="main-content">
         {activeTab === 'report1' && (
           <Report1MienVungHub
@@ -209,29 +206,6 @@ export default function App() {
             deliRows={deliRows}
             clientFilter={clientFilter}
             expandAllHubs={expandAllHubs}
-            searchTerm={searchTerm}
-          />
-        )}
-
-        {activeTab === 'report2' && (
-          <Report2TopSeller
-            clientFilter={clientFilter}
-            searchTerm={searchTerm}
-          />
-        )}
-
-        {activeTab === 'report3' && (
-          <Report3CaHub
-            clientFilter={clientFilter}
-            searchTerm={searchTerm}
-          />
-        )}
-
-        {activeTab === 'report4' && (
-          <Report4Focus1Vung
-            pickRows={pickRows}
-            deliRows={deliRows}
-            clientFilter={clientFilter}
             searchTerm={searchTerm}
           />
         )}
@@ -251,31 +225,7 @@ export default function App() {
           onClick={() => setActiveTab('report1')}
         >
           <Layers size={18} />
-          <span>4 Chỉ Số</span>
-        </button>
-
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report2' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report2')}
-        >
-          <Award size={18} />
-          <span>VIP Seller</span>
-        </button>
-
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report3' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report3')}
-        >
-          <Clock size={18} />
-          <span>Ca Làm Việc</span>
-        </button>
-
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report4' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report4')}
-        >
-          <Target size={18} />
-          <span>Focus Vùng</span>
+          <span>1. 4 Chỉ Số</span>
         </button>
 
         <button 
@@ -283,7 +233,7 @@ export default function App() {
           onClick={() => setActiveTab('report5')}
         >
           <ArrowRightLeft size={18} />
-          <span>% Ca 1</span>
+          <span>2. % Ca 1</span>
         </button>
       </nav>
 

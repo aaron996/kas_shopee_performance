@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, Award, Clock, Target, Search, Copy, Check } from 'lucide-react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, Search, Copy, Check } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
@@ -31,10 +31,7 @@ export default function Header({
 
   const tabs = [
     { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
-    { id: 'report2', label: '2. Top VIP Seller', desc: 'Xếp hạng đơn trễ theo Seller', icon: Award },
-    { id: 'report3', label: '3. Ca làm việc %GTC', desc: 'Tỷ lệ GTC Ca 1 & Ca 2', icon: Clock },
-    { id: 'report4', label: '4. Focus 1 Vùng', desc: 'Phân tích tập trung 1 Vùng', icon: Target },
-    { id: 'report5', label: '5. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
+    { id: 'report5', label: '2. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
   ];
 
   return (
