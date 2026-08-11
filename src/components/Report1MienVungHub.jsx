@@ -116,13 +116,11 @@ function SparklineChart({ card, isGood }) {
   );
 }
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [] }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen }) {
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
-  const [density, setDensity] = useState('comfortable'); // 'comfortable' | 'compact'
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -168,6 +166,14 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const collapseAll = () => {
     setExpandedRegions({});
   };
+
+  useEffect(() => {
+    const handleExportEvent = () => handleExportCSV();
+    window.addEventListener('export-csv', handleExportEvent);
+    return () => window.removeEventListener('export-csv', handleExportEvent);
+  });
+
+
 
   useEffect(() => {
     if (expandAllHubs) {
@@ -761,63 +767,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </div>
         </div>
       )}
-
-      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 className="section-title">
-            <Layers size={22} style={{ color: '#F15A22' }} />
-            4 chỉ số nationwide
-          </h2>
-          <div className="section-desc">
-            Báo cáo điều hành — Theo dõi 1st Pickup, OPR, 1st Deli, ODR theo phân cấp 3 tầng với thang màu liên tục trắng→đỏ.
-          </div>
-        </div>
-
-        {/* View Controls: Density, Fullscreen & Export */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {/* Table Density Selector */}
-          <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '8px', padding: '2px' }}>
-            <button 
-              className={`btn-secondary ${density === 'comfortable' ? 'primary' : ''}`}
-              onClick={() => setDensity('comfortable')}
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
-              title="Khoảng cách dòng thoáng"
-            >
-              <Grid size={13} /> Thoáng
-            </button>
-            <button 
-              className={`btn-secondary ${density === 'compact' ? 'primary' : ''}`}
-              onClick={() => setDensity('compact')}
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
-              title="Nén dày dòng dữ liệu"
-            >
-              <Grid size={13} /> Dày
-            </button>
-          </div>
-
-          {/* Fullscreen Toggle Button */}
-          <button 
-            className="btn-secondary"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình Monitoring'}
-            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
-          >
-            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            <span>{isFullscreen ? 'Thu Nhỏ' : 'Toàn Màn Hình'}</span>
-          </button>
-
-          {/* Export CSV Button */}
-          <button 
-            className="btn-secondary"
-            onClick={handleExportCSV}
-            title="Tải bảng dữ liệu dạng CSV (Mở được bằng Excel)"
-            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#0F6E56', color: 'white', border: 'none' }}
-          >
-            <Download size={15} />
-            <span>Xuất Excel</span>
-          </button>
-        </div>
-      </div>
 
       {/* Premium Dashboard Container for KPIs and Alerts */}
       <div className="premium-dashboard-container">

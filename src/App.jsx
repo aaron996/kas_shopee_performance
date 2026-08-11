@@ -61,6 +61,9 @@ export default function App() {
   }, []);
   const [selectedRegions, setSelectedRegions] = useState(allRegions);
 
+  const [density, setDensity] = useState('comfortable');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
 
@@ -207,6 +210,10 @@ export default function App() {
         onLogout={handleLogout}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
+        density={density}
+        setDensity={setDensity}
+        isFullscreen={isFullscreen}
+        setIsFullscreen={setIsFullscreen}
       />
 
       {/* Main View Area */}
@@ -218,6 +225,8 @@ export default function App() {
             clientFilter={clientFilter}
             expandAllHubs={expandAllHubs}
             selectedRegions={selectedRegions}
+            density={density}
+            isFullscreen={isFullscreen}
           />
         )}
 
@@ -225,6 +234,8 @@ export default function App() {
           <Report5LaneCa1
             ca1Rows={filteredCa1Rows}
             selectedRegions={selectedRegions}
+            density={density}
+            isFullscreen={isFullscreen}
           />
         )}
       </main>

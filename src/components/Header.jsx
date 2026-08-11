@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, MapPin, CheckSquare, Square } from 'lucide-react';
+import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({ 
@@ -17,7 +17,11 @@ export default function Header({
   currentUser,
   onLogout,
   isDarkMode,
-  setIsDarkMode
+  setIsDarkMode,
+  density,
+  setDensity,
+  isFullscreen,
+  setIsFullscreen
 }) {
   const tabs = [
     { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
@@ -204,6 +208,40 @@ export default function Header({
             <span className="dot">•</span>
             <span>WTD: <strong>Tuần {weekNum || '...'}</strong></span>
           </div>
+
+          <div className="filter-divider"></div>
+
+          {/* Density Toggle */}
+          <div 
+            className="density-toggle-sleek" 
+            onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} 
+            title="Bật để xem dữ liệu dày hơn"
+          >
+             <span className={density === 'comfortable' ? 'active' : ''}>Thoáng</span>
+             <div className={`switch ${density === 'compact' ? 'on' : 'off'}`}>
+                <div className="slider"></div>
+             </div>
+             <span className={density === 'compact' ? 'active' : ''}>Dày</span>
+          </div>
+
+          {/* Fullscreen & Export */}
+          <button 
+            className="nav-btn-sleek"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'}
+            style={{ padding: '0.25rem 0.4rem' }}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+
+          <button 
+            className="nav-btn-sleek primary"
+            onClick={() => window.dispatchEvent(new CustomEvent('export-csv'))}
+            title="Tải bảng dữ liệu dạng CSV"
+            style={{ background: '#0F6E56', borderColor: '#0F6E56', padding: '0.25rem 0.6rem' }}
+          >
+            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất</span>
+          </button>
         </div>
       </div>
     </header>
