@@ -23,17 +23,27 @@ export default function Sidebar({
 
   return (
     <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* Brand & Logo */}
-      <div className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
-        <img 
-          src="/ghn-logo.png" 
-          alt="GHN" 
-          className="sidebar-logo"
-        />
-        <div className="sidebar-brand-text">
-          <div className="brand-name">BCĐH Shopee</div>
-          <div className="brand-subtitle">Performance System</div>
+      <div className="sidebar-brand-container" style={{ position: 'relative' }}>
+        <div className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
+          <img 
+            src="/ghn-logo.png" 
+            alt="GHN" 
+            className="sidebar-logo"
+          />
+          <div className="sidebar-brand-text">
+            <div className="brand-name">BCĐH Shopee</div>
+            <div className="brand-subtitle">Performance System</div>
+          </div>
         </div>
+        
+        {/* Sidebar Toggle Button at Top Right */}
+        <button 
+          className="sidebar-toggle-btn top-toggle"
+          onClick={onToggleCollapse}
+          title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
       </div>
 
       {/* Navigation */}
@@ -92,14 +102,6 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Sidebar Toggle Button */}
-        <button 
-          className="sidebar-toggle-btn"
-          onClick={onToggleCollapse}
-          title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
       </div>
     </aside>
   );

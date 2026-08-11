@@ -122,6 +122,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
+  const [activeTableTab, setActiveTableTab] = useState('p1st');
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -164,6 +165,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   const scrollToRef = (ref, sectionId) => {
     if (sectionId) {
+      setActiveTableTab(sectionId);
       setHighlightedSection(sectionId);
       setTimeout(() => setHighlightedSection(null), 1800);
     }
@@ -902,11 +904,27 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       </div>
 
 
-      <div className={`density-${density}`}>
-        {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
-        {renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
-        {renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
-        {renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
+      <div className={`density-${density} kpi-tab-container`}>
+        <div className="kpi-table-tabs">
+          <button className={`kpi-table-tab ${activeTableTab === 'p1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('p1st')}>
+            1.1 - 1st Pickup
+          </button>
+          <button className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
+            1.2 - OPR
+          </button>
+          <button className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
+            1.3 - 1st Deli
+          </button>
+          <button className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
+            1.4 - ODR
+          </button>
+        </div>
+        <div className="kpi-table-content">
+          {activeTableTab === 'p1st' && renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
+          {activeTableTab === 'popr' && renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
+          {activeTableTab === 'd1st' && renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
+          {activeTableTab === 'dodr' && renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
+        </div>
       </div>
       
       {showHomeBtn && (
