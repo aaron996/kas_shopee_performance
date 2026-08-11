@@ -168,25 +168,12 @@ export default function Header({
             </div>
           </div>
 
-          {activeTab === 'report1' && (
-            <>
-              <div className="filter-divider"></div>
-              <button 
-                className={`nav-btn-sleek ${expandAllHubs ? 'primary' : ''}`}
-                onClick={() => setExpandAllHubs(!expandAllHubs)}
-              >
-                {expandAllHubs ? 'Thu Gọn Vùng' : 'Mở Tất Cả Hubs'}
-              </button>
-            </>
-          )}
         </div>
 
         {/* Right Side: View Controls & Export */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
-            <span className="dot">•</span>
-            <span>WTD: <strong>Tuần {weekNum || '...'}</strong></span>
           </div>
 
           <div className="filter-divider"></div>
