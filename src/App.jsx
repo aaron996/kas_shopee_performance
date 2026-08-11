@@ -82,10 +82,13 @@ export default function App() {
   // Initial state should be all hub types
   const [selectedHubTypes, setSelectedHubTypes] = useState(allHubTypes);
 
-  // Re-sync selectedHubTypes if allHubTypes changes significantly (e.g. initial load)
+  // Re-sync selectedHubTypes if allHubTypes changes (e.g., switching from mock to live data)
   useEffect(() => {
-    if (allHubTypes.length > 0 && selectedHubTypes.length === 0) {
-      setSelectedHubTypes(allHubTypes);
+    if (allHubTypes.length > 0) {
+      const hasOverlap = selectedHubTypes.some(t => allHubTypes.includes(t));
+      if (!hasOverlap) {
+        setSelectedHubTypes(allHubTypes);
+      }
     }
   }, [allHubTypes]);
 
