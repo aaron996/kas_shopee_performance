@@ -425,12 +425,19 @@ body {
   outline: none;
   background: var(--surface);
   color: var(--text-main);
-  transition: border-color 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   height: 28px;
+  cursor: pointer;
+}
+
+.filter-select-sleek:hover {
+  border-color: rgba(241, 90, 34, 0.4);
+  box-shadow: 0 2px 6px rgba(241, 90, 34, 0.08);
 }
 
 .filter-select-sleek:focus {
   border-color: var(--ghn-blue);
+  box-shadow: 0 0 0 2px rgba(11, 75, 150, 0.15);
 }
 
 .dropdown-toggle-sleek {
@@ -442,10 +449,22 @@ body {
   background: var(--surface);
   color: var(--text-main);
   cursor: pointer;
-  height: 28px;
   display: flex;
   align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 28px;
   font-weight: 500;
+}
+
+.dropdown-toggle-sleek:hover {
+  background: var(--surface-hover);
+  border-color: rgba(241, 90, 34, 0.4);
+  box-shadow: 0 2px 6px rgba(241, 90, 34, 0.08);
+}
+
+.dropdown-toggle-sleek:active {
+  transform: scale(0.97);
 }
 
 .filter-divider {
@@ -467,12 +486,29 @@ body {
   height: 28px;
   display: flex;
   align-items: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-btn-sleek:hover {
+  background: var(--surface-hover);
+  border-color: rgba(241, 90, 34, 0.4);
+  box-shadow: 0 2px 6px rgba(241, 90, 34, 0.08);
+}
+
+.nav-btn-sleek:active {
+  transform: scale(0.97);
 }
 
 .nav-btn-sleek.primary {
   background: var(--ghn-blue);
   color: white;
   border-color: var(--ghn-blue);
+}
+
+.nav-btn-sleek.primary:hover {
+  background: var(--ghn-blue-dark);
+  border-color: var(--ghn-blue-dark);
+  box-shadow: 0 4px 10px rgba(11, 75, 150, 0.2);
 }
 
 .density-toggle-sleek {
@@ -1956,6 +1992,17 @@ body.dark-mode .risk-chip-late {
   font-weight: 500;
 }
 
+@keyframes slideDownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .dropdown-menu {
   position: absolute;
   top: 100%;
@@ -1970,6 +2017,8 @@ body.dark-mode .risk-chip-late {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  animation: slideDownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
 }
 
 .dropdown-header {
@@ -2017,14 +2066,29 @@ body.dark-mode .risk-chip-late {
   cursor: pointer;
   font-size: 0.85rem;
   color: #334155;
+  transition: background-color 0.15s ease, padding-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dropdown-item:hover {
   background: #f1f5f9;
+  padding-left: 1.75rem;
+}
+
+.dropdown-item:active {
+  background: #e2e8f0;
 }
 
 .chk-icon {
   color: var(--ghn-blue);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s;
+}
+
+.dropdown-item:hover .chk-icon {
+  transform: scale(1.15);
+}
+
+.dropdown-item:active .chk-icon {
+  transform: scale(0.9);
 }
 
 body.dark-mode .dropdown-toggle {
