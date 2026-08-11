@@ -2168,21 +2168,21 @@ body.dark-mode .chk-icon {
 .risk-chips-list-sleek {
   display: flex;
   flex-direction: column;
-  padding: 0.75rem;
-  gap: 0.5rem;
-  max-height: 250px;
+  padding: 0.5rem;
+  gap: 0.4rem;
+  max-height: 190px;
   overflow-y: auto;
 }
 
 .risk-chip-sleek {
   background: #fff1f2;
   border: 1px solid rgba(225, 29, 72, 0.2);
-  padding: 0.6rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.25rem;
+  gap: 0.2rem;
   cursor: pointer;
   color: #881337;
   transition: all 0.2s;
@@ -2206,11 +2206,12 @@ body.dark-mode .chk-icon {
   color: #e11d48;
 }
 
-.risk-chip-details {
+.risk-chip-metrics-inline {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
   align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .risk-chip-metric-sleek {
@@ -2221,7 +2222,7 @@ body.dark-mode .chk-icon {
 .risk-chip-pct-sleek {
   font-weight: 800;
   color: #be123c;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .risk-chip-late-sleek {

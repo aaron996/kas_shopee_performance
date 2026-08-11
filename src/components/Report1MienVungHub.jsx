@@ -885,11 +885,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   <div className="risk-chip-header">
                     <AlertTriangle size={12} /> {chip.hub}
                   </div>
-                  <div className="risk-chip-details">
-                    <span className="risk-chip-metric-sleek">{chip.metric}</span>
+                  <div className="risk-chip-metrics-inline">
+                    <span className="risk-chip-metric-sleek">{chip.metric}:</span>
                     <span className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</span>
+                    <span className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</span>
                   </div>
-                  <div className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</div>
                 </button>
               ))}
             </div>
