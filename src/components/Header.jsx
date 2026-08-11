@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({ 
