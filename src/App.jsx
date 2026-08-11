@@ -54,9 +54,17 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const [pickRows, setPickRows] = useState(() => createDefaultPickDataset());
-  const [deliRows, setDeliRows] = useState(() => createDefaultDeliDataset());
-  const [ca1Rows, setCa1Rows] = useState(() => createDefaultCa1Dataset());
+  const filterAhamove = (rows) => {
+    if (!rows) return rows;
+    return rows.filter(r => {
+      const type = getHubType(r);
+      return type.toLowerCase() !== 'ahamove';
+    });
+  };
+
+  const [pickRows, setPickRows] = useState(() => filterAhamove(createDefaultPickDataset()));
+  const [deliRows, setDeliRows] = useState(() => filterAhamove(createDefaultDeliDataset()));
+  const [ca1Rows, setCa1Rows] = useState(() => filterAhamove(createDefaultCa1Dataset()));
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
@@ -68,7 +76,9 @@ export default function App() {
     const types = new Set();
     pickRows.forEach(r => {
       const type = getHubType(r);
-      if (type && type !== 'Unknown') types.add(type);
+      if (type && type !== 'Unknown' && type.toLowerCase() !== 'ahamove') {
+        types.add(type);
+      }
     });
     // Add 'Unknown' if we want it as a fallback, but let's just use what's in data.
     // If we want a default fallback just in case:
@@ -149,9 +159,9 @@ export default function App() {
   }, []);
 
   const handleResetDefaultData = () => {
-    setPickRows(createDefaultPickDataset());
-    setDeliRows(createDefaultDeliDataset());
-    setCa1Rows(createDefaultCa1Dataset());
+    setPickRows(filterAhamove(createDefaultPickDataset()));
+    setDeliRows(filterAhamove(createDefaultDeliDataset()));
+    setCa1Rows(filterAhamove(createDefaultCa1Dataset()));
     setSyncStatus({ isLive: false, text: 'Default Dataset' });
   };
 
@@ -163,9 +173,9 @@ export default function App() {
     setIsSyncing(false);
 
     if (res.success) {
-      setPickRows(res.pickData);
-      setDeliRows(res.deliData);
-      if (res.ca1Data) setCa1Rows(res.ca1Data);
+      setPickRows(filterAhamove(res.pickData));
+      setDeliRows(filterAhamove(res.deliData));
+      if (res.ca1Data) setCa1Rows(filterAhamove(res.ca1Data));
       setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
@@ -392,8 +402,9 @@ export default function App() {
         <DataSourceManagerModal
           isOpen={isDataSourceOpen}
           onClose={() => setIsDataSourceOpen(false)}
-          onUpdatePickData={(rows) => setPickRows(rows)}
-          onUpdateDeliData={(rows) => setDeliRows(rows)}
+          onUpdatePickData={(rows) => setPickRows(filterAhamove(rows))}
+          onUpdateDeliData={(rows) => setDeliRows(filterAhamove(rows))}
+          onUpdateCa1Data={(rows) => setCa1Rows(filterAhamove(rows))}
           onResetDefault={handleResetDefaultData}
         />
       )}
