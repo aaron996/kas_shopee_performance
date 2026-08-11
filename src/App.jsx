@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
