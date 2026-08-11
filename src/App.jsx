@@ -3,13 +3,14 @@ import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
+import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { groupDatesByWeek } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
-import { Layers, ArrowRightLeft } from 'lucide-react';
+import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -66,6 +67,9 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
+
+  const [isDevAdminDashboardOpen, setIsDevAdminDashboardOpen] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   // Listen for Supabase Authentication State changes
   useEffect(() => {
@@ -153,6 +157,62 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Real-time Presence & Access Logging
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // 1. Log access to access_logs table
+    const logAccess = async () => {
+      try {
+        await supabase.from('access_logs').insert([{ email: currentUser.email }]);
+      } catch (err) {
+        console.error('Failed to log access:', err);
+      }
+    };
+    
+    // Only log once per session to avoid spam
+    if (!sessionStorage.getItem('ghn_access_logged')) {
+      logAccess();
+      sessionStorage.setItem('ghn_access_logged', 'true');
+    }
+
+    // 2. Setup Realtime Presence
+    const room = supabase.channel('online-users', {
+      config: {
+        presence: {
+          key: currentUser.email,
+        },
+      },
+    });
+
+    room.on('presence', { event: 'sync' }, () => {
+      const state = room.presenceState();
+      const users = [];
+      Object.keys(state).forEach((key) => {
+        state[key].forEach((pres) => {
+          users.push(pres);
+        });
+      });
+      // Deduplicate by email
+      const uniqueUsers = Array.from(new Map(users.map(u => [u.email, u])).values());
+      setOnlineUsers(uniqueUsers);
+    });
+
+    room.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await room.track({
+          email: currentUser.email,
+          name: currentUser.name,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(room);
+    };
+  }, [currentUser]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
@@ -214,6 +274,7 @@ export default function App() {
         setDensity={setDensity}
         isFullscreen={isFullscreen}
         setIsFullscreen={setIsFullscreen}
+        onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
       />
 
       {/* Main View Area */}
@@ -257,6 +318,14 @@ export default function App() {
           <ArrowRightLeft size={18} />
           <span>2. % Ca 1</span>
         </button>
+
+        <button 
+          className="mobile-nav-item"
+          onClick={() => setIsSummaryOpen(true)}
+        >
+          <Activity size={18} />
+          <span>Tóm tắt</span>
+        </button>
       </nav>
 
       {/* Executive D-1 vs D-8 Summary Modal */}
@@ -276,6 +345,15 @@ export default function App() {
           onUpdatePickData={(rows) => setPickRows(rows)}
           onUpdateDeliData={(rows) => setDeliRows(rows)}
           onResetDefault={handleResetDefaultData}
+        />
+      )}
+
+      {/* Dev Admin Dashboard */}
+      {currentUser && currentUser.isDevAdmin && (
+        <DevAdminDashboard 
+          isOpen={isDevAdminDashboardOpen} 
+          onClose={() => setIsDevAdminDashboardOpen(false)} 
+          onlineUsers={onlineUsers} 
         />
       )}
     </div>

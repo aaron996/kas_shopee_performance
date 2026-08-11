@@ -21,7 +21,8 @@ export default function Header({
   density,
   setDensity,
   isFullscreen,
-  setIsFullscreen
+  setIsFullscreen,
+  onOpenDevAdmin
 }) {
   const tabs = [
     { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
@@ -84,7 +85,12 @@ export default function Header({
 
         <div className="nav-actions">
           {currentUser && (
-            <div className="user-badge-container">
+            <div 
+              className="user-badge-container" 
+              onClick={currentUser.isDevAdmin ? onOpenDevAdmin : undefined}
+              style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default' }}
+              title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
+            >
               <UserCheck size={14} style={{ color: '#4ADE80' }} />
               <span>{currentUser.email}</span>
               {currentUser.isDevAdmin && (
