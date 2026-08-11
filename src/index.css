@@ -1752,16 +1752,14 @@ body.dark-mode .chk-icon {
   overflow: hidden;
   margin-bottom: 2rem;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-  background-image: url('/premium_bg.jpg');
-  background-size: cover;
-  background-position: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 
 .premium-dashboard-container::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(11, 25, 44, 0.6) 0%, rgba(20, 10, 30, 0.3) 100%);
+  background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.15) 0%, transparent 60%);
   pointer-events: none;
 }
 
