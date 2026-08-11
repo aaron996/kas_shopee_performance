@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, LayoutDashboard } from 'lucide-react';
+import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, LayoutDashboard, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,
@@ -8,7 +8,9 @@ export default function Sidebar({
   onLogout,
   isDarkMode,
   setIsDarkMode,
-  onOpenDevAdmin
+  onOpenDevAdmin,
+  isCollapsed,
+  onToggleCollapse
 }) {
   const handleHomeClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -20,7 +22,7 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="app-sidebar">
+    <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       {/* Brand & Logo */}
       <div className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
         <img 
@@ -46,7 +48,7 @@ export default function Sidebar({
               onClick={() => setActiveTab(tab.id)}
             >
               <Icon size={18} />
-              <span>{tab.label}</span>
+              <span title={tab.label}>{tab.label}</span>
             </button>
           );
         })}
@@ -77,7 +79,7 @@ export default function Sidebar({
               title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
             >
               <UserCheck size={16} style={{ color: '#4ADE80' }} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="user-info-text" style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="user-email">{currentUser.email.split('@')[0]}</span>
                 {currentUser.isDevAdmin && (
                   <span className="dev-admin-tag-small">DEV ADMIN</span>
@@ -89,6 +91,15 @@ export default function Sidebar({
             </button>
           </div>
         )}
+
+        {/* Sidebar Toggle Button */}
+        <button 
+          className="sidebar-toggle-btn"
+          onClick={onToggleCollapse}
+          title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
       </div>
     </aside>
   );

@@ -38,6 +38,7 @@ export default function App() {
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('ghn_theme') === 'dark';
@@ -264,6 +265,8 @@ export default function App() {
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
           onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
         {/* Main Content Area (Header + Dashboard) */}
