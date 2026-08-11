@@ -2233,3 +2233,109 @@ body.dark-mode .chk-icon {
   border-radius: 6px;
   font-weight: 700;
 }
+
+/* ---------------------------------------------------
+   MOBILE RESPONSIVENESS OVERRIDES
+------------------------------------------------------*/
+@media (max-width: 768px) {
+  /* Layout -> Column */
+  .app-layout {
+    flex-direction: column;
+  }
+  
+  /* Sidebar -> Bottom Navigation Bar */
+  .app-sidebar,
+  .app-sidebar.collapsed {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 60px;
+    flex-direction: row;
+    z-index: 9999;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
+    transition: none;
+  }
+  
+  /* Hide non-nav elements in mobile sidebar */
+  .sidebar-brand-container,
+  .sidebar-nav-title,
+  .sidebar-footer,
+  .sidebar-toggle-btn {
+    display: none !important;
+  }
+  
+  /* Make Nav horizontal */
+  .sidebar-nav {
+    flex-direction: row;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    justify-content: space-around;
+    align-items: center;
+  }
+  
+  .sidebar-nav-item,
+  .app-sidebar.collapsed .sidebar-nav-item {
+    flex-direction: column;
+    padding: 0.2rem 0;
+    gap: 0.2rem;
+    font-size: 0.65rem;
+    border-left: none !important;
+    border-top: 3px solid transparent;
+    justify-content: center;
+  }
+  
+  .app-sidebar.collapsed .sidebar-nav-item span {
+    display: block; /* Show text on mobile */
+  }
+  
+  .sidebar-nav-item.active {
+    border-top-color: var(--ghn-orange) !important;
+    background: transparent !important;
+  }
+
+  /* Adjust Main Content to not be hidden by Bottom Nav */
+  .app-main {
+    padding-bottom: 70px;
+  }
+
+  /* Header / Toolbar Adjustments */
+  .app-header {
+    padding: 0.5rem;
+  }
+  
+  .filter-group-sleek > div {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .filter-item {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .filter-divider {
+    display: none;
+  }
+
+  /* KPI Tabs Adjustment */
+  .kpi-table-tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .kpi-table-tab {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    flex: 1 1 50%;
+    text-align: center;
+  }
+
+  /* Tables horizontal scroll */
+  .table-responsive {
+    overflow-x: auto;
+  }
+}
