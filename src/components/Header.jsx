@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
-export default function Header({ 
-  activeTab, 
-  clientFilter, 
-  setClientFilter, 
+export default function Header({
+  activeTab,
+  clientFilter,
+  setClientFilter,
   selectedRegions,
   setSelectedRegions,
   allHubTypes,
@@ -15,7 +15,12 @@ export default function Header({
   setExpandAllHubs,
   d1DateFormatted,
   weekNum,
-  onOpenSummary, 
+  onOpenSummary,
+  currentUser,
+  onLogout,
+  onOpenDevAdmin,
+  isDarkMode,
+  setIsDarkMode,
   density,
   setDensity,
   isFullscreen,
@@ -207,6 +212,39 @@ export default function Header({
           >
             <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất Excel</span>
           </button>
+
+          {/* Mobile-only: the desktop sidebar (theme, dev admin, logout) is
+              hidden below 768px, so surface those controls here instead. */}
+          <div className="mobile-only-controls">
+            <button
+              className="nav-btn-sleek"
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
+              style={{ padding: '0.25rem 0.4rem' }}
+            >
+              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+
+            {currentUser?.isDevAdmin && (
+              <button
+                className="nav-btn-sleek"
+                onClick={onOpenDevAdmin}
+                title="Dev Admin"
+                style={{ padding: '0.25rem 0.4rem', color: '#0F6E56' }}
+              >
+                <ShieldCheck size={15} />
+              </button>
+            )}
+
+            <button
+              className="nav-btn-sleek"
+              onClick={onLogout}
+              title="Đăng xuất"
+              style={{ padding: '0.25rem 0.4rem' }}
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
 
       </div>

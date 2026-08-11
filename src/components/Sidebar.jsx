@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, LayoutDashboard, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,
@@ -62,17 +62,6 @@ export default function Sidebar({
             </button>
           );
         })}
-        {/* Mobile ONLY Dev Admin Button */}
-        {currentUser?.isDevAdmin && (
-          <button
-            className="sidebar-nav-item mobile-only"
-            onClick={onOpenDevAdmin}
-            style={{ color: '#4ADE80' }}
-          >
-            <ShieldCheck size={18} />
-            <span title="Dev Admin">Dev Admin</span>
-          </button>
-        )}
       </nav>
 
       <div style={{ flex: 1 }}></div>

@@ -571,6 +571,12 @@ body.dark-mode .density-toggle-sleek .switch.on {
   gap: 0.5rem;
 }
 
+/* Theme/Dev Admin/Logout shortcuts in the header — mobile only,
+   see the ≤768px override below. Desktop already has these in the sidebar. */
+.mobile-only-controls {
+  display: none;
+}
+
 .meta-date-sleek strong {
   color: var(--text-main);
 }
@@ -1245,9 +1251,8 @@ table.mtx-table th.col-summary {
 }
 
 @media (max-width: 768px) {
-  .app-container {
-    padding-bottom: 60px; /* Leave space for bottom nav bar */
-  }
+  /* Bottom-nav clearance lives on .app-main (see MOBILE RESPONSIVENESS
+     OVERRIDES below) — don't also pad .app-container or the space stacks. */
 
   .navbar {
     padding: 0.5rem 0.75rem;
@@ -2358,61 +2363,17 @@ body.dark-mode .chk-icon {
     flex-direction: column;
   }
   
-  /* Sidebar -> Bottom Navigation Bar */
+  /* Desktop Sidebar is fully replaced by .mobile-bottom-nav on mobile.
+     (Previously this tried to reflow the sidebar into a second bottom bar,
+     but it stayed pinned to `top: 0` from the desktop rule, covering the
+     header's filter row with a duplicate nav. Simplest correct fix: hide it
+     — all its nav items and settings already have a mobile equivalent.) */
   .app-sidebar,
   .app-sidebar.collapsed {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 60px;
-    flex-direction: row;
-    z-index: 9999;
-    box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
-    transition: none;
-  }
-  
-  /* Hide non-nav elements in mobile sidebar */
-  .sidebar-brand-container,
-  .sidebar-nav-title,
-  .sidebar-footer,
-  .sidebar-toggle-btn {
-    display: none !important;
-  }
-  
-  /* Make Nav horizontal */
-  .sidebar-nav {
-    flex-direction: row;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    justify-content: space-around;
-    align-items: center;
-  }
-  
-  .sidebar-nav-item,
-  .app-sidebar.collapsed .sidebar-nav-item {
-    flex-direction: column;
-    padding: 0.2rem 0;
-    gap: 0.2rem;
-    font-size: 0.65rem;
-    border-left: none !important;
-    border-top: 3px solid transparent;
-    justify-content: center;
-  }
-  
-  .app-sidebar.collapsed .sidebar-nav-item span {
-    display: block; /* Show text on mobile */
-  }
-  
-  .sidebar-nav-item.active {
-    border-top-color: var(--ghn-orange) !important;
-    background: transparent !important;
+    display: none;
   }
 
-  /* Adjust Main Content to not be hidden by Bottom Nav */
+  /* Adjust Main Content to not be hidden by the bottom nav bar */
   .app-main {
     padding-bottom: 70px;
   }
@@ -2422,7 +2383,14 @@ body.dark-mode .chk-icon {
     padding: 0.75rem;
     height: auto;
   }
-  
+
+  /* Theme / Dev Admin / Logout: normally live in the sidebar footer, which
+     is hidden on mobile — surface them in the header instead. */
+  .mobile-only-controls {
+    display: flex;
+    gap: 0.4rem;
+  }
+
   .filter-group-sleek {
     flex-direction: column;
     align-items: stretch;
@@ -2432,8 +2400,10 @@ body.dark-mode .chk-icon {
   .filter-group-sleek > div {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 0.6rem;
   }
-  
+
   .filter-item {
     width: 100%;
     justify-content: space-between;
