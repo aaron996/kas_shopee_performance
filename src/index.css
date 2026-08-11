@@ -1797,50 +1797,122 @@ body.dark-mode .chk-icon {
    PREMIUM DASHBOARD OVERHAUL (GLASSMORPHISM & BG)
 ------------------------------------------------------*/
 
-/* Premium Dashboard Container */
-.premium-dashboard-container {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  margin-bottom: 2rem;
-  box-shadow: 0 8px 30px rgba(241, 90, 34, 0.15);
-  background: linear-gradient(135deg, var(--ghn-orange) 0%, #d94a1a 100%);
-}
-
-.premium-dashboard-container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.15) 0%, transparent 60%);
-  pointer-events: none;
-}
-
-/* Sleek Risk Alert */
-.risk-alert-bar-sleek {
-  position: relative;
-  z-index: 2;
-  margin: 1.5rem 1.5rem 0 1.5rem;
-  padding: 0.6rem 1.25rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 1);
-  border-radius: 12px;
+/* Top Split Dashboard (Layout 2: Card-Based) */
+.top-split-dashboard {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  align-items: flex-start;
 }
 
+@media (max-width: 1024px) {
+  .top-split-dashboard {
+    flex-direction: column;
+  }
+}
+
+/* Left: Overview */
+.top-split-left {
+  flex: 7;
+  background: #fff0e5; /* Very soft pastel orange */
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 15px rgba(241, 90, 34, 0.08);
+  border: 1px solid rgba(241, 90, 34, 0.15);
+}
+
+.kpi-cards-header-glass {
+  color: var(--ghn-orange);
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.5px;
+}
+
+/* Right: Alerts */
+.top-split-right {
+  flex: 3;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.15);
+  border-top: 4px solid #e11d48;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Card aesthetics */
+.top-split-left .kpi-card {
+  background: white;
+  border: 1px solid rgba(241, 90, 34, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+  color: var(--text-main);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.top-split-left .kpi-card:hover {
+  background: white;
+  transform: translateY(-4px);
+  border-color: rgba(241, 90, 34, 0.3);
+  box-shadow: 0 10px 25px rgba(241, 90, 34, 0.1);
+}
+
+.top-split-left .kpi-card-title span:first-child {
+  color: var(--ghn-blue-dark);
+  font-weight: 700;
+}
+
+.top-split-left .kpi-card-target {
+  background: #f1f5f9;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.top-split-left .kpi-card-pct {
+  color: var(--ghn-blue-dark);
+}
+
+.top-split-left .kpi-card-pct.good {
+  color: #0F6E56;
+}
+
+.top-split-left .kpi-card-stats {
+  border-top: 1px solid var(--border);
+}
+
+.top-split-left .kpi-card-stats span:first-child {
+  color: var(--text-muted);
+}
+
+.top-split-left .kpi-card-stats span.late {
+  color: #e11d48;
+  font-weight: 700;
+}
+
+.top-split-left .kpi-card-diff.up {
+  color: #0F6E56;
+  background: rgba(15, 110, 86, 0.1);
+  border: 1px solid rgba(15, 110, 86, 0.2);
+}
+
+.top-split-left .kpi-card-diff.down {
+  color: #e11d48;
+  background: rgba(225, 29, 72, 0.1);
+  border: 1px solid rgba(225, 29, 72, 0.2);
+}
+
+/* Alert List in Right Sidebar */
 .risk-alert-title-sleek {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: #e11d48;
   font-weight: 700;
-  font-size: 0.85rem;
-  white-space: nowrap;
+  font-size: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .risk-alert-icon-sleek {
@@ -1848,136 +1920,70 @@ body.dark-mode .chk-icon {
   animation: pulse-icon 2s infinite;
 }
 
-@keyframes pulse-icon {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 .risk-chips-list-sleek {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .risk-chip-sleek {
-  background: rgba(225, 29, 72, 0.05);
-  border: 1px solid rgba(225, 29, 72, 0.15);
-  padding: 0.25rem 0.6rem;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
+  background: #fff1f2;
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.4rem;
   cursor: pointer;
-  color: #e11d48;
+  color: #881337;
   transition: all 0.2s;
+  width: 100%;
+  text-align: left;
 }
 
 .risk-chip-sleek:hover {
-  background: rgba(225, 29, 72, 0.1);
+  background: #ffe4e6;
   transform: translateY(-2px);
-  border-color: rgba(225, 29, 72, 0.25);
+  border-color: rgba(225, 29, 72, 0.3);
+  box-shadow: 0 4px 10px rgba(225, 29, 72, 0.1);
 }
 
-.risk-chip-hub-sleek {
+.risk-chip-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
+  color: #e11d48;
+}
+
+.risk-chip-details {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  align-items: center;
 }
 
 .risk-chip-metric-sleek {
-  font-size: 0.7rem;
-  opacity: 0.85;
+  font-size: 0.8rem;
+  color: #9f1239;
 }
 
 .risk-chip-pct-sleek {
   font-weight: 800;
   color: #be123c;
+  font-size: 1rem;
 }
 
 .risk-chip-late-sleek {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   background: #e11d48;
   color: white;
-  padding: 0.15rem 0.4rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 6px;
   font-weight: 700;
-}
-
-/* Glassmorphism KPI Cards */
-.kpi-cards-wrapper-glass {
-  position: relative;
-  z-index: 2;
-  padding: 1.5rem;
-}
-
-.kpi-cards-header-glass {
-  color: white;
-  font-family: var(--font-heading);
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin-bottom: 1.25rem;
-  letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-
-/* Reuse container layout but override card aesthetics */
-.premium-dashboard-container .kpi-card {
-  background: white;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  color: var(--text-main);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.premium-dashboard-container .kpi-card:hover {
-  background: white;
-  transform: translateY(-4px);
-  border-color: white;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-}
-
-.premium-dashboard-container .kpi-card-title span:first-child {
-  color: var(--ghn-blue-dark);
-  font-weight: 700;
-}
-
-.premium-dashboard-container .kpi-card-target {
-  background: #f1f5f9;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-}
-
-.premium-dashboard-container .kpi-card-pct {
-  color: var(--ghn-blue-dark);
-  text-shadow: none;
-}
-
-.premium-dashboard-container .kpi-card-pct.good {
-  color: #0F6E56;
-  text-shadow: none;
-}
-
-.premium-dashboard-container .kpi-card-stats {
-  border-top: 1px solid var(--border);
-}
-
-.premium-dashboard-container .kpi-card-stats span:first-child {
-  color: var(--text-muted);
-}
-
-.premium-dashboard-container .kpi-card-stats span.late {
-  color: #e11d48;
-  font-weight: 700;
-}
-
-.premium-dashboard-container .kpi-card-diff.up {
-  color: #0F6E56;
-  background: rgba(15, 110, 86, 0.1);
-  border: 1px solid rgba(15, 110, 86, 0.2);
-}
-
-.premium-dashboard-container .kpi-card-diff.down {
-  color: #e11d48;
-  background: rgba(225, 29, 72, 0.1);
-  border: 1px solid rgba(225, 29, 72, 0.2);
 }

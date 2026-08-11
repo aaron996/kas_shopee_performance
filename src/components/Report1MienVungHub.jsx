@@ -819,16 +819,59 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </button>
       )}
 
-      {/* Premium Dashboard Container for KPIs and Alerts */}
-      <div className="premium-dashboard-container">
+      {/* Top Split Dashboard (Layout 2: Card-Based) */}
+      <div className="top-split-dashboard">
         
-        {/* Operational Risk Alert Bar (Auto-generated 1-click Hub Chips) */}
-        {riskAlertHubs.length > 0 && (
-          <div className="risk-alert-bar-sleek">
-            <div className="risk-alert-title-sleek">
-              <AlertTriangle size={15} className="risk-alert-icon-sleek" />
-              <span>CẦN CAN THIỆP D-1:</span>
-            </div>
+        {/* Left: KPI Overview */}
+        <div className="top-split-left">
+          <div className="kpi-cards-header-glass">
+            TỔNG QUAN D-1
+          </div>
+          <div className="kpi-cards-container">
+            {kpiCards.map(card => {
+              const diff = card.d1.pct - card.d8.pct;
+              const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
+              const lateVol = card.d1.tot - card.d1.ont;
+              const isGood = card.d1.pct >= card.target;
+              
+              return (
+                <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref, card.id)}>
+                  <div className="kpi-card-title">
+                    <span>{card.title}</span>
+                    <span className="kpi-card-target">≥{card.target}%</span>
+                  </div>
+                  <div className="kpi-card-main">
+                    <span className={`kpi-card-pct ${isGood ? 'good' : ''}`}>
+                      {card.d1.pct.toFixed(1)}%
+                    </span>
+                    <span className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}>
+                      {diffStr}
+                    </span>
+                  </div>
+                  
+                  {/* Visual sparkline */}
+                  <div className="kpi-card-chart">
+                    <SparklineChart card={card} isGood={isGood} />
+                  </div>
+
+                  <div className="kpi-card-stats">
+                    <span>{formatVol(card.d1.tot)} đơn</span>
+                    <span className="late">{formatVol(lateVol)} trễ</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right: Needs Intervention (Alerts) */}
+        <div className="top-split-right">
+          <div className="risk-alert-title-sleek">
+            <AlertTriangle size={16} className="risk-alert-icon-sleek" />
+            <span>CẦN CAN THIỆP D-1</span>
+          </div>
+          
+          {riskAlertHubs.length > 0 ? (
             <div className="risk-chips-list-sleek">
               {riskAlertHubs.map((chip, idx) => (
                 <button 
@@ -837,59 +880,27 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   onClick={() => handleRiskChipClick(chip)}
                   title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
                 >
-                  <span className="risk-chip-hub-sleek">{chip.hub}</span>
-                  <span className="risk-chip-metric-sleek">{chip.metric}</span>
-                  <span className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</span>
-                  <span className="risk-chip-late-sleek">-{formatVol(chip.late)}</span>
+                  <div className="risk-chip-header">
+                    <AlertTriangle size={12} /> {chip.hub}
+                  </div>
+                  <div className="risk-chip-details">
+                    <span className="risk-chip-metric-sleek">{chip.metric}</span>
+                    <span className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</div>
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* KPI Cards Section */}
-        <div className="kpi-cards-wrapper-glass">
-          <div className="kpi-cards-header-glass">
-            TỔNG QUAN D-1
-          </div>
-        <div className="kpi-cards-container">
-          {kpiCards.map(card => {
-            const diff = card.d1.pct - card.d8.pct;
-            const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
-            const lateVol = card.d1.tot - card.d1.ont;
-            const isGood = card.d1.pct >= card.target;
-            
-            return (
-              <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref, card.id)}>
-                <div className="kpi-card-title">
-                  <span>{card.title}</span>
-                  <span className="kpi-card-target">≥{card.target}%</span>
-                </div>
-                <div className="kpi-card-main">
-                  <span className={`kpi-card-pct ${isGood ? 'good' : ''}`}>
-                    {card.d1.pct.toFixed(1)}%
-                  </span>
-                  <span className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}>
-                    {diffStr}
-                  </span>
-                </div>
-                
-                {/* Visual sparkline */}
-                <div className="kpi-card-chart">
-                  <SparklineChart card={card} isGood={isGood} />
-                </div>
-
-                <div className="kpi-card-stats">
-                  <span>{formatVol(card.d1.tot)} đơn</span>
-                  <span className="late">{formatVol(lateVol)} trễ</span>
-                </div>
-              </div>
-            );
-          })}
+          ) : (
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>✅</div>
+              Tất cả các Hub đều đạt chỉ tiêu hoặc trễ không đáng kể.
+            </div>
+          )}
         </div>
+
       </div>
-      </div>
-      {/* End Premium Dashboard Container */}
+
 
       <div className={`density-${density}`}>
         {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
