@@ -253,9 +253,23 @@ export default function App() {
         onLoginSuccess={(user) => setCurrentUser(user)}
       />
 
-      {/* Header Navigation & Filter Bar */}
-      <Header
-        activeTab={activeTab}
+      {/* Main Layout wrapper for Sidebar + Content */}
+      <div className="app-layout">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          isDarkMode={isDarkMode}
+          setIsDarkMode={setIsDarkMode}
+          onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
+        />
+
+        {/* Main Content Area (Header + Dashboard) */}
+        <div className="app-main">
+          {/* Header Navigation & Filter Bar */}
+          <Header
+            activeTab={activeTab}
         setActiveTab={setActiveTab}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
@@ -270,15 +284,14 @@ export default function App() {
         onLogout={handleLogout}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
-        density={density}
-        setDensity={setDensity}
-        isFullscreen={isFullscreen}
-        setIsFullscreen={setIsFullscreen}
-        onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
-      />
+            density={density}
+            setDensity={setDensity}
+            isFullscreen={isFullscreen}
+            setIsFullscreen={setIsFullscreen}
+          />
 
-      {/* Main View Area */}
-      <main className="main-content">
+          {/* Main View Area */}
+          <main className="main-content">
         {activeTab === 'report1' && (
           <Report1MienVungHub
             pickRows={filteredPickRows}
@@ -350,14 +363,15 @@ export default function App() {
         />
       )}
 
-      {/* Dev Admin Dashboard */}
-      {currentUser && currentUser.isDevAdmin && (
-        <DevAdminDashboard 
-          isOpen={isDevAdminDashboardOpen} 
-          onClose={() => setIsDevAdminDashboardOpen(false)} 
-          onlineUsers={onlineUsers} 
-        />
-      )}
+          {isDevAdminDashboardOpen && currentUser?.isDevAdmin && (
+            <DevAdminDashboard 
+              isOpen={isDevAdminDashboardOpen} 
+              onClose={() => setIsDevAdminDashboardOpen(false)} 
+              onlineUsers={onlineUsers} 
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

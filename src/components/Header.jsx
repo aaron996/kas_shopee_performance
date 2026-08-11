@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Layers, MessageSquareText, Filter, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({ 
   activeTab, 
-  setActiveTab, 
   clientFilter, 
   setClientFilter, 
   selectedRegions,
@@ -14,21 +13,11 @@ export default function Header({
   d1DateFormatted,
   weekNum,
   onOpenSummary, 
-  currentUser,
-  onLogout,
-  isDarkMode,
-  setIsDarkMode,
   density,
   setDensity,
   isFullscreen,
-  setIsFullscreen,
-  onOpenDevAdmin
+  setIsFullscreen
 }) {
-  const tabs = [
-    { id: 'report1', label: '1. 4 chỉ số nationwide', desc: 'Ma trận 4 chỉ số toàn quốc', icon: Layers },
-    { id: 'report5', label: '2. % Ca 1 theo lane', desc: '% đơn về hub trước 09:00 sáng', icon: ArrowRightLeft }
-  ];
-
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const regionMenuRef = useRef(null);
 
@@ -60,88 +49,12 @@ export default function Header({
     }
   };
 
-  const handleHomeClick = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   return (
-    <header className="navbar">
-      <div className="nav-header">
-        <div 
-          className="brand-title" 
-          onClick={handleHomeClick}
-          title="Trở về đầu trang"
-        >
-          <img 
-            src="/ghn-logo.png" 
-            alt="GHN Logistics" 
-            className="header-brand-logo"
-          />
-          <div>
-            <div className="brand-name">Báo Cáo Điều Hành Shopee</div>
-            <div className="brand-subtitle">GHN Performance Management System</div>
-          </div>
-        </div>
-
-        <div className="nav-actions">
-          {currentUser && (
-            <div 
-              className="user-badge-container" 
-              onClick={currentUser.isDevAdmin ? onOpenDevAdmin : undefined}
-              style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default' }}
-              title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
-            >
-              <UserCheck size={14} style={{ color: '#4ADE80' }} />
-              <span>{currentUser.email}</span>
-              {currentUser.isDevAdmin && (
-                <span className="dev-admin-tag">DEV ADMIN</span>
-              )}
-            </div>
-          )}
-
-          {/* Theme Toggle Button */}
-          <button 
-            className="nav-btn theme-toggle-btn" 
-            onClick={() => setIsDarkMode(!isDarkMode)} 
-            title={isDarkMode ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            <span className="theme-toggle-text">{isDarkMode ? 'Giao Diện Sáng' : 'Giao Diện Tối'}</span>
-          </button>
-
-          <button className="nav-btn" onClick={onOpenSummary}>
-            <MessageSquareText size={16} />
-            <span className="btn-text-responsive">Nhận Xét D-1</span>
-          </button>
-
-          <button className="nav-btn" onClick={onLogout} title="Đăng xuất khỏi tài khoản">
-            <LogOut size={15} />
-            <span className="btn-text-responsive">Đăng Xuất</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Unified Sub-header: Tabs on Left, Filters on Right */}
-      <div className="sub-header">
-        {/* Tabs Navigation */}
-        <div className="nav-tabs-sleek">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                className={`tab-item-sleek ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <Icon size={16} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filter Controls */}
-        <div className="filter-group-sleek">
+    <header className="navbar app-header">
+      <div className="filter-group-sleek" style={{ width: '100%', justifyContent: 'space-between' }}>
+        
+        {/* Left Side: Context / Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           <div className="filter-item">
             <Filter size={14} className="filter-icon" />
             <span className="filter-label-text">Client:</span>
@@ -158,7 +71,6 @@ export default function Header({
 
           <div className="filter-divider"></div>
 
-          {/* Region Multi-select Filter */}
           <div className="filter-item">
             <MapPin size={14} className="filter-icon" />
             <span className="filter-label-text">Vùng:</span>
@@ -197,18 +109,21 @@ export default function Header({
             </div>
           </div>
 
-          <div className="filter-divider"></div>
-
-          {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số & Ca làm việc) */}
           {activeTab === 'report1' && (
-            <button 
-              className={`nav-btn-sleek ${expandAllHubs ? 'primary' : ''}`}
-              onClick={() => setExpandAllHubs(!expandAllHubs)}
-            >
-              {expandAllHubs ? 'Thu Gọn Vùng' : 'Mở Tất Cả Hubs'}
-            </button>
+            <>
+              <div className="filter-divider"></div>
+              <button 
+                className={`nav-btn-sleek ${expandAllHubs ? 'primary' : ''}`}
+                onClick={() => setExpandAllHubs(!expandAllHubs)}
+              >
+                {expandAllHubs ? 'Thu Gọn Vùng' : 'Mở Tất Cả Hubs'}
+              </button>
+            </>
           )}
+        </div>
 
+        {/* Right Side: View Controls & Export */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
             <span className="dot">•</span>
@@ -217,12 +132,11 @@ export default function Header({
 
           <div className="filter-divider"></div>
 
-          {/* Density Toggle */}
-          <div 
-            className="density-toggle-sleek" 
-            onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} 
-            title="Bật để xem dữ liệu dày hơn"
-          >
+          <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
+            <MessageSquareText size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Nhận Xét D-1</span>
+          </button>
+
+          <div className="density-toggle-sleek" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title="Bật để xem dữ liệu dày hơn">
              <span className={density === 'comfortable' ? 'active' : ''}>Thoáng</span>
              <div className={`switch ${density === 'compact' ? 'on' : 'off'}`}>
                 <div className="slider"></div>
@@ -230,7 +144,6 @@ export default function Header({
              <span className={density === 'compact' ? 'active' : ''}>Dày</span>
           </div>
 
-          {/* Fullscreen & Export */}
           <button 
             className="nav-btn-sleek"
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -246,11 +159,11 @@ export default function Header({
             title="Tải bảng dữ liệu dạng CSV"
             style={{ background: '#0F6E56', borderColor: '#0F6E56', padding: '0.25rem 0.6rem' }}
           >
-            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất</span>
+            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất Excel</span>
           </button>
         </div>
+
       </div>
     </header>
   );
 }
-
