@@ -2339,3 +2339,137 @@ body.dark-mode .chk-icon {
     overflow-x: auto;
   }
 }
+
+/* ==========================================================================
+   DESIGN SKILLS ENHANCEMENTS (Impeccable, Emil-Design-Eng, Apple-Design)
+   ========================================================================== */
+
+/* 1. Tabular Numbers for Numeric Stability */
+.tabular-nums,
+table.mtx-table td,
+.metric-value,
+.kpi-card-value,
+.diff-badge {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* 2. Tactile Button Feedback */
+.tactile-btn,
+.nav-btn-sleek,
+.filter-select-sleek,
+.tab-item-sleek,
+.sidebar-item,
+.auth-submit-btn,
+.data-source-btn {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tactile-btn:active,
+.nav-btn-sleek:active,
+.filter-select-sleek:active,
+.tab-item-sleek:active,
+.auth-submit-btn:active {
+  transform: scale(0.97);
+}
+
+/* 3. Live Pulse Micro-Animation */
+@keyframes statusPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.live-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  animation: statusPulse 2s infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 4. Glassmorphism Modal Overlay & Pop-in Spring Physics */
+@keyframes modalPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-overlay,
+.modal-backdrop,
+.executive-modal-overlay,
+.datasource-modal-overlay,
+.auth-modal-overlay {
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  background-color: rgba(15, 23, 42, 0.65) !important;
+}
+
+.modal-card,
+.executive-modal-content,
+.datasource-modal-content,
+.auth-card {
+  animation: modalPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 5. Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* 6. Active Sidebar Glowing Indicator Bar */
+.sidebar-item.active,
+.sidebar-nav-item.active {
+  position: relative;
+}
+
+.sidebar-item.active::before,
+.sidebar-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 4px;
+  background-color: #F15A22;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px rgba(241, 90, 34, 0.8);
+}
+
