@@ -281,7 +281,7 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
                         return (
                           <tr key={reg} style={rowStyle}>
                             {idx === 0 && (
-                              <td rowSpan={regs.length} className="lbl lbl-1" style={{ color: '#0063AA', fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem', background: '#f8fafc' }}>
+                              <td rowSpan={regs.length} className="lbl lbl-1" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>
                                 {mien}
                               </td>
                             )}

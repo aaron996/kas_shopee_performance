@@ -225,7 +225,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
 
           <div className="table-legend">
             <div className="legend-items">
-              <span style={{ fontWeight: 600, color: '#334155' }}>Rule 3 màu cố định (Anh Long GĐV):</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Rule 3 màu cố định (Anh Long GĐV):</span>
               <div className="legend-item">
                 <div className="legend-box" style={{ background: '#EAF3DE' }}></div>
                 <span>≥ {target}% (Đạt KPI)</span>

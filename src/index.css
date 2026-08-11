@@ -2494,3 +2494,94 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover {
   box-shadow: 0 0 10px rgba(241, 90, 34, 0.8);
 }
 
+/* ==========================================================================
+   MISSING DARK MODE OVERRIDES FOR PREMIUM DASHBOARD
+   ========================================================================== */
+body.dark-mode .top-split-left {
+  background: #111827; /* Dark slate */
+  border-color: rgba(241, 90, 34, 0.2);
+}
+
+body.dark-mode .top-split-right {
+  background: #111827;
+  border-color: rgba(225, 29, 72, 0.2);
+}
+
+body.dark-mode .top-split-left .kpi-card {
+  background: #1f2937;
+  border-color: rgba(241, 90, 34, 0.2);
+  color: #f1f5f9;
+}
+
+body.dark-mode .top-split-left .kpi-card:hover {
+  background: #374151;
+  border-color: rgba(241, 90, 34, 0.4);
+}
+
+body.dark-mode .top-split-left .kpi-card-target {
+  background: #111827;
+  color: #94a3b8;
+  border-color: #374151;
+}
+
+body.dark-mode .top-split-left .kpi-card-pct {
+  color: #f8fafc;
+}
+
+body.dark-mode .top-split-left .kpi-card-stats {
+  border-top-color: #374151;
+}
+
+body.dark-mode .top-split-left .kpi-card-diff.up {
+  background: rgba(15, 110, 86, 0.2);
+  border-color: rgba(15, 110, 86, 0.3);
+}
+
+body.dark-mode .top-split-left .kpi-card-diff.down {
+  background: rgba(225, 29, 72, 0.2);
+  border-color: rgba(225, 29, 72, 0.3);
+}
+
+body.dark-mode .risk-alert-title-sleek {
+  border-bottom-color: #374151;
+}
+
+body.dark-mode .risk-chip-sleek {
+  background: #3f1522;
+  border-color: #881337;
+  color: #fecdd3;
+}
+
+body.dark-mode .risk-chip-sleek:hover {
+  background: #501729;
+  border-color: #be123c;
+}
+
+body.dark-mode .risk-chip-sleek-hub {
+  color: #f43f5e;
+}
+
+body.dark-mode .risk-chip-sleek-late {
+  background: #881337;
+  color: #ffe4e6;
+}
+
+body.dark-mode .kpi-tab-container {
+  background: #131c31;
+}
+
+body.dark-mode .kpi-table-tabs {
+  background: #0f172a;
+  border-bottom-color: #1e293b;
+}
+
+body.dark-mode .kpi-table-tab {
+  color: #94a3b8;
+}
+
+body.dark-mode .kpi-table-tab.active {
+  background: #131c31;
+  color: #38bdf8;
+}
+
+

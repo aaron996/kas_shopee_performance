@@ -512,7 +512,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           <button 
             onClick={() => handleCopyImage(sectionRef, title)}
             className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid #cbd5e1', background: '#f1f5f9', borderRadius: '6px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid var(--border-strong)', background: 'var(--surface-hover)', borderRadius: '6px' }}
             title="Copy bảng này thành ảnh"
           >
             <Copy size={13} /> Copy Ảnh

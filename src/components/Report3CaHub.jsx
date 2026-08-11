@@ -168,7 +168,7 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
                   <React.Fragment key={caShort}>
                     {/* Shift Row Header */}
                     <tr className="grp-row" style={caIdx === 1 ? { borderTop: '2px solid #F15A22' } : {}}>
-                      <td className="lbl" style={{ background: '#E6F0FA', color: '#004B82', fontWeight: 700 }}>
+                      <td className="lbl" style={{ background: 'var(--info-box-bg)', color: 'var(--info-box-text)', fontWeight: 700 }}>
                         <button className="toggle-btn" onClick={() => toggleCa(caShort)}>
                           {!isCollapsed ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
@@ -221,7 +221,7 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
 
         <div className="table-legend">
           <div className="legend-items">
-            <span style={{ fontWeight: 600, color: '#334155' }}>Rule màu (Percentiles rải rác):</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Rule màu (Percentiles rải rác):</span>
             <div className="legend-item">
               <div className="legend-box" style={{ background: '#EAF3DE' }}></div>
               <span>Xanh: ≥ {p75.toFixed(1)}% (Top 25% cao nhất)</span>
