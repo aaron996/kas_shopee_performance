@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { FileSpreadsheet, Upload, RefreshCw, X, Radio, ExternalLink } from 'lucide-react';
+import { FileSpreadsheet, Upload, RefreshCw, X, Radio, ExternalLink, Database } from 'lucide-react';
 import Papa from 'papaparse';
 import { syncAllGoogleSheetTabs } from '../utils/googleSheetsSync';
+import { fetchSupabaseSheetSync } from '../utils/supabaseSheetSync';
 
-export default function DataSourceManagerModal({ 
-  isOpen, 
-  onClose, 
-  onUpdatePickData, 
-  onUpdateDeliData, 
-  onResetDefault 
+export default function DataSourceManagerModal({
+  isOpen,
+  onClose,
+  onUpdatePickData,
+  onUpdateDeliData,
+  onUpdateCa1Data,
+  onResetDefault
 }) {
   const [pickTabStatus, setPickTabStatus] = useState('Gid 1312031199');
   const [deliTabStatus, setDeliTabStatus] = useState('Gid 940798880');
@@ -20,10 +22,31 @@ export default function DataSourceManagerModal({
 
   if (!isOpen) return null;
 
+  const handleSyncFromSupabase = async () => {
+    setIsSyncing(true);
+    setMsg('Đang tải dữ liệu đã đồng bộ từ Supabase (do Apps Script đẩy lên)...');
+
+    const res = await fetchSupabaseSheetSync();
+    setIsSyncing(false);
+
+    if (res.success) {
+      onUpdatePickData(res.pickData);
+      onUpdateDeliData(res.deliData);
+      if (res.ca1Data && onUpdateCa1Data) onUpdateCa1Data(res.ca1Data);
+      setPickTabStatus(`Supabase: ${res.pickData.length} dòng`);
+      setDeliTabStatus(`Supabase: ${res.deliData.length} dòng`);
+      setMsg(`✓ Đã tải từ Supabase thành công ${res.pickData.length} dòng Pick và ${res.deliData.length} dòng Deli! (Cập nhật lúc: ${res.updatedAt || 'N/A'})`);
+    } else if (res.error === 'NO_SYNCED_DATA') {
+      setMsg('⚠️ Chưa có dữ liệu nào trong bảng Supabase "sheet_sync_data". Cần cài Apps Script đồng bộ trước — xem docs/google-sheet-supabase-sync.md.');
+    } else {
+      setMsg(`Lỗi kết nối Supabase: ${res.error}`);
+    }
+  };
+
   const handleSyncLive = async () => {
     setIsSyncing(true);
-    setMsg('Đang tải dữ liệu trực tiếp từ Google Sheet...');
-    
+    setMsg('Đang tải dữ liệu trực tiếp từ Google Sheet (CSV public)...');
+
     const res = await syncAllGoogleSheetTabs(customSheetId.trim());
     setIsSyncing(false);
 
@@ -35,7 +58,7 @@ export default function DataSourceManagerModal({
       setMsg(`✓ Đã tải Live thành công ${res.pickData.length} dòng Pick và ${res.deliData.length} dòng Deli!`);
     } else {
       if (res.error === 'FILE_PRIVATE') {
-        setMsg('⚠️ Google Sheet đang cài đặt Riêng tư (Private). Vui lòng chuyển sang "Anyone with link can view" (Bất kỳ ai có liên kết đều có thể xem) để ứng dụng tự động đọc live!');
+        setMsg('⚠️ Google Sheet này không còn public ("Anyone with link can view") — GHN đã chặn share ra ngoài nên cách đọc CSV trực tiếp này sẽ không còn hoạt động cho sheet nội bộ. Dùng nút "Sync từ Supabase" ở trên (cần cài Apps Script trước) hoặc upload CSV thủ công ở dưới.');
       } else {
         setMsg(`Lỗi kết nối Google Sheet: ${res.error}`);
       }
@@ -108,10 +131,24 @@ export default function DataSourceManagerModal({
         </div>
 
         <div className="modal-body">
-          {/* Live Google Sheet Box */}
+          {/* Supabase Sync Box — primary live source */}
+          <div style={{ background: 'var(--good-green-bg)', border: '1px solid var(--good-green-text)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+            <div style={{ fontWeight: 700, color: 'var(--good-green-text)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Database size={15} /> 1. Sync Từ Supabase (nguồn Live chính thức)
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
+              Apps Script gắn trên Google Sheet tự đẩy dữ liệu vào Supabase theo lịch — không phụ thuộc quyền
+              "Anyone with link" đã bị GHN chặn. Xem <code>docs/google-sheet-supabase-sync.md</code> để cài đặt lần đầu.
+            </div>
+            <button className="nav-btn primary" onClick={handleSyncFromSupabase} disabled={isSyncing}>
+              <Database size={15} /> {isSyncing ? 'Đang Tải...' : 'Sync Từ Supabase'}
+            </button>
+          </div>
+
+          {/* Legacy Live Google Sheet Box (public CSV — only works for sheets still shared "Anyone with link") */}
           <div style={{ background: 'var(--info-box-bg)', border: '1px solid var(--info-box-border)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
             <div style={{ fontWeight: 700, color: 'var(--info-box-text)', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>1. Tải Live Trực Tiếp Từ Google Sheet</span>
+              <span>2. (Legacy) Tải Trực Tiếp Từ Google Sheet Public</span>
               <a 
                 href={`https://docs.google.com/spreadsheets/d/${customSheetId}/edit`} 
                 target="_blank" 
@@ -137,7 +174,7 @@ export default function DataSourceManagerModal({
             </div>
 
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              * Lưu ý: Để kết nối Live tự động, file Google Sheet cần được cài đặt quyền xem <strong>"Anyone with link can view"</strong> (Bất kỳ ai có liên kết đều có thể xem).
+              * Lưu ý: cách này cần Google Sheet ở chế độ <strong>"Anyone with link can view"</strong> — GHN đã chặn share kiểu này ra ngoài, nên chỉ dùng được cho sheet test/độc lập khác, không dùng được cho sheet nội bộ nữa. Sheet nội bộ hãy dùng mục 1 ở trên.
             </div>
           </div>
 
@@ -159,7 +196,7 @@ export default function DataSourceManagerModal({
             {/* Pick CSV Upload */}
             <div style={{ border: '1px dashed var(--border-strong)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
               <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-                2. Upload File CSV Pick ({pickTabStatus})
+                3. Upload File CSV Pick ({pickTabStatus})
               </div>
               <input 
                 type="file" 
@@ -172,7 +209,7 @@ export default function DataSourceManagerModal({
             {/* Deli CSV Upload */}
             <div style={{ border: '1px dashed var(--border-strong)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
               <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-                3. Upload File CSV Deli ({deliTabStatus})
+                4. Upload File CSV Deli ({deliTabStatus})
               </div>
               <input 
                 type="file" 
@@ -186,7 +223,7 @@ export default function DataSourceManagerModal({
           {/* Dán trực tiếp văn bản CSV */}
           <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
             <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>4. Dán văn bản CSV copy từ Google Sheet / SQL:</span>
+              <span>5. Dán văn bản CSV copy từ Google Sheet / SQL:</span>
               <select 
                 value={targetTab} 
                 onChange={e => setTargetTab(e.target.value)}

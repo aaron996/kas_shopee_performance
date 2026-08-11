@@ -9,6 +9,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
+import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
@@ -167,8 +168,23 @@ export default function App() {
 
   const handleSyncLiveSheet = async () => {
     setIsSyncing(true);
-    setSyncStatus({ isLive: false, text: 'Đang tải Sheet...' });
+    setSyncStatus({ isLive: false, text: 'Đang tải dữ liệu...' });
 
+    // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
+    // timer (no longer depends on the Sheet being publicly link-shared —
+    // see docs/google-sheet-supabase-sync.md).
+    const supaRes = await fetchSupabaseSheetSync();
+    if (supaRes.success) {
+      setPickRows(filterAhamove(supaRes.pickData));
+      setDeliRows(filterAhamove(supaRes.deliData));
+      if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
+      setIsSyncing(false);
+      setSyncStatus({ isLive: true, text: 'Live Synced (Supabase)' });
+      return;
+    }
+
+    // Fallback: the old direct-CSV approach, kept for sheets that are still
+    // publicly link-shared (e.g. a dev/test sheet set via Data Source Manager).
     const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA');
     setIsSyncing(false);
 
@@ -179,12 +195,14 @@ export default function App() {
       setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
-        alert('⚠️ Google Sheet hiện tại đang ở chế độ Riêng tư (Private).\n\nHãy đổi quyền truy cập trong Google Sheet sang "Anyone with link can view" (Bất kỳ ai có liên kết đều có thể xem) để web app tự động đọc live!');
         if (currentUser && currentUser.isDevAdmin) {
+          alert('⚠️ Chưa có dữ liệu Supabase (chưa chạy Apps Script sync) và Google Sheet cũng không còn public.\n\nXem docs/google-sheet-supabase-sync.md để cài Apps Script, hoặc dùng "Quản Lý Nguồn Dữ Liệu" để upload CSV thủ công.');
           setIsDataSourceOpen(true);
+        } else {
+          alert('⚠️ Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.');
         }
       } else {
-        alert(`Lỗi kết nối Google Sheet: ${res.error}`);
+        alert(`Lỗi kết nối dữ liệu: ${res.error}`);
       }
       setSyncStatus({ isLive: false, text: 'Sync Failed' });
     }
