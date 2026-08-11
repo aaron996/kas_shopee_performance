@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { useCountUp } from '../utils/useCountUp';
 import * as htmlToImage from 'html-to-image';
 import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
@@ -99,12 +101,12 @@ function SparklineChart({ card, isGood }) {
         </defs>
 
         {targetY >= 0 && targetY <= 100 && (
-          <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
+          <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" style={{ transition: 'y1 0.6s ease, y2 0.6s ease' }} />
         )}
-        <path d={areaD} fill={`url(#spark-grad-${card.id})`} />
-        <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={areaD} fill={`url(#spark-grad-${card.id})`} style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), fill 0.6s ease' }} />
+        <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.6s ease' }} />
         
-        <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} />
+        <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} style={{ transition: 'cx 0.6s ease, cy 0.6s ease, fill 0.6s ease' }} />
 
         {activePt && (
           <>
@@ -117,7 +119,14 @@ function SparklineChart({ card, isGood }) {
   );
 }
 
+const AnimatedNumber = ({ value, format = v => v, className = '' }) => {
+  const animatedValue = useCountUp(value, 600);
+  return <span className={className}>{format(animatedValue)}</span>;
+};
+
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
+  const [parent] = useAutoAnimate();
+  const [alertsParent] = useAutoAnimate();
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -565,7 +574,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               </tr>
             </thead>
 
-            <tbody>
+            <tbody ref={parent}>
               {/* 1. TOÀN QUỐC ROW */}
               <tr className="all-row">
                 <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
@@ -843,12 +852,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                     <span className="kpi-card-target">≥{card.target}%</span>
                   </div>
                   <div className="kpi-card-main">
-                    <span className={`kpi-card-pct ${isGood ? 'good' : ''}`}>
-                      {card.d1.pct.toFixed(1)}%
-                    </span>
-                    <span className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}>
-                      {diffStr}
-                    </span>
+                    <AnimatedNumber 
+                      value={card.d1.pct} 
+                      format={v => `${v.toFixed(1)}%`} 
+                      className={`kpi-card-pct ${isGood ? 'good' : ''}`} 
+                    />
+                    <AnimatedNumber 
+                      value={diff} 
+                      format={v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`} 
+                      className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`} 
+                    />
                   </div>
                   
                   {/* Visual sparkline */}
@@ -857,8 +870,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   </div>
 
                   <div className="kpi-card-stats">
-                    <span>{formatVol(card.d1.tot)} đơn</span>
-                    <span className="late">{formatVol(lateVol)} trễ</span>
+                    <AnimatedNumber value={card.d1.tot} format={v => `${formatVol(Math.round(v))} đơn`} />
+                    <AnimatedNumber value={lateVol} format={v => `${formatVol(Math.round(v))} trễ`} className="late" />
                   </div>
                 </div>
               );
@@ -874,7 +887,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </div>
           
           {riskAlertHubs.length > 0 ? (
-            <div className="risk-chips-list-sleek">
+            <div className="risk-chips-list-sleek" ref={alertsParent}>
               {riskAlertHubs.map((chip, idx) => (
                 <button 
                   key={`${chip.hub}_${idx}`} 

@@ -392,8 +392,8 @@ export default function App() {
       <ExecutiveSummaryModal
         isOpen={isSummaryOpen}
         onClose={() => setIsSummaryOpen(false)}
-        pickRows={pickRows}
-        deliRows={deliRows}
+        pickRows={filteredPickRows}
+        deliRows={filteredDeliRows}
         clientFilter={clientFilter}
       />
 
