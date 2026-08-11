@@ -8,6 +8,9 @@ export default function Header({
   setClientFilter, 
   selectedRegions,
   setSelectedRegions,
+  allHubTypes,
+  selectedHubTypes,
+  setSelectedHubTypes,
   expandAllHubs,
   setExpandAllHubs,
   d1DateFormatted,
@@ -19,12 +22,17 @@ export default function Header({
   setIsFullscreen
 }) {
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
+  const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
   const regionMenuRef = useRef(null);
+  const hubTypeMenuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (regionMenuRef.current && !regionMenuRef.current.contains(event.target)) {
         setIsRegionMenuOpen(false);
+      }
+      if (hubTypeMenuRef.current && !hubTypeMenuRef.current.contains(event.target)) {
+        setIsHubTypeMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -46,6 +54,22 @@ export default function Header({
       setSelectedRegions([]);
     } else {
       setSelectedRegions([...allRegions]);
+    }
+  };
+
+  const handleToggleHubType = (type) => {
+    if (selectedHubTypes.includes(type)) {
+      setSelectedHubTypes(selectedHubTypes.filter(t => t !== type));
+    } else {
+      setSelectedHubTypes([...selectedHubTypes, type]);
+    }
+  };
+
+  const handleToggleAllHubTypes = () => {
+    if (selectedHubTypes.length === allHubTypes.length) {
+      setSelectedHubTypes([]);
+    } else {
+      setSelectedHubTypes([...allHubTypes]);
     }
   };
 
@@ -101,6 +125,41 @@ export default function Header({
                             <span>{reg}</span>
                           </div>
                         ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="filter-divider"></div>
+
+          <div className="filter-item">
+            <Layers size={14} className="filter-icon" />
+            <span className="filter-label-text">Loại Hub:</span>
+            <div className="custom-dropdown" ref={hubTypeMenuRef}>
+              <button 
+                className="dropdown-toggle-sleek" 
+                onClick={() => setIsHubTypeMenuOpen(!isHubTypeMenuOpen)}
+                title={selectedHubTypes.length === allHubTypes.length ? "Đã chọn tất cả loại Hub" : `Đã chọn ${selectedHubTypes.length} loại Hub`}
+              >
+                <span>{selectedHubTypes.length === allHubTypes.length ? "Tất Cả Loại" : `Đã chọn (${selectedHubTypes.length})`}</span>
+              </button>
+
+              {isHubTypeMenuOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header" onClick={handleToggleAllHubTypes}>
+                    {selectedHubTypes.length === allHubTypes.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
+                    <span style={{ fontWeight: 600 }}>Chọn tất cả loại</span>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  
+                  <div className="dropdown-scroll-area">
+                    {allHubTypes.map(type => (
+                      <div key={type} className="dropdown-item" onClick={() => handleToggleHubType(type)}>
+                        {selectedHubTypes.includes(type) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
+                        <span style={{ fontWeight: 500 }}>{type}</span>
                       </div>
                     ))}
                   </div>

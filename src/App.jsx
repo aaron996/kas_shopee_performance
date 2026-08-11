@@ -9,7 +9,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
-import { groupDatesByWeek } from './utils/dataProcessor';
+import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
 
@@ -63,6 +63,31 @@ export default function App() {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
   const [selectedRegions, setSelectedRegions] = useState(allRegions);
+
+  const allHubTypes = React.useMemo(() => {
+    const types = new Set();
+    pickRows.forEach(r => {
+      const type = getHubType(r);
+      if (type && type !== 'Unknown') types.add(type);
+    });
+    // Add 'Unknown' if we want it as a fallback, but let's just use what's in data.
+    // If we want a default fallback just in case:
+    if (types.size === 0) {
+      types.add('Mega Hub');
+      types.add('Hub LM');
+    }
+    return Array.from(types).sort();
+  }, [pickRows]);
+  
+  // Initial state should be all hub types
+  const [selectedHubTypes, setSelectedHubTypes] = useState(allHubTypes);
+
+  // Re-sync selectedHubTypes if allHubTypes changes significantly (e.g. initial load)
+  useEffect(() => {
+    if (allHubTypes.length > 0 && selectedHubTypes.length === 0) {
+      setSelectedHubTypes(allHubTypes);
+    }
+  }, [allHubTypes]);
 
   const [density, setDensity] = useState('comfortable');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -234,18 +259,18 @@ export default function App() {
   const weekNum = weekCurrent?.[0] ? getWeekNumber(weekCurrent[0]) : '';
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
 
-  // Filter datasets based on selectedRegions
+  // Filter datasets based on selectedRegions and selectedHubTypes
   const filteredPickRows = React.useMemo(() => {
-    return pickRows.filter(r => selectedRegions.includes(r.region));
-  }, [pickRows, selectedRegions]);
+    return pickRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+  }, [pickRows, selectedRegions, selectedHubTypes]);
 
   const filteredDeliRows = React.useMemo(() => {
-    return deliRows.filter(r => selectedRegions.includes(r.region));
-  }, [deliRows, selectedRegions]);
+    return deliRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+  }, [deliRows, selectedRegions, selectedHubTypes]);
 
   const filteredCa1Rows = React.useMemo(() => {
-    return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao));
-  }, [ca1Rows, selectedRegions]);
+    return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao) && selectedHubTypes.includes(getHubType(r)));
+  }, [ca1Rows, selectedRegions, selectedHubTypes]);
 
   return (
     <div className="app-container">
@@ -279,6 +304,9 @@ export default function App() {
         setClientFilter={setClientFilter}
         selectedRegions={selectedRegions}
         setSelectedRegions={setSelectedRegions}
+        allHubTypes={allHubTypes}
+        selectedHubTypes={selectedHubTypes}
+        setSelectedHubTypes={setSelectedHubTypes}
         expandAllHubs={expandAllHubs}
         setExpandAllHubs={setExpandAllHubs}
         d1DateFormatted={d1DateFormatted}

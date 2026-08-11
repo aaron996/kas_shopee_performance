@@ -2,6 +2,11 @@
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 
 // Format helpers
+export function getHubType(row) {
+  if (!row) return 'Unknown';
+  return row['hub type'] || row['Hub Type'] || row.hub_type || row.Hub_Type || row.hubType || row.HubType || 'Unknown';
+}
+
 export function formatPct(val) {
   if (val === null || val === undefined || isNaN(val)) return '–';
   return val.toFixed(1) + '%';

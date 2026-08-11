@@ -89,10 +89,13 @@ export function createDefaultPickDataset() {
 
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
+            const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
+            const hub_type = hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
               hub,
+              hub_type,
               client_name,
               mau_pu: Math.round(mau_pu * ratio),
               ontime_pu_1st: Math.round(ontime_pu_1st * ratio),
@@ -147,10 +150,13 @@ export function createDefaultDeliDataset() {
 
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
+            const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
+            const hub_type = hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
               hub,
+              hub_type,
               client_name,
               mau_del: Math.round(mau_del * ratio),
               ontime_del_1st: Math.round(ontime_del_1st * ratio),
