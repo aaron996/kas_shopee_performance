@@ -1,10 +1,37 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowRightLeft, Download, Grid } from 'lucide-react';
+import * as htmlToImage from 'html-to-image';
+import { ArrowRightLeft, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
-export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [] }) {
-  const [density, setDensity] = useState('comfortable');
+export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
+  const tableRefs = React.useRef({});
+
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen && setIsFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, setIsFullscreen]);
+
+  const handleCopyImage = async (laneName) => {
+    const node = tableRefs.current[laneName];
+    if (!node) return;
+    try {
+      const dataUrl = await htmlToImage.toPng(node, { backgroundColor: '#ffffff', pixelRatio: 2 });
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const item = new ClipboardItem({ 'image/png': blob });
+      await navigator.clipboard.write([item]);
+      alert(`Đã copy ảnh bảng "Lane: ${laneName}" vào Clipboard! Bạn có thể dán (Ctrl+V) vào Zalo/Chat.`);
+    } catch (err) {
+      console.error('Error copying image:', err);
+      alert('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.');
+    }
+  };
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
@@ -112,16 +139,31 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [] }) {
     const col1Label = (laneName.includes('Cross Metro')) ? 'Tỉnh Giao' : 'Vùng Giao';
 
     return (
-      <div className="metric-block" key={laneName}>
-        <div className="metric-header">
-          <div className="metric-title">
-            <ArrowRightLeft size={18} style={{ color: '#F15A22' }} />
-            <span>Lane: {laneName}</span>
-            <span className="kpi-badge">Cutoff 09:00 AM</span>
+      <div 
+        className="metric-block" 
+        key={laneName} 
+        ref={el => tableRefs.current[laneName] = el}
+        style={{ marginBottom: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}
+      >
+        <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+          <div>
+            <div className="metric-title" style={{ margin: 0, color: 'var(--ghn-blue-dark)', fontSize: '1.1rem' }}>
+              <ArrowRightLeft size={18} style={{ color: '#F15A22' }} />
+              <span>Lane: {laneName}</span>
+              <span className="kpi-badge">Cutoff 09:00 AM</span>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
+              % Đơn về hub giao trước Ca 1 (09:00 sáng ngày SLA)
+            </div>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            % Đơn về hub giao trước Ca 1 (09:00 sáng ngày SLA)
-          </div>
+          <button 
+            onClick={() => handleCopyImage(laneName)}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid #cbd5e1', background: '#f1f5f9', borderRadius: '6px' }}
+            title="Copy bảng này thành ảnh"
+          >
+            <Copy size={13} /> Copy Ảnh
+          </button>
         </div>
 
         <div className="mtx-wrap">
@@ -331,50 +373,23 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [] }) {
   };
 
   return (
-    <div>
-      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 className="section-title">
-            <ArrowRightLeft size={22} style={{ color: '#F15A22' }} />
-            % ca 1 theo lane
-          </h2>
-          <div className="section-desc">
-            Tỷ lệ đơn hàng về đến hub giao trước 09:00 sáng ngày SLA giao (Ca 1 cutoff), phân theo 5 loại Lane.
-          </div>
-        </div>
-
-        {/* View Controls: Density & Export */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '8px', padding: '2px' }}>
-            <button 
-              className={`btn-secondary ${density === 'comfortable' ? 'primary' : ''}`}
-              onClick={() => setDensity('comfortable')}
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
-              title="Khoảng cách dòng thoáng"
-            >
-              <Grid size={13} /> Thoáng
-            </button>
-            <button 
-              className={`btn-secondary ${density === 'compact' ? 'primary' : ''}`}
-              onClick={() => setDensity('compact')}
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: 'none' }}
-              title="Nén dày dòng dữ liệu"
-            >
-              <Grid size={13} /> Dày
-            </button>
-          </div>
-
-          <button 
-            className="btn-secondary"
-            onClick={handleExportCSV}
-            title="Tải dữ liệu dạng CSV (Mở bằng Excel)"
-            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#0F6E56', color: 'white', border: 'none' }}
-          >
-            <Download size={15} />
-            <span>Xuất Excel</span>
-          </button>
-        </div>
-      </div>
+    <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>
+      {/* Floating Exit Fullscreen Button */}
+      {isFullscreen && (
+        <button 
+          onClick={() => setIsFullscreen && setIsFullscreen(false)}
+          style={{
+            position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 9999,
+            background: '#e11d48', color: 'white', border: 'none',
+            borderRadius: '50%', width: '40px', height: '40px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.4)'
+          }}
+          title="Thoát toàn màn hình (Phím Esc)"
+        >
+          <X size={20} />
+        </button>
+      )}
 
       <div className={`density-${density}`}>
         {lanes.map(lane => renderLaneTable(lane))}

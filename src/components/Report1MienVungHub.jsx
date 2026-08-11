@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid } from 'lucide-react';
+import * as htmlToImage from 'html-to-image';
+import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 
@@ -116,7 +117,7 @@ function SparklineChart({ card, isGood }) {
   );
 }
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -135,6 +136,31 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, setIsFullscreen]);
+
+  const handleCopyImage = async (ref, titleText) => {
+    if (!ref.current) return;
+    try {
+      const dataUrl = await htmlToImage.toPng(ref.current, { backgroundColor: '#ffffff', pixelRatio: 2 });
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const item = new ClipboardItem({ 'image/png': blob });
+      await navigator.clipboard.write([item]);
+      alert(`Đã copy ảnh bảng "${titleText}" vào Clipboard! Bạn có thể dán (Ctrl+V) vào Zalo/Chat.`);
+    } catch (err) {
+      console.error('Error copying image:', err);
+      alert('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.');
+    }
+  };
 
   const scrollToRef = (ref, sectionId) => {
     if (sectionId) {
@@ -476,11 +502,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
     return (
       <div className={`metric-block ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
-        <div className="metric-header">
+        <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="metric-title">
             <span>{title}</span>
             <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
           </div>
+          <button 
+            onClick={() => handleCopyImage(sectionRef, title)}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid #cbd5e1', background: '#f1f5f9', borderRadius: '6px' }}
+            title="Copy bảng này thành ảnh"
+          >
+            <Copy size={13} /> Copy Ảnh
+          </button>
         </div>
 
         <div className="mtx-wrap">
@@ -766,6 +800,23 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             })}
           </div>
         </div>
+      )}
+
+      {/* Floating Exit Fullscreen Button */}
+      {isFullscreen && (
+        <button 
+          onClick={() => setIsFullscreen(false)}
+          style={{
+            position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 9999,
+            background: '#e11d48', color: 'white', border: 'none',
+            borderRadius: '50%', width: '40px', height: '40px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.4)'
+          }}
+          title="Thoát toàn màn hình (Phím Esc)"
+        >
+          <X size={20} />
+        </button>
       )}
 
       {/* Premium Dashboard Container for KPIs and Alerts */}

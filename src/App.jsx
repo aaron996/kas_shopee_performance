@@ -288,6 +288,7 @@ export default function App() {
             selectedRegions={selectedRegions}
             density={density}
             isFullscreen={isFullscreen}
+            setIsFullscreen={setIsFullscreen}
           />
         )}
 
@@ -297,6 +298,7 @@ export default function App() {
             selectedRegions={selectedRegions}
             density={density}
             isFullscreen={isFullscreen}
+            setIsFullscreen={setIsFullscreen}
           />
         )}
       </main>
