@@ -109,14 +109,14 @@ export default function DataSourceManagerModal({
 
         <div className="modal-body">
           {/* Live Google Sheet Box */}
-          <div style={{ background: '#e6f0fa', border: '1px solid #0063AA', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
-            <div style={{ fontWeight: 700, color: '#004b82', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--info-box-bg)', border: '1px solid var(--info-box-border)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+            <div style={{ fontWeight: 700, color: 'var(--info-box-text)', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>1. Tải Live Trực Tiếp Từ Google Sheet</span>
               <a 
                 href={`https://docs.google.com/spreadsheets/d/${customSheetId}/edit`} 
                 target="_blank" 
                 rel="noreferrer"
-                style={{ color: '#0063AA', display: 'flex', alignItems: 'center', gap: '0.2rem', textDecoration: 'none', fontWeight: 'bold' }}
+                style={{ color: 'var(--info-box-text)', display: 'flex', alignItems: 'center', gap: '0.2rem', textDecoration: 'none', fontWeight: 'bold' }}
               >
                 Mở Google Sheet <ExternalLink size={13} />
               </a>
@@ -136,15 +136,15 @@ export default function DataSourceManagerModal({
               </button>
             </div>
 
-            <div style={{ fontSize: '0.78rem', color: '#475569' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
               * Lưu ý: Để kết nối Live tự động, file Google Sheet cần được cài đặt quyền xem <strong>"Anyone with link can view"</strong> (Bất kỳ ai có liên kết đều có thể xem).
             </div>
           </div>
 
           {msg && (
             <div style={{ 
-              background: msg.includes('⚠️') ? '#FEF3C7' : '#EAF3DE', 
-              color: msg.includes('⚠️') ? '#92400E' : '#0F6E56', 
+              background: msg.includes('⚠️') ? 'var(--amber-bg)' : 'var(--good-green-bg)', 
+              color: msg.includes('⚠️') ? 'var(--amber-text)' : 'var(--good-green-text)', 
               padding: '0.75rem', 
               borderRadius: '6px', 
               marginBottom: '1rem', 
@@ -157,8 +157,8 @@ export default function DataSourceManagerModal({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
             {/* Pick CSV Upload */}
-            <div style={{ border: '1px dashed #cbd5e1', padding: '1rem', borderRadius: '8px', background: '#f8fafc' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: '#1e293b' }}>
+            <div style={{ border: '1px dashed var(--border-strong)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
                 2. Upload File CSV Pick ({pickTabStatus})
               </div>
               <input 
@@ -170,8 +170,8 @@ export default function DataSourceManagerModal({
             </div>
 
             {/* Deli CSV Upload */}
-            <div style={{ border: '1px dashed #cbd5e1', padding: '1rem', borderRadius: '8px', background: '#f8fafc' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: '#1e293b' }}>
+            <div style={{ border: '1px dashed var(--border-strong)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
                 3. Upload File CSV Deli ({deliTabStatus})
               </div>
               <input 
@@ -184,7 +184,7 @@ export default function DataSourceManagerModal({
           </div>
 
           {/* Dán trực tiếp văn bản CSV */}
-          <div style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px' }}>
+          <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', background: 'var(--surface-hover)' }}>
             <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>4. Dán văn bản CSV copy từ Google Sheet / SQL:</span>
               <select 

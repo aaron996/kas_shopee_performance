@@ -44,7 +44,7 @@ export default function Report2TopSeller({ clientFilter, searchTerm }) {
             <span>{title}</span>
             <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
           </div>
-          <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Xếp hạng theo tổng đơn trễ tuyệt đối trong kỳ
           </div>
         </div>

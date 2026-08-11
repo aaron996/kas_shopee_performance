@@ -12,6 +12,13 @@
   --text-muted: #64748b;
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --input-bg: #ffffff;
+  --input-text: #1e293b;
+  --info-box-bg: #e6f0fa;
+  --info-box-text: #004b82;
+  --info-box-border: #0063AA;
 
   --good-green-bg: #EAF3DE;
   --good-green-text: #0F6E56;
@@ -62,7 +69,7 @@ body {
 
 /* Header Navbar */
 .app-header {
-  background: white;
+  background: var(--surface);
   padding: 0 1.5rem;
   box-shadow: 0 1px 15px rgba(0, 0, 0, 0.05);
   position: sticky;
@@ -335,7 +342,7 @@ body {
 
 /* Unified Sub-header (Tabs & Filters) */
 .sub-header {
-  background: white;
+  background: var(--surface);
   padding: 0 1.5rem;
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -405,7 +412,7 @@ body {
   font-family: var(--font-sans);
   font-size: 0.82rem;
   outline: none;
-  background: white;
+  background: var(--surface);
   color: var(--text-main);
   transition: border-color 0.2s;
   height: 28px;
@@ -421,7 +428,7 @@ body {
   border-radius: 6px;
   font-family: var(--font-sans);
   font-size: 0.82rem;
-  background: white;
+  background: var(--surface);
   color: var(--text-main);
   cursor: pointer;
   height: 28px;
@@ -443,7 +450,7 @@ body {
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 600;
-  background: white;
+  background: var(--surface);
   color: var(--text-main);
   cursor: pointer;
   height: 28px;
@@ -691,7 +698,7 @@ table.mtx-table thead th.lbl-1 {
   z-index: 12;
 }
 table.mtx-table td.lbl-1 {
-  background: #f8fafc;
+  background: var(--surface-hover);
   font-weight: bold;
   border-right: 1px solid var(--border);
 }
@@ -711,7 +718,7 @@ table.mtx-table thead th.lbl-2 {
   z-index: 11;
 }
 table.mtx-table td.lbl-2 {
-  background: white;
+  background: var(--surface);
   border-right: 1.5px solid var(--border-strong);
 }
 
@@ -722,7 +729,7 @@ table.mtx-table thead th.lbl, table.mtx-table td.lbl {
   left: 0;
   z-index: 10;
   font-family: var(--font-sans);
-  background: white;
+  background: var(--surface);
 }
 table.mtx-table thead th.lbl {
   background: var(--ghn-blue);
@@ -761,13 +768,13 @@ tr.sub-row td.lbl {
 }
 
 tr.vol-row {
-  background: #f8fafc;
+  background: var(--surface-hover);
   font-weight: 600;
   border-top: 1.5px solid var(--border-strong);
 }
 
 tr.vol-row td.lbl {
-  background: #f8fafc;
+  background: var(--surface-hover);
   font-weight: 600;
 }
 
@@ -779,7 +786,7 @@ th.sep, td.sep {
 /* Legend & Help Footer */
 .table-legend {
   padding: 0.75rem 1.25rem;
-  background: #f8fafc;
+  background: var(--surface-hover);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -856,7 +863,7 @@ th.sep, td.sep {
 }
 
 .modal-card {
-  background: white;
+  background: var(--surface);
   border-radius: 14px;
   width: 100%;
   max-width: 700px;
@@ -909,7 +916,7 @@ th.sep, td.sep {
   padding: 0.85rem;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--surface-hover);
   color: var(--text-main);
   resize: vertical;
   line-height: 1.6;
@@ -917,7 +924,7 @@ th.sep, td.sep {
 
 .modal-footer {
   padding: 0.85rem 1.25rem;
-  background: #f8fafc;
+  background: var(--surface-hover);
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
@@ -1575,6 +1582,20 @@ body.dark-mode {
   --text-muted: #94a3b8;
   --border: #233252;
   --border-strong: #33466e;
+  --card-bg: #131c31;
+  --card-border: #233252;
+  --input-bg: #1c2843;
+  --input-text: #f1f5f9;
+  --info-box-bg: rgba(0, 99, 170, 0.25);
+  --info-box-text: #60a5fa;
+  --info-box-border: #2563eb;
+
+  --good-green-bg: rgba(15, 110, 86, 0.25);
+  --good-green-text: #4ade80;
+  --amber-bg: rgba(146, 64, 14, 0.25);
+  --amber-text: #fbbf24;
+  --bad-red-bg: rgba(161, 59, 42, 0.25);
+  --bad-red-text: #f87171;
 
   background-color: #0b1329;
   color: #f1f5f9;

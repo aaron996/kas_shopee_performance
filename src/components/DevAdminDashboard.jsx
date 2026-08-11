@@ -58,7 +58,7 @@ export default function DevAdminDashboard({ isOpen, onClose, onlineUsers }) {
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '90%', maxWidth: '1000px', background: '#f8fafc' }}
+        style={{ width: '90%', maxWidth: '1000px', background: 'var(--surface)', color: 'var(--text-main)' }}
       >
         <div className="modal-header" style={{ background: 'var(--ghn-blue)' }}>
           <h2 className="modal-title" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -74,27 +74,27 @@ export default function DevAdminDashboard({ isOpen, onClose, onlineUsers }) {
           
           {/* Top KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-            <div className="kpi-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+            <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                 <div style={{ padding: '0.8rem', background: 'rgba(241, 90, 34, 0.1)', color: 'var(--ghn-orange)', borderRadius: '10px' }}>
                   <Activity size={24} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG SỐ LƯỢT TRUY CẬP</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--ghn-blue-dark)' }}>{accessLogs.length}</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)' }}>{accessLogs.length}</div>
                 </div>
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>*Thống kê từ 100 lần truy cập gần nhất</div>
             </div>
 
-            <div className="kpi-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+            <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{ padding: '0.8rem', background: 'rgba(15, 110, 86, 0.1)', color: '#0F6E56', borderRadius: '10px' }}>
+                <div style={{ padding: '0.8rem', background: 'var(--good-green-bg)', color: 'var(--good-green-text)', borderRadius: '10px' }}>
                   <Users size={24} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>ĐANG ONLINE LÚC NÀY</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F6E56' }}>{onlineUsers.length}</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--good-green-text)' }}>{onlineUsers.length}</div>
                 </div>
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>*Đang theo dõi qua Realtime Presence</div>
@@ -103,20 +103,20 @@ export default function DevAdminDashboard({ isOpen, onClose, onlineUsers }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
             {/* Online Users List */}
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 700, color: 'var(--ghn-blue-dark)' }}>
+            <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)' }}>
                 DANH SÁCH USER ONLINE ({onlineUsers.length})
               </div>
               <div style={{ padding: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
                 {onlineUsers.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>Không có ai đang online.</div>
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>Không có ai đang online.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {onlineUsers.map((u, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 5px #10b981' }}></div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, color: 'var(--ghn-blue-dark)', fontSize: '0.9rem' }}>{u.email}</div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{u.email}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Bắt đầu phiên: {new Date(u.online_at).toLocaleTimeString('vi-VN')}</div>
                         </div>
                       </div>
@@ -127,20 +127,20 @@ export default function DevAdminDashboard({ isOpen, onClose, onlineUsers }) {
             </div>
 
             {/* Access Logs List */}
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 700, color: 'var(--ghn-blue-dark)' }}>
+            <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)' }}>
                 LỊCH SỬ TRUY CẬP GẦN NHẤT
               </div>
               <div style={{ padding: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
                 {isLoading ? (
-                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>Đang tải log...</div>
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>Đang tải log...</div>
                 ) : accessLogs.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>Chưa có lịch sử truy cập (hoặc chưa tạo bảng).</div>
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>Chưa có lịch sử truy cập (hoặc chưa tạo bảng).</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {accessLogs.slice(0, 50).map((log, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', borderBottom: '1px solid #f1f5f9' }}>
-                        <Monitor size={16} color="#94a3b8" />
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                        <Monitor size={16} color="var(--text-muted)" />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>{log.email}</div>
                         </div>

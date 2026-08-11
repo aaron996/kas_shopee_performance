@@ -143,23 +143,23 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
         className="metric-block" 
         key={laneName} 
         ref={el => tableRefs.current[laneName] = el}
-        style={{ marginBottom: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}
+        style={{ marginBottom: '2rem', background: 'var(--surface)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid var(--border)', overflow: 'hidden' }}
       >
-        <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+        <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
           <div>
-            <div className="metric-title" style={{ margin: 0, color: 'var(--ghn-blue-dark)', fontSize: '1.1rem' }}>
+            <div className="metric-title" style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem' }}>
               <ArrowRightLeft size={18} style={{ color: '#F15A22' }} />
               <span>Lane: {laneName}</span>
               <span className="kpi-badge">Cutoff 09:00 AM</span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
               % Đơn về hub giao trước Ca 1 (09:00 sáng ngày SLA)
             </div>
           </div>
           <button 
             onClick={() => handleCopyImage(laneName)}
             className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid #cbd5e1', background: '#f1f5f9', borderRadius: '6px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--text-main)', border: '1px solid var(--border-strong)', background: 'var(--surface-hover)', borderRadius: '6px' }}
             title="Copy bảng này thành ảnh"
           >
             <Copy size={13} /> Copy Ảnh

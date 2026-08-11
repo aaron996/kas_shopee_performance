@@ -111,9 +111,9 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
           </div>
         </div>
 
-        <div style={{ padding: '1.5rem' }}>
+        <div style={{ padding: '1.5rem', background: 'var(--surface)' }}>
           {errorMsg && (
-            <div style={{ background: '#F7D9D4', border: '1px solid #E8362C', color: '#A13B2A', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4' }}>
+            <div style={{ background: 'var(--bad-red-bg)', border: '1px solid var(--bad-red-text)', color: 'var(--bad-red-text)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4' }}>
               <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
                 <AlertCircle size={16} /> Từ Chối Truy Cập
               </div>
@@ -122,7 +122,7 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
           )}
 
           {infoMsg && (
-            <div style={{ background: '#EAF3DE', border: '1px solid #0F6E56', color: '#0F6E56', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4', fontWeight: 600 }}>
+            <div style={{ background: 'var(--good-green-bg)', border: '1px solid var(--good-green-text)', color: 'var(--good-green-text)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4', fontWeight: 600 }}>
               {infoMsg}
             </div>
           )}
@@ -133,7 +133,7 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
             className="btn-secondary" 
             onClick={handleGoogleSignIn}
             disabled={loading}
-            style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem', marginBottom: '1.25rem', background: '#ffffff', border: '1px solid #cbd5e1', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', fontWeight: 600, color: '#1e293b', borderRadius: '10px' }}
+            style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem', marginBottom: '1.25rem', background: 'var(--surface-hover)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', fontWeight: 600, color: 'var(--text-main)', borderRadius: '10px' }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" style={{ marginRight: '0.5rem' }}>
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -144,9 +144,9 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
             Đăng Nhập Bằng Email GHN Google
           </button>
 
-          <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#94a3b8', margin: '0.85rem 0', position: 'relative' }}>
-            <span style={{ background: 'var(--surface, white)', padding: '0 0.6rem', position: 'relative', zIndex: 1 }}>hoặc nhận link OTP qua Email</span>
-            <div style={{ borderBottom: '1px solid #e2e8f0', position: 'absolute', top: '50%', width: '100%', left: 0 }}></div>
+          <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.85rem 0', position: 'relative' }}>
+            <span style={{ background: 'var(--surface)', padding: '0 0.6rem', position: 'relative', zIndex: 1, color: 'var(--text-muted)' }}>hoặc nhận link OTP qua Email</span>
+            <div style={{ borderBottom: '1px solid var(--border)', position: 'absolute', top: '50%', width: '100%', left: 0 }}></div>
           </div>
 
           <form onSubmit={handleEmailSignIn}>
