@@ -2155,6 +2155,12 @@ body.dark-mode .chk-icon {
   border: 1px solid rgba(241, 90, 34, 0.15);
 }
 
+@media (max-width: 768px) {
+  .top-split-left {
+    padding: 0.75rem;
+  }
+}
+
 .kpi-cards-header-glass {
   color: var(--ghn-orange);
   font-family: var(--font-heading);
@@ -2188,6 +2194,12 @@ body.dark-mode .chk-icon {
   min-height: 200px;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .top-split-right {
+    padding: 0.75rem !important; /* Force override inline padding if any */
+  }
 }
 
 /* Card aesthetics */
@@ -2461,8 +2473,7 @@ body.dark-mode .chk-icon {
   }
   
   /* Freeze the first column (Region/Hub) so user doesn't lose context when scrolling */
-  .kpi-table th:first-child,
-  .kpi-table td.lbl-1,
+  .kpi-table th:nth-child(2),
   .kpi-table td.lbl-2 {
     position: sticky;
     left: 0;
@@ -2471,11 +2482,16 @@ body.dark-mode .chk-icon {
     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
   }
   
-  body.dark-mode .kpi-table th:first-child,
-  body.dark-mode .kpi-table td.lbl-1,
+  body.dark-mode .kpi-table th:nth-child(2),
   body.dark-mode .kpi-table td.lbl-2 {
     background: var(--bg-main);
     box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+  }
+  
+  /* Hide the "Miền" column completely on mobile to save massive space */
+  .kpi-table th:first-child,
+  .kpi-table td.lbl-1 {
+    display: none !important;
   }
 }
 
@@ -2703,3 +2719,10 @@ body.dark-mode .kpi-table-tab.active {
 }
 
 
+
+/* Visibility Utilities */
+.mobile-only { display: none !important; }
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: table-cell !important; }
+}

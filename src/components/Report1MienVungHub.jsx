@@ -533,7 +533,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             <thead>
               {/* Row 1: Week Titles */}
               <tr>
-                <th rowSpan="2" className="lbl lbl-1">Miền</th>
+                <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
                 <th rowSpan="2" className="lbl lbl-2">Vùng / Hub</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
@@ -577,7 +577,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             <tbody ref={parent}>
               {/* 1. TOÀN QUỐC ROW */}
               <tr className="all-row">
-                <td colSpan="2" className="lbl lbl-1" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
+                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
+                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;

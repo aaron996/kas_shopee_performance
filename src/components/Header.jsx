@@ -171,7 +171,7 @@ export default function Header({
         </div>
 
         {/* Right Side: View Controls & Export */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           </div>
