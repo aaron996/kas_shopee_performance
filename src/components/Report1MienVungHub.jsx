@@ -819,36 +819,39 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
       </div>
 
-      {/* Operational Risk Alert Bar (Auto-generated 1-click Hub Chips) */}
-      {riskAlertHubs.length > 0 && (
-        <div className="risk-alert-bar">
-          <div className="risk-alert-title">
-            <AlertTriangle size={17} className="risk-alert-icon" />
-            <span>HUBS CẦN CAN THIỆP D-1:</span>
+      {/* Premium Dashboard Container for KPIs and Alerts */}
+      <div className="premium-dashboard-container">
+        
+        {/* Operational Risk Alert Bar (Auto-generated 1-click Hub Chips) */}
+        {riskAlertHubs.length > 0 && (
+          <div className="risk-alert-bar-sleek">
+            <div className="risk-alert-title-sleek">
+              <AlertTriangle size={15} className="risk-alert-icon-sleek" />
+              <span>CẦN CAN THIỆP D-1:</span>
+            </div>
+            <div className="risk-chips-list-sleek">
+              {riskAlertHubs.map((chip, idx) => (
+                <button 
+                  key={`${chip.hub}_${idx}`} 
+                  className="risk-chip-sleek"
+                  onClick={() => handleRiskChipClick(chip)}
+                  title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
+                >
+                  <span className="risk-chip-hub-sleek">{chip.hub}</span>
+                  <span className="risk-chip-metric-sleek">{chip.metric}</span>
+                  <span className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</span>
+                  <span className="risk-chip-late-sleek">-{formatVol(chip.late)}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="risk-chips-list">
-            {riskAlertHubs.map((chip, idx) => (
-              <button 
-                key={`${chip.hub}_${idx}`} 
-                className="risk-chip"
-                onClick={() => handleRiskChipClick(chip)}
-                title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
-              >
-                <span className="risk-chip-hub">{chip.hub}</span>
-                <span className="risk-chip-metric">({chip.metric})</span>
-                <span className="risk-chip-pct">{chip.pct.toFixed(1)}%</span>
-                <span className="risk-chip-late">-{formatVol(chip.late)} trễ</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* KPI Cards Section */}
-      <div className="kpi-cards-wrapper">
-        <div className="kpi-cards-header">
-          TỔNG QUAN D-1
-        </div>
+        {/* KPI Cards Section */}
+        <div className="kpi-cards-wrapper-glass">
+          <div className="kpi-cards-header-glass">
+            TỔNG QUAN D-1
+          </div>
         <div className="kpi-cards-container">
           {kpiCards.map(card => {
             const diff = card.d1.pct - card.d8.pct;
@@ -885,6 +888,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           })}
         </div>
       </div>
+      </div>
+      {/* End Premium Dashboard Container */}
 
       <div className={`density-${density}`}>
         {renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}

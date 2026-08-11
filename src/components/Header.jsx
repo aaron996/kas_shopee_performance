@@ -111,93 +111,99 @@ export default function Header({
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="nav-tabs">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              className={`tab-item ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon size={16} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Unified Sub-header: Tabs on Left, Filters on Right */}
+      <div className="sub-header">
+        {/* Tabs Navigation */}
+        <div className="nav-tabs-sleek">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                className={`tab-item-sleek ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Sub-header Filter Bar */}
-      <div className="filter-bar">
-        <div className="filter-group">
-          <div className="filter-label">
-            <Filter size={15} /> Scope Client:
+        {/* Filter Controls */}
+        <div className="filter-group-sleek">
+          <div className="filter-item">
+            <Filter size={14} className="filter-icon" />
+            <span className="filter-label-text">Client:</span>
+            <select 
+              className="filter-select-sleek"
+              value={clientFilter} 
+              onChange={(e) => setClientFilter(e.target.value)}
+            >
+              <option value="SPB">SPB</option>
+              <option value="SPE">SPE</option>
+              <option value="ALL">Toàn Bộ (SPB + SPE)</option>
+            </select>
           </div>
-          <select 
-            className="filter-select"
-            value={clientFilter} 
-            onChange={(e) => setClientFilter(e.target.value)}
-          >
-            <option value="SPB">SPB (Shopee Bulky)</option>
-            <option value="SPE">SPE (Shopee Express)</option>
-            <option value="ALL">Toàn Bộ Client (SPB + SPE)</option>
-          </select>
+
+          <div className="filter-divider"></div>
 
           {/* Region Multi-select Filter */}
-          <div className="filter-label" style={{ marginLeft: '0.5rem' }}>
-            <MapPin size={15} /> Vùng:
-          </div>
-          <div className="custom-dropdown" ref={regionMenuRef}>
-            <button 
-              className="dropdown-toggle" 
-              onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
-              title={selectedRegions.length === allRegions.length ? "Đã chọn tất cả vùng" : `Đã chọn ${selectedRegions.length} vùng`}
-            >
-              <span>{selectedRegions.length === allRegions.length ? "Tất Cả Vùng" : `Đã chọn (${selectedRegions.length})`}</span>
-            </button>
+          <div className="filter-item">
+            <MapPin size={14} className="filter-icon" />
+            <span className="filter-label-text">Vùng:</span>
+            <div className="custom-dropdown" ref={regionMenuRef}>
+              <button 
+                className="dropdown-toggle-sleek" 
+                onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
+                title={selectedRegions.length === allRegions.length ? "Đã chọn tất cả vùng" : `Đã chọn ${selectedRegions.length} vùng`}
+              >
+                <span>{selectedRegions.length === allRegions.length ? "Tất Cả Vùng" : `Đã chọn (${selectedRegions.length})`}</span>
+              </button>
 
-            {isRegionMenuOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header" onClick={handleToggleAllRegions}>
-                  {selectedRegions.length === allRegions.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
-                  <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
+              {isRegionMenuOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header" onClick={handleToggleAllRegions}>
+                    {selectedRegions.length === allRegions.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
+                    <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  
+                  <div className="dropdown-scroll-area">
+                    {Object.keys(MIEN_REGIONS).map(mien => (
+                      <div key={mien} className="dropdown-section">
+                        <div className="dropdown-section-title">{mien}</div>
+                        {MIEN_REGIONS[mien].map(reg => (
+                          <div key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)}>
+                            {selectedRegions.includes(reg) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
+                            <span>{reg}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="dropdown-divider"></div>
-                
-                <div className="dropdown-scroll-area">
-                  {Object.keys(MIEN_REGIONS).map(mien => (
-                    <div key={mien} className="dropdown-section">
-                      <div className="dropdown-section-title">{mien}</div>
-                      {MIEN_REGIONS[mien].map(reg => (
-                        <div key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)}>
-                          {selectedRegions.includes(reg) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
-                          <span>{reg}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          <div className="filter-divider"></div>
 
           {/* Mở đóng Hub toggle (Chỉ hiển thị với tab 4 chỉ số & Ca làm việc) */}
           {activeTab === 'report1' && (
             <button 
-              className={`nav-btn ${expandAllHubs ? 'primary' : ''}`}
+              className={`nav-btn-sleek ${expandAllHubs ? 'primary' : ''}`}
               onClick={() => setExpandAllHubs(!expandAllHubs)}
-              style={{ padding: '0.4rem 0.8rem', background: expandAllHubs ? 'var(--ghn-blue)' : '#f1f5f9', color: expandAllHubs ? 'white' : '#475569', border: '1px solid #cbd5e1' }}
             >
-              {expandAllHubs ? 'Thu Gọn Về Vùng' : 'Mở Tất Cả Hubs'}
+              {expandAllHubs ? 'Thu Gọn Vùng' : 'Mở Tất Cả Hubs'}
             </button>
           )}
-        </div>
 
-        <div className="meta-date-info">
-          <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
-          <span>•</span>
-          <span>WTD: <strong>Tuần {weekNum || '...'}</strong></span>
+          <div className="meta-date-sleek">
+            <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
+            <span className="dot">•</span>
+            <span>WTD: <strong>Tuần {weekNum || '...'}</strong></span>
+          </div>
         </div>
       </div>
     </header>
