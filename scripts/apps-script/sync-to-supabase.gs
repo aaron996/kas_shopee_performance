@@ -1,8 +1,15 @@
 /**
- * Đồng bộ 3 tab (Pick / Deli / Ca1) của Google Sheet nguồn vào bảng Supabase
- * `sheet_sync_data`, thay cho cách app đọc trực tiếp link CSV public
- * ("Anyone with link can view") — cách đó đã bị chặn khi GHN tắt share
- * ra ngoài domain.
+ * Đồng bộ 3 tab (Pick / Deli / Ca1) của Google Sheet nguồn vào 3 bảng
+ * Supabase dạng quan hệ bình thường (kas_pick_data / kas_deli_data /
+ * kas_ca1_data, mỗi tab 1 bảng, mỗi dòng sheet 1 dòng SQL), thay cho cách
+ * app đọc trực tiếp link CSV public ("Anyone with link can view") — cách
+ * đó đã bị chặn khi GHN tắt share ra ngoài domain.
+ *
+ * Mỗi lần chạy gọi 1 hàm SQL (sync_kas_pick_data / sync_kas_deli_data /
+ * sync_kas_ca1_data) làm full-refresh atomic (xoá hết rồi insert lại trong
+ * 1 transaction) — không upsert theo key vì data thật không có cột nào là
+ * unique key tự nhiên (đã kiểm tra: report_date+hub+client_name và
+ * ngay+lane+vung_giao đều có thể trùng).
  *
  * Vì script này chạy NGAY TRONG chính file Sheet (Extensions > Apps Script),
  * dưới quyền của người sở hữu/đang mở file, nó đọc được dữ liệu bất kể sheet
@@ -39,13 +46,21 @@ const TAB_GIDS = {
   ca1: 1405399014
 };
 
+// Mỗi tab ứng với 1 hàm RPC full-refresh riêng trong Supabase (xem migration
+// create_kas_normalized_tables).
+const TAB_RPC_FUNCTIONS = {
+  pick: 'sync_kas_pick_data',
+  deli: 'sync_kas_deli_data',
+  ca1: 'sync_kas_ca1_data'
+};
+
 function syncAllTabs() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const errors = [];
 
   Object.keys(TAB_GIDS).forEach((tabKey) => {
     try {
-      syncOneTab(ss, tabKey, TAB_GIDS[tabKey]);
+      syncOneTab(ss, tabKey, TAB_GIDS[tabKey], TAB_RPC_FUNCTIONS[tabKey]);
     } catch (err) {
       errors.push(tabKey + ': ' + err.message);
     }
@@ -56,7 +71,7 @@ function syncAllTabs() {
   }
 }
 
-function syncOneTab(ss, tabKey, gid) {
+function syncOneTab(ss, tabKey, gid, rpcFunctionName) {
   const sheet = ss.getSheets().find((s) => s.getSheetId() === gid);
   if (!sheet) {
     throw new Error('Không tìm thấy tab với gid ' + gid);
@@ -90,22 +105,17 @@ function syncOneTab(ss, tabKey, gid) {
     throw new Error('Chưa cấu hình Script Property SUPABASE_SERVICE_ROLE_KEY');
   }
 
-  const payload = [{
-    tab_name: tabKey,
-    rows: rows,
-    row_count: rows.length,
-    updated_at: new Date().toISOString()
-  }];
-
-  const res = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/sheet_sync_data?on_conflict=tab_name', {
+  // Gọi hàm SQL full-refresh (xoá hết + insert lại trong 1 transaction) —
+  // tên tham số "payload" phải khớp đúng tên tham số của hàm SQL
+  // sync_kas_*_data(payload jsonb).
+  const res = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/rpc/' + rpcFunctionName, {
     method: 'post',
     contentType: 'application/json',
     headers: {
       apikey: serviceKey,
-      Authorization: 'Bearer ' + serviceKey,
-      Prefer: 'resolution=merge-duplicates,return=minimal'
+      Authorization: 'Bearer ' + serviceKey
     },
-    payload: JSON.stringify(payload),
+    payload: JSON.stringify({ payload: rows }),
     muteHttpExceptions: true
   });
 
@@ -114,5 +124,5 @@ function syncOneTab(ss, tabKey, gid) {
     throw new Error('Supabase trả lỗi HTTP ' + code + ': ' + res.getContentText());
   }
 
-  Logger.log(tabKey + ': đã đẩy ' + rows.length + ' dòng lên Supabase.');
+  Logger.log(tabKey + ': đã đẩy ' + rows.length + ' dòng lên Supabase (bảng kas_' + tabKey + '_data).');
 }
