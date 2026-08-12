@@ -209,12 +209,15 @@ export default function App() {
     }
   };
 
+  const [hasFetchedLive, setHasFetchedLive] = useState(false);
+
   // Auto-sync live data on page mount if authenticated
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.email && !hasFetchedLive && !isSyncing) {
       handleSyncLiveSheet();
+      setHasFetchedLive(true);
     }
-  }, [currentUser]);
+  }, [currentUser?.email, hasFetchedLive, isSyncing]);
 
   // Real-time Presence & Access Logging
   useEffect(() => {
