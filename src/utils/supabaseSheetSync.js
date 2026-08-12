@@ -17,21 +17,40 @@
 // See docs/google-sheet-supabase-sync.md for the Apps Script + setup steps.
 import { supabase } from './supabaseClient';
 
+// PostgREST caps any unpaginated select() at 1000 rows by default — these
+// tables hold several thousand rows each (one row per sheet row, ~2 weeks
+// of data), so a plain .select('*') silently truncates and only the most
+// recently-inserted rows come back. Page through with .range() until a
+// page returns fewer rows than requested.
+const PAGE_SIZE = 1000;
+
+async function fetchAllRows(table) {
+  const rows = [];
+  let from = 0;
+  // Safety cap so a runaway table can't turn this into an infinite loop.
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
+
 export async function fetchSupabaseSheetSync() {
   try {
-    const [pickRes, deliRes, ca1Res] = await Promise.all([
-      supabase.from('kas_pick_data').select('*'),
-      supabase.from('kas_deli_data').select('*'),
-      supabase.from('kas_ca1_data').select('*')
+    const [pickData, deliData, ca1Data] = await Promise.all([
+      fetchAllRows('kas_pick_data'),
+      fetchAllRows('kas_deli_data'),
+      fetchAllRows('kas_ca1_data')
     ]);
-
-    if (pickRes.error) throw pickRes.error;
-    if (deliRes.error) throw deliRes.error;
-    if (ca1Res.error) throw ca1Res.error;
-
-    const pickData = pickRes.data || [];
-    const deliData = deliRes.data || [];
-    const ca1Data = ca1Res.data || [];
 
     if (!pickData.length || !deliData.length) {
       return { success: false, error: 'NO_SYNCED_DATA' };
