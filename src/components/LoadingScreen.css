@@ -1,0 +1,84 @@
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
+}
+
+body.dark-mode .loading-overlay {
+  background-color: rgba(15, 23, 42, 0.9);
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.loading-sprite {
+  width: 150px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sprite-option-4 {
+  background-image: url('/loading_sprite.jpg');
+  background-size: 400% 400%; /* 4x4 grid */
+  background-repeat: no-repeat;
+  animation: playSprite 0.8s step-end infinite;
+  border-radius: 12px;
+  /* Add a soft shadow to make it pop */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  background-color: #f1f5f9;
+}
+
+body.dark-mode .sprite-option-4 {
+  background-color: #1e293b;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.loading-text {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-main);
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(255,255,255,0.8);
+}
+
+body.dark-mode .loading-text {
+  color: #f1f5f9;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+@keyframes playSprite {
+  0.00% { background-position: 0% 0%; }
+  6.25% { background-position: 33.333% 0%; }
+  12.50% { background-position: 66.666% 0%; }
+  18.75% { background-position: 100% 0%; }
+  
+  25.00% { background-position: 0% 33.333%; }
+  31.25% { background-position: 33.333% 33.333%; }
+  37.50% { background-position: 66.666% 33.333%; }
+  43.75% { background-position: 100% 33.333%; }
+  
+  50.00% { background-position: 0% 66.666%; }
+  56.25% { background-position: 33.333% 66.666%; }
+  62.50% { background-position: 66.666% 66.666%; }
+  68.75% { background-position: 100% 66.666%; }
+  
+  75.00% { background-position: 0% 100%; }
+  81.25% { background-position: 33.333% 100%; }
+  87.50% { background-position: 66.666% 100%; }
+  93.75% { background-position: 100% 100%; }
+  
+  100.00% { background-position: 0% 0%; }
+}

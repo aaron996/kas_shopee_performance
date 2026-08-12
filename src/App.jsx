@@ -12,6 +12,7 @@ import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
+import LoadingScreen from './components/LoadingScreen';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
 
 export default function App() {
@@ -310,6 +311,11 @@ export default function App() {
         isOpen={!currentUser}
         onLoginSuccess={(user) => setCurrentUser(user)}
       />
+
+      {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
+      {isSyncing && (
+        <LoadingScreen text={syncStatus.text} option={1} />
+      )}
 
       {/* Main Layout wrapper for Sidebar + Content */}
       <div className="app-layout">
