@@ -11,28 +11,29 @@
 //
 // The new pipeline: a Google Apps Script bound to the source Sheet (running
 // under the sheet owner's own Google identity, unaffected by the sharing
-// policy) pushes each tab's rows into the `sheet_sync_data` table on a timer.
+// policy) fully refreshes the kas_pick_data / kas_deli_data / kas_ca1_data
+// tables on a timer via the sync_kas_*_data() RPC functions (atomic
+// delete+insert — the real sheet has no natural unique key to upsert on).
 // See docs/google-sheet-supabase-sync.md for the Apps Script + setup steps.
 import { supabase } from './supabaseClient';
 
-const TABS = ['pick', 'deli', 'ca1'];
-
 export async function fetchSupabaseSheetSync() {
   try {
-    const { data, error } = await supabase
-      .from('sheet_sync_data')
-      .select('tab_name, rows, row_count, updated_at')
-      .in('tab_name', TABS);
+    const [pickRes, deliRes, ca1Res] = await Promise.all([
+      supabase.from('kas_pick_data').select('*'),
+      supabase.from('kas_deli_data').select('*'),
+      supabase.from('kas_ca1_data').select('*')
+    ]);
 
-    if (error) throw error;
+    if (pickRes.error) throw pickRes.error;
+    if (deliRes.error) throw deliRes.error;
+    if (ca1Res.error) throw ca1Res.error;
 
-    const byTab = Object.fromEntries((data || []).map(r => [r.tab_name, r]));
+    const pickData = pickRes.data || [];
+    const deliData = deliRes.data || [];
+    const ca1Data = ca1Res.data || [];
 
-    const pick = byTab.pick;
-    const deli = byTab.deli;
-    const ca1 = byTab.ca1;
-
-    if (!pick || !deli || !pick.rows?.length || !deli.rows?.length) {
+    if (!pickData.length || !deliData.length) {
       return { success: false, error: 'NO_SYNCED_DATA' };
     }
 
@@ -41,16 +42,16 @@ export async function fetchSupabaseSheetSync() {
       return String(type).toLowerCase() !== 'ahamove';
     });
 
-    const updatedAt = [pick.updated_at, deli.updated_at, ca1?.updated_at]
+    const updatedAt = [pickData[0]?.synced_at, deliData[0]?.synced_at, ca1Data[0]?.synced_at]
       .filter(Boolean)
       .sort()
       .pop();
 
     return {
       success: true,
-      pickData: filterValidHubs(pick.rows),
-      deliData: filterValidHubs(deli.rows),
-      ca1Data: ca1?.rows?.length ? filterValidHubs(ca1.rows) : null,
+      pickData: filterValidHubs(pickData),
+      deliData: filterValidHubs(deliData),
+      ca1Data: ca1Data.length ? filterValidHubs(ca1Data) : null,
       updatedAt
     };
   } catch (err) {
