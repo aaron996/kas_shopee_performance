@@ -8,7 +8,6 @@ export default function Sidebar({
   onLogout,
   isDarkMode,
   setIsDarkMode,
-  onOpenDevAdmin,
   isCollapsed,
   onToggleCollapse
 }) {
@@ -62,6 +61,17 @@ export default function Sidebar({
             </button>
           );
         })}
+        {/* Mobile ONLY Dev Admin Button */}
+        {currentUser?.isDevAdmin && (
+          <button
+            className={`sidebar-nav-item mobile-only ${activeTab === 'dev-admin' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dev-admin')}
+            style={{ color: '#4ADE80' }}
+          >
+            <ShieldCheck size={18} />
+            <span title="Dev Admin">Dev Admin</span>
+          </button>
+        )}
       </nav>
 
       <div style={{ flex: 1 }}></div>
@@ -83,9 +93,9 @@ export default function Sidebar({
         {currentUser && (
           <div className="sidebar-user">
             <div 
-              className="user-info-badge"
-              onClick={currentUser.isDevAdmin ? onOpenDevAdmin : undefined}
-              style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default' }}
+              className={`user-info-badge ${activeTab === 'dev-admin' ? 'active-admin' : ''}`}
+              onClick={currentUser.isDevAdmin ? () => setActiveTab('dev-admin') : undefined}
+              style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default', background: activeTab === 'dev-admin' ? 'rgba(74, 222, 128, 0.1)' : '' }}
               title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
             >
               <UserCheck size={16} style={{ color: '#4ADE80' }} />

@@ -110,7 +110,6 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
 
-  const [isDevAdminDashboardOpen, setIsDevAdminDashboardOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   // Listen for Supabase Authentication State changes
@@ -329,7 +328,6 @@ export default function App() {
           onLogout={handleLogout}
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
-          onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
@@ -387,6 +385,10 @@ export default function App() {
             setIsFullscreen={setIsFullscreen}
           />
         )}
+
+        {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
+          <DevAdminDashboard onlineUsers={onlineUsers} />
+        )}
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
@@ -437,13 +439,6 @@ export default function App() {
         />
       )}
 
-          {isDevAdminDashboardOpen && currentUser?.isDevAdmin && (
-            <DevAdminDashboard 
-              isOpen={isDevAdminDashboardOpen} 
-              onClose={() => setIsDevAdminDashboardOpen(false)} 
-              onlineUsers={onlineUsers} 
-            />
-          )}
         </div>
       </div>
     </div>
