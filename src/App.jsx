@@ -314,7 +314,7 @@ export default function App() {
 
       {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
       {isSyncing && (
-        <LoadingScreen text={syncStatus.text} option={1} />
+        <LoadingScreen text={syncStatus.text} option={4} />
       )}
 
       {/* Main Layout wrapper for Sidebar + Content */}
