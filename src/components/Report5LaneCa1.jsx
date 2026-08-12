@@ -80,8 +80,15 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
     return 0;
   };
 
+  // The real sheet writes lane names in sentence case with inconsistent
+  // spacing ("Intra city", "Cross region", "Cross metro *"), not the mock
+  // dataset's "Intra City" / "Cross Metro*" — an exact === match against
+  // `lanes` above silently matched nothing and every cell showed 0/–.
+  // Normalize both sides (lowercase, strip whitespace) before comparing.
+  const normalizeLane = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+
   const renderLaneTable = (laneName) => {
-    let laneData = ca1Rows.filter(r => r.lane === laneName);
+    let laneData = ca1Rows.filter(r => normalizeLane(r.lane) === normalizeLane(laneName));
     
     // Map regions to provinces for Cross Metro*
     if (laneName === 'Cross Metro*') {
