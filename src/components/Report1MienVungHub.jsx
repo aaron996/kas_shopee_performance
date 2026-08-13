@@ -530,7 +530,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
 
     return (
-      <div className={`metric-block ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
+      <div className={`metric-block metric-block-sticky ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
         <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="metric-title">
             <span>{title}</span>

@@ -184,11 +184,6 @@ export default function Header({
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           </div>
 
-          <span className={`data-status data-status--${syncStatus?.kind || 'default'}`} title={syncStatus?.text}>
-            <span className="data-status__dot" aria-hidden="true" />
-            {syncStatus?.source || 'Dữ liệu mẫu'}
-          </span>
-
           <div className="filter-divider"></div>
 
           <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
