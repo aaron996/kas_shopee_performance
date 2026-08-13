@@ -15,6 +15,45 @@ import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
 
+const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
+const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
+const accessLogRequests = new Set();
+
+async function recordAccess(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const loggedKey = `${ACCESS_LOGGED_KEY_PREFIX}${normalizedEmail}`;
+
+  if (sessionStorage.getItem(loggedKey) || accessLogRequests.has(normalizedEmail)) {
+    return;
+  }
+
+  accessLogRequests.add(normalizedEmail);
+  let lastError;
+
+  try {
+    for (const delay of ACCESS_LOG_RETRY_DELAYS) {
+      if (delay) {
+        await new Promise(resolve => window.setTimeout(resolve, delay));
+      }
+
+      const { error } = await supabase
+        .from('access_logs')
+        .insert([{ email: normalizedEmail }]);
+
+      if (!error) {
+        sessionStorage.setItem(loggedKey, 'true');
+        return;
+      }
+
+      lastError = error;
+    }
+
+    console.error('Failed to record access after retries:', lastError);
+  } finally {
+    accessLogRequests.delete(normalizedEmail);
+  }
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -222,20 +261,10 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // 1. Log access to access_logs table
-    const logAccess = async () => {
-      try {
-        await supabase.from('access_logs').insert([{ email: currentUser.email }]);
-      } catch (err) {
-        console.error('Failed to log access:', err);
-      }
-    };
-    
-    // Only log once per session to avoid spam
-    if (!sessionStorage.getItem('ghn_access_logged')) {
-      logAccess();
-      sessionStorage.setItem('ghn_access_logged', 'true');
-    }
+    // 1. Log access once per user/session. The session flag is written only
+    // after Supabase confirms the insert, so a temporary network/RLS failure
+    // is retried instead of silently excluding that user from history.
+    recordAccess(currentUser.email);
 
     // 2. Setup Realtime Presence
     const room = supabase.channel('online-users', {
