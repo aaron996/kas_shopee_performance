@@ -1781,6 +1781,13 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   position: sticky;
   top: calc(var(--master-table-sticky-top) + var(--master-table-header-height));
   z-index: 40;
+  /* Sticky cells need an explicit row rhythm. Otherwise their content can be
+     painted into the table border seam while the row remains compressed. */
+  min-height: 36px;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  line-height: 1.25;
+  background-clip: padding-box;
 }
 
 .report1-master-table table.mtx-table tbody tr.all-row > td.lbl-1,
