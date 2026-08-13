@@ -3,7 +3,6 @@ import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, Me
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
-  activeTab,
   setActiveTab,
   clientFilter,
   setClientFilter,
@@ -12,10 +11,8 @@ export default function Header({
   allHubTypes,
   selectedHubTypes,
   setSelectedHubTypes,
-  expandAllHubs,
-  setExpandAllHubs,
   d1DateFormatted,
-  weekNum,
+  syncStatus,
   onOpenSummary,
   currentUser,
   onLogout,
@@ -105,19 +102,22 @@ export default function Header({
             <span className="filter-label-text">Vùng:</span>
             <div className="custom-dropdown" ref={regionMenuRef}>
               <button 
+                type="button"
                 className="dropdown-toggle-sleek" 
                 onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
+                aria-expanded={isRegionMenuOpen}
+                aria-controls="region-filter-menu"
                 title={selectedRegions.length === allRegions.length ? "Đã chọn tất cả vùng" : `Đã chọn ${selectedRegions.length} vùng`}
               >
                 <span>{selectedRegions.length === allRegions.length ? "Tất Cả Vùng" : `Đã chọn (${selectedRegions.length})`}</span>
               </button>
 
               {isRegionMenuOpen && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-header" onClick={handleToggleAllRegions}>
+                <div className="dropdown-menu" id="region-filter-menu">
+                  <button type="button" className="dropdown-header" onClick={handleToggleAllRegions} aria-pressed={selectedRegions.length === allRegions.length}>
                     {selectedRegions.length === allRegions.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
                     <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
-                  </div>
+                  </button>
                   <div className="dropdown-divider"></div>
                   
                   <div className="dropdown-scroll-area">
@@ -125,10 +125,10 @@ export default function Header({
                       <div key={mien} className="dropdown-section">
                         <div className="dropdown-section-title">{mien}</div>
                         {MIEN_REGIONS[mien].map(reg => (
-                          <div key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)}>
+                          <button type="button" key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)} aria-pressed={selectedRegions.includes(reg)}>
                             {selectedRegions.includes(reg) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
                             <span>{reg}</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     ))}
@@ -145,27 +145,30 @@ export default function Header({
             <span className="filter-label-text">Loại Hub:</span>
             <div className="custom-dropdown" ref={hubTypeMenuRef}>
               <button 
+                type="button"
                 className="dropdown-toggle-sleek" 
                 onClick={() => setIsHubTypeMenuOpen(!isHubTypeMenuOpen)}
+                aria-expanded={isHubTypeMenuOpen}
+                aria-controls="hub-type-filter-menu"
                 title={selectedHubTypes.length === allHubTypes.length ? "Đã chọn tất cả loại Hub" : `Đã chọn ${selectedHubTypes.length} loại Hub`}
               >
                 <span>{selectedHubTypes.length === allHubTypes.length ? "Tất Cả Loại" : `Đã chọn (${selectedHubTypes.length})`}</span>
               </button>
 
               {isHubTypeMenuOpen && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-header" onClick={handleToggleAllHubTypes}>
+                <div className="dropdown-menu" id="hub-type-filter-menu">
+                  <button type="button" className="dropdown-header" onClick={handleToggleAllHubTypes} aria-pressed={selectedHubTypes.length === allHubTypes.length}>
                     {selectedHubTypes.length === allHubTypes.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
                     <span style={{ fontWeight: 600 }}>Chọn tất cả loại</span>
-                  </div>
+                  </button>
                   <div className="dropdown-divider"></div>
                   
                   <div className="dropdown-scroll-area">
                     {allHubTypes.map(type => (
-                      <div key={type} className="dropdown-item" onClick={() => handleToggleHubType(type)}>
+                      <button type="button" key={type} className="dropdown-item" onClick={() => handleToggleHubType(type)} aria-pressed={selectedHubTypes.includes(type)}>
                         {selectedHubTypes.includes(type) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
                         <span style={{ fontWeight: 500 }}>{type}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -181,19 +184,24 @@ export default function Header({
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           </div>
 
+          <span className={`data-status data-status--${syncStatus?.kind || 'default'}`} title={syncStatus?.text}>
+            <span className="data-status__dot" aria-hidden="true" />
+            {syncStatus?.source || 'Dữ liệu mẫu'}
+          </span>
+
           <div className="filter-divider"></div>
 
           <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
             <MessageSquareText size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Nhận Xét D-1</span>
           </button>
 
-          <div className="density-toggle-sleek" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title="Bật để xem dữ liệu dày hơn">
+          <button type="button" className="density-toggle-sleek" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title="Bật để xem dữ liệu dày hơn" role="switch" aria-checked={density === 'compact'}>
              <span className={density === 'comfortable' ? 'active' : ''}>Thoáng</span>
              <div className={`switch ${density === 'compact' ? 'on' : 'off'}`}>
                 <div className="slider"></div>
              </div>
              <span className={density === 'compact' ? 'active' : ''}>Dày</span>
-          </div>
+          </button>
 
           <button 
             className="nav-btn-sleek"
@@ -210,7 +218,7 @@ export default function Header({
             title="Tải bảng dữ liệu dạng CSV"
             style={{ background: '#0F6E56', borderColor: '#0F6E56', padding: '0.25rem 0.6rem' }}
           >
-            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất Excel</span>
+            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất CSV</span>
           </button>
 
           {/* Mobile-only: the desktop sidebar (theme, dev admin, logout) is

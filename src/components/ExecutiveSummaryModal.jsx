@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Copy, Check, MessageSquareText, X, Share2 } from 'lucide-react';
+import { Copy, Check, MessageSquareText, X } from 'lucide-react';
 import { generateExecutiveSummary } from '../utils/dataProcessor';
+import ModalDialog from './ui/ModalDialog';
+import StatusNotice from './ui/StatusNotice';
 
 export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliRows, clientFilter }) {
   const [copied, setCopied] = useState(false);
@@ -9,15 +11,18 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
 
   const summaryText = generateExecutiveSummary(pickRows, deliRows, clientFilter);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(summaryText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(summaryText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: '680px', borderRadius: '16px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+    <ModalDialog isOpen={isOpen} onClose={onClose} titleId="executive-summary-title">
         {/* Custom 3D Artwork Banner */}
         <div style={{ position: 'relative', height: '140px', overflow: 'hidden' }}>
           <img 
@@ -38,7 +43,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <MessageSquareText size={20} style={{ color: '#F15A22' }} />
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                <h3 id="executive-summary-title" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
                   Nhận Xét Điều Hành Executive (D-1 vs D-8)
                 </h3>
               </div>
@@ -46,16 +51,16 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
                 Báo cáo tóm tắt quy chuẩn Ban Giám Đốc • So sánh D-1 vs D-8 (cùng thứ tuần trước)
               </div>
             </div>
-            <button className="modal-close" onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', padding: '0.35rem', borderRadius: '50%', display: 'flex' }}>
+            <button className="modal-close" onClick={onClose} aria-label="Đóng nhận xét điều hành" style={{ background: 'rgba(255,255,255,0.15)', padding: '0.35rem', borderRadius: '50%', display: 'flex' }}>
               <X size={18} />
             </button>
           </div>
         </div>
 
         <div className="modal-body" style={{ padding: '1.25rem' }}>
-          <div style={{ background: 'var(--surface-hover, #f8fafc)', border: '1px solid var(--border, #e2e8f0)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-muted, #64748b)' }}>
+          <StatusNotice tone="info" style={{ marginBottom: '1rem' }}>
             💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có tỷ lệ 1st Pickup / Deli thấp nhất. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
-          </div>
+          </StatusNotice>
 
           <textarea 
             className="summary-textarea"
@@ -74,8 +79,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
             {copied ? 'Đã Sao Chép Zalo!' : 'Sao Chép Nội Dung Zalo / Telegram'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }
 

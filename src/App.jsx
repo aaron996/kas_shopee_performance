@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
@@ -36,7 +36,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('report1');
   const [clientFilter, setClientFilter] = useState('SPB');
-  const [expandAllHubs, setExpandAllHubs] = useState(false);
+  const [expandAllHubs] = useState(false);
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
@@ -102,13 +102,13 @@ export default function App() {
         setSelectedHubTypes(allHubTypes);
       }
     }
-  }, [allHubTypes]);
+  }, [allHubTypes, selectedHubTypes]);
 
   const [density, setDensity] = useState('comfortable');
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
+  const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đang hiển thị dữ liệu mẫu' });
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -163,12 +163,12 @@ export default function App() {
     setPickRows(filterAhamove(createDefaultPickDataset()));
     setDeliRows(filterAhamove(createDefaultDeliDataset()));
     setCa1Rows(filterAhamove(createDefaultCa1Dataset()));
-    setSyncStatus({ isLive: false, text: 'Default Dataset' });
+    setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
-  const handleSyncLiveSheet = async () => {
+  const handleSyncLiveSheet = useCallback(async () => {
     setIsSyncing(true);
-    setSyncStatus({ isLive: false, text: 'Đang tải dữ liệu...' });
+    setSyncStatus({ kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
 
     // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
     // timer (no longer depends on the Sheet being publicly link-shared —
@@ -179,7 +179,7 @@ export default function App() {
       setDeliRows(filterAhamove(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
       setIsSyncing(false);
-      setSyncStatus({ isLive: true, text: 'Live Synced (Supabase)' });
+      setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
     }
 
@@ -192,7 +192,7 @@ export default function App() {
       setPickRows(filterAhamove(res.pickData));
       setDeliRows(filterAhamove(res.deliData));
       if (res.ca1Data) setCa1Rows(filterAhamove(res.ca1Data));
-      setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
+      setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
         if (currentUser && currentUser.isDevAdmin) {
@@ -204,9 +204,9 @@ export default function App() {
       } else {
         alert(`Lỗi kết nối dữ liệu: ${res.error}`);
       }
-      setSyncStatus({ isLive: false, text: 'Sync Failed' });
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Đang hiển thị dữ liệu gần nhất' });
     }
-  };
+  }, [currentUser]);
 
   const [hasFetchedLive, setHasFetchedLive] = useState(false);
 
@@ -216,7 +216,7 @@ export default function App() {
       handleSyncLiveSheet();
       setHasFetchedLive(true);
     }
-  }, [currentUser?.email, hasFetchedLive, isSyncing]);
+  }, [currentUser?.email, handleSyncLiveSheet, hasFetchedLive, isSyncing]);
 
   // Real-time Presence & Access Logging
   useEffect(() => {
@@ -282,15 +282,7 @@ export default function App() {
 
   // Extract dynamic date info for the Header
   const allDates = [...new Set(pickRows.map(r => r.report_date))].filter(Boolean).sort();
-  const { d1Date, weekCurrent } = groupDatesByWeek(allDates);
-  const getWeekNumber = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const start = new Date(d.getFullYear(), 0, 1);
-    const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
-    return Math.ceil((d.getDay() + 1 + days) / 7);
-  };
-  const weekNum = weekCurrent?.[0] ? getWeekNumber(weekCurrent[0]) : '';
+  const { d1Date } = groupDatesByWeek(allDates);
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
 
   // Filter datasets based on selectedRegions and selectedHubTypes
@@ -311,7 +303,6 @@ export default function App() {
       {/* Authentication Protection Modal */}
       <AuthModal
         isOpen={!currentUser}
-        onLoginSuccess={(user) => setCurrentUser(user)}
       />
 
       {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
@@ -336,8 +327,7 @@ export default function App() {
         <div className="app-main">
           {/* Header Navigation & Filter Bar */}
           <Header
-            activeTab={activeTab}
-        setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
         selectedRegions={selectedRegions}
@@ -345,10 +335,8 @@ export default function App() {
         allHubTypes={allHubTypes}
         selectedHubTypes={selectedHubTypes}
         setSelectedHubTypes={setSelectedHubTypes}
-        expandAllHubs={expandAllHubs}
-        setExpandAllHubs={setExpandAllHubs}
         d1DateFormatted={d1DateFormatted}
-        weekNum={weekNum}
+        syncStatus={syncStatus}
         onOpenSummary={() => setIsSummaryOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -378,7 +366,6 @@ export default function App() {
         {activeTab === 'report5' && (
           <Report5LaneCa1
             ca1Rows={filteredCa1Rows}
-            selectedRegions={selectedRegions}
             density={density}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}

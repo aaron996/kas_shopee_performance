@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { ShieldCheck, LogIn, AlertCircle, Lock, Mail, Radio } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ShieldCheck, AlertCircle, Mail } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import ModalDialog from './ui/ModalDialog';
+import StatusNotice from './ui/StatusNotice';
 
 const ADMIN_DEVS = ['luongthevinh996@gmail.com', 'vinhlt@ghn.vn'];
 
@@ -16,11 +18,12 @@ export function isDevAdminEmail(email) {
   return ADMIN_DEVS.includes(cleanEmail);
 }
 
-export default function AuthModal({ isOpen, onLoginSuccess }) {
+export default function AuthModal({ isOpen }) {
   const [emailInput, setEmailInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const emailInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -78,8 +81,13 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
   };
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 2000 }}>
-      <div className="modal-card auth-modal-card" style={{ maxWidth: '520px', padding: '0', overflow: 'hidden', borderRadius: '16px' }}>
+    <ModalDialog
+      isOpen={isOpen}
+      dismissible={false}
+      initialFocusRef={emailInputRef}
+      titleId="auth-dialog-title"
+      className="auth-modal-card"
+    >
         {/* Custom 3D Artwork Banner */}
         <div style={{ position: 'relative', height: '170px', overflow: 'hidden' }}>
           <img 
@@ -101,7 +109,7 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
               <div style={{ background: '#F15A22', padding: '0.4rem', borderRadius: '8px', display: 'flex' }}>
                 <ShieldCheck size={20} color="white" />
               </div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>
+              <h2 id="auth-dialog-title" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>
                 Hệ Thống Báo Cáo Điều Hành
               </h2>
             </div>
@@ -113,18 +121,18 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
 
         <div style={{ padding: '1.5rem', background: 'var(--surface)' }}>
           {errorMsg && (
-            <div style={{ background: 'var(--bad-red-bg)', border: '1px solid var(--bad-red-text)', color: 'var(--bad-red-text)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4' }}>
+            <StatusNotice tone="danger" style={{ marginBottom: '1.25rem' }}>
               <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
                 <AlertCircle size={16} /> Từ Chối Truy Cập
               </div>
               {errorMsg}
-            </div>
+            </StatusNotice>
           )}
 
           {infoMsg && (
-            <div style={{ background: 'var(--good-green-bg)', border: '1px solid var(--good-green-text)', color: 'var(--good-green-text)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.83rem', lineHeight: '1.4', fontWeight: 600 }}>
+            <StatusNotice tone="success" style={{ marginBottom: '1.25rem', fontWeight: 600 }}>
               {infoMsg}
-            </div>
+            </StatusNotice>
           )}
 
           {/* Google Sign-In button via Supabase */}
@@ -151,10 +159,12 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
 
           <form onSubmit={handleEmailSignIn}>
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main, #334155)', marginBottom: '0.4rem' }}>
+              <label htmlFor="auth-email" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main, #334155)', marginBottom: '0.4rem' }}>
                 Địa chỉ Email GHN:
               </label>
               <input
+                ref={emailInputRef}
+                id="auth-email"
                 type="email"
                 className="filter-input"
                 style={{ width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.9rem', borderRadius: '8px' }}
@@ -170,7 +180,6 @@ export default function AuthModal({ isOpen, onLoginSuccess }) {
             </button>
           </form>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }

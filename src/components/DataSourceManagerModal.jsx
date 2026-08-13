@@ -3,6 +3,8 @@ import { FileSpreadsheet, Upload, RefreshCw, X, Radio, ExternalLink, Database } 
 import Papa from 'papaparse';
 import { syncAllGoogleSheetTabs } from '../utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from '../utils/supabaseSheetSync';
+import ModalDialog from './ui/ModalDialog';
+import StatusNotice from './ui/StatusNotice';
 
 export default function DataSourceManagerModal({
   isOpen,
@@ -118,14 +120,13 @@ export default function DataSourceManagerModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+    <ModalDialog isOpen={isOpen} onClose={onClose} titleId="data-source-title" className="data-source-modal-card">
         <div className="modal-header">
-          <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div id="data-source-title" className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <FileSpreadsheet size={20} />
             Quản Lý Nguồn Dữ Liệu Google Sheet & CSV
           </div>
-          <button className="modal-close" onClick={onClose}>
+          <button className="modal-close" onClick={onClose} aria-label="Đóng quản lý nguồn dữ liệu">
             <X size={20} />
           </button>
         </div>
@@ -179,17 +180,12 @@ export default function DataSourceManagerModal({
           </div>
 
           {msg && (
-            <div style={{ 
-              background: msg.includes('⚠️') ? 'var(--amber-bg)' : 'var(--good-green-bg)', 
-              color: msg.includes('⚠️') ? 'var(--amber-text)' : 'var(--good-green-text)', 
-              padding: '0.75rem', 
-              borderRadius: '6px', 
-              marginBottom: '1rem', 
-              fontSize: '0.85rem', 
-              fontWeight: 600 
-            }}>
+            <StatusNotice
+              tone={msg.includes('⚠️') || msg.includes('Lỗi') ? 'warning' : 'success'}
+              style={{ marginBottom: '1rem', fontWeight: 600 }}
+            >
               {msg}
-            </div>
+            </StatusNotice>
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
@@ -258,7 +254,6 @@ export default function DataSourceManagerModal({
             Hoàn Tất
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }

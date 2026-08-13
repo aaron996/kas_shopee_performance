@@ -1,0 +1,84 @@
+:root {
+  /* Primitive palette */
+  --color-orange-500: #f15a22;
+  --color-orange-700: #c94516;
+  --color-blue-700: #0063aa;
+  --color-blue-800: #004b82;
+  --color-slate-950: #0f172a;
+  --color-slate-800: #1e293b;
+  --color-slate-500: #64748b;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+  --color-slate-50: #f8fafc;
+  --color-white: #ffffff;
+
+  /* Semantic tokens */
+  --surface-canvas: #f4f6f9;
+  --surface-default: var(--color-white);
+  --surface-subtle: var(--color-slate-50);
+  --surface-info: #e6f0fa;
+  --text-primary: var(--color-slate-800);
+  --text-secondary: var(--color-slate-500);
+  --text-on-brand: var(--color-white);
+  --border-subtle: var(--color-slate-200);
+  --border-strong: var(--color-slate-300);
+  --action-primary: var(--color-blue-700);
+  --action-primary-hover: var(--color-blue-800);
+  --focus-ring: 0 0 0 3px rgba(0, 99, 170, 0.25);
+
+  --status-success-bg: #eaf3de;
+  --status-success-fg: #0f6e56;
+  --status-warning-bg: #fef3c7;
+  --status-warning-fg: #92400e;
+  --status-danger-bg: #f7d9d4;
+  --status-danger-fg: #a13b2a;
+
+  --radius-control: 8px;
+  --radius-surface: 14px;
+  --shadow-overlay: 0 20px 40px rgba(15, 23, 42, 0.25);
+  --shadow-raised: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --duration-fast: 160ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-heading: 'Outfit', 'IBM Plex Sans', sans-serif;
+
+  /* Legacy aliases retained during incremental migration. */
+  --ghn-orange: var(--color-orange-500);
+  --ghn-orange-dark: var(--color-orange-700);
+  --ghn-orange-light: #fef0eb;
+  --ghn-blue: var(--action-primary);
+  --ghn-blue-dark: var(--action-primary-hover);
+  --ghn-blue-light: var(--surface-info);
+  --bg-main: var(--surface-canvas);
+  --surface: var(--surface-default);
+  --surface-hover: var(--surface-subtle);
+  --text-main: var(--text-primary);
+  --text-muted: var(--text-secondary);
+  --border: var(--border-subtle);
+  --card-bg: var(--surface-default);
+  --card-border: var(--border-subtle);
+  --input-bg: var(--surface-default);
+  --input-text: var(--text-primary);
+  --info-box-bg: var(--surface-info);
+  --info-box-text: var(--color-blue-800);
+  --info-box-border: var(--action-primary);
+  --good-green-bg: var(--status-success-bg);
+  --good-green-text: var(--status-success-fg);
+  --amber-bg: var(--status-warning-bg);
+  --amber-text: var(--status-warning-fg);
+  --bad-red-bg: var(--status-danger-bg);
+  --bad-red-text: var(--status-danger-fg);
+}
+
+body.dark-mode {
+  --surface-canvas: #0b1329;
+  --surface-default: #1e293b;
+  --surface-subtle: #334155;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --border-subtle: #334155;
+  --border-strong: #475569;
+}

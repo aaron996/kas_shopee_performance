@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { ArrowRightLeft, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { ArrowRightLeft, X, Copy } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
-export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
+export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
   const tableRefs = React.useRef({});
 
   React.useEffect(() => {
@@ -36,7 +36,7 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
     const headers = ['Lane', 'Vung Giao', 'Ngay', 'Tong Don', 'Don Hub Giao Ca 1', '% Ca 1'];
     const csvRows = [headers.join(',')];
 
@@ -53,7 +53,13 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
     link.href = url;
     link.download = `GHN_Shopee_Ca1_Lane_Matrix_${d1Date || 'D1'}.csv`;
     link.click();
-  };
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, [ca1Rows, d1Date]);
+
+  React.useEffect(() => {
+    window.addEventListener('export-csv', handleExportCSV);
+    return () => window.removeEventListener('export-csv', handleExportCSV);
+  }, [handleExportCSV]);
 
   // Split weekCurrent into days up to D-2 and D-1 separately (matching 4 chỉ số layout)
   const weekCurBeforeD1 = useMemo(() => weekCurrent.slice(0, -1), [weekCurrent]);
