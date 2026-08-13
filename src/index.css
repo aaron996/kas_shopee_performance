@@ -1747,6 +1747,7 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 .report1-master-table {
   overflow: visible;
   --master-table-sticky-top: 60px;
+  --master-table-header-height: 84px;
 }
 
 .has-sticky-kpi .report1-master-table {
@@ -1774,6 +1775,20 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   z-index: 2;
 }
 
+/* Keep the nationwide summary visible directly under the sticky header. Without
+   this second sticky tier, the first data row scrolls behind the header. */
+.report1-master-table table.mtx-table tbody tr.all-row > td {
+  position: sticky;
+  top: calc(var(--master-table-sticky-top) + var(--master-table-header-height));
+  z-index: 40;
+}
+
+.report1-master-table table.mtx-table tbody tr.all-row > td.lbl-1,
+.report1-master-table table.mtx-table tbody tr.all-row > td.lbl-2,
+.report1-master-table table.mtx-table tbody tr.all-row > td.lbl {
+  z-index: 41 !important;
+}
+
 .fullscreen-mode-active .report1-master-table {
   --master-table-sticky-top: 0px;
 }
@@ -1789,6 +1804,10 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   .report1-master-table table.mtx-table thead {
     position: static;
     box-shadow: none;
+  }
+
+  .report1-master-table table.mtx-table tbody tr.all-row > td {
+    position: static;
   }
 }
 
