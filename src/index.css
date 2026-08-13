@@ -1741,6 +1741,57 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   color: #f87171;
 }
 
+/* Report 1 master header: keep the two-row matrix header readable while the
+   page scrolls. The horizontal scroller is only needed on smaller screens;
+   leaving it off on desktop lets sticky anchor to the document viewport. */
+.report1-master-table {
+  overflow: visible;
+  --master-table-sticky-top: 60px;
+}
+
+.has-sticky-kpi .report1-master-table {
+  --master-table-sticky-top: 108px;
+}
+
+.report1-master-table table.mtx-table thead {
+  position: sticky;
+  top: var(--master-table-sticky-top);
+  z-index: 50;
+  box-shadow: 0 3px 10px rgba(0, 35, 64, 0.22);
+}
+
+/* The KPI bar deliberately remains above the table header. This prevents an
+   overlap during the transition into the sticky state. */
+.report1-master-table table.mtx-table thead th {
+  position: relative;
+  z-index: 1;
+}
+
+.report1-master-table table.mtx-table thead th.lbl-1,
+.report1-master-table table.mtx-table thead th.lbl-2,
+.report1-master-table table.mtx-table thead th.lbl {
+  position: sticky;
+  z-index: 2;
+}
+
+.fullscreen-mode-active .report1-master-table {
+  --master-table-sticky-top: 0px;
+}
+
+@media (max-width: 1100px) {
+  .report1-master-table {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  /* On narrow layouts, horizontal scrolling takes precedence over a clipped
+     viewport-fixed header; the table still keeps its existing sticky columns. */
+  .report1-master-table table.mtx-table thead {
+    position: static;
+    box-shadow: none;
+  }
+}
+
 /* ==========================================================================
    LUXURY SLATE NAVY DARK MODE
    ========================================================================== */

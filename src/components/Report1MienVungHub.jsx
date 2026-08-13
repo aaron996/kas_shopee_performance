@@ -179,7 +179,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       setTimeout(() => setHighlightedSection(null), 1800);
     }
     if (ref && ref.current) {
-      const y = ref.current.getBoundingClientRect().top + window.scrollY - 80;
+      // Keep the selected section clear of the navbar and the visible KPI bar.
+      const stickyOffset = showStickyBar ? 118 : 76;
+      const y = ref.current.getBoundingClientRect().top + window.scrollY - stickyOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
   };
@@ -528,7 +530,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </button>
         </div>
 
-        <div className="mtx-wrap">
+        <div className="mtx-wrap report1-master-table">
           <table className="mtx-table">
             <thead>
               {/* Row 1: Week Titles */}
@@ -795,7 +797,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   return (
-    <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>
+    <div className={`${isFullscreen ? 'fullscreen-mode-active' : ''} ${showStickyBar ? 'has-sticky-kpi' : ''}`}>
       {/* Sticky Mini KPI Top Bar */}
       {showStickyBar && (
         <div className="sticky-kpi-bar">
