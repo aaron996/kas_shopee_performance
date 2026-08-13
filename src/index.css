@@ -1778,6 +1778,19 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   --master-table-sticky-top: 0px;
 }
 
+/* TOÀN QUỐC (nationwide total) row: pin it right under the sticky thead
+   instead of letting it scroll away and disappear behind the header. */
+.report1-master-table table.mtx-table tbody tr.all-row-sticky {
+  position: sticky;
+  top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));
+  z-index: 40;
+}
+
+.report1-master-table table.mtx-table tbody tr.all-row-sticky td {
+  position: sticky;
+  top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));
+}
+
 @media (max-width: 1100px) {
   .report1-master-table {
     overflow-x: auto;
@@ -1789,6 +1802,13 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   .report1-master-table table.mtx-table thead {
     position: static;
     box-shadow: none;
+  }
+
+  /* thead isn't sticky here, so the pinned-below-header row shouldn't be
+     either — it would otherwise stick to the viewport on its own. */
+  .report1-master-table table.mtx-table tbody tr.all-row-sticky,
+  .report1-master-table table.mtx-table tbody tr.all-row-sticky td {
+    position: static;
   }
 
 }

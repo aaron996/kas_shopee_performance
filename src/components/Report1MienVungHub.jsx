@@ -137,6 +137,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
+  const theadRef = useRef(null);
+  // Height of the sticky <thead> (2 header rows). Measured live because it
+  // changes with density (Thoáng/Dày) and header text wrapping — the "TOÀN
+  // QUỐC" row below needs this to pin itself right under the header instead
+  // of being covered by it while scrolling.
+  const [theadHeight, setTheadHeight] = useState(72);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -146,6 +152,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const el = theadRef.current;
+    if (!el) return;
+    const measure = () => setTheadHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [density]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -530,9 +546,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </button>
         </div>
 
-        <div className="mtx-wrap report1-master-table">
+        <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px` }}>
           <table className="mtx-table">
-            <thead>
+            <thead ref={theadRef}>
               {/* Row 1: Week Titles */}
               <tr>
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
@@ -577,10 +593,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             </thead>
 
             <tbody ref={parent}>
-              {/* 1. TOÀN QUỐC ROW */}
-              <tr className="all-row">
-                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
-                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
+              {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
+                  never scrolls out of view underneath the header. */}
+              <tr className="all-row all-row-sticky">
+                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
+                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
