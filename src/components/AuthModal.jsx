@@ -4,7 +4,9 @@ import { supabase } from '../utils/supabaseClient';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
 
-const ADMIN_DEVS = ['luongthevinh996@gmail.com', 'vinhlt@ghn.vn'];
+// This controls navigation only. Supabase RLS is the authority that protects
+// the Dev Admin data; keep the email check here in sync with its SQL policy.
+const DEV_ADMIN_EMAIL = 'vinhlt@ghn.vn';
 
 export function isAllowedEmail(email) {
   if (!email) return false;
@@ -15,7 +17,7 @@ export function isAllowedEmail(email) {
 export function isDevAdminEmail(email) {
   if (!email) return false;
   const cleanEmail = email.trim().toLowerCase();
-  return ADMIN_DEVS.includes(cleanEmail);
+  return cleanEmail === DEV_ADMIN_EMAIL;
 }
 
 export default function AuthModal({ isOpen }) {

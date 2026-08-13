@@ -234,7 +234,8 @@ body {
 .sidebar-user {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0.35rem;
   background: rgba(0,0,0,0.2);
   padding: 0.5rem;
   border-radius: 8px;
@@ -251,6 +252,15 @@ body {
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  padding: 0.2rem;
+  border-radius: 6px;
+  color: #f8fafc;
+}
+
+.user-info-text {
+  min-width: 0;
 }
 
 .app-sidebar.collapsed .user-info-text {
@@ -260,6 +270,8 @@ body {
 .user-email {
   font-size: 0.8rem;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dev-admin-tag-small {
@@ -277,7 +289,10 @@ body {
   border: none;
   color: rgba(255,255,255,0.6);
   cursor: pointer;
-  padding: 0.25rem;
+  flex: 0 0 32px;
+  min-height: 32px;
+  padding: 0.4rem;
+  border-radius: 6px;
 }
 
 .app-sidebar.collapsed .logout-btn {
@@ -285,7 +300,41 @@ body {
 }
 
 .logout-btn:hover {
-  color: #ef4444;
+  color: white;
+  background: rgba(255,255,255,0.12);
+}
+
+.dev-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dev-admin-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dev-admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dev-admin-user-row:last-child {
+  border-bottom: 0;
+}
+
+.truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Sidebar Toggle */
