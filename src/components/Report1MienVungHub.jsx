@@ -138,11 +138,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
   const theadRef = useRef(null);
-  // Height of the sticky <thead> (2 header rows). Measured live because it
-  // changes with density (Thoáng/Dày) and header text wrapping — the "TOÀN
-  // QUỐC" row below needs this to pin itself right under the header instead
-  // of being covered by it while scrolling.
+  const allRowRef = useRef(null);
+  // Height of the sticky <thead> (2 header rows) and of the pinned TOÀN QUỐC
+  // row. Measured live because both change with density (Thoáng/Dày) — the
+  // "Miền" rowSpan cell of each region needs this combined offset so it can
+  // stick right under them as that region scrolls by. Without it, the region
+  // name (rendered on a single spanning cell) simply vanishes once its home
+  // row scrolls behind the frozen header.
   const [theadHeight, setTheadHeight] = useState(72);
+  const [allRowHeight, setAllRowHeight] = useState(39);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -157,6 +161,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const el = theadRef.current;
     if (!el) return;
     const measure = () => setTheadHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [density]);
+
+  useEffect(() => {
+    const el = allRowRef.current;
+    if (!el) return;
+    const measure = () => setAllRowHeight(el.getBoundingClientRect().height);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -546,7 +560,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </button>
         </div>
 
-        <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px` }}>
+        <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px`, '--allrow-h': `${allRowHeight}px` }}>
           <table className="mtx-table">
             <thead ref={theadRef}>
               {/* Row 1: Week Titles */}
@@ -595,7 +609,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             <tbody ref={parent}>
               {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
                   never scrolls out of view underneath the header. */}
-              <tr className="all-row all-row-sticky">
+              <tr className="all-row all-row-sticky" ref={allRowRef}>
                 <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
@@ -662,7 +676,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
                     <tr className="grp-row" style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
-                      <td rowSpan={totalRowSpan} className="lbl lbl-1" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
+                      {/* Sticky so the region name stays visible for as long as any of
+                          its rows (spanned by rowSpan) are on screen — otherwise it only
+                          ever renders on this one row and disappears the moment this row
+                          scrolls behind the frozen header, even while its hub rows below
+                          are still visible. */}
+                      <td rowSpan={totalRowSpan} className="lbl lbl-1 mien-sticky-label" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
                       <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);

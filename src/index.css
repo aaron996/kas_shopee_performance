@@ -1814,6 +1814,18 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));
 }
 
+/* Region name (Miền) cell: it uses rowSpan to cover every row of its region,
+   so its own sticky top offset (right under thead + TOÀN QUỐC) keeps it
+   visible for the entire time any of that region's rows are on screen. Once
+   the last row of the region scrolls past, the cell's rowSpan box ends and
+   it naturally hands off to the next region's cell — the standard
+   "sticky section header" trick. */
+.report1-master-table table.mtx-table tbody td.mien-sticky-label {
+  position: sticky;
+  top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px) + var(--allrow-h, 39px));
+  z-index: 35;
+}
+
 @media (max-width: 1100px) {
   .report1-master-table {
     overflow-x: auto;
@@ -1831,6 +1843,10 @@ table.mtx-table tbody tr:hover td.lbl-2 {
      either — it would otherwise stick to the viewport on its own. */
   .report1-master-table table.mtx-table tbody tr.all-row-sticky,
   .report1-master-table table.mtx-table tbody tr.all-row-sticky td {
+    position: static;
+  }
+
+  .report1-master-table table.mtx-table tbody td.mien-sticky-label {
     position: static;
   }
 
