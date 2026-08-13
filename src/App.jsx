@@ -352,7 +352,6 @@ export default function App() {
         onOpenSummary={() => setIsSummaryOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
-        onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
             density={density}

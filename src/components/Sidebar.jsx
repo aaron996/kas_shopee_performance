@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,

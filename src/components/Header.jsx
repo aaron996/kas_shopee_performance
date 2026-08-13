@@ -4,6 +4,7 @@ import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
   activeTab,
+  setActiveTab,
   clientFilter,
   setClientFilter,
   selectedRegions,
@@ -18,7 +19,6 @@ export default function Header({
   onOpenSummary,
   currentUser,
   onLogout,
-  onOpenDevAdmin,
   isDarkMode,
   setIsDarkMode,
   density,
@@ -228,7 +228,7 @@ export default function Header({
             {currentUser?.isDevAdmin && (
               <button
                 className="nav-btn-sleek"
-                onClick={onOpenDevAdmin}
+                onClick={() => setActiveTab('dev-admin')}
                 title="Dev Admin"
                 style={{ padding: '0.25rem 0.4rem', color: '#0F6E56' }}
               >
