@@ -2167,6 +2167,144 @@ body.dark-mode .risk-chip-late {
 }
 
 /* Custom Multi-select Dropdown */
+.export-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+}
+
+.export-toolbar h2 { margin: 0; font-size: 1rem; color: var(--text-main, #0f172a); }
+.export-toolbar p { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--text-muted, #64748b); }
+
+.export-menu-trigger, .export-confirm-button, .export-text-button, .export-menu-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+.export-menu-trigger, .export-confirm-button {
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--ghn-blue, #004b82);
+  box-shadow: 0 4px 10px rgba(0, 75, 130, 0.18);
+}
+
+.export-menu-trigger:hover, .export-confirm-button:hover:not(:disabled) { background: #003b67; }
+
+.export-menu {
+  margin: -0.25rem 0 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  animation: slideDownFadeIn 0.18s ease-out both;
+}
+
+.export-menu-heading, .export-menu-heading > div, .export-menu-footer, .export-menu-actions {
+  display: flex;
+  align-items: center;
+}
+
+.export-menu-heading, .export-menu-footer { justify-content: space-between; gap: 1rem; }
+.export-menu-heading > div { gap: 0.55rem; color: var(--text-main, #0f172a); }
+
+.export-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--ghn-blue, #004b82);
+  background: #e8f2f9;
+}
+
+.export-menu-close {
+  width: 30px;
+  height: 30px;
+  color: var(--text-muted, #64748b);
+  background: transparent;
+  border-radius: 6px;
+}
+
+.export-menu-close:hover { background: var(--surface-hover, #f1f5f9); }
+
+.export-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.export-filter-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.export-filter-grid select, .export-filter-grid input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0.45rem 0.6rem;
+  color: var(--text-main, #0f172a);
+  background: var(--bg-main, #f8fafc);
+  border: 1px solid var(--border-strong, #cbd5e1);
+  border-radius: 7px;
+  font: inherit;
+}
+
+.export-filter-grid select:focus, .export-filter-grid input:focus {
+  outline: 2px solid rgba(0, 75, 130, 0.25);
+  outline-offset: 1px;
+  border-color: var(--ghn-blue, #004b82);
+}
+
+.export-menu-footer { padding-top: 0.9rem; border-top: 1px solid var(--border, #e2e8f0); }
+.export-preview-count { color: var(--text-muted, #64748b); font-size: 0.84rem; }
+.export-preview-count strong { color: var(--text-main, #0f172a); }
+.export-menu-actions { gap: 0.45rem; }
+
+.export-text-button {
+  padding: 0.5rem 0.6rem;
+  color: var(--ghn-blue, #004b82);
+  background: transparent;
+  border-radius: 6px;
+}
+
+.export-text-button:hover:not(:disabled) { background: #e8f2f9; }
+.export-menu button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+body.dark-mode .export-toolbar, body.dark-mode .export-menu { background: #131c31; border-color: #334155; }
+body.dark-mode .export-filter-grid select, body.dark-mode .export-filter-grid input {
+  color-scheme: dark;
+  color: #e2e8f0;
+  background: #0f172a;
+  border-color: #334155;
+}
+body.dark-mode .export-menu-icon, body.dark-mode .export-text-button:hover:not(:disabled) { background: #16304a; }
+
+@media (max-width: 768px) {
+  .export-toolbar, .export-menu-footer { align-items: stretch; flex-direction: column; }
+  .export-menu-trigger, .export-confirm-button { width: 100%; }
+  .export-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .export-menu-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .export-confirm-button { grid-column: 1 / -1; }
+}
+
 .custom-dropdown {
   position: relative;
   display: inline-block;
