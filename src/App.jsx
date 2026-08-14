@@ -109,6 +109,7 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
+  const [syncState, setSyncState] = useState('idle');
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -168,6 +169,7 @@ export default function App() {
 
   const handleSyncLiveSheet = async () => {
     setIsSyncing(true);
+    setSyncState('loading');
     setSyncStatus({ isLive: false, text: 'Đang tải dữ liệu...' });
 
     // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
@@ -179,6 +181,7 @@ export default function App() {
       setDeliRows(filterAhamove(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
       setIsSyncing(false);
+      setSyncState('success');
       setSyncStatus({ isLive: true, text: 'Live Synced (Supabase)' });
       return;
     }
@@ -192,6 +195,7 @@ export default function App() {
       setPickRows(filterAhamove(res.pickData));
       setDeliRows(filterAhamove(res.deliData));
       if (res.ca1Data) setCa1Rows(filterAhamove(res.ca1Data));
+      setSyncState('success');
       setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
@@ -201,10 +205,10 @@ export default function App() {
         } else {
           alert('⚠️ Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.');
         }
-      } else {
-        alert(`Lỗi kết nối dữ liệu: ${res.error}`);
       }
-      setSyncStatus({ isLive: false, text: 'Sync Failed' });
+      console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
+      setSyncState('error');
+      setSyncStatus({ isLive: false, text: 'Không tải được dữ liệu mới' });
     }
   };
 
@@ -352,13 +356,15 @@ export default function App() {
         onOpenSummary={() => setIsSummaryOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
-        onOpenDevAdmin={() => setIsDevAdminDashboardOpen(true)}
+        onOpenDevAdmin={() => setActiveTab('dev-admin')}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
             density={density}
             setDensity={setDensity}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
+            syncStatus={{ state: syncState, ...syncStatus }}
+            onRetryData={handleSyncLiveSheet}
           />
 
           {/* Main View Area */}

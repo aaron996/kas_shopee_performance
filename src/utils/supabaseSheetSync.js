@@ -23,17 +23,26 @@ import { supabase } from './supabaseClient';
 // recently-inserted rows come back. Page through with .range() until a
 // page returns fewer rows than requested.
 const PAGE_SIZE = 1000;
+const REQUEST_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, label) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`REQUEST_TIMEOUT:${label}`)), REQUEST_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
 
 async function fetchAllRows(table) {
   const rows = [];
   let from = 0;
   // Safety cap so a runaway table can't turn this into an infinite loop.
   for (let page = 0; page < 100; page++) {
-    const { data, error } = await supabase
+    const { data, error } = await withTimeout(supabase
       .from(table)
       .select('*')
       .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+      .range(from, from + PAGE_SIZE - 1), table);
 
     if (error) throw error;
     rows.push(...(data || []));
@@ -74,6 +83,6 @@ export async function fetchSupabaseSheetSync() {
       updatedAt
     };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, error: err?.message || 'UNKNOWN_ERROR' };
   }
 }
