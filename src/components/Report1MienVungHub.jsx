@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCountUp } from '../utils/useCountUp';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 
@@ -125,7 +125,9 @@ const AnimatedNumber = ({ value, format = v => v, className = '' }) => {
 };
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
-  const [parent] = useAutoAnimate();
+  // One FLIP-style layout transition keeps the table anchored while hub rows enter or leave.
+  // AutoAnimate also respects the user's reduced-motion preference by default.
+  const [parent] = useAutoAnimate({ duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
   const [alertsParent] = useAutoAnimate();
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
@@ -742,8 +744,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                         <React.Fragment key={reg}>
                           <tr>
                             <td className="lbl lbl-2">
-                              <button className="toggle-btn" onClick={() => toggleRegion(reg)}>
-                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              <button
+                                className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
+                                onClick={() => toggleRegion(reg)}
+                                aria-expanded={isExpanded}
+                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} hub của vùng ${reg}`}
+                              >
+                                <ChevronRight size={14} aria-hidden="true" />
                               </button>
                               <strong>{reg}</strong>
                             </td>

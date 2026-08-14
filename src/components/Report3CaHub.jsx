@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Clock, ChevronDown, ChevronRight } from 'lucide-react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { Clock, ChevronRight } from 'lucide-react';
 import { createDefaultDeliDataset } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDateLabel, groupDatesByWeek, getPercentile3ColorStyle } from '../utils/dataProcessor';
 
 export default function Report3CaHub({ clientFilter, searchTerm }) {
   const deliRows = useMemo(() => createDefaultDeliDataset(), []);
   const [collapsedCas, setCollapsedCas] = useState({});
+  const [tableBodyRef] = useAutoAnimate({ duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
 
   const toggleCa = (caKey) => {
     setCollapsedCas(prev => ({ ...prev, [caKey]: !prev[caKey] }));
@@ -127,7 +129,7 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
               </tr>
             </thead>
 
-            <tbody>
+            <tbody ref={tableBodyRef}>
               {/* TOÀN BỘ ROW */}
               <tr className="all-row">
                 <td className="lbl">TOÀN BỘ (CA 1 + CA 2)</td>
@@ -169,8 +171,13 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
                     {/* Shift Row Header */}
                     <tr className="grp-row" style={caIdx === 1 ? { borderTop: '2px solid #F15A22' } : {}}>
                       <td className="lbl" style={{ background: 'var(--info-box-bg)', color: 'var(--info-box-text)', fontWeight: 700 }}>
-                        <button className="toggle-btn" onClick={() => toggleCa(caShort)}>
-                          {!isCollapsed ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <button
+                          className={`toggle-btn hub-disclosure ${!isCollapsed ? 'is-expanded' : ''}`}
+                          onClick={() => toggleCa(caShort)}
+                          aria-expanded={!isCollapsed}
+                          aria-label={`${isCollapsed ? 'Mở rộng' : 'Thu gọn'} hub của ${caFullName}`}
+                        >
+                          <ChevronRight size={14} aria-hidden="true" />
                         </button>
                         {caFullName}
                       </td>
