@@ -615,6 +615,24 @@ body.dark-mode .density-toggle-sleek .switch.on {
   display: none;
 }
 
+.mobile-header-row,
+.mobile-data-error {
+  display: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.is-spinning {
+  animation: spin 0.9s linear infinite;
+}
+
+.data-retry-warning {
+  color: var(--amber-text) !important;
+  border-color: var(--amber-text) !important;
+}
+
 .meta-date-sleek strong {
   color: var(--text-main);
 }
@@ -1574,7 +1592,7 @@ table.mtx-table th.col-summary {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 0.35rem 0.25rem;
+    padding: 0.35rem 0.25rem max(0.35rem, env(safe-area-inset-bottom));
     justify-content: space-around;
     align-items: center;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
@@ -1590,7 +1608,9 @@ table.mtx-table th.col-summary {
     color: rgba(255, 255, 255, 0.7);
     font-size: 0.65rem;
     font-weight: 500;
-    padding: 0.2rem 0.4rem;
+    min-width: 76px;
+    min-height: 44px;
+    padding: 0.25rem 0.4rem;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -2753,14 +2773,80 @@ body.dark-mode .chk-icon {
 
   /* Adjust Main Content to not be hidden by the bottom nav bar */
   .app-main {
-    padding-bottom: 70px;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
   /* Header / Toolbar Adjustments */
   .app-header {
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     height: auto;
+    display: block;
   }
+
+  .mobile-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 44px;
+  }
+
+  .mobile-header-title {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .mobile-header-title strong {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    color: var(--text-main);
+  }
+
+  .mobile-header-title span {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    margin-top: 0.15rem;
+  }
+
+  .mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .mobile-icon-btn,
+  .mobile-filter-trigger {
+    min-height: 40px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-main);
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .mobile-icon-btn { width: 40px; }
+  .mobile-icon-btn:disabled { opacity: 0.5; cursor: wait; }
+  .mobile-filter-trigger { gap: 0.35rem; padding: 0 0.65rem; font: inherit; font-size: 0.78rem; font-weight: 700; }
+  .mobile-filter-trigger.active { background: var(--ghn-blue); border-color: var(--ghn-blue); color: white; }
+
+  .mobile-data-error {
+    display: block;
+    margin-top: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: var(--amber-bg);
+    color: var(--amber-text);
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .mobile-data-error button { margin-left: 0.25rem; border: 0; background: transparent; color: inherit; text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
 
   /* Theme / Dev Admin / Logout: normally live in the sidebar footer, which
      is hidden on mobile — surface them in the header instead. */
@@ -2770,9 +2856,17 @@ body.dark-mode .chk-icon {
   }
 
   .filter-group-sleek {
+    display: none;
+  }
+
+  .app-header.mobile-filters-open .filter-group-sleek {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--border);
   }
   
   .filter-group-sleek > div {
@@ -2786,6 +2880,20 @@ body.dark-mode .chk-icon {
     width: 100%;
     justify-content: space-between;
   }
+
+  .header-actions { display: none !important; }
+
+  .filter-select-sleek,
+  .dropdown-toggle-sleek {
+    min-height: 40px;
+    height: 40px;
+    font-size: 0.88rem;
+    justify-content: space-between;
+  }
+
+  .custom-dropdown { flex: 1; }
+  .dropdown-toggle-sleek { width: 100%; }
+  .dropdown-menu { width: min(calc(100vw - 1.5rem), 420px); max-height: min(60vh, 430px); overflow: auto; }
   
   .filter-divider {
     display: none;

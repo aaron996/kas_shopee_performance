@@ -240,9 +240,8 @@ export default function App() {
         } else {
           alert('⚠️ Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.');
         }
-      } else {
-        alert(`Lỗi kết nối dữ liệu: ${res.error}`);
       }
+      console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
       setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Đang hiển thị dữ liệu gần nhất' });
     }
   }, [currentUser]);
@@ -375,6 +374,7 @@ export default function App() {
             setDensity={setDensity}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
+            onRetryData={handleSyncLiveSheet}
           />
 
           {/* Main View Area */}

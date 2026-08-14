@@ -14,9 +14,11 @@ export function getGoogleSheetCsvUrl(gid, sheetId = SPREADSHEET_ID) {
 
 export async function fetchSheetTabCsv(gid, sheetId = SPREADSHEET_ID) {
   const url = getGoogleSheetCsvUrl(gid, sheetId);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
         throw new Error('FILE_PRIVATE');
@@ -41,7 +43,10 @@ export async function fetchSheetTabCsv(gid, sheetId = SPREADSHEET_ID) {
       });
     });
   } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('REQUEST_TIMEOUT:GOOGLE_SHEET');
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

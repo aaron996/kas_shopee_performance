@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -21,10 +21,12 @@ export default function Header({
   density,
   setDensity,
   isFullscreen,
-  setIsFullscreen
+  setIsFullscreen,
+  onRetryData
 }) {
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const regionMenuRef = useRef(null);
   const hubTypeMenuRef = useRef(null);
 
@@ -76,7 +78,29 @@ export default function Header({
   };
 
   return (
-    <header className="navbar app-header">
+    <header className={`navbar app-header ${isMobileFiltersOpen ? 'mobile-filters-open' : ''}`}>
+      <div className="mobile-header-row">
+        <div className="mobile-header-title">
+          <strong>BCĐH Shopee</strong>
+          <span>D-1: {d1DateFormatted || 'Đang cập nhật'}</span>
+        </div>
+        <div className="mobile-header-actions">
+          <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncStatus?.kind === 'loading'} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
+            <RefreshCw size={18} className={syncStatus?.kind === 'loading' ? 'is-spinning' : ''} />
+          </button>
+          <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1">
+            <MessageSquareText size={18} />
+          </button>
+          <button className={`mobile-filter-trigger ${isMobileFiltersOpen ? 'active' : ''}`} onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)} aria-expanded={isMobileFiltersOpen}>
+            <Filter size={18} /> <span>Bộ lọc</span>
+          </button>
+        </div>
+      </div>
+      {syncStatus?.kind === 'error' && (
+        <div className="mobile-data-error" role="status">
+          Không tải được dữ liệu mới. Đang hiển thị dữ liệu gần nhất. <button onClick={onRetryData}>Thử lại</button>
+        </div>
+      )}
       <div className="filter-group-sleek" style={{ width: '100%', justifyContent: 'space-between' }}>
         
         {/* Left Side: Context / Filters */}
@@ -179,12 +203,22 @@ export default function Header({
         </div>
 
         {/* Right Side: View Controls & Export */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           </div>
 
           <div className="filter-divider"></div>
+
+          <button
+            className={`nav-btn-sleek ${syncStatus?.kind === 'error' ? 'data-retry-warning' : ''}`}
+            onClick={onRetryData}
+            disabled={syncStatus?.kind === 'loading'}
+            title={syncStatus?.kind === 'error' ? 'Không tải được dữ liệu mới — bấm để thử lại' : 'Tải lại dữ liệu'}
+          >
+            <RefreshCw size={14} className={syncStatus?.kind === 'loading' ? 'is-spinning' : ''} />
+            <span style={{ marginLeft: '0.3rem' }}>{syncStatus?.kind === 'error' ? 'Thử lại dữ liệu' : 'Tải lại'}</span>
+          </button>
 
           <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
             <MessageSquareText size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Nhận Xét D-1</span>
