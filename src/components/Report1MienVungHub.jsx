@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCountUp } from '../utils/useCountUp';
 import * as htmlToImage from 'html-to-image';
@@ -125,9 +125,6 @@ const AnimatedNumber = ({ value, format = v => v, className = '' }) => {
 };
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
-  // One FLIP-style layout transition keeps the table anchored while hub rows enter or leave.
-  // AutoAnimate also respects the user's reduced-motion preference by default.
-  const [parent] = useAutoAnimate({ duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
   const [alertsParent] = useAutoAnimate();
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
@@ -139,6 +136,63 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
+  const tableBodyRef = useRef(null);
+  const previousRowPositions = useRef(new Map());
+
+  const captureTableLayout = useCallback(() => {
+    const tableBody = tableBodyRef.current;
+    if (!tableBody || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    previousRowPositions.current = new Map(
+      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
+        row.dataset.motionId,
+        row.getBoundingClientRect(),
+      ]),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    const tableBody = tableBodyRef.current;
+    if (!tableBody) return;
+
+    const nextPositions = new Map(
+      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
+        row.dataset.motionId,
+        { row, rect: row.getBoundingClientRect() },
+      ]),
+    );
+    const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!shouldReduceMotion && previousRowPositions.current.size > 0) {
+      nextPositions.forEach(({ row, rect }, id) => {
+        const previousRect = previousRowPositions.current.get(id);
+
+        row.getAnimations().forEach((animation) => animation.cancel());
+
+        if (previousRect) {
+          const offsetY = previousRect.top - rect.top;
+          if (Math.abs(offsetY) > 0.5) {
+            row.animate(
+              [
+                { transform: `translateY(${offsetY}px)` },
+                { transform: 'translateY(0)' },
+              ],
+              { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+            );
+          }
+        } else if (row.dataset.hubRow === 'true') {
+          row.animate([{ opacity: 0 }, { opacity: 1 }], {
+            duration: 120,
+            easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+          });
+        }
+      });
+    }
+
+    previousRowPositions.current = new Map(
+      [...nextPositions.entries()].map(([id, { rect }]) => [id, rect]),
+    );
+  }, [expandedRegions]);
   const theadRef = useRef(null);
   const allRowRef = useRef(null);
   // Height of the sticky <thead> (2 header rows) and of the pinned TOÀN QUỐC
@@ -223,10 +277,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   const toggleRegion = (regKey) => {
+    captureTableLayout();
     setExpandedRegions(prev => ({ ...prev, [regKey]: !prev[regKey] }));
   };
 
   const expandAll = () => {
+    captureTableLayout();
     const all = {};
     MIEN_ORDER.forEach(mien => {
       MIEN_REGIONS[mien].forEach(r => { all[r] = true; });
@@ -235,6 +291,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   const collapseAll = () => {
+    captureTableLayout();
     setExpandedRegions({});
   };
 
@@ -608,10 +665,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               </tr>
             </thead>
 
-            <tbody ref={parent}>
+            <tbody ref={tableBodyRef}>
               {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
                   never scrolls out of view underneath the header. */}
-              <tr className="all-row all-row-sticky" ref={allRowRef}>
+              <tr className="all-row all-row-sticky" ref={allRowRef} data-motion-id="all">
                 <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
@@ -677,7 +734,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row" style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
+                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
                       {/* Sticky so the region name stays visible for as long as any of
                           its rows (spanned by rowSpan) are on screen — otherwise it only
                           ever renders on this one row and disappears the moment this row
@@ -742,7 +799,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
                       return (
                         <React.Fragment key={reg}>
-                          <tr>
+                          <tr data-motion-id={`region:${reg}`}>
                             <td className="lbl lbl-2">
                               <button
                                 className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
@@ -792,7 +849,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                             const hubD1 = calcStats(`HUB_${reg}_${hub}`, [d1Date]);
                             const hubWtd = calcStats(`HUB_${reg}_${hub}`, weekCur);
                             return (
-                              <tr key={hub} className="sub-row">
+                              <tr key={hub} className="sub-row" data-motion-id={`hub:${reg}:${hub}`} data-hub-row="true">
                                 <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{hub}</td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(`HUB_${reg}_${hub}`, [d]);
