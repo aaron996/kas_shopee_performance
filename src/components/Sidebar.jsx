@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,
@@ -19,11 +19,12 @@ export default function Sidebar({
     { id: 'report1', label: '1. 4 chỉ số nationwide', icon: Layers },
     { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft }
   ];
+  const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 
   return (
     <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
-        <div className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
+        <button type="button" className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
           <img 
             src="/ghn-logo.png" 
             alt="GHN" 
@@ -33,7 +34,7 @@ export default function Sidebar({
             <div className="brand-name">BCĐH Shopee</div>
             <div className="brand-subtitle">Performance System</div>
           </div>
-        </div>
+        </button>
         
         {/* Sidebar Toggle Button at Top Right */}
         <button 
@@ -92,9 +93,10 @@ export default function Sidebar({
         {/* User Profile */}
         {currentUser && (
           <div className="sidebar-user">
-            <div 
+            <UserInfo
               className={`user-info-badge ${activeTab === 'dev-admin' ? 'active-admin' : ''}`}
               onClick={currentUser.isDevAdmin ? () => setActiveTab('dev-admin') : undefined}
+              {...(currentUser.isDevAdmin ? { type: 'button' } : {})}
               style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default', background: activeTab === 'dev-admin' ? 'rgba(74, 222, 128, 0.1)' : '' }}
               title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
             >
@@ -105,7 +107,7 @@ export default function Sidebar({
                   <span className="dev-admin-tag-small">DEV ADMIN</span>
                 )}
               </div>
-            </div>
+            </UserInfo>
             <button className="logout-btn" onClick={onLogout} title="Đăng xuất">
               <LogOut size={16} />
             </button>

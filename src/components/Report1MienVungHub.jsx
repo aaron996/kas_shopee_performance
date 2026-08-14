@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useCountUp } from '../utils/useCountUp';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, ChevronDown, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 
@@ -125,7 +125,6 @@ const AnimatedNumber = ({ value, format = v => v, className = '' }) => {
 };
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
-  const [parent] = useAutoAnimate();
   const [alertsParent] = useAutoAnimate();
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
@@ -137,6 +136,73 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
+  const tableBodyRef = useRef(null);
+  const previousRowPositions = useRef(new Map());
+
+  const captureTableLayout = useCallback(() => {
+    const tableBody = tableBodyRef.current;
+    if (!tableBody || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    previousRowPositions.current = new Map(
+      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
+        row.dataset.motionId,
+        row.getBoundingClientRect(),
+      ]),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    const tableBody = tableBodyRef.current;
+    if (!tableBody) return;
+
+    const nextPositions = new Map(
+      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
+        row.dataset.motionId,
+        { row, rect: row.getBoundingClientRect() },
+      ]),
+    );
+    const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!shouldReduceMotion && previousRowPositions.current.size > 0) {
+      nextPositions.forEach(({ row, rect }, id) => {
+        const previousRect = previousRowPositions.current.get(id);
+
+        row.getAnimations().forEach((animation) => animation.cancel());
+
+        if (previousRect) {
+          const offsetY = previousRect.top - rect.top;
+          if (Math.abs(offsetY) > 0.5) {
+            row.animate(
+              [
+                { transform: `translateY(${offsetY}px)` },
+                { transform: 'translateY(0)' },
+              ],
+              { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+            );
+          }
+        } else if (row.dataset.hubRow === 'true') {
+          row.animate([{ opacity: 0 }, { opacity: 1 }], {
+            duration: 120,
+            easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+          });
+        }
+      });
+    }
+
+    previousRowPositions.current = new Map(
+      [...nextPositions.entries()].map(([id, { rect }]) => [id, rect]),
+    );
+  }, [expandedRegions]);
+  const theadRef = useRef(null);
+  const allRowRef = useRef(null);
+  // Height of the sticky <thead> (2 header rows) and of the pinned TOÀN QUỐC
+  // row. Measured live because both change with density (Thoáng/Dày) — the
+  // "Miền" rowSpan cell of each region needs this combined offset so it can
+  // stick right under them as that region scrolls by. Without it, the region
+  // name (rendered on a single spanning cell) simply vanishes once its home
+  // row scrolls behind the frozen header.
+  const [theadHeight, setTheadHeight] = useState(72);
+  const [allRowHeight, setAllRowHeight] = useState(39);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -146,6 +212,26 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const el = theadRef.current;
+    if (!el) return;
+    const measure = () => setTheadHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [density]);
+
+  useEffect(() => {
+    const el = allRowRef.current;
+    if (!el) return;
+    const measure = () => setAllRowHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [density]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -179,7 +265,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       setTimeout(() => setHighlightedSection(null), 1800);
     }
     if (ref && ref.current) {
-      const y = ref.current.getBoundingClientRect().top + window.scrollY - 80;
+      // Keep the selected section clear of the navbar and the visible KPI bar.
+      const stickyOffset = showStickyBar ? 118 : 76;
+      const y = ref.current.getBoundingClientRect().top + window.scrollY - stickyOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
   };
@@ -189,10 +277,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   const toggleRegion = (regKey) => {
+    captureTableLayout();
     setExpandedRegions(prev => ({ ...prev, [regKey]: !prev[regKey] }));
   };
 
   const expandAll = () => {
+    captureTableLayout();
     const all = {};
     MIEN_ORDER.forEach(mien => {
       MIEN_REGIONS[mien].forEach(r => { all[r] = true; });
@@ -201,6 +291,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   const collapseAll = () => {
+    captureTableLayout();
     setExpandedRegions({});
   };
 
@@ -512,7 +603,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
 
     return (
-      <div className={`metric-block ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
+      <div className={`metric-block metric-block-sticky ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
         <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="metric-title">
             <span>{title}</span>
@@ -528,9 +619,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </button>
         </div>
 
-        <div className="mtx-wrap">
+        <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px`, '--allrow-h': `${allRowHeight}px` }}>
           <table className="mtx-table">
-            <thead>
+            <thead ref={theadRef}>
               {/* Row 1: Week Titles */}
               <tr>
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
@@ -574,11 +665,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               </tr>
             </thead>
 
-            <tbody ref={parent}>
-              {/* 1. TOÀN QUỐC ROW */}
-              <tr className="all-row">
-                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
-                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 10 }}>TOÀN QUỐC</td>
+            <tbody ref={tableBodyRef}>
+              {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
+                  never scrolls out of view underneath the header. */}
+              <tr className="all-row all-row-sticky" ref={allRowRef} data-motion-id="all">
+                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
+                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
@@ -642,8 +734,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row" style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
-                      <td rowSpan={totalRowSpan} className="lbl lbl-1" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
+                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
+                      {/* Sticky so the region name stays visible for as long as any of
+                          its rows (spanned by rowSpan) are on screen — otherwise it only
+                          ever renders on this one row and disappears the moment this row
+                          scrolls behind the frozen header, even while its hub rows below
+                          are still visible. */}
+                      <td rowSpan={totalRowSpan} className="lbl lbl-1 mien-sticky-label" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
                       <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
@@ -702,10 +799,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
                       return (
                         <React.Fragment key={reg}>
-                          <tr>
+                          <tr data-motion-id={`region:${reg}`}>
                             <td className="lbl lbl-2">
-                              <button className="toggle-btn" onClick={() => toggleRegion(reg)}>
-                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              <button
+                                className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
+                                onClick={() => toggleRegion(reg)}
+                                aria-expanded={isExpanded}
+                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} hub của vùng ${reg}`}
+                              >
+                                <ChevronRight size={14} aria-hidden="true" />
                               </button>
                               <strong>{reg}</strong>
                             </td>
@@ -747,7 +849,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                             const hubD1 = calcStats(`HUB_${reg}_${hub}`, [d1Date]);
                             const hubWtd = calcStats(`HUB_${reg}_${hub}`, weekCur);
                             return (
-                              <tr key={hub} className="sub-row">
+                              <tr key={hub} className="sub-row" data-motion-id={`hub:${reg}:${hub}`} data-hub-row="true">
                                 <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{hub}</td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(`HUB_${reg}_${hub}`, [d]);
@@ -795,7 +897,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   };
 
   return (
-    <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>
+    <div className={`${isFullscreen ? 'fullscreen-mode-active' : ''} ${showStickyBar ? 'has-sticky-kpi' : ''}`}>
       {/* Sticky Mini KPI Top Bar */}
       {showStickyBar && (
         <div className="sticky-kpi-bar">

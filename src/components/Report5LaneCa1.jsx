@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { ArrowRightLeft, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { ArrowRightLeft, Download, X, Copy, CalendarRange, Filter } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
-export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
+export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
   const tableRefs = React.useRef({});
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -35,25 +36,78 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
 
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
+  const [exportFilters, setExportFilters] = useState({
+    lane: 'ALL',
+    region: 'ALL',
+    dateFrom: '',
+    dateTo: ''
+  });
 
-  const handleExportCSV = () => {
+  const exportLanes = useMemo(
+    () => [...new Set(ca1Rows.map(row => row.lane).filter(Boolean))].sort(),
+    [ca1Rows]
+  );
+
+  const exportRegions = useMemo(
+    () => [...new Set(ca1Rows.map(row => row.vung_giao).filter(Boolean))].sort(),
+    [ca1Rows]
+  );
+
+  const exportRows = useMemo(() => ca1Rows.filter(row => {
+    const matchesLane = exportFilters.lane === 'ALL' || row.lane === exportFilters.lane;
+    const matchesRegion = exportFilters.region === 'ALL' || row.vung_giao === exportFilters.region;
+    const matchesStart = !exportFilters.dateFrom || row.ngay >= exportFilters.dateFrom;
+    const matchesEnd = !exportFilters.dateTo || row.ngay <= exportFilters.dateTo;
+    return matchesLane && matchesRegion && matchesStart && matchesEnd;
+  }), [ca1Rows, exportFilters]);
+
+  const updateExportFilter = (key, value) => {
+    setExportFilters(current => ({ ...current, [key]: value }));
+  };
+
+  const useCurrentWeek = () => {
+    if (weekCurrent.length === 0) return;
+    setExportFilters(current => ({
+      ...current,
+      dateFrom: weekCurrent[0],
+      dateTo: weekCurrent[weekCurrent.length - 1]
+    }));
+  };
+
+  const resetExportFilters = () => {
+    setExportFilters({ lane: 'ALL', region: 'ALL', dateFrom: '', dateTo: '' });
+  };
+
+  const handleExportCSV = useCallback(() => {
+    if (exportRows.length === 0) return;
     const headers = ['Lane', 'Vung Giao', 'Ngay', 'Tong Don', 'Don Hub Giao Ca 1', '% Ca 1'];
     const csvRows = [headers.join(',')];
 
-    ca1Rows.forEach(r => {
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    exportRows.forEach(r => {
       const tot = Number(r.tong_don) || 0;
       const ca1 = Number(r.don_hub_giao_ca1) || 0;
       const pct = tot > 0 ? ((ca1 / tot) * 100).toFixed(2) : '0';
-      csvRows.push([`"${r.lane}"`, `"${r.vung_giao}"`, `"${r.ngay}"`, tot, ca1, `${pct}%`].join(','));
+      csvRows.push([escapeCsv(r.lane), escapeCsv(r.vung_giao), escapeCsv(r.ngay), tot, ca1, `${pct}%`].join(','));
     });
 
     const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GHN_Shopee_Ca1_Lane_Matrix_${d1Date || 'D1'}.csv`;
+    const rangeLabel = exportFilters.dateFrom || exportFilters.dateTo
+      ? `${exportFilters.dateFrom || 'start'}_${exportFilters.dateTo || 'end'}`
+      : (d1Date || 'all-data');
+    link.download = `GHN_Shopee_Ca1_Lane_Matrix_${rangeLabel}.csv`;
     link.click();
-  };
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setIsExportMenuOpen(false);
+  }, [d1Date, exportFilters.dateFrom, exportFilters.dateTo, exportRows]);
+
+  React.useEffect(() => {
+    window.addEventListener('export-csv', handleExportCSV);
+    return () => window.removeEventListener('export-csv', handleExportCSV);
+  }, [handleExportCSV]);
 
   // Split weekCurrent into days up to D-2 and D-1 separately (matching 4 chỉ số layout)
   const weekCurBeforeD1 = useMemo(() => weekCurrent.slice(0, -1), [weekCurrent]);
@@ -399,6 +453,75 @@ export default function Report5LaneCa1({ ca1Rows = [], selectedRegions = [], den
       )}
 
       <div className={`density-${density}`}>
+        <div className="export-toolbar">
+          <div>
+            <h2>Xuất dữ liệu Ca 1</h2>
+            <p>Chọn bộ lọc và khoảng thời gian trước khi tải CSV.</p>
+          </div>
+          <button
+            type="button"
+            className="export-menu-trigger"
+            onClick={() => setIsExportMenuOpen(open => !open)}
+            aria-expanded={isExportMenuOpen}
+            aria-controls="ca1-export-menu"
+          >
+            <Download size={17} />
+            Export CSV
+          </button>
+        </div>
+
+        {isExportMenuOpen && (
+          <section id="ca1-export-menu" className="export-menu" aria-label="Bộ lọc xuất dữ liệu">
+            <div className="export-menu-heading">
+              <div>
+                <span className="export-menu-icon"><Filter size={16} /></span>
+                <strong>Bộ lọc dữ liệu export</strong>
+              </div>
+              <button type="button" className="export-menu-close" onClick={() => setIsExportMenuOpen(false)} aria-label="Đóng bộ lọc export">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="export-filter-grid">
+              <label>
+                <span>Lane</span>
+                <select value={exportFilters.lane} onChange={event => updateExportFilter('lane', event.target.value)}>
+                  <option value="ALL">Tất cả lane</option>
+                  {exportLanes.map(lane => <option key={lane} value={lane}>{lane}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Vùng giao</span>
+                <select value={exportFilters.region} onChange={event => updateExportFilter('region', event.target.value)}>
+                  <option value="ALL">Tất cả vùng</option>
+                  {exportRegions.map(region => <option key={region} value={region}>{region}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Từ ngày</span>
+                <input type="date" value={exportFilters.dateFrom} max={exportFilters.dateTo || undefined} onChange={event => updateExportFilter('dateFrom', event.target.value)} />
+              </label>
+              <label>
+                <span>Đến ngày</span>
+                <input type="date" value={exportFilters.dateTo} min={exportFilters.dateFrom || undefined} onChange={event => updateExportFilter('dateTo', event.target.value)} />
+              </label>
+            </div>
+
+            <div className="export-menu-footer">
+              <div className="export-preview-count" aria-live="polite">Sẵn sàng export <strong>{exportRows.length.toLocaleString('vi-VN')}</strong> dòng dữ liệu</div>
+              <div className="export-menu-actions">
+                <button type="button" className="export-text-button" onClick={useCurrentWeek} disabled={weekCurrent.length === 0}>
+                  <CalendarRange size={16} /> Tuần hiện tại
+                </button>
+                <button type="button" className="export-text-button" onClick={resetExportFilters}>Xóa bộ lọc</button>
+                <button type="button" className="export-confirm-button" onClick={handleExportCSV} disabled={exportRows.length === 0}>
+                  <Download size={16} /> Tải CSV
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
         {lanes.map(lane => renderLaneTable(lane))}
       </div>
     </div>

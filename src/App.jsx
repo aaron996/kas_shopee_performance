@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
@@ -14,6 +14,45 @@ import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
+
+const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
+const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
+const accessLogRequests = new Set();
+
+async function recordAccess(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const loggedKey = `${ACCESS_LOGGED_KEY_PREFIX}${normalizedEmail}`;
+
+  if (sessionStorage.getItem(loggedKey) || accessLogRequests.has(normalizedEmail)) {
+    return;
+  }
+
+  accessLogRequests.add(normalizedEmail);
+  let lastError;
+
+  try {
+    for (const delay of ACCESS_LOG_RETRY_DELAYS) {
+      if (delay) {
+        await new Promise(resolve => window.setTimeout(resolve, delay));
+      }
+
+      const { error } = await supabase
+        .from('access_logs')
+        .insert([{ email: normalizedEmail }]);
+
+      if (!error) {
+        sessionStorage.setItem(loggedKey, 'true');
+        return;
+      }
+
+      lastError = error;
+    }
+
+    console.error('Failed to record access after retries:', lastError);
+  } finally {
+    accessLogRequests.delete(normalizedEmail);
+  }
+}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -36,7 +75,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('report1');
   const [clientFilter, setClientFilter] = useState('SPB');
-  const [expandAllHubs, setExpandAllHubs] = useState(false);
+  const [expandAllHubs] = useState(false);
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
@@ -102,14 +141,13 @@ export default function App() {
         setSelectedHubTypes(allHubTypes);
       }
     }
-  }, [allHubTypes]);
+  }, [allHubTypes, selectedHubTypes]);
 
   const [density, setDensity] = useState('comfortable');
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ isLive: false, text: 'Đang kết nối Sheet...' });
-  const [syncState, setSyncState] = useState('idle');
+  const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đang hiển thị dữ liệu mẫu' });
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -164,13 +202,12 @@ export default function App() {
     setPickRows(filterAhamove(createDefaultPickDataset()));
     setDeliRows(filterAhamove(createDefaultDeliDataset()));
     setCa1Rows(filterAhamove(createDefaultCa1Dataset()));
-    setSyncStatus({ isLive: false, text: 'Default Dataset' });
+    setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
-  const handleSyncLiveSheet = async () => {
+  const handleSyncLiveSheet = useCallback(async () => {
     setIsSyncing(true);
-    setSyncState('loading');
-    setSyncStatus({ isLive: false, text: 'Đang tải dữ liệu...' });
+    setSyncStatus({ kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
 
     // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
     // timer (no longer depends on the Sheet being publicly link-shared —
@@ -181,8 +218,7 @@ export default function App() {
       setDeliRows(filterAhamove(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
       setIsSyncing(false);
-      setSyncState('success');
-      setSyncStatus({ isLive: true, text: 'Live Synced (Supabase)' });
+      setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
     }
 
@@ -195,8 +231,7 @@ export default function App() {
       setPickRows(filterAhamove(res.pickData));
       setDeliRows(filterAhamove(res.deliData));
       if (res.ca1Data) setCa1Rows(filterAhamove(res.ca1Data));
-      setSyncState('success');
-      setSyncStatus({ isLive: true, text: 'Live Sheet Auto-Synced' });
+      setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
         if (currentUser && currentUser.isDevAdmin) {
@@ -207,10 +242,9 @@ export default function App() {
         }
       }
       console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
-      setSyncState('error');
-      setSyncStatus({ isLive: false, text: 'Không tải được dữ liệu mới' });
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Đang hiển thị dữ liệu gần nhất' });
     }
-  };
+  }, [currentUser]);
 
   const [hasFetchedLive, setHasFetchedLive] = useState(false);
 
@@ -220,26 +254,16 @@ export default function App() {
       handleSyncLiveSheet();
       setHasFetchedLive(true);
     }
-  }, [currentUser?.email, hasFetchedLive, isSyncing]);
+  }, [currentUser?.email, handleSyncLiveSheet, hasFetchedLive, isSyncing]);
 
   // Real-time Presence & Access Logging
   useEffect(() => {
     if (!currentUser) return;
 
-    // 1. Log access to access_logs table
-    const logAccess = async () => {
-      try {
-        await supabase.from('access_logs').insert([{ email: currentUser.email }]);
-      } catch (err) {
-        console.error('Failed to log access:', err);
-      }
-    };
-    
-    // Only log once per session to avoid spam
-    if (!sessionStorage.getItem('ghn_access_logged')) {
-      logAccess();
-      sessionStorage.setItem('ghn_access_logged', 'true');
-    }
+    // 1. Log access once per user/session. The session flag is written only
+    // after Supabase confirms the insert, so a temporary network/RLS failure
+    // is retried instead of silently excluding that user from history.
+    recordAccess(currentUser.email);
 
     // 2. Setup Realtime Presence
     const room = supabase.channel('online-users', {
@@ -286,15 +310,7 @@ export default function App() {
 
   // Extract dynamic date info for the Header
   const allDates = [...new Set(pickRows.map(r => r.report_date))].filter(Boolean).sort();
-  const { d1Date, weekCurrent } = groupDatesByWeek(allDates);
-  const getWeekNumber = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const start = new Date(d.getFullYear(), 0, 1);
-    const days = Math.floor((d - start) / (24 * 60 * 60 * 1000));
-    return Math.ceil((d.getDay() + 1 + days) / 7);
-  };
-  const weekNum = weekCurrent?.[0] ? getWeekNumber(weekCurrent[0]) : '';
+  const { d1Date } = groupDatesByWeek(allDates);
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
 
   // Filter datasets based on selectedRegions and selectedHubTypes
@@ -315,7 +331,6 @@ export default function App() {
       {/* Authentication Protection Modal */}
       <AuthModal
         isOpen={!currentUser}
-        onLoginSuccess={(user) => setCurrentUser(user)}
       />
 
       {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
@@ -340,8 +355,7 @@ export default function App() {
         <div className="app-main">
           {/* Header Navigation & Filter Bar */}
           <Header
-            activeTab={activeTab}
-        setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
         selectedRegions={selectedRegions}
@@ -349,21 +363,17 @@ export default function App() {
         allHubTypes={allHubTypes}
         selectedHubTypes={selectedHubTypes}
         setSelectedHubTypes={setSelectedHubTypes}
-        expandAllHubs={expandAllHubs}
-        setExpandAllHubs={setExpandAllHubs}
         d1DateFormatted={d1DateFormatted}
-        weekNum={weekNum}
+        syncStatus={syncStatus}
         onOpenSummary={() => setIsSummaryOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
-        onOpenDevAdmin={() => setActiveTab('dev-admin')}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
             density={density}
             setDensity={setDensity}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
-            syncStatus={{ state: syncState, ...syncStatus }}
             onRetryData={handleSyncLiveSheet}
           />
 
@@ -385,7 +395,6 @@ export default function App() {
         {activeTab === 'report5' && (
           <Report5LaneCa1
             ca1Rows={filteredCa1Rows}
-            selectedRegions={selectedRegions}
             density={density}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}

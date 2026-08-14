@@ -1,10 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, Users, Monitor, ShieldAlert, BarChart2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+
+const PAGE_SIZE = 1000;
+
+function escapeCsvValue(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename, headers, rows) {
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsvValue).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 export default function DevAdminDashboard({ onlineUsers }) {
   const [accessLogs, setAccessLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     fetchAccessLogs();
@@ -12,24 +29,60 @@ export default function DevAdminDashboard({ onlineUsers }) {
 
   const fetchAccessLogs = async () => {
     setIsLoading(true);
+    setLoadError('');
     try {
-      const { data, error } = await supabase
-        .from('access_logs')
-        .select('*')
-        .order('accessed_at', { ascending: false })
-        .limit(300);
-
-      if (error) {
-        console.error('Error fetching access logs:', error);
-      } else {
-        setAccessLogs(data || []);
+      const logs = [];
+      for (let page = 0; page < 100; page++) {
+        const from = page * PAGE_SIZE;
+        const { data, error } = await supabase
+          .from('access_logs')
+          .select('email, accessed_at')
+          .order('accessed_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        logs.push(...(data || []));
+        if (!data || data.length < PAGE_SIZE) break;
       }
+      setAccessLogs(logs);
     } catch (err) {
       console.error('Failed to load logs', err);
+      setLoadError('Không thể tải lịch sử truy cập. Kiểm tra quyền Dev Admin trong Supabase rồi thử lại.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  const userSummary = useMemo(() => {
+    const users = new Map();
+    accessLogs.forEach((log) => {
+      const timestamp = new Date(log.accessed_at).getTime();
+      const previous = users.get(log.email);
+      if (!previous) {
+        users.set(log.email, { email: log.email, visits: 1, firstSeen: timestamp, lastSeen: timestamp });
+        return;
+      }
+      previous.visits += 1;
+      previous.firstSeen = Math.min(previous.firstSeen, timestamp);
+      previous.lastSeen = Math.max(previous.lastSeen, timestamp);
+    });
+    return [...users.values()].sort((a, b) => b.lastSeen - a.lastSeen);
+  }, [accessLogs]);
+
+  const formatDateTime = (value) => new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short', timeStyle: 'medium'
+  }).format(new Date(value));
+
+  const exportUsers = () => downloadCsv(
+    'GHN_danh-sach-nguoi-da-truy-cap.csv',
+    ['Email', 'Số lượt truy cập', 'Lần đầu truy cập', 'Lần gần nhất'],
+    userSummary.map((user) => [user.email, user.visits, formatDateTime(user.firstSeen), formatDateTime(user.lastSeen)])
+  );
+
+  const exportAccessLogs = () => downloadCsv(
+    'GHN_lich-su-truy-cap.csv',
+    ['Email', 'Thời điểm truy cập'],
+    accessLogs.map((log) => [log.email, formatDateTime(log.accessed_at)])
+  );
 
   // Process logs for chart (last 7 days)
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -69,11 +122,11 @@ export default function DevAdminDashboard({ onlineUsers }) {
               <Activity size={28} />
             </div>
             <div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG LƯỢT TRUY CẬP GẦN ĐÂY</div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)' }}>{accessLogs.length}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>NGƯỜI ĐÃ TỪNG TRUY CẬP</div>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)' }}>{userSummary.length}</div>
             </div>
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>*Thống kê từ 300 lần truy cập gần nhất</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Người dùng duy nhất trong toàn bộ lịch sử tải được</div>
         </div>
 
         <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
@@ -90,10 +143,39 @@ export default function DevAdminDashboard({ onlineUsers }) {
         </div>
       </div>
 
+      <section style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '2rem', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }} aria-labelledby="known-users-title">
+        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <span id="known-users-title">NGƯỜI ĐÃ TỪNG TRUY CẬP ({userSummary.length.toLocaleString('vi-VN')})</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Sắp theo lần truy cập gần nhất</span>
+        </div>
+        <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+          {isLoading ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Đang tổng hợp danh sách user...</div>
+          ) : loadError ? (
+            <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '2rem' }}>{loadError}</div>
+          ) : userSummary.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Chưa có user nào được ghi nhận.</div>
+          ) : userSummary.map((user) => (
+            <div key={user.email} className="dev-admin-user-row">
+              <div style={{ minWidth: 0 }}>
+                <strong className="truncate">{user.email}</strong>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Lần đầu: {formatDateTime(user.firstSeen)} · Gần nhất: {formatDateTime(user.lastSeen)}</div>
+              </div>
+              <span className="data-status data-status--default">{user.visits.toLocaleString('vi-VN')} lượt</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Daily Chart */}
       <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: '2rem', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <BarChart2 size={18} /> THỐNG KÊ LƯỢT TRUY CẬP (7 NGÀY QUA)
+        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><BarChart2 size={18} /> THỐNG KÊ LƯỢT TRUY CẬP (7 NGÀY QUA)</span>
+          <div className="dev-admin-actions">
+            <button type="button" className="btn-secondary" onClick={fetchAccessLogs} disabled={isLoading}><RefreshCw size={14} /> Làm mới</button>
+            <button type="button" className="nav-btn primary" onClick={exportUsers} disabled={!userSummary.length}><Download size={14} /> Xuất danh sách user</button>
+            <button type="button" className="btn-secondary" onClick={exportAccessLogs} disabled={!accessLogs.length}><Download size={14} /> Xuất lịch sử</button>
+          </div>
         </div>
         <div style={{ padding: '2rem', height: '250px', display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
           {last7Days.map(date => {
@@ -112,7 +194,6 @@ export default function DevAdminDashboard({ onlineUsers }) {
                       background: 'linear-gradient(to top, var(--ghn-blue), #3b82f6)',
                       borderRadius: '4px 4px 0 0',
                       height: `${Math.max(heightPct, 1)}%`,
-                      transition: 'height 1s cubic-bezier(0.16, 1, 0.3, 1)',
                       boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }} 
                   />
@@ -153,11 +234,13 @@ export default function DevAdminDashboard({ onlineUsers }) {
         {/* Access Logs List */}
         <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
           <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, color: 'var(--text-main)' }}>
-            LỊCH SỬ TRUY CẬP (300 LẦN GẦN NHẤT)
+            LỊCH SỬ TRUY CẬP ({accessLogs.length.toLocaleString('vi-VN')} LƯỢT)
           </div>
           <div style={{ padding: '1rem', height: '400px', overflowY: 'auto' }}>
             {isLoading ? (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>Đang tải log truy cập...</div>
+            ) : loadError ? (
+              <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '3rem 1rem' }}>{loadError}</div>
             ) : accessLogs.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>Chưa có lịch sử truy cập.</div>
             ) : (
