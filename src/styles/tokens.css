@@ -25,6 +25,10 @@
   --border-strong: #c6dcf2;
   --action-primary: var(--color-blue-700);
   --action-primary-hover: var(--color-blue-800);
+  /* Deep accent for "cộng dồn / summary" table columns — same blue-cyan
+     family as --action-primary, just darker, so it reads as an emphasis
+     shade rather than an unrelated navy patch. */
+  --action-primary-deep: #0c4a6e;
   --focus-ring: 0 0 0 3px rgba(14, 165, 196, 0.25);
 
   --status-success-bg: #eaf3de;

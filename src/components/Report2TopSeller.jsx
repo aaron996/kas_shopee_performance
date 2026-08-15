@@ -65,7 +65,7 @@ export default function Report2TopSeller({ clientFilter, searchTerm }) {
                 </th>
 
                 {/* WTD % group (1 column under WTD) */}
-                <th colspan="1" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colspan="1" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   WTD
                 </th>
               </tr>
@@ -77,7 +77,7 @@ export default function Report2TopSeller({ clientFilter, searchTerm }) {
                 {weekCurrent.map(d => (
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
-                <th style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   {metricKey === '1st' ? '% 1st Pickup' : '% OPR'}
                 </th>
               </tr>

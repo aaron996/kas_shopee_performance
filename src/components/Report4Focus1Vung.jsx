@@ -112,7 +112,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
             <table className="mtx-table report4-grid">
               <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr>
-                  <th rowspan="2" className="lbl" style={{ background: '#00365e', color: 'white' }}>
+                  <th rowspan="2" className="lbl" style={{ background: 'var(--action-primary-deep)', color: 'white' }}>
                     Hub ({selectedRegion})
                   </th>
 
@@ -124,7 +124,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
                   )}
 
                   {/* Week WTD */}
-                  <th colspan={weekCur.slice(0, -1).length} style={{ background: '#00365e' }}>
+                  <th colspan={weekCur.slice(0, -1).length} style={{ background: 'var(--action-primary-deep)' }}>
                     TUẦN WTD <span style={{ background: '#F15A22', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem' }}>HIỆN TẠI</span>
                   </th>
 
@@ -144,10 +144,10 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
                     <th key={d} style={{ background: 'var(--action-primary-hover)' }}>{formatDateLabel(d)}</th>
                   ))}
                   {/* W-1 WTD Header */}
-                  <th style={{ background: '#00365e', borderLeft: '2px solid #F15A22' }}>W-1 WTD</th>
+                  <th style={{ background: 'var(--action-primary-deep)', borderLeft: '2px solid #F15A22' }}>W-1 WTD</th>
 
                   {weekCur.slice(0, -1).map(d => (
-                    <th key={d} style={{ background: '#00365e' }}>{formatDateLabel(d)}</th>
+                    <th key={d} style={{ background: 'var(--action-primary-deep)' }}>{formatDateLabel(d)}</th>
                   ))}
 
                   <th style={{ background: '#002540' }}>% D-1</th>
