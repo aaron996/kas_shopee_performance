@@ -60,7 +60,7 @@ export default function Report2TopSeller({ clientFilter, searchTerm }) {
                 <th colspan={weekCurrent.length}>TUẦN WTD</th>
                 
                 {/* Total Vol column (Rowspan 2, before WTD) */}
-                <th rowspan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th rowspan="2" style={{ background: 'var(--action-primary-hover)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   Vol Total
                 </th>
 

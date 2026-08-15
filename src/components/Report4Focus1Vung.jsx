@@ -97,7 +97,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
     return (
       <div key={title} style={{ marginBottom: '2.5rem' }}>
         <div className="metric-block" style={{ marginBottom: '1rem' }}>
-          <div className="metric-header" style={{ background: '#004b82', color: 'white' }}>
+          <div className="metric-header" style={{ background: 'var(--action-primary-hover)', color: 'white' }}>
             <div className="metric-title" style={{ color: 'white' }}>
               <span>{title} — Vùng {selectedRegion}</span>
               <span className="kpi-badge" style={{ background: '#F15A22', color: 'white' }}>Target ≥ {target}%</span>
@@ -118,7 +118,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
 
                   {/* Week W-1 with extra WTD column */}
                   {weekPrev.length > 0 && (
-                    <th colspan={weekPrev.length + 1} style={{ background: '#004b82' }}>
+                    <th colspan={weekPrev.length + 1} style={{ background: 'var(--action-primary-hover)' }}>
                       TUẦN W-1 (+ WTD W-1)
                     </th>
                   )}
@@ -141,7 +141,7 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
 
                 <tr>
                   {weekPrev.map((d, idx) => (
-                    <th key={d} style={{ background: '#004b82' }}>{formatDateLabel(d)}</th>
+                    <th key={d} style={{ background: 'var(--action-primary-hover)' }}>{formatDateLabel(d)}</th>
                   ))}
                   {/* W-1 WTD Header */}
                   <th style={{ background: '#00365e', borderLeft: '2px solid #F15A22' }}>W-1 WTD</th>
@@ -257,10 +257,10 @@ export default function Report4Focus1Vung({ pickRows, deliRows, clientFilter, se
             <table className="mtx-table report4-grid" style={{ width: '100%', maxWidth: '650px' }}>
               <thead>
                 <tr>
-                  <th style={{ background: '#004b82', textAlign: 'left' }}>Bưu cục / Hub</th>
-                  <th style={{ background: '#004b82' }}>% {title} D-1</th>
+                  <th style={{ background: 'var(--action-primary-hover)', textAlign: 'left' }}>Bưu cục / Hub</th>
+                  <th style={{ background: 'var(--action-primary-hover)' }}>% {title} D-1</th>
                   <th style={{ background: '#E8362C', color: 'white' }}>Đơn trễ D-1</th>
-                  <th style={{ background: '#004b82' }}>Tổng đơn D-1</th>
+                  <th style={{ background: 'var(--action-primary-hover)' }}>Tổng đơn D-1</th>
                 </tr>
               </thead>
               <tbody>

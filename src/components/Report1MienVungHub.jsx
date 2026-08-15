@@ -659,7 +659,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
                 {/* D-1 header (merged over 2 cols, replacing % Ontime and Vol D-1) */}
-                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colSpan="2" style={{ background: 'var(--action-primary-hover)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   {formatDateLabel(d1Date)}
                 </th>
               </tr>
