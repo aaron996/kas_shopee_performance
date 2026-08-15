@@ -243,7 +243,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
                   <th colSpan={weekCurBeforeD1.length + 2}>TUẦN HIỆN TẠI</th>
                 )}
                 {/* WTD header group */}
-                <th colSpan="2" rowSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday LM */}

@@ -638,7 +638,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
-                <th colSpan="2" rowSpan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}

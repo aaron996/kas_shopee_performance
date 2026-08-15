@@ -110,7 +110,7 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
                 <th rowspan="2" className="lbl">Ca Làm Việc / Hub</th>
                 {weekPrev.length > 0 && <th colspan={weekPrev.length}>TUẦN W-1</th>}
                 <th colspan={weekCurrent.length}>TUẦN WTD</th>
-                <th colspan="2" style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colspan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   WTD %GTC
                 </th>
               </tr>
@@ -122,8 +122,8 @@ export default function Report3CaHub({ clientFilter, searchTerm }) {
                 {weekCurrent.map(d => (
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
-                <th style={{ background: '#00365e', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>%GTC WTD</th>
-                <th style={{ background: '#00365e' }}>Vol WTD</th>
+                <th style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>%GTC WTD</th>
+                <th style={{ background: 'var(--action-primary-deep)' }}>Vol WTD</th>
               </tr>
             </thead>
 
