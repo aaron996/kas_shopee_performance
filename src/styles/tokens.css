@@ -2,8 +2,8 @@
   /* Primitive palette */
   --color-orange-500: #f15a22;
   --color-orange-700: #c94516;
-  --color-blue-700: #0063aa;
-  --color-blue-800: #004b82;
+  --color-blue-700: #0ea5c4;
+  --color-blue-800: #0b84a0;
   --color-slate-950: #0f172a;
   --color-slate-800: #1e293b;
   --color-slate-500: #64748b;
@@ -13,19 +13,19 @@
   --color-slate-50: #f8fafc;
   --color-white: #ffffff;
 
-  /* Semantic tokens */
-  --surface-canvas: #f4f6f9;
+  /* Semantic tokens — airy pastel-blue soft UI palette */
+  --surface-canvas: #eaf2fb;
   --surface-default: var(--color-white);
-  --surface-subtle: var(--color-slate-50);
+  --surface-subtle: #f2f7fd;
   --surface-info: #e6f0fa;
   --text-primary: var(--color-slate-800);
   --text-secondary: var(--color-slate-500);
   --text-on-brand: var(--color-white);
-  --border-subtle: var(--color-slate-200);
-  --border-strong: var(--color-slate-300);
+  --border-subtle: #dce9f7;
+  --border-strong: #c6dcf2;
   --action-primary: var(--color-blue-700);
   --action-primary-hover: var(--color-blue-800);
-  --focus-ring: 0 0 0 3px rgba(0, 99, 170, 0.25);
+  --focus-ring: 0 0 0 3px rgba(14, 165, 196, 0.25);
 
   --status-success-bg: #eaf3de;
   --status-success-fg: #0f6e56;
@@ -34,10 +34,14 @@
   --status-danger-bg: #f7d9d4;
   --status-danger-fg: #a13b2a;
 
-  --radius-control: 8px;
-  --radius-surface: 14px;
-  --shadow-overlay: 0 20px 40px rgba(15, 23, 42, 0.25);
-  --shadow-raised: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --radius-control: 10px;
+  --radius-surface: 22px;
+  --radius-pill: 999px;
+  /* Diffuse neumorphic shadow: soft dual-tone against the pastel-blue canvas */
+  --shadow-overlay: 0 24px 48px rgba(20, 60, 100, 0.22);
+  --shadow-raised: 0 14px 34px -14px rgba(20, 60, 100, 0.22), 0 2px 8px rgba(20, 60, 100, 0.06);
+  --shadow-soft: 0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04);
+  --shadow-neu: 8px 8px 18px rgba(163, 190, 220, 0.45), -8px -8px 16px rgba(255, 255, 255, 0.85);
   --duration-fast: 160ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 

@@ -264,7 +264,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
                   <th key={d}>{formatDateLabel(d)}</th>
                 ))}
                 {/* D-1 header */}
-                <th colSpan="2" style={{ background: '#004b82', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colSpan="2" style={{ background: 'var(--action-primary-hover)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
                   {formatDateLabel(d1Date)}
                 </th>
               </tr>
