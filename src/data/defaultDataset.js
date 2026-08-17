@@ -4,7 +4,7 @@
 export const MIEN_REGIONS = {
   'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO'],
   'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB'],
-  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'ĐCL', 'TNB']
+  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'HCM - KA', 'ĐCL', 'TNB']
 };
 
 export const MIEN_ORDER = ['Miền Bắc', 'Miền Trung', 'Miền Nam'];
@@ -90,7 +90,7 @@ export function createDefaultPickDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region === 'HCM - KA' ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
@@ -151,7 +151,7 @@ export function createDefaultDeliDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region === 'HCM - KA' ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
@@ -184,7 +184,7 @@ export function createDefaultCa1Dataset() {
   const rows = [];
 
   lanes.forEach(lane => {
-    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - GXT', 'DBB', 'TTB', 'TNB', 'DNB'];
+    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - GXT', 'HCM - KA', 'DBB', 'TTB', 'TNB', 'DNB'];
     regions.forEach(vung_giao => {
       dates.forEach(ngay => {
         const tong_don = 1200 + Math.floor(Math.random() * 1500);
