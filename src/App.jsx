@@ -10,7 +10,7 @@ import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthMod
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
-import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
+import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
 import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
@@ -97,10 +97,11 @@ export default function App() {
 
   const filterAhamove = (rows) => {
     if (!rows) return rows;
-    return rows.filter(r => {
+    const filtered = rows.filter(r => {
       const type = getHubType(r);
       return type.toLowerCase() !== 'ahamove';
     });
+    return reassignKaRegion(filtered);
   };
 
   const [pickRows, setPickRows] = useState(() => filterAhamove(createDefaultPickDataset()));

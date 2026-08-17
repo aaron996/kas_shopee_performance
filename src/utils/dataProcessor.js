@@ -7,6 +7,22 @@ export function getHubType(row) {
   return row['hub type'] || row['Hub Type'] || row.hub_type || row.Hub_Type || row.hubType || row.HubType || 'Unknown';
 }
 
+// Hub "Key Account Warehouse Ho Chi Minh" (hub_type = KA) sits inside HCM in
+// the raw sheet/Supabase data, but it should be reported under its own
+// "HCM - KA" vùng (same convention as "HCM - GXT"). Reassign region for any
+// HCM row whose hub type is KA so every report groups it correctly.
+export function reassignKaRegion(rows) {
+  if (!rows) return rows;
+  return rows.map(r => {
+    if (!r || r.region !== 'HCM') return r;
+    const type = String(getHubType(r)).trim().toUpperCase();
+    if (type === 'KA') {
+      return { ...r, region: 'HCM - KA' };
+    }
+    return r;
+  });
+}
+
 export function formatPct(val) {
   if (val === null || val === undefined || isNaN(val)) return '–';
   return val.toFixed(1) + '%';
