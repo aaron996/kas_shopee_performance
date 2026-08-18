@@ -691,6 +691,164 @@ body.dark-mode .density-toggle-sleek .switch.on {
 
 .auth-modal-card { max-width: 520px; }
 .data-source-modal-card { max-width: 780px; }
+.client-select-card { max-width: 640px; }
+
+/* ---------------------------------------------------
+   CLIENT SELECT SCREEN (first-run "SPE or SPB?" prompt)
+------------------------------------------------------*/
+.client-select-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.75rem 1.75rem 0.5rem;
+}
+
+.client-select-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--action-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(14, 165, 196, 0.35);
+}
+
+.client-select-title {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 0.3rem;
+}
+
+.client-select-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.client-select-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem 1.75rem;
+}
+
+@media (max-width: 560px) {
+  .client-select-grid { grid-template-columns: 1fr; }
+}
+
+.client-select-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1.5rem 1.25rem;
+  background: var(--surface-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  box-shadow: var(--shadow-soft);
+  transition: transform 220ms var(--ease-standard), box-shadow 220ms var(--ease-standard),
+    border-color 220ms var(--ease-standard), background 220ms var(--ease-standard), opacity 220ms var(--ease-standard);
+}
+
+.client-select-option:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-raised);
+  border-color: var(--action-primary);
+}
+
+.client-select-option:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.client-select-option:disabled {
+  cursor: default;
+}
+
+.client-select-option.is-faded {
+  opacity: 0.35;
+  transform: scale(0.96);
+}
+
+.client-select-option.is-picked {
+  background: var(--action-primary);
+  border-color: var(--action-primary);
+  color: white;
+  transform: scale(1.03);
+  box-shadow: 0 14px 30px rgba(14, 165, 196, 0.4);
+  animation: clientPickPulse 420ms var(--ease-standard);
+}
+
+@keyframes clientPickPulse {
+  0% { transform: scale(0.98); }
+  55% { transform: scale(1.06); }
+  100% { transform: scale(1.03); }
+}
+
+.client-select-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 165, 196, 0.12);
+  color: var(--action-primary);
+  transition: background 220ms var(--ease-standard), color 220ms var(--ease-standard);
+}
+
+.client-select-option.is-picked .client-select-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.client-select-option-title {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.client-select-option-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: rgba(14, 165, 196, 0.12);
+  color: var(--action-primary);
+}
+
+.client-select-option.is-picked .client-select-option-tag {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.client-select-option-desc {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.client-select-option.is-picked .client-select-option-desc {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+body.dark-mode .client-select-option {
+  background: #0f1629;
+  border-color: #233252;
+}
+
+body.dark-mode .client-select-option-desc {
+  color: #94a3b8;
+}
 
 @keyframes status-pulse {
   50% { opacity: 0.35; transform: scale(0.8); }
@@ -1050,7 +1208,10 @@ th.sep, td.sep {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  /* Above the full-screen data-sync LoadingScreen (z-index: 9999) — a modal
+     the user must act on (login, pick a client) always takes priority over
+     a passive background-loading indicator. */
+  z-index: 10000;
   padding: 1rem;
 }
 
