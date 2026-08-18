@@ -74,7 +74,7 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState('report1');
-  const [clientFilter, setClientFilter] = useState('SPB');
+  const [clientFilter, setClientFilter] = useState('ALL');
   const [expandAllHubs] = useState(false);
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
