@@ -7,6 +7,7 @@ import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
+import ClientSelectModal from './components/ClientSelectModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
@@ -74,8 +75,18 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState('report1');
-  const [clientFilter, setClientFilter] = useState('ALL');
+  const [clientFilter, setClientFilter] = useState('SPB');
   const [expandAllHubs] = useState(false);
+
+  // Ask "SPE or SPB?" once per browser session, right after login. The
+  // dashboard itself stays mounted underneath (same pattern as AuthModal)
+  // so it's ready to fade in the instant a choice is made.
+  const [hasPickedClient, setHasPickedClient] = useState(() => sessionStorage.getItem('ghn_client_choice') === 'true');
+  const handleClientPick = (key) => {
+    setClientFilter(key);
+    sessionStorage.setItem('ghn_client_choice', 'true');
+    setHasPickedClient(true);
+  };
   
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
@@ -335,6 +346,13 @@ export default function App() {
       {/* Authentication Protection Modal */}
       <AuthModal
         isOpen={!currentUser}
+      />
+
+      {/* First-run "Which client?" prompt — shown right after login, once
+          per browser session, before the dashboard is usable. */}
+      <ClientSelectModal
+        isOpen={!!currentUser && !hasPickedClient}
+        onSelect={handleClientPick}
       />
 
       {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
