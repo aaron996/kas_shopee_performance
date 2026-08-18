@@ -3085,16 +3085,20 @@ body.dark-mode .chk-icon {
     display: none;
   }
 
-  /* KPI Tabs Adjustment */
+  /* KPI Tabs Adjustment — single scrollable row, matching the mockup's
+     horizontal pill strip instead of wrapping 2-per-row. */
   .kpi-table-tabs {
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
   }
-  
+
   .kpi-table-tab {
-    padding: 0.5rem;
+    padding: 0.5rem 0.9rem;
     font-size: 0.8rem;
-    flex: 1 1 50%;
+    flex: 0 0 auto;
+    white-space: nowrap;
     text-align: center;
   }
 
