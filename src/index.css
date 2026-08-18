@@ -1388,7 +1388,21 @@ th.sep, td.sep {
 
 .kpi-card-target {
   font-size: 0.75rem;
-  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.kpi-card-target.good {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+.kpi-card-target.bad {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
 }
 
 .kpi-card-main {
@@ -2699,43 +2713,72 @@ body.dark-mode .chk-icon {
    PREMIUM DASHBOARD OVERHAUL (GLASSMORPHISM & BG)
 ------------------------------------------------------*/
 
-/* Top Split Dashboard (Layout 2: Card-Based) */
+/* Top Split Dashboard — hero KPI overview, full width (mockup: alerts moved to
+   a separate strip below, see .alert-strip-sleek) */
 .top-split-dashboard {
-  display: flex;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  align-items: flex-start;
+  margin-bottom: 0;
 }
 
-@media (max-width: 1024px) {
-  .top-split-dashboard {
-    flex-direction: column;
-  }
-}
-
-/* Left: Overview */
+/* Hero: soft pastel-blue card holding the 4 nationwide KPI cards */
 .top-split-left {
-  flex: 7;
-  background: #fff0e5; /* Very soft pastel orange */
+  background: var(--surface-subtle);
   border-radius: var(--radius-surface);
-  padding: 1.25rem;
-  box-shadow: 0 2px 10px rgba(241, 90, 34, 0.05);
-  border: 1px solid rgba(241, 90, 34, 0.15);
+  padding: 22px 26px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {
   .top-split-left {
-    padding: 0.75rem;
+    padding: 16px;
   }
 }
 
 .kpi-cards-header-glass {
-  color: var(--ghn-orange);
-  font-family: var(--font-heading);
-  font-size: 1.15rem;
-  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-bottom: 1rem;
-  letter-spacing: 0.5px;
+}
+
+.kpi-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-slate-950);
+  letter-spacing: 0.2px;
+}
+
+.kpi-header-accent {
+  width: 6px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--ghn-orange);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.kpi-header-scope {
+  color: var(--action-primary-hover);
+  font-weight: 600;
+}
+
+.kpi-header-compare {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--surface-default);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+.kpi-header-compare b {
+  color: var(--color-slate-950);
 }
 
 /* Fix excessive whitespace in KPI cards container */
@@ -2752,65 +2795,33 @@ body.dark-mode .chk-icon {
   }
 }
 
-/* Right: Alerts */
-.top-split-right {
-  flex: 3;
-  background: #fef2f2; /* Soft pastel red to match the soft orange of left side */
-  border-radius: var(--radius-surface);
-  box-shadow: 0 2px 10px rgba(225, 29, 72, 0.05);
-  border: 1px solid rgba(225, 29, 72, 0.15);
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-}
-
-@media (max-width: 768px) {
-  .top-split-right {
-    padding: 0.75rem !important; /* Force override inline padding if any */
-  }
-}
-
-/* Card aesthetics */
+/* Card aesthetics — neumorphic white tiles against the hero's pastel-blue bg */
 .top-split-left .kpi-card {
-  background: white;
-  border: 1px solid rgba(241, 90, 34, 0.1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+  background: var(--surface-default);
+  border: none;
+  box-shadow: var(--shadow-neu);
   color: var(--text-main);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .top-split-left .kpi-card:hover {
-  background: white;
   transform: translateY(-4px);
-  border-color: rgba(241, 90, 34, 0.3);
-  box-shadow: 0 10px 25px rgba(241, 90, 34, 0.1);
 }
 
 .top-split-left .kpi-card-title span:first-child {
-  color: var(--ghn-blue-dark);
-  font-weight: 700;
-}
-
-.top-split-left .kpi-card-target {
-  background: #f1f5f9;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }
 
 .top-split-left .kpi-card-pct {
-  color: var(--ghn-blue-dark);
+  color: var(--status-danger-fg);
 }
 
 .top-split-left .kpi-card-pct.good {
-  color: #0F6E56;
-}
-
-.top-split-left .kpi-card-stats {
-  border-top: 1px solid var(--border);
+  color: var(--status-success-fg);
 }
 
 .top-split-left .kpi-card-stats span:first-child {
-  color: var(--text-muted);
+  color: #94a3b8;
 }
 
 .top-split-left .kpi-card-stats span.late {
@@ -2830,16 +2841,30 @@ body.dark-mode .chk-icon {
   border: 1px solid rgba(225, 29, 72, 0.2);
 }
 
-/* Alert List in Right Sidebar */
+/* Alert strip — full-width horizontal row of hub chips below the hero (mockup) */
+.alert-strip-sleek {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-left: 4px solid #e8362c;
+  border-radius: 16px;
+  padding: 10px 16px;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .risk-alert-title-sleek {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: #e11d48;
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(225, 29, 72, 0.15);
+  gap: 0.4rem;
+  color: #9f1239;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .risk-alert-icon-sleek {
@@ -2849,72 +2874,68 @@ body.dark-mode .chk-icon {
 
 .risk-chips-list-sleek {
   display: flex;
-  flex-direction: column;
-  padding: 0.5rem;
-  gap: 0.4rem;
-  max-height: 190px;
-  overflow-y: auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .risk-chip-sleek {
-  background: white;
-  border: 1px solid rgba(225, 29, 72, 0.15);
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #fda4af;
+  border-radius: 999px;
+  padding: 6px 12px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   color: #881337;
+  font-size: 11.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 100%;
-  text-align: left;
-  box-shadow: 0 2px 5px rgba(225, 29, 72, 0.05);
 }
 
 .risk-chip-sleek:hover {
-  background: white;
-  border-color: rgba(225, 29, 72, 0.3);
-  transform: translateX(4px);
-  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.1);
+  border-color: #e11d48;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.15);
 }
 
-.risk-chip-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #e11d48;
-}
-
-.risk-chip-metrics-inline {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  width: 100%;
+.risk-chip-hub-sleek {
+  color: #881337;
 }
 
 .risk-chip-metric-sleek {
-  font-size: 0.8rem;
-  color: #9f1239;
+  color: var(--text-secondary);
 }
 
 .risk-chip-pct-sleek {
-  font-weight: 800;
-  color: #be123c;
-  font-size: 0.95rem;
+  color: #e11d48;
 }
 
 .risk-chip-late-sleek {
-  font-size: 0.75rem;
-  background: #e11d48;
-  color: white;
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  font-weight: 700;
+  background: #ffe4e6;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.risk-chips-empty-sleek {
+  flex: 1;
+  color: #881337;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .alert-strip-sleek {
+    padding: 8px 16px;
+  }
+  .risk-chips-list-sleek {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
 }
 
 /* ---------------------------------------------------
@@ -3254,37 +3275,21 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover {
    ========================================================================== */
 body.dark-mode .top-split-left {
   background: #111827; /* Dark slate */
-  border-color: rgba(241, 90, 34, 0.2);
-}
-
-body.dark-mode .top-split-right {
-  background: #111827;
-  border-color: rgba(225, 29, 72, 0.2);
+  border-color: #374151;
 }
 
 body.dark-mode .top-split-left .kpi-card {
   background: #1f2937;
-  border-color: rgba(241, 90, 34, 0.2);
   color: #f1f5f9;
+  box-shadow: none;
 }
 
 body.dark-mode .top-split-left .kpi-card:hover {
   background: #374151;
-  border-color: rgba(241, 90, 34, 0.4);
 }
 
-body.dark-mode .top-split-left .kpi-card-target {
-  background: #111827;
-  color: #94a3b8;
-  border-color: #374151;
-}
-
-body.dark-mode .top-split-left .kpi-card-pct {
-  color: #f8fafc;
-}
-
-body.dark-mode .top-split-left .kpi-card-stats {
-  border-top-color: #374151;
+body.dark-mode .top-split-left .kpi-card-stats span:first-child {
+  color: #64748b;
 }
 
 body.dark-mode .top-split-left .kpi-card-diff.up {
@@ -3297,8 +3302,9 @@ body.dark-mode .top-split-left .kpi-card-diff.down {
   border-color: rgba(225, 29, 72, 0.3);
 }
 
-body.dark-mode .risk-alert-title-sleek {
-  border-bottom-color: #374151;
+body.dark-mode .alert-strip-sleek {
+  background: #2a1015;
+  border-color: #881337;
 }
 
 body.dark-mode .risk-chip-sleek {
@@ -3312,11 +3318,11 @@ body.dark-mode .risk-chip-sleek:hover {
   border-color: #be123c;
 }
 
-body.dark-mode .risk-chip-sleek-hub {
+body.dark-mode .risk-chip-hub-sleek {
   color: #f43f5e;
 }
 
-body.dark-mode .risk-chip-sleek-late {
+body.dark-mode .risk-chip-late-sleek {
   background: #881337;
   color: #ffe4e6;
 }

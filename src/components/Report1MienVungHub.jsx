@@ -327,6 +327,25 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const { weekPrev: pWPrev, weekCurrent: pWCur, d1Date: pD1 } = useMemo(() => groupDatesByWeek(pickDates), [pickDates]);
   const { weekPrev: dWPrev, weekCurrent: dWCur, d1Date: dD1 } = useMemo(() => groupDatesByWeek(deliDates), [deliDates]);
 
+  // "so với D-8" comparison badge shown in the hero header (mockup: dd/mm vs dd/mm)
+  const compareDates = useMemo(() => {
+    if (!pD1) return null;
+    const shortLabel = (dateStr) => {
+      const p = dateStr.split('-');
+      return `${String(parseInt(p[2], 10)).padStart(2, '0')}/${String(parseInt(p[1], 10)).padStart(2, '0')}`;
+    };
+    const p = pD1.split('-');
+    const d8Obj = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    d8Obj.setDate(d8Obj.getDate() - 7);
+    const toDateStr = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    let d8Str = toDateStr(d8Obj);
+    if (!pickDates.includes(d8Str)) {
+      const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
+      if (pickDates.includes(unpadded)) d8Str = unpadded;
+    }
+    return { d1: shortLabel(pD1), d8: shortLabel(d8Str) };
+  }, [pD1, pickDates]);
+
   // Helper row value extractor for flexible column names (handling mau_deli vs mau_del)
   const getRowVal = (r, primaryCol, fallbackCol) => {
     if (r[primaryCol] !== undefined && r[primaryCol] !== null) return Number(r[primaryCol]) || 0;
@@ -935,11 +954,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
       {/* Top Split Dashboard (Layout 2: Card-Based) */}
       <div className="top-split-dashboard">
-        
+
         {/* Left: KPI Overview */}
         <div className="top-split-left">
           <div className="kpi-cards-header-glass">
-            TỔNG QUAN D-1
+            <span className="kpi-header-title">
+              <span className="kpi-header-accent"></span>
+              TỔNG QUAN D-1 <span className="kpi-header-scope">· Nationwide</span>
+            </span>
+            {compareDates && (
+              <span className="kpi-header-compare">
+                so với D-8: <b>{compareDates.d1}</b> vs {compareDates.d8}
+              </span>
+            )}
           </div>
           <div className="kpi-cards-container">
             {kpiCards.map(card => {
@@ -952,7 +979,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref, card.id)}>
                   <div className="kpi-card-title">
                     <span>{card.title}</span>
-                    <span className="kpi-card-target">≥{card.target}%</span>
+                    <span className={`kpi-card-target ${isGood ? 'good' : 'bad'}`}>≥{card.target}%</span>
                   </div>
                   <div className="kpi-card-main">
                     <AnimatedNumber 
@@ -982,41 +1009,36 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </div>
         </div>
 
-        {/* Right: Needs Intervention (Alerts) */}
-        <div className="top-split-right">
-          <div className="risk-alert-title-sleek">
-            <AlertTriangle size={16} className="risk-alert-icon-sleek" />
-            <span>CẦN CAN THIỆP D-1</span>
-          </div>
-          
-          {riskAlertHubs.length > 0 ? (
-            <div className="risk-chips-list-sleek" ref={alertsParent}>
-              {riskAlertHubs.map((chip, idx) => (
-                <button 
-                  key={`${chip.hub}_${idx}`} 
-                  className="risk-chip-sleek"
-                  onClick={() => handleRiskChipClick(chip)}
-                  title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
-                >
-                  <div className="risk-chip-header">
-                    <AlertTriangle size={12} /> {chip.hub}
-                  </div>
-                  <div className="risk-chip-metrics-inline">
-                    <span className="risk-chip-metric-sleek">{chip.metric}:</span>
-                    <span className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</span>
-                    <span className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
-              <div style={{ marginBottom: '0.5rem' }}>✅</div>
-              Tất cả các Hub đều đạt chỉ tiêu hoặc trễ không đáng kể.
-            </div>
-          )}
+      </div>
+
+      {/* Full-width alert strip (mockup: horizontal scrollable row of hub chips) */}
+      <div className="alert-strip-sleek">
+        <div className="risk-alert-title-sleek">
+          <AlertTriangle size={16} className="risk-alert-icon-sleek" />
+          <span>CẦN CAN THIỆP D-1</span>
         </div>
 
+        {riskAlertHubs.length > 0 ? (
+          <div className="risk-chips-list-sleek" ref={alertsParent}>
+            {riskAlertHubs.map((chip, idx) => (
+              <button
+                key={`${chip.hub}_${idx}`}
+                className="risk-chip-sleek"
+                onClick={() => handleRiskChipClick(chip)}
+                title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
+              >
+                <b className="risk-chip-hub-sleek">{chip.hub}</b>
+                <span className="risk-chip-metric-sleek">{chip.metric}</span>
+                <b className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</b>
+                <span className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="risk-chips-empty-sleek">
+            ✅ Tất cả các Hub đều đạt chỉ tiêu hoặc trễ không đáng kể.
+          </div>
+        )}
       </div>
 
 
