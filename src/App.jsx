@@ -166,7 +166,19 @@ export default function App() {
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
-  // Listen for Supabase Authentication State changes
+  // Listen for Supabase Authentication State changes.
+  //
+  // currentUser's initial useState above optimistically restores from the
+  // `ghn_user` localStorage flag so the dashboard paints instantly — but
+  // that flag never expires on its own. If the *actual* Supabase Auth
+  // session (JWT) has since expired or was revoked, every data read below
+  // (kas_pick_data / kas_deli_data / kas_ca1_data) runs as the `anon` role.
+  // Those tables' RLS policies only grant SELECT to `authenticated`, so an
+  // expired-but-locally-"logged in" user gets 0 rows back — not an error —
+  // and the app silently falls back to the bundled sample dataset forever,
+  // no matter how many times they refresh. `getSession()`/`onAuthStateChange`
+  // firing with no session is the one authoritative signal that the
+  // optimistic restore no longer holds, so treat it as a forced logout.
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) {
@@ -186,6 +198,13 @@ export default function App() {
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
         }
+      } else {
+        // No valid Supabase session (never logged in, or the session
+        // expired) — clear any stale optimistic login and send back to
+        // the login screen instead of quietly running as an unauthenticated
+        // guest against RLS-protected data.
+        localStorage.removeItem('ghn_user');
+        setCurrentUser(null);
       }
     });
 
@@ -207,6 +226,9 @@ export default function App() {
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
         }
+      } else {
+        localStorage.removeItem('ghn_user');
+        setCurrentUser(null);
       }
     });
 

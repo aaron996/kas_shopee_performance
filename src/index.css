@@ -618,9 +618,33 @@ body.dark-mode .density-toggle-sleek .switch.on {
   display: none;
 }
 
-.mobile-header-row,
-.mobile-data-error {
+.mobile-header-row {
   display: none;
+}
+
+/* Persistent sync-error notice — shown on desktop too (not just mobile),
+   so a stuck/expired session doesn't fail silently behind one easy-to-miss
+   alert() dialog. */
+.mobile-data-error {
+  display: block;
+  margin: 0.5rem 1.5rem 0;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  background: var(--amber-bg);
+  color: var(--amber-text);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.mobile-data-error button {
+  margin-left: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 @keyframes spin {
@@ -3022,17 +3046,11 @@ body.dark-mode .chk-icon {
   .mobile-filter-trigger.active { background: var(--ghn-blue); border-color: var(--ghn-blue); color: white; }
 
   .mobile-data-error {
-    display: block;
-    margin-top: 0.5rem;
+    margin: 0.5rem 0.75rem 0;
     padding: 0.55rem 0.65rem;
-    border-radius: 8px;
-    background: var(--amber-bg);
-    color: var(--amber-text);
     font-size: 0.76rem;
     line-height: 1.35;
   }
-
-  .mobile-data-error button { margin-left: 0.25rem; border: 0; background: transparent; color: inherit; text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
 
   /* Theme / Dev Admin / Logout: normally live in the sidebar footer, which
      is hidden on mobile — surface them in the header instead. */
