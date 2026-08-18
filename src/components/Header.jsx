@@ -203,7 +203,9 @@ export default function Header({
         </div>
 
         {/* Right Side: View Controls & Export */}
-        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+        {/* Layout lives in .header-actions so breakpoints can adjust it — the
+            header is a fixed 52px row, so wrapping has to be controlled. */}
+        <div className="header-actions">
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
           </div>

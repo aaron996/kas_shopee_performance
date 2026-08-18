@@ -511,6 +511,35 @@ body {
   margin: 0 0.25rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+/* Between the mobile breakpoint and ~1100px the desktop header's filters and
+   action buttons no longer fit side by side. They used to wrap, but the header
+   is a fixed 52px row (--master-table-sticky-top is calibrated to it), so the
+   wrapped buttons stacked into a 110px column that got clipped and pushed the
+   whole page 35px wider than the viewport. Keep them on one line and let the
+   header itself scroll horizontally instead. */
+@media (min-width: 769px) and (max-width: 1100px) {
+  .filter-group-sleek {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filter-group-sleek::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-group-sleek > * {
+    flex-shrink: 0;
+  }
+}
+
 .nav-btn-sleek {
   padding: 0.25rem 0.75rem;
   border: 1px solid var(--border-strong);
@@ -622,18 +651,13 @@ body.dark-mode .density-toggle-sleek .switch.on {
   display: none;
 }
 
-/* Persistent sync-error notice — shown on desktop too (not just mobile),
-   so a stuck/expired session doesn't fail silently behind one easy-to-miss
-   alert() dialog. */
+/* This notice lives inside .app-header, which is a fixed-height (52px) flex
+   row that --master-table-sticky-top is calibrated against — so it can only
+   be shown where the header is allowed to stack, i.e. the mobile breakpoint
+   below. On desktop the persistent signal is the header's "Thử lại dữ liệu"
+   button turning amber (.data-retry-warning). */
 .mobile-data-error {
-  display: block;
-  margin: 0.5rem 1.5rem 0;
-  padding: 0.55rem 0.85rem;
-  border-radius: 8px;
-  background: var(--amber-bg);
-  color: var(--amber-text);
-  font-size: 0.8rem;
-  line-height: 1.4;
+  display: none;
 }
 
 .mobile-data-error button {
@@ -1610,12 +1634,6 @@ table.mtx-table th.col-summary {
   display: none;
 }
 
-@media (max-width: 1024px) {
-  .kpi-cards-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
   /* Bottom-nav clearance lives on .app-main (see MOBILE RESPONSIVENESS
      OVERRIDES below) — don't also pad .app-container or the space stacks. */
@@ -1699,21 +1717,9 @@ table.mtx-table th.col-summary {
     margin-bottom: 0.25rem;
   }
 
-  .kpi-cards-container {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    gap: 0.5rem;
-    padding-bottom: 0.4rem;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .kpi-card {
-    flex: 0 0 145px;
-    min-width: 145px;
-    padding: 0.5rem 0.6rem;
-    scroll-snap-align: start;
-  }
+  /* The KPI carousel itself is defined further down, scoped to
+     .top-split-left so it can't be clobbered by the later bare
+     `.kpi-cards-container` grid rule. */
 
   .kpi-card-title {
     font-size: 0.72rem;
@@ -1736,6 +1742,44 @@ table.mtx-table th.col-summary {
     font-size: 0.7rem;
   }
   
+  /* The long section title ("Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)")
+     restates the active tab pill sitting directly above it, and competing for
+     one row with the Target badge + "Copy Ảnh" button wrapped it across three
+     lines — 104px of height for a heading the user already read. Drop the
+     duplicated text on mobile and keep the row to what it uniquely carries:
+     the target and the copy action. */
+  .metric-header {
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+  }
+
+  .metric-title-text {
+    display: none;
+  }
+
+  .metric-title {
+    font-size: 0.92rem;
+    gap: 0.4rem;
+  }
+
+  /* The legend's three items shared one nowrap row, so each was squeezed
+     narrow enough to wrap its own label over three lines. Give each item its
+     own line instead. */
+  .table-legend {
+    padding: 0.6rem 0.85rem;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  .legend-items {
+    flex-wrap: wrap;
+    gap: 0.3rem 0.7rem;
+  }
+
+  .legend-box {
+    flex: 0 0 auto;
+  }
+
   /* Matrix Table Mobile Fixes: High Readability & Sticky Column */
   .mtx-wrap {
     width: 100%;
@@ -1775,6 +1819,20 @@ table.mtx-table th.col-summary {
     z-index: 9;
     min-width: 100px;
     box-shadow: 3px 0 8px rgba(0,0,0,0.1);
+  }
+
+  /* Report 1 drops its "Miền" column entirely on mobile (header cell, TOÀN
+     QUỐC cell and rowSpan label are all .desktop-only), so the remaining
+     "Vùng / Hub" column has to freeze flush against the left edge. Left at
+     70px it floated in from nowhere and the date columns scrolled underneath
+     the empty gap. Report 5 still shows both label columns, hence the scope. */
+  .report1-master-table table.mtx-table thead th.lbl-2,
+  .report1-master-table table.mtx-table td.lbl-2 {
+    left: 0;
+    /* Hub codes are short (HNO, DBB, ...); at 132px the frozen column ate 38%
+       of a 343px viewport and only ~3 date columns fit beside it. */
+    min-width: 92px;
+    max-width: 116px;
   }
 
   .sticky-kpi-bar {
@@ -2034,6 +2092,16 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));
 }
 
+/* The row's label cell additionally freezes to the left edge so it stays
+   readable while the matrix scrolls horizontally. Kept in CSS (not an inline
+   style) so the narrow-screen overrides below can actually win — an inline
+   `position: sticky` would outrank them and let the cell drift, see the
+   ≤1100px block. */
+.report1-master-table table.mtx-table tbody tr.all-row-sticky td.all-row-label {
+  left: 0;
+  z-index: 46;
+}
+
 /* Region name (Miền) cell: it uses rowSpan to cover every row of its region,
    so its own sticky top offset (right under thead + TOÀN QUỐC) keeps it
    visible for the entire time any of that region's rows are on screen. Once
@@ -2047,9 +2115,15 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 }
 
 @media (max-width: 1100px) {
+  /* overflow-y must be `hidden`, not `visible`: per spec a `visible` axis
+     computes to `auto` as soon as the other axis is scrollable, which turned
+     this wrapper into a nested *vertical* scroller — a second scrollbar
+     competing with the page on touch, and a scrollport that re-anchored every
+     sticky offset inside the table. The wrapper is auto-height, so `hidden`
+     clips nothing; it just keeps scrolling to the horizontal axis. */
   .report1-master-table {
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: hidden;
   }
 
   /* On narrow layouts, horizontal scrolling takes precedence over a clipped
@@ -2066,8 +2140,20 @@ table.mtx-table tbody tr:hover td.lbl-2 {
     position: static;
   }
 
+  /* A sticky <td>'s containing block is the whole table, not its own row, so
+     any leftover `top` lets the cell slide far down inside the tall table and
+     detach from the row it belongs to (TOÀN QUỐC appearing stranded between
+     two hub rows). Clear the vertical pin and keep only the horizontal one. */
+  .report1-master-table table.mtx-table tbody tr.all-row-sticky td.all-row-label {
+    position: sticky;
+    left: 0;
+    top: auto;
+    z-index: 46;
+  }
+
   .report1-master-table table.mtx-table tbody td.mien-sticky-label {
     position: static;
+    top: auto;
   }
 
 }
@@ -2812,10 +2898,63 @@ body.dark-mode .chk-icon {
   gap: 1rem;
 }
 
+/* Carousel pager dots are a mobile-only affordance — the desktop hero shows
+   all four KPI cards side by side, so there is nothing to page through. */
+.kpi-carousel-dots {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  .kpi-cards-container {
-    grid-template-columns: repeat(2, 1fr); /* Force 2 columns on mobile */
-    gap: 0.5rem;
+  /* Mobile KPI carousel — one card at a time with the next one peeking, as in
+     the mockup. A 2x2 grid of these cards cost ~390px of an 844px screen
+     (47%) and pushed the matrix below the fold; one row is ~150px.
+     Scoped under .top-split-left on purpose: an earlier attempt at this lived
+     in a bare `.kpi-cards-container` block that a *later* bare rule silently
+     reset to `display: grid`, so the carousel never actually applied. */
+  .top-split-left .kpi-cards-container {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 0;
+    gap: 0.6rem;
+    padding-bottom: 0.15rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .top-split-left .kpi-cards-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-split-left .kpi-cards-container .kpi-card {
+    flex: 0 0 78%;
+    min-width: 0;
+    scroll-snap-align: start;
+    padding: 0.7rem 0.85rem;
+  }
+
+  /* Pager dots mirroring the carousel position. */
+  .kpi-carousel-dots {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    margin-top: 0.6rem;
+  }
+
+  .kpi-carousel-dot {
+    width: 6px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border-strong);
+    border: 0;
+    padding: 0;
+    transition: width var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
+  }
+
+  .kpi-carousel-dot.active {
+    width: 16px;
+    background: var(--action-primary);
   }
 }
 
@@ -3046,8 +3185,12 @@ body.dark-mode .chk-icon {
   .mobile-filter-trigger.active { background: var(--ghn-blue); border-color: var(--ghn-blue); color: white; }
 
   .mobile-data-error {
+    display: block;
     margin: 0.5rem 0.75rem 0;
     padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: var(--amber-bg);
+    color: var(--amber-text);
     font-size: 0.76rem;
     line-height: 1.35;
   }

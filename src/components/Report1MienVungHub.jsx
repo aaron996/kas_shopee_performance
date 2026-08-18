@@ -131,7 +131,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
   const [activeTableTab, setActiveTableTab] = useState('p1st');
+  const [activeKpiCard, setActiveKpiCard] = useState(0);
 
+  const kpiCarouselRef = useRef(null);
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
@@ -275,6 +277,27 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Mobile KPI carousel <-> pager dots. Derived from scrollLeft rather than
+  // tracked as separate state so a swipe, a dot tap and a resize can't drift
+  // out of sync. Measures the first card instead of assuming a width, since
+  // the card is a percentage of a viewport-dependent container.
+  const handleKpiScroll = useCallback((e) => {
+    const el = e.currentTarget;
+    const first = el.firstElementChild;
+    if (!first) return;
+    const step = first.getBoundingClientRect().width + parseFloat(getComputedStyle(el).columnGap || 0);
+    if (!step) return;
+    const idx = Math.round(el.scrollLeft / step);
+    setActiveKpiCard((prev) => (prev === idx ? prev : idx));
+  }, []);
+
+  const scrollToKpiCard = useCallback((idx) => {
+    const el = kpiCarouselRef.current;
+    const target = el?.children?.[idx];
+    if (!el || !target) return;
+    el.scrollTo({ left: target.offsetLeft - el.offsetLeft, behavior: 'smooth' });
+  }, []);
 
   const toggleRegion = (regKey) => {
     captureTableLayout();
@@ -623,9 +646,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
     return (
       <div className={`metric-block metric-block-sticky ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
-        <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Layout comes from .metric-header in CSS (flex / space-between /
+            center) — keep it there so the mobile breakpoint can restack it. */}
+        <div className="metric-header">
           <div className="metric-title">
-            <span>{title}</span>
+            <span className="metric-title-text">{title}</span>
             <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
           </div>
           <button 
@@ -688,8 +713,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
                   never scrolls out of view underneath the header. */}
               <tr className="all-row all-row-sticky" ref={allRowRef} data-motion-id="all">
-                <td colSpan="2" className="lbl lbl-1 desktop-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
-                <td colSpan="1" className="lbl lbl-2 mobile-only" style={{ position: 'sticky', left: 0, zIndex: 46 }}>TOÀN QUỐC</td>
+                <td colSpan="2" className="lbl lbl-1 all-row-label desktop-only">TOÀN QUỐC</td>
+                <td colSpan="1" className="lbl lbl-2 all-row-label mobile-only">TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
@@ -759,7 +784,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                           ever renders on this one row and disappears the moment this row
                           scrolls behind the frozen header, even while its hub rows below
                           are still visible. */}
-                      <td rowSpan={totalRowSpan} className="lbl lbl-1 mien-sticky-label" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
+                      <td rowSpan={totalRowSpan} className="lbl lbl-1 mien-sticky-label desktop-only" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
                       <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
@@ -968,7 +993,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               </span>
             )}
           </div>
-          <div className="kpi-cards-container">
+          <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
             {kpiCards.map(card => {
               const diff = card.d1.pct - card.d8.pct;
               const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
@@ -1007,6 +1032,23 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               );
             })}
           </div>
+
+          {/* Pager dots for the mobile carousel (hidden on desktop, where all
+              four cards are visible at once). */}
+          {kpiCards.length > 1 && (
+            <div className="kpi-carousel-dots">
+              {kpiCards.map((card, idx) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  className={`kpi-carousel-dot ${idx === activeKpiCard ? 'active' : ''}`}
+                  onClick={() => scrollToKpiCard(idx)}
+                  aria-label={`Xem ${card.title}`}
+                  aria-current={idx === activeKpiCard}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
