@@ -95,18 +95,14 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const filterAhamove = (rows) => {
+  const normalizeRows = (rows) => {
     if (!rows) return rows;
-    const filtered = rows.filter(r => {
-      const type = getHubType(r);
-      return type.toLowerCase() !== 'ahamove';
-    });
-    return reassignKaRegion(filtered);
+    return reassignKaRegion(rows);
   };
 
-  const [pickRows, setPickRows] = useState(() => filterAhamove(createDefaultPickDataset()));
-  const [deliRows, setDeliRows] = useState(() => filterAhamove(createDefaultDeliDataset()));
-  const [ca1Rows, setCa1Rows] = useState(() => filterAhamove(createDefaultCa1Dataset()));
+  const [pickRows, setPickRows] = useState(() => normalizeRows(createDefaultPickDataset()));
+  const [deliRows, setDeliRows] = useState(() => normalizeRows(createDefaultDeliDataset()));
+  const [ca1Rows, setCa1Rows] = useState(() => normalizeRows(createDefaultCa1Dataset()));
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
@@ -118,7 +114,7 @@ export default function App() {
     const types = new Set();
     pickRows.forEach(r => {
       const type = getHubType(r);
-      if (type && type !== 'Unknown' && type.toLowerCase() !== 'ahamove') {
+      if (type && type !== 'Unknown') {
         types.add(type);
       }
     });
@@ -207,9 +203,9 @@ export default function App() {
   }, []);
 
   const handleResetDefaultData = () => {
-    setPickRows(filterAhamove(createDefaultPickDataset()));
-    setDeliRows(filterAhamove(createDefaultDeliDataset()));
-    setCa1Rows(filterAhamove(createDefaultCa1Dataset()));
+    setPickRows(normalizeRows(createDefaultPickDataset()));
+    setDeliRows(normalizeRows(createDefaultDeliDataset()));
+    setCa1Rows(normalizeRows(createDefaultCa1Dataset()));
     setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
@@ -222,9 +218,9 @@ export default function App() {
     // see docs/google-sheet-supabase-sync.md).
     const supaRes = await fetchSupabaseSheetSync();
     if (supaRes.success) {
-      setPickRows(filterAhamove(supaRes.pickData));
-      setDeliRows(filterAhamove(supaRes.deliData));
-      if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
+      setPickRows(normalizeRows(supaRes.pickData));
+      setDeliRows(normalizeRows(supaRes.deliData));
+      if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
@@ -236,9 +232,9 @@ export default function App() {
     setIsSyncing(false);
 
     if (res.success) {
-      setPickRows(filterAhamove(res.pickData));
-      setDeliRows(filterAhamove(res.deliData));
-      if (res.ca1Data) setCa1Rows(filterAhamove(res.ca1Data));
+      setPickRows(normalizeRows(res.pickData));
+      setDeliRows(normalizeRows(res.deliData));
+      if (res.ca1Data) setCa1Rows(normalizeRows(res.ca1Data));
       setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
     } else {
       if (res.error === 'FILE_PRIVATE') {
@@ -455,9 +451,9 @@ export default function App() {
         <DataSourceManagerModal
           isOpen={isDataSourceOpen}
           onClose={() => setIsDataSourceOpen(false)}
-          onUpdatePickData={(rows) => setPickRows(filterAhamove(rows))}
-          onUpdateDeliData={(rows) => setDeliRows(filterAhamove(rows))}
-          onUpdateCa1Data={(rows) => setCa1Rows(filterAhamove(rows))}
+          onUpdatePickData={(rows) => setPickRows(normalizeRows(rows))}
+          onUpdateDeliData={(rows) => setDeliRows(normalizeRows(rows))}
+          onUpdateCa1Data={(rows) => setCa1Rows(normalizeRows(rows))}
           onResetDefault={handleResetDefaultData}
         />
       )}

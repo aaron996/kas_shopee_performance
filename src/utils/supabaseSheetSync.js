@@ -65,11 +65,6 @@ export async function fetchSupabaseSheetSync() {
       return { success: false, error: 'NO_SYNCED_DATA' };
     }
 
-    const filterValidHubs = (rows) => rows.filter(r => {
-      const type = r['hub type'] || r['Hub Type'] || r.hub_type || r.Hub_Type || r.hubType || r.HubType || '';
-      return String(type).toLowerCase() !== 'ahamove';
-    });
-
     const updatedAt = [pickData[0]?.synced_at, deliData[0]?.synced_at, ca1Data[0]?.synced_at]
       .filter(Boolean)
       .sort()
@@ -77,9 +72,9 @@ export async function fetchSupabaseSheetSync() {
 
     return {
       success: true,
-      pickData: filterValidHubs(pickData),
-      deliData: filterValidHubs(deliData),
-      ca1Data: ca1Data.length ? filterValidHubs(ca1Data) : null,
+      pickData,
+      deliData,
+      ca1Data: ca1Data.length ? ca1Data : null,
       updatedAt
     };
   } catch (err) {

@@ -58,16 +58,11 @@ export async function syncAllGoogleSheetTabs(sheetId = SPREADSHEET_ID) {
       fetchSheetTabCsv(TAB_GIDS.ca1, sheetId)
     ]);
 
-    const filterValidHubs = (rows) => rows.filter(r => {
-      const type = r['hub type'] || r['Hub Type'] || r.hub_type || r.Hub_Type || r.hubType || r.HubType || '';
-      return type.toLowerCase() !== 'ahamove';
-    });
-
     return {
       success: true,
-      pickData: filterValidHubs(pickData),
-      deliData: filterValidHubs(deliData),
-      ca1Data: ca1Data ? filterValidHubs(ca1Data) : null
+      pickData,
+      deliData,
+      ca1Data: ca1Data || null
     };
   } catch (err) {
     return {
