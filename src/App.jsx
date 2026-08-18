@@ -134,15 +134,22 @@ export default function App() {
   // Initial state should be all hub types
   const [selectedHubTypes, setSelectedHubTypes] = useState(allHubTypes);
 
-  // Re-sync selectedHubTypes if allHubTypes changes (e.g., switching from mock to live data)
+  // Re-sync selectedHubTypes whenever the set of available hub types actually
+  // changes (e.g., switching from mock to live data). We track the last seen
+  // set of types (not the current selection) — checking for *any* overlap
+  // with the current selection was too weak: if, say, only "KA" happened to
+  // exist in both the mock fixture and the live data, every other live hub
+  // type would silently stay excluded from the filter forever, making the
+  // dashboard look like it defaults to "only KA".
+  const lastHubTypesKeyRef = React.useRef(null);
   useEffect(() => {
-    if (allHubTypes.length > 0) {
-      const hasOverlap = selectedHubTypes.some(t => allHubTypes.includes(t));
-      if (!hasOverlap) {
-        setSelectedHubTypes(allHubTypes);
-      }
+    if (allHubTypes.length === 0) return;
+    const key = allHubTypes.join('|');
+    if (lastHubTypesKeyRef.current !== key) {
+      lastHubTypesKeyRef.current = key;
+      setSelectedHubTypes(allHubTypes);
     }
-  }, [allHubTypes, selectedHubTypes]);
+  }, [allHubTypes]);
 
   const [density, setDensity] = useState('comfortable');
   const [isFullscreen, setIsFullscreen] = useState(false);
