@@ -553,6 +553,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   // Render individual matrix table component
   const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null, sectionId = null) => {
+    // Every title reads "Mục X.Y: <mô tả> (<tên ngắn>)". On mobile the long
+    // description restates the active tab pill directly above it and wrapped
+    // over three lines, so only the parenthesised short name is shown there —
+    // derived here rather than passed in, to keep one source of truth.
+    const shortTitle = title.match(/\(([^)]+)\)\s*$/)?.[1] ?? title;
     const rows = isDeli ? filteredDeli : filteredPick;
     const dateList = isDeli ? deliDates : pickDates;
     const weekPrev = isDeli ? dWPrev : pWPrev;
@@ -651,6 +656,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         <div className="metric-header">
           <div className="metric-title">
             <span className="metric-title-text">{title}</span>
+            <span className="metric-title-short">{shortTitle}</span>
             <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
           </div>
           <button 

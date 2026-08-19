@@ -1026,6 +1026,11 @@ body.dark-mode .filter-divider {
   gap: 0.5rem;
 }
 
+/* Desktop shows the full heading; the abbreviated one is a mobile swap. */
+.metric-title-short {
+  display: none;
+}
+
 .kpi-badge {
   font-size: 0.75rem;
   padding: 0.2rem 0.6rem;
@@ -1743,11 +1748,11 @@ table.mtx-table th.col-summary {
   }
   
   /* The long section title ("Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)")
-     restates the active tab pill sitting directly above it, and competing for
-     one row with the Target badge + "Copy Ảnh" button wrapped it across three
-     lines — 104px of height for a heading the user already read. Drop the
-     duplicated text on mobile and keep the row to what it uniquely carries:
-     the target and the copy action. */
+     largely restates the active tab pill sitting directly above it, and
+     competing for one row with the Target badge + "Copy Ảnh" button wrapped it
+     across three lines — 104px of height for a heading the user already read.
+     Swap in just the metric's short name so the section stays labelled
+     without re-reading the tab back to the user. */
   .metric-header {
     gap: 0.5rem;
     padding: 0.5rem 0.85rem;
@@ -1755,6 +1760,10 @@ table.mtx-table th.col-summary {
 
   .metric-title-text {
     display: none;
+  }
+
+  .metric-title-short {
+    display: inline;
   }
 
   .metric-title {
