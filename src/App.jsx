@@ -75,13 +75,64 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState('report1');
-  const [clientFilter, setClientFilter] = useState('SPB');
+
+  // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
+  // When this app is loaded inside an <iframe>, the host page can pass the
+  // initial scope via ?scope=spb|spe on the iframe src. This mirrors the
+  // host's own SPB/SPE toggle so the two stay in sync on first load without
+  // any code changes on the host side.
+  //   e.g. https://kas-shopee-performance.vercel.app/?scope=spe
+  // If the host later flips its toggle without reloading the iframe, it can
+  // instead postMessage into the iframe (see the `message` listener below)
+  // — cheaper than mutating iframe.src and re-triggering a full reload.
+  const readInitialScopeFromQuery = () => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('scope');
+      const normalized = raw ? raw.trim().toUpperCase() : null;
+      return normalized === 'SPB' || normalized === 'SPE' ? normalized : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  const initialScopeFromQuery = readInitialScopeFromQuery();
+
+  const [clientFilter, setClientFilter] = useState(initialScopeFromQuery || 'SPB');
   const [expandAllHubs] = useState(false);
 
   // Ask "SPE or SPB?" once per browser session, right after login. The
   // dashboard itself stays mounted underneath (same pattern as AuthModal)
   // so it's ready to fade in the instant a choice is made.
-  const [hasPickedClient, setHasPickedClient] = useState(() => sessionStorage.getItem('ghn_client_choice') === 'true');
+  // When a valid ?scope= is present (embedded mode), skip this prompt
+  // entirely — the host app already made the choice.
+  const [hasPickedClient, setHasPickedClient] = useState(() => (
+    !!initialScopeFromQuery || sessionStorage.getItem('ghn_client_choice') === 'true'
+  ));
+
+  // Let the host page (Control Tower) update the scope live via postMessage
+  // instead of reloading the iframe. Expected shape:
+  //   iframeEl.contentWindow.postMessage(
+  //     { source: 'control-tower', type: 'set-scope', scope: 'SPE' },
+  //     'https://kas-shopee-performance.vercel.app'
+  //   )
+  // NOTE: replace window.location.origin below with the exact
+  // kas-shopee-performance origin if it ever moves to another domain, and
+  // have the host set its own origin as the `targetOrigin` above (avoid '*').
+  useEffect(() => {
+    const handleMessage = (event) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object' || data.source !== 'control-tower') return;
+      if (data.type === 'set-scope') {
+        const scope = typeof data.scope === 'string' ? data.scope.trim().toUpperCase() : null;
+        if (scope === 'SPB' || scope === 'SPE') {
+          setClientFilter(scope);
+          setHasPickedClient(true);
+          sessionStorage.setItem('ghn_client_choice', 'true');
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
   const handleClientPick = (key) => {
     setClientFilter(key);
     sessionStorage.setItem('ghn_client_choice', 'true');
