@@ -28,6 +28,37 @@ Control Tower (host, phụ trách bởi chị Quyên), thay vì build lại UI.
   nhúng được từ bất kỳ domain nào — thêm header là để giới hạn lại đúng
   domain host, không phải để mở thêm quyền.
 
+## 1b. Auto-resize theo chiều cao nội dung (iframe-resizer)
+
+Đã thêm `iframe-resizer` (bản `^4.3`, **MIT** — KHÔNG dùng v5+ vì v5 đổi
+sang GPL-3.0/license thương mại, không phù hợp dùng nội bộ công ty) và
+import script phía "child" (`src/main.jsx`):
+
+```js
+import 'iframe-resizer/js/iframeResizer.contentWindow.min.js';
+```
+
+Script này tự chạy, lắng nghe message từ parent và tự báo chiều cao thật
+của trang lên mỗi khi content đổi. Vô hại khi app KHÔNG chạy trong iframe
+(không có parent để nói chuyện thì nó chỉ ở im).
+
+Phía host (Control Tower) cần cài package `iframe-resizer` tương ứng và
+gọi hàm `iframeResizer()` lên chính iframe element sau khi nó load, thay
+vì set `min-height` cố định:
+
+```js
+import { iframeResizer } from 'iframe-resizer'; // cùng version 4.x, MIT
+
+iframeResizer(
+  { checkOrigin: [KAS_ORIGIN], log: false },
+  iframeRef.current,
+);
+```
+
+Nếu host chưa muốn thêm dependency, có thể tạm bỏ qua bước này ở phía host
+— script child vẫn build/deploy bình thường, chỉ là height sẽ fallback về
+`min-height` CSS cố định cho tới khi host wire nốt phần parent.
+
 ## 2. Chưa có: toggle "Theo ngày / Theo tháng"
 
 App nguồn hiện **chưa có** state global "theo ngày/theo tháng" ở mức app —
