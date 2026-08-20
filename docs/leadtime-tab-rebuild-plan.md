@@ -1,6 +1,6 @@
 # Plan build lại tab 3 "Leadtime từng chặng"
 
-> Cập nhật 2026-08-20 (v2) — đã đối chiếu **output thật** của
+> Cập nhật 2026-08-20 (v3 — đã đổi grain sang ngày giao thành công) — đã đối chiếu **output thật** của
 > `shopee/leadtime_chang_deli.sql`: 88.480 dòng / 46 ngày (05/07→19/08) /
 > 12,67M đơn / 2.305 tuyến. Quy mô này lớn hơn giả định của v1 **13,5 lần** và
 > làm đổi kiến trúc tầng dữ liệu, nên phần Phase 0.5 và 3.2 đã viết lại.
@@ -68,42 +68,43 @@ sản lượng) → baseline cấp tuyến khả thi, fallback cấp lane hầu 
 Sản lượng cực tập trung → xác nhận hướng "Top N lane":
 top 10 tuyến = 19,5% · top 50 = 53,8% · top 200 = **82,1%** sản lượng.
 
-### 2.2 ⚠ Censoring theo `report_date` — phát hiện quan trọng nhất
+### 2.2 ✅ Censoring theo `report_date` — ĐÃ FIX Ở NGUỒN (2026-08-20)
 
-`report_date = DATE(createddate)` + filter `currentstatus = 'delivered'` ⇒ cohort
-theo **ngày tạo đơn**. Các ngày gần nhất chỉ chứa những đơn đã giao xong tại thời
-điểm chạy query, tức **chỉ những đơn nhanh nhất**:
+**Vấn đề (trên output cũ, grain ngày TẠO đơn):** `report_date = DATE(createddate)`
+\+ filter `currentstatus='delivered'` ⇒ ngày gần nhất chỉ chứa đơn giao nhanh nhất.
+E2E weighted so trung vị 7-21 ngày trước: 15/8 −5,8% · 16/8 −10,8% · 17/8 −31,7% ·
+18/8 −53,0% · **19/8 −93,6%** (17 dòng / 2.796 đơn = 1% sản lượng, E2E 3,73h thay
+vì ~58h). Tab lại default đúng vào 19/8.
 
-| report_date | dòng | đơn | % so trung vị | E2E weighted | lệch vs trung vị 7-21 ngày trước |
-|---|---|---|---|---|---|
-| 2026-08-13 | 1.998 | 280.726 | 102% | 58,04h | +0,6% |
-| 2026-08-14 | 2.000 | 239.254 | 87% | 57,15h | −1,0% |
-| 2026-08-15 | 2.051 | 304.346 | 111% | 54,41h | **−5,8%** |
-| 2026-08-16 | 1.858 | 153.486 | 56% | 51,80h | **−10,8%** |
-| 2026-08-17 | 1.528 | 221.655 | 81% | 39,68h | **−31,7%** |
-| 2026-08-18 | 664 | 83.967 | 31% | 27,42h | **−53,0%** |
-| 2026-08-19 | **17** | **2.796** | **1%** | **3,73h** | **−93,6%** |
+**Đã sửa:** `shopee/leadtime_chang_deli.sql` đổi
+`report_date = DATE(EndDeliveryTime)` — grain **ngày giao thành công**. Đơn đã giao
+thì không đổi nữa nên mỗi ngày chốt xong là đứng yên.
 
-Tab hiện tại default `dateFilter.date = latestDate` = **2026-08-19** → hiển thị
-17 dòng / 2.796 đơn / E2E 3,73h. Người xem sẽ kết luận leadtime cực tốt trong khi
-thực tế ~58h.
+Kèm theo trong query:
+- Nới scan partition `CreatedDate_Partition` từ 46 → **76 ngày**
+  (`SCAN_DAYS = OUTPUT_DAYS 46 + TAIL_DAYS 30`). Cần vì partition bám ngày tạo còn
+  `report_date` bám ngày giao — hai trục lệch nhau đúng bằng leadtime. `TAIL_DAYS = 30`
+  chọn từ phân bố thật: E2E ≤ 4 ngày 97,46% đơn · ≤ 5 ngày 99,92% · ≤ 7 ngày 99,9953%,
+  trung bình nhóm dài nhất 20,5 ngày.
+- Nới `LoadDate` của `Dtm_KA_Shopee` 46 → 76 ngày cho khớp (đồng thời xử lý 2.4).
+- Chốt dải output `EndDeliveryTime ∈ [today − 46, today)` — 46 ngày trọn vẹn kết thúc
+  ở **hôm qua**, không lấy hôm nay (ngày đang chạy dở).
+- Gom hết filter phía `Dtm_KA_V3_CreatedDate` lên `Base_V3` để bù phần scan rộng thêm 65%.
+- Thêm 3 câu QA ở cuối file (buffer đủ chưa · sản lượng theo ngày giao có phẳng
+  không · lane rỗng còn bao nhiêu).
 
-Lưu ý: **lọc theo sản lượng không đủ** để phát hiện — 15/8 có 111% sản lượng trung
-vị mà E2E đã lệch −5,8%; 17/8 có 81% sản lượng mà lệch −31,7%.
+**Ảnh hưởng tới app — toàn bộ theo hướng đơn giản hơn:**
+- **Bỏ hẳn** cơ chế `is_mature` / `MATURITY_LAG_DAYS` / loại 5 ngày cuối.
+- Ngày mặc định của filter = **ngày mới nhất trong data** (giờ đã hợp lệ), không
+  cần logic "ngày đã chín".
+- Trend chart không cần vẽ nét đứt cho ngày chưa chín.
+- **Schema output không đổi** (vẫn 11 cột, vẫn tên `report_date`) ⇒ bảng Supabase
+  `kas_leadtime_data` và Apps Script **không phải sửa gì**.
 
-**Xử lý (2 phía):**
-- *Nguồn (đề xuất, cần Vinh quyết)*: thêm cột `report_date_deli = DATE(enddeliverytime)`.
-  Dashboard vận hành dùng cột này — mỗi ngày chốt xong là đứng yên, không censoring.
-  Giữ `report_date` hiện tại cho phân tích SLA theo cohort ngày tạo.
-- *App (làm ngay, không chờ SQL)*: cột `is_mature` tính ở view (mục 3.1):
-  `report_date <= max(report_date) - 5 ngày`. Ngày chưa chín thì:
-  - **không** được chọn làm ngày mặc định,
-  - **không** vào baseline,
-  - trên trend chart vẽ **nét đứt + màu nhạt** kèm nhãn "chưa chín", không cắt bỏ
-    (cắt bỏ thì người dùng tưởng thiếu data).
-
-  Con số 5 ngày lấy từ chính bảng trên (14/8 là ngày cuối còn lệch ≤1%; 19/8 − 14/8 = 5).
-  Đặt thành hằng số `MATURITY_LAG_DAYS` trong view, review lại sau 1 tháng data.
+⚠ **Bộ số ở 2.8 tính trên grain cũ (ngày tạo) → không còn dùng làm mốc nghiệm thu.**
+Phải chạy lại query và lập bảng tham chiếu mới. Con số sẽ khác vì tệp đơn của một
+"ngày" đã khác: ngày giao D gom đơn tạo rải rác nhiều ngày trước, thay vì đơn tạo
+ngày D giao rải rác nhiều ngày sau.
 
 ### 2.3 Chặng NULL — đúng là ad hoc, loại được
 
@@ -135,7 +136,11 @@ trượt đều đặn, khả năng cao do cửa sổ `LoadDate` của `Dtm_KA_S
 đơn có `CreatedDate_Partition` sát biên 46 ngày.
 
 → Loại khỏi phân tích, **giữ trong panel chất lượng dữ liệu** (4.6) để còn thấy nó
-tồn tại. Đề xuất fix nguồn: nới `LoadDate` rộng hơn `CreatedDate_Partition`.
+tồn tại.
+
+**Đã xử lý phía nguồn 2026-08-20**: `LoadDate` của `Dtm_KA_Shopee` nới từ 46 → 76
+ngày, bằng đúng cửa sổ `CreatedDate_Partition`. Chạy lại rồi đếm lại (QA3 ở cuối
+file SQL) — nếu vẫn còn 87 dòng thì nguyên nhân không phải cửa sổ LoadDate.
 
 ### 2.5 Σ4 chặng vs E2E — có lệch thật, tập trung ở Intra city SPB
 
@@ -188,7 +193,11 @@ Và: **27,3% dòng có `mau < 5`** nhưng chỉ chiếm **0,417% sản lượng*
 bảng), mà **lọc bỏ khỏi bảng/top-N mặc định**, có toggle "hiện cả tuyến mẫu ít".
 Lọc mẫu ít cũng xử lý luôn outlier ở trên.
 
-### 2.8 Số liệu tham chiếu (46 ngày, chỉ ngày đã chín)
+### 2.8 Số liệu tham chiếu — ⚠ GRAIN CŨ (ngày tạo đơn), phải lập lại
+
+Bảng dưới tính trên output **grain ngày tạo** (đã loại 5 ngày cuối bị censoring).
+Sau khi đổi sang grain ngày giao (2.2), **phải chạy lại query và lập bảng mới** —
+đây chỉ còn dùng để đối chiếu độ lớn, không phải mốc nghiệm thu.
 
 | lane | client | đơn | pre | first | mid | last | E2E |
 |---|---|---|---|---|---|---|---|
@@ -300,8 +309,8 @@ create view v_kas_leadtime_lane_daily as ...
 -- grain: report_date × externallane_new (đã normalize) × client_name
 -- cột: mau, avg từng chặng (weighted theo mau), avg_lt_e2e_hour (weighted),
 --      baseline từng chặng (rolling 28 ngày, loại chính ngày đó),
---      is_mature (report_date <= max(report_date) - 5 ngày),
 --      n_rows, n_rows_excluded  (để panel chất lượng dữ liệu đối chiếu)
+-- KHÔNG cần is_mature nữa — grain ngày giao đã hết censoring (2.2)
 -- LOẠI ở đây: dòng có bất kỳ chặng NULL (2.3), dòng lane rỗng (2.4)
 ```
 Kích thước: 46 ngày × 5 lane × 2 client ≈ **460 dòng**. So với 88.480 → **giảm 192×**.
@@ -376,10 +385,10 @@ export const THRESHOLD_PRESETS = {
 };
 export const BASELINE_CONFIG = {
   baselineWindowDays: 28, baselineMethod: 'mean', minDataPoints: 5,
-  minMau: 5, anomalyDropPct: 40, maturityLagDays: 5
+  minMau: 5, anomalyDropPct: 40
 };
 ```
-`baselineWindowDays` / `minDataPoints` / `maturityLagDays` giờ là **tham số của
+`baselineWindowDays` / `minDataPoints` giờ là **tham số của
 view SQL**, không còn slider — đổi được nhưng phải sửa view, không phải kéo chuột.
 Panel nâng cao (chỉ `isDevAdmin`) chỉ còn 4 ô ảnh hưởng client-side.
 Ô nhập số: **local string state, commit khi blur/Enter** (đóng C6).
@@ -395,12 +404,13 @@ Case bắt buộc:
 4. `classifyDeviation`: `−55%` → `critical` + `direction 'down'` + nghi lỗi data.
 5. `classifyDeviation`: baseline `null`/`0` → `pctDeviation null`, không chia 0.
 6. Format E2E: `undefined` / `''` / `null` → `'–'`, không ra `"undefinedh"` (đóng **B8**).
-7. Maturity: chuỗi ngày 05-07…19-08 → `latestMatureDate = 2026-08-14`, 5 ngày cuối gắn `isMature=false`.
+7. Ngày mặc định = `max(report_date)` và **không** bị chặn lại (grain ngày giao đã hết censoring — 2.2); ngày ngoài dải data thì giữ lựa chọn + báo, không tự nhảy.
 8. Impact ranking: tuyến `mau=1, +200%` **không** được xếp trên tuyến `mau=35.513, +13%`.
-9. Bộ số 2.8: nạp fixture từ CSV thật → weighted theo lane × client ra đúng bảng 2.8 (sai số < 0,01h).
+9. Bộ số tham chiếu: nạp fixture từ CSV thật (grain ngày giao) → weighted theo lane × client ra đúng bảng tham chiếu mới lập ở 2.8 (sai số < 0,01h).
 
 Fixture: cắt ~2.000 dòng từ output thật vào `src/utils/__fixtures__/leadtime-sample.csv`
-(giữ đủ 5 lane + dòng NULL + dòng lane rỗng + ngày chưa chín). **Không** dùng
+(giữ đủ 5 lane + dòng NULL + dòng lane rỗng + ít nhất 30 ngày liên tục để test
+baseline 28 ngày). **Không** dùng
 `leadtimeDataset.js` sinh bằng `Math.sin` làm fixture.
 
 ---
@@ -449,7 +459,6 @@ Card E2E: giá trị là `avg_lt_e2e_hour`. Khi |Σ4 − E2E| > 5% (2.5) thì th
 ### 4.2 Tầng 2 — Xu hướng (`LeadtimeTrendChart`) — chart đang thiếu hẳn
 - `LineChart`, X = `report_date`, 4 đường = 4 chặng, tuỳ chọn thêm E2E.
 - Toggle cửa sổ 14 / 28 / 46 ngày (46 = toàn bộ data đang có).
-- Ngày `is_mature = false`: nét đứt + màu nhạt + nhãn "chưa chín" (2.2). **Không cắt.**
 - `ReferenceArea` vẽ band baseline cho chặng đang highlight.
 
 ### 4.3 Tầng 3 — Cấu trúc theo lane (`LeadtimeLaneChart`)
@@ -491,15 +500,14 @@ Chữa **A2b**, **A4**, **C9**, **C8**, **B6**:
 Collapse, mặc định đóng. Hiển thị đúng những gì đã loại, để không ai nghĩ số bị ém:
 - Dòng loại vì có chặng NULL: 489 dòng / 730 đơn (2.3), có bảng pattern.
 - Dòng loại vì lane rỗng: 87 dòng / 1.622 đơn (2.4).
-- Ngày chưa chín: 5 ngày cuối + đồ thị sản lượng theo ngày (2.2).
+- Đồ thị sản lượng theo ngày giao — dùng để phát hiện ngày khuyết nếu nguồn lỗi.
 - Tuyến `mau < 5` bị lọc: số dòng + % sản lượng.
 - Cảnh báo |Σ4 − E2E| > 5% theo lane × client (2.5).
 
 ### 4.7 Filter bar (`LeadtimeFilterBar`)
-- **Ngày**: preset `Ngày mới nhất (đã chín)` · `7 ngày` · `28 ngày` · `Tuỳ chọn`.
-  Mặc định = **ngày đã chín mới nhất**, KHÔNG phải `max(report_date)` (đóng **2.2**).
-- Cạnh ô ngày ghi rõ: "Ngày mới nhất trong data là 19/08 nhưng chưa chín (1% sản
-  lượng) — đang xem 14/08". Bấm được để xem ngày chưa chín nếu muốn.
+- **Ngày**: preset `D-1` · `7 ngày` · `28 ngày` · `Tuỳ chọn`.
+  Mặc định = `max(report_date)` — hợp lệ vì grain đã là ngày giao (2.2). Không còn
+  cần logic "ngày đã chín".
 - `min`/`max` input = biên `allDates`. Ngày không có data → **giữ lựa chọn** +
   hiện "Ngày này chưa có dữ liệu", **không tự nhảy** (đóng **A3**).
 - Bỏ fallback hardcode `'2026-08-19'` (D6). `startDate` = `endDate − 6 ngày` theo
@@ -582,12 +590,12 @@ Gate mỗi phase: `npm run test` && `npx oxlint src/` && `npm run build` && ch�
 | A4 | Khoảng 7 ngày: bảng ≤ 50 dòng/lane, có cột Ngày, trang < 6.000px |
 | A5 / E4 | Render 1 ngày < 50ms · 7 ngày < 120ms · đổi preset < 16ms |
 | E3 | Payload mở tab 3 < 200KB / 1 request; `fetchAllRows` chạm trần thì throw |
-| **2.2** | Ngày mặc định = **14/08** (chín) không phải 19/08; trend vẽ 5 ngày cuối nét đứt; filter bar giải thích lý do |
+| **2.2** | Query trả `report_date` = ngày giao; QA1 ra ~0 đơn vượt buffer; QA2 sản lượng ngày cuối cùng cỡ các ngày trước (không tụt còn 1%); app không còn code `is_mature` |
 | **2.3** | 489 dòng NULL bị loại khỏi phân tích, hiện đủ trong tầng 6 |
 | **2.4** | 87 dòng lane rỗng bị loại khỏi phân tích, hiện đủ trong tầng 6 |
 | **2.5** | Intra city SPB hiện E2E 36,68h + chú thích lệch Σ4; không hiện Σ4 như con số tổng |
 | **2.7** | Mặc định lọc `mau < 5`; có toggle; outlier 418h không lọt vào top-N |
-| **2.8** | 10 dòng bảng 2.8 khớp đúng số tab hiển thị (sai số < 0,01h) |
+| **2.8** | Lập lại bảng tham chiếu trên output grain ngày giao, rồi khớp đúng số tab hiển thị (sai số < 0,01h). Bảng 2.8 hiện tại là grain cũ, chỉ dùng để đối chiếu độ lớn |
 | B1 | Baseline không chứa ngày nào trong kỳ đang xem |
 | B2 / B3 | Mọi % lệch kèm baseline + cấp (`pair`/`lane`) + số ngày |
 | B4 | Card E2E ghi rõ nguồn số; chú thích khi lệch > 5% |
@@ -614,9 +622,10 @@ Gate mỗi phase: `npm run test` && `npx oxlint src/` && `npm run build` && ch�
 
 Còn lại, đều là **query-side**, app không chờ được thì vẫn chạy theo phương án tạm:
 
-1. **`report_date_deli = DATE(enddeliverytime)`** (2.2) — quan trọng nhất. Có cột này
-   thì dashboard hết censoring hoàn toàn, bỏ được cả cơ chế `is_mature`. Chưa có thì
-   app dùng phương án loại 5 ngày cuối.
+1. ~~`report_date_deli`~~ ✅ **ĐÃ LÀM** — đổi thẳng `report_date` sang
+   `DATE(EndDeliveryTime)` trong `shopee/leadtime_chang_deli.sql` (2.2).
+   Việc còn lại: **chạy lại query**, chạy 3 câu QA ở cuối file, và **cập nhật tab
+   Google Sheet nguồn** bằng output mới trước khi sync.
 2. **`COUNT` riêng từng chặng** hoặc tính 4 chặng trên cohort chung (2.5) — để đóng
    hẳn chuyện Σ4 ≠ E2E ở Intra city SPB (558k đơn). Chưa có thì app chỉ hiển thị E2E
    kèm chú thích.
