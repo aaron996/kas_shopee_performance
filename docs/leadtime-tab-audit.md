@@ -49,6 +49,21 @@ không khớp nhau, và một phần sản lượng bị ẩn hoàn toàn.
 
 Tab 3 lặp lại nguyên si sai sót đó, không tái dùng `normalizeLane`.
 
+### A2b. "Lane" trong tab này đang bị hiểu là cặp from→to, không phải cột `externallane_new`
+Ba chỗ dùng chữ "lane" với ba nghĩa khác nhau:
+- Chart: nhóm theo `externallane_new` (đúng).
+- Dropdown gắn nhãn **"Lane drill-down"** (dòng 96-104, 655-668): nội dung lại là danh sách
+  **cặp tỉnh** `fromprovince_new → toprovince_new`. Mock data đã 23 mục; dữ liệu thật
+  (109 dòng/ngày) sẽ ra hàng chục–hàng trăm mục trong 1 dropdown phẳng, không nhóm, không
+  tìm kiếm.
+- Bảng chi tiết: cột định danh chính là **"Tuyến (From ➔ To)"** (dòng 1034, 1092-1094),
+  còn `externallane_new` bị đẩy xuống thành 1 cột phụ trùng lặp.
+
+Hệ quả: đơn vị phân tích chính của tab là cặp tỉnh, trong khi đơn vị nghiệp vụ cần xem là
+`externallane_new`. Đúng ra phải: **lane (`externallane_new`) là trục chính** ở cả chart và
+bảng (5 nhóm, lấy động từ data + normalize như `Report5LaneCa1.normalizeLane`), cặp tỉnh
+chỉ là tầng drill-down thứ 2 mở ra bên trong 1 lane khi cần đào sâu.
+
 ### A3. Chọn ngày không có data thì bị tự nhảy về ngày mới nhất, không báo gì
 `Report6Leadtime.jsx:78-87` — effect re-sync ngày có điều kiện
 `!allDates.includes(dateFilter.date)`.
