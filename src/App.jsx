@@ -3,18 +3,20 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
+import Report6Leadtime from './components/Report6Leadtime';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import ClientSelectModal from './components/ClientSelectModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
+import { createDefaultLeadtimeDataset } from './data/leadtimeDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
-import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, Activity } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -122,9 +124,6 @@ export default function App() {
   //     { source: 'control-tower', type: 'set-scope', scope: 'SPE' },
   //     'https://kas-shopee-performance.vercel.app'
   //   )
-  // NOTE: replace window.location.origin below with the exact
-  // kas-shopee-performance origin if it ever moves to another domain, and
-  // have the host set its own origin as the `targetOrigin` above (avoid '*').
   useEffect(() => {
     const handleMessage = (event) => {
       const data = event.data;
@@ -141,6 +140,7 @@ export default function App() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
   const handleClientPick = (key) => {
     setClientFilter(key);
     sessionStorage.setItem('ghn_client_choice', 'true');
@@ -173,6 +173,7 @@ export default function App() {
   const [pickRows, setPickRows] = useState(() => normalizeRows(createDefaultPickDataset()));
   const [deliRows, setDeliRows] = useState(() => normalizeRows(createDefaultDeliDataset()));
   const [ca1Rows, setCa1Rows] = useState(() => normalizeRows(createDefaultCa1Dataset()));
+  const [leadtimeRows, setLeadtimeRows] = useState(() => createDefaultLeadtimeDataset());
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
@@ -201,12 +202,7 @@ export default function App() {
   const [selectedHubTypes, setSelectedHubTypes] = useState(allHubTypes);
 
   // Re-sync selectedHubTypes whenever the set of available hub types actually
-  // changes (e.g., switching from mock to live data). We track the last seen
-  // set of types (not the current selection) — checking for *any* overlap
-  // with the current selection was too weak: if, say, only "KA" happened to
-  // exist in both the mock fixture and the live data, every other live hub
-  // type would silently stay excluded from the filter forever, making the
-  // dashboard look like it defaults to "only KA".
+  // changes (e.g., switching from mock to live data).
   const lastHubTypesKeyRef = React.useRef(null);
   useEffect(() => {
     if (allHubTypes.length === 0) return;
@@ -226,18 +222,6 @@ export default function App() {
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   // Listen for Supabase Authentication State changes.
-  //
-  // currentUser's initial useState above optimistically restores from the
-  // `ghn_user` localStorage flag so the dashboard paints instantly — but
-  // that flag never expires on its own. If the *actual* Supabase Auth
-  // session (JWT) has since expired or was revoked, every data read below
-  // (kas_pick_data / kas_deli_data / kas_ca1_data) runs as the `anon` role.
-  // Those tables' RLS policies only grant SELECT to `authenticated`, so an
-  // expired-but-locally-"logged in" user gets 0 rows back — not an error —
-  // and the app silently falls back to the bundled sample dataset forever,
-  // no matter how many times they refresh. `getSession()`/`onAuthStateChange`
-  // firing with no session is the one authoritative signal that the
-  // optimistic restore no longer holds, so treat it as a forced logout.
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) {
@@ -258,10 +242,6 @@ export default function App() {
           setCurrentUser(null);
         }
       } else {
-        // No valid Supabase session (never logged in, or the session
-        // expired) — clear any stale optimistic login and send back to
-        // the login screen instead of quietly running as an unauthenticated
-        // guest against RLS-protected data.
         localStorage.removeItem('ghn_user');
         setCurrentUser(null);
       }
@@ -298,6 +278,7 @@ export default function App() {
     setPickRows(normalizeRows(createDefaultPickDataset()));
     setDeliRows(normalizeRows(createDefaultDeliDataset()));
     setCa1Rows(normalizeRows(createDefaultCa1Dataset()));
+    setLeadtimeRows(createDefaultLeadtimeDataset());
     setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
@@ -313,6 +294,7 @@ export default function App() {
       setPickRows(normalizeRows(supaRes.pickData));
       setDeliRows(normalizeRows(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
+      if (supaRes.leadtimeData) setLeadtimeRows(supaRes.leadtimeData);
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
@@ -356,12 +338,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // 1. Log access once per user/session. The session flag is written only
-    // after Supabase confirms the insert, so a temporary network/RLS failure
-    // is retried instead of silently excluding that user from history.
     recordAccess(currentUser.email);
 
-    // 2. Setup Realtime Presence
     const room = supabase.channel('online-users', {
       config: {
         presence: {
@@ -378,7 +356,6 @@ export default function App() {
           users.push(pres);
         });
       });
-      // Deduplicate by email
       const uniqueUsers = Array.from(new Map(users.map(u => [u.email, u])).values());
       setOnlineUsers(uniqueUsers);
     });
@@ -459,20 +436,20 @@ export default function App() {
           {/* Header Navigation & Filter Bar */}
           <Header
             setActiveTab={setActiveTab}
-        clientFilter={clientFilter}
-        setClientFilter={setClientFilter}
-        selectedRegions={selectedRegions}
-        setSelectedRegions={setSelectedRegions}
-        allHubTypes={allHubTypes}
-        selectedHubTypes={selectedHubTypes}
-        setSelectedHubTypes={setSelectedHubTypes}
-        d1DateFormatted={d1DateFormatted}
-        syncStatus={syncStatus}
-        onOpenSummary={() => setIsSummaryOpen(true)}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
+            clientFilter={clientFilter}
+            setClientFilter={setClientFilter}
+            selectedRegions={selectedRegions}
+            setSelectedRegions={setSelectedRegions}
+            allHubTypes={allHubTypes}
+            selectedHubTypes={selectedHubTypes}
+            setSelectedHubTypes={setSelectedHubTypes}
+            d1DateFormatted={d1DateFormatted}
+            syncStatus={syncStatus}
+            onOpenSummary={() => setIsSummaryOpen(true)}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            isDarkMode={isDarkMode}
+            setIsDarkMode={setIsDarkMode}
             density={density}
             setDensity={setDensity}
             isFullscreen={isFullscreen}
@@ -482,84 +459,100 @@ export default function App() {
 
           {/* Main View Area */}
           <main className="main-content">
-        {activeTab === 'report1' && (
-          <Report1MienVungHub
+            {activeTab === 'report1' && (
+              <Report1MienVungHub
+                pickRows={filteredPickRows}
+                deliRows={filteredDeliRows}
+                clientFilter={clientFilter}
+                expandAllHubs={expandAllHubs}
+                selectedRegions={selectedRegions}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'report5' && (
+              <Report5LaneCa1
+                ca1Rows={filteredCa1Rows}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'report6' && (
+              <Report6Leadtime
+                leadtimeRows={leadtimeRows}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
+              <DevAdminDashboard onlineUsers={onlineUsers} />
+            )}
+          </main>
+
+          {/* Mobile Bottom Navigation Bar */}
+          <nav className="mobile-bottom-nav">
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report1')}
+            >
+              <Layers size={18} />
+              <span>1. 4 Chỉ Số</span>
+            </button>
+
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report5')}
+            >
+              <ArrowRightLeft size={18} />
+              <span>2. % Ca 1</span>
+            </button>
+
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report6' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report6')}
+            >
+              <Clock size={18} />
+              <span>3. Leadtime</span>
+            </button>
+
+            <button 
+              className="mobile-nav-item"
+              onClick={() => setIsSummaryOpen(true)}
+            >
+              <Activity size={18} />
+              <span>Tóm tắt</span>
+            </button>
+          </nav>
+
+          {/* Executive D-1 vs D-8 Summary Modal */}
+          <ExecutiveSummaryModal
+            isOpen={isSummaryOpen}
+            onClose={() => setIsSummaryOpen(false)}
             pickRows={filteredPickRows}
             deliRows={filteredDeliRows}
             clientFilter={clientFilter}
-            expandAllHubs={expandAllHubs}
-            selectedRegions={selectedRegions}
-            density={density}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
           />
-        )}
 
-        {activeTab === 'report5' && (
-          <Report5LaneCa1
-            ca1Rows={filteredCa1Rows}
-            density={density}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
-          />
-        )}
-
-        {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
-          <DevAdminDashboard onlineUsers={onlineUsers} />
-        )}
-      </main>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav">
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report1')}
-        >
-          <Layers size={18} />
-          <span>1. 4 Chỉ Số</span>
-        </button>
-
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report5')}
-        >
-          <ArrowRightLeft size={18} />
-          <span>2. % Ca 1</span>
-        </button>
-
-        <button 
-          className="mobile-nav-item"
-          onClick={() => setIsSummaryOpen(true)}
-        >
-          <Activity size={18} />
-          <span>Tóm tắt</span>
-        </button>
-      </nav>
-
-      {/* Executive D-1 vs D-8 Summary Modal */}
-      <ExecutiveSummaryModal
-        isOpen={isSummaryOpen}
-        onClose={() => setIsSummaryOpen(false)}
-        pickRows={filteredPickRows}
-        deliRows={filteredDeliRows}
-        clientFilter={clientFilter}
-      />
-
-      {/* Sheet Data Source Manager Modal (Only visible for dev admin) */}
-      {currentUser && currentUser.isDevAdmin && (
-        <DataSourceManagerModal
-          isOpen={isDataSourceOpen}
-          onClose={() => setIsDataSourceOpen(false)}
-          onUpdatePickData={(rows) => setPickRows(normalizeRows(rows))}
-          onUpdateDeliData={(rows) => setDeliRows(normalizeRows(rows))}
-          onUpdateCa1Data={(rows) => setCa1Rows(normalizeRows(rows))}
-          onResetDefault={handleResetDefaultData}
-        />
-      )}
-
+          {/* Sheet Data Source Manager Modal (Only visible for dev admin) */}
+          {currentUser && currentUser.isDevAdmin && (
+            <DataSourceManagerModal
+              isOpen={isDataSourceOpen}
+              onClose={() => setIsDataSourceOpen(false)}
+              onUpdatePickData={(rows) => setPickRows(normalizeRows(rows))}
+              onUpdateDeliData={(rows) => setDeliRows(normalizeRows(rows))}
+              onUpdateCa1Data={(rows) => setCa1Rows(normalizeRows(rows))}
+              onUpdateLeadtimeData={(rows) => setLeadtimeRows(rows)}
+              onResetDefault={handleResetDefaultData}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
-

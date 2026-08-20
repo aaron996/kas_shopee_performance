@@ -1,4 +1,4 @@
-// Reads the latest Pick / Deli / Ca1 snapshot from Supabase instead of
+// Reads the latest Pick / Deli / Ca1 / Leadtime snapshot from Supabase instead of
 // fetching the Google Sheet's public CSV export directly.
 //
 // Why: the old approach (src/utils/googleSheetsSync.js) called the Sheet's
@@ -11,9 +11,9 @@
 //
 // The new pipeline: a Google Apps Script bound to the source Sheet (running
 // under the sheet owner's own Google identity, unaffected by the sharing
-// policy) fully refreshes the kas_pick_data / kas_deli_data / kas_ca1_data
-// tables on a timer via the sync_kas_*_data() RPC functions (atomic
-// delete+insert — the real sheet has no natural unique key to upsert on).
+// policy) fully refreshes the kas_pick_data / kas_deli_data / kas_ca1_data /
+// kas_leadtime_data tables on a timer via the sync_kas_*_data() RPC functions
+// (atomic delete+insert — the real sheet has no natural unique key to upsert on).
 // See docs/google-sheet-supabase-sync.md for the Apps Script + setup steps.
 import { supabase } from './supabaseClient';
 
@@ -55,17 +55,29 @@ async function fetchAllRows(table) {
 
 export async function fetchSupabaseSheetSync() {
   try {
-    const [pickData, deliData, ca1Data] = await Promise.all([
+    const [pickData, deliData, ca1Data, leadtimeData] = await Promise.all([
       fetchAllRows('kas_pick_data'),
       fetchAllRows('kas_deli_data'),
-      fetchAllRows('kas_ca1_data')
+      fetchAllRows('kas_ca1_data').catch(err => {
+        console.warn('Could not fetch kas_ca1_data:', err?.message);
+        return [];
+      }),
+      fetchAllRows('kas_leadtime_data').catch(err => {
+        console.warn('Could not fetch kas_leadtime_data:', err?.message);
+        return [];
+      })
     ]);
 
     if (!pickData.length || !deliData.length) {
       return { success: false, error: 'NO_SYNCED_DATA' };
     }
 
-    const updatedAt = [pickData[0]?.synced_at, deliData[0]?.synced_at, ca1Data[0]?.synced_at]
+    const updatedAt = [
+      pickData[0]?.synced_at,
+      deliData[0]?.synced_at,
+      ca1Data[0]?.synced_at,
+      leadtimeData[0]?.synced_at
+    ]
       .filter(Boolean)
       .sort()
       .pop();
@@ -75,6 +87,7 @@ export async function fetchSupabaseSheetSync() {
       pickData,
       deliData,
       ca1Data: ca1Data.length ? ca1Data : null,
+      leadtimeData: leadtimeData.length ? leadtimeData : null,
       updatedAt
     };
   } catch (err) {
