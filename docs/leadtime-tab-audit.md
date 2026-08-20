@@ -310,3 +310,72 @@ bấm nút ngoài khi đang ở tab Leadtime là bấm vào hư không.
 Lưu ý: panel cũ ở tab 2 có bộ lọc riêng lúc export (lane / vùng giao / khoảng ngày). Phần
 đó đã bỏ theo yêu cầu chỉ giữ 1 nút. Nếu cần lọc trước khi xuất thì nên đưa vào bộ lọc
 chung của header, không dựng lại panel riêng trong tab.
+
+---
+
+## E. Phát hiện thêm sau khi có output thật (bổ sung 2026-08-20)
+
+Đối chiếu với output thật của `shopee/leadtime_chang_deli.sql`: **88.480 dòng /
+46 ngày / 12,67M đơn / 2.305 tuyến** — lớn hơn giả định ban đầu 13,5 lần. Chi tiết
+số liệu và cách xử lý: `docs/leadtime-tab-rebuild-plan.md` mục 2 và 3.1.
+
+### E1. Censoring theo `report_date` — nghiêm trọng nhất
+`report_date = DATE(createddate)` + filter `currentstatus='delivered'` ⇒ các ngày
+gần nhất chỉ chứa đơn giao nhanh nhất. E2E weighted so trung vị 7-21 ngày trước:
+15/8 **−5,8%** · 16/8 **−10,8%** · 17/8 **−31,7%** · 18/8 **−53,0%** ·
+19/8 **−93,6%** (19/8 chỉ còn 17 dòng / 2.796 đơn = 1% sản lượng ngày thường).
+
+Tab hiện tại default `dateFilter.date = latestDate` = 19/8 → hiển thị E2E
+**3,73h** trong khi thực tế ~58h. Không phải lỗi code app mà là bản chất cohort,
+nhưng app đang trình bày nó như số thật, không cảnh báo gì.
+
+### E2. `Cross metro` bị bỏ khỏi chart đúng như dự đoán ở A2
+Dữ liệu thật có `Cross metro` (176 dòng) + `Cross metro *` (360 dòng) = 536 dòng.
+Đáng chú ý: `Cross metro` có **middle mile cao nhất toàn mạng** (SPB 53,61h /
+SPE 50,30h so với Cross region 42-45h) — tức chính nhóm bất thường nhất lại là
+nhóm bị `LANE_CATEGORIES` hardcode loại ra.
+
+### E3. Không thể đẩy 88k dòng thô về browser
+| Chỉ số | Giá trị |
+|---|---|
+| Payload JSON (kèm `id` + `synced_at`) | **33,1 MB** (gzip ~2,3 MB) |
+| Request phân trang (`PAGE_SIZE=1000`) | **89 round-trip tuần tự** |
+| Trần `fetchAllRows` | 100 trang = 100.000 dòng |
+| Dư địa | **11.520 dòng ≈ 6 ngày** rồi **bị cắt âm thầm** (`break`, không throw) |
+
+Cộng 59.708 dòng pick/deli/ca1 đang load sẵn → ~148k dòng mỗi lần mở app.
+Ngoài ra `syncOneTab()` trong Apps Script `JSON.stringify` toàn bộ vào **1 request**
+— tab lớn nhất đang chạy được là pick 28.850 dòng (~7MB), leadtime 33MB là 4-5×.
+
+### E4. Code baseline hiện tại không chạy nổi ở quy mô thật
+Benchmark `computeBaseline` với đúng 88.480 dòng:
+
+| Chế độ | Số lần gọi | Thời gian |
+|---|---|---|
+| 1 ngày (2.000 dòng bảng) | 8.000 | **~1,8 phút** |
+| Khoảng 7 ngày (~14.000 dòng bảng) | 56.000 | **~13 phút** (ngoại suy) |
+
+Con số ở **A5** (386ms / 2.710ms) tính trên 6.540 dòng giả định — thực tế gấp
+13,5 lần. Đây không còn là vấn đề "chậm" mà là không dùng được.
+
+### E5. Σ4 chặng ≠ E2E ở Intra city SPB (558k đơn)
+Ở mức tổng Σ4 ≈ E2E rất khớp (−0,3%…+0,2%) cho mọi lane × client, **trừ**
+`Intra city SPB`: Σ4 = 42,00h vs E2E = 36,68h → **+14,5%**. Loại hết dòng NULL vẫn
+còn nguyên. Tập trung ở HCM→HCM và HNO→HNO, lệch +5…+9,5h (+13%…+31%),
+**558.334 đơn** = 93% tổng sản lượng bị lệch (toàn bộ: 2.358/81.920 dòng lệch >5%
+= 5,04% sản lượng).
+
+Giả thuyết (cần kiểm order-level): `AVG` từng chặng tính trên tập đơn khác nhau —
+đơn thiếu 1 mốc bị loại khỏi `AVG` chặng đó nhưng vẫn nằm trong `AVG(lt_e2e)`.
+Đây là vấn đề phía query, không phải phía app; nhưng làm **B4** nặng hơn dự kiến.
+
+### E6. "Mẫu ít" không thể là nhãn — phải là bộ lọc
+**27,3% dòng có `mau < 5`** nhưng chỉ chiếm **0,417% sản lượng**
+(phân bố `mau`: p25=4 · trung vị=14 · p75=53 · p95=532 · max=37.945).
+Nhãn "Mẫu ít" như code hiện tại sẽ hiện trên hơn 1/4 bảng → thành nhiễu.
+Outlier cũng nằm hết ở nhóm này (lastmile 418h, e2e 492h, đều `mau=1`).
+
+### E7. Drill-down phẳng: 1.157 mục
+Dữ liệu thật có **1.157 cặp tỉnh** riêng biệt (35 × 35 tỉnh, 2.305 tuyến tính cả
+client). Dropdown "Lane drill-down" phẳng ở **A2b** sẽ có 1.157 option, không nhóm,
+không tìm kiếm.

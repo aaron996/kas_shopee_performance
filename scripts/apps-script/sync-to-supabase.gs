@@ -39,12 +39,11 @@ const SUPABASE_URL = 'https://iyjsihwgnzcytbojvoom.supabase.co';
 // Các gid tab hiện tại.
 // gid ổn định hơn tên tab — đổi tên tab không làm hỏng script, chỉ đổi gid
 // (ví dụ nếu tab bị xoá & tạo lại) mới cần sửa lại các số này.
-// Bổ sung gid tab leadtime nếu có tab leadtime trong Sheet nguồn.
 const TAB_GIDS = {
   pick: 1312031199,
   deli: 940798880,
-  ca1: 1405399014
-  // leadtime: <GID_CUA_TAB_LEADTIME> (Bỏ comment và điền GID khi có tab leadtime)
+  ca1: 1405399014,
+  leadtime: 396308004
 };
 
 // Mỗi tab ứng với 1 hàm RPC full-refresh riêng trong Supabase
