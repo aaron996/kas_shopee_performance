@@ -62,9 +62,17 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.email && isAllowedEmail(parsed.email)) {
+          // isDevAdmin is intentionally NOT trusted from localStorage here —
+          // localStorage is fully attacker-controlled (anyone can edit it via
+          // DevTools). Force it false on this optimistic first paint; the
+          // getSession()/onAuthStateChange effect below re-derives it from
+          // the real, server-verified JWT email and is the only place this
+          // flag may flip true. Otherwise the Dev Admin nav item would flash
+          // visible for anyone who fakes `email: 'vinhlt@ghn.vn'` in storage,
+          // even though the underlying data stays protected by Supabase RLS.
           return {
             ...parsed,
-            isDevAdmin: isDevAdminEmail(parsed.email)
+            isDevAdmin: false
           };
         }
       }
