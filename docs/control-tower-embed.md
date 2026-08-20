@@ -20,13 +20,12 @@ Control Tower (host, phụ trách bởi chị Quyên), thay vì build lại UI.
   );
   ```
 - **`vercel.json`**: thêm header `Content-Security-Policy: frame-ancestors
-  'self' https://control-tower.example.com`.
-  ⚠️ **PHẢI thay `https://control-tower.example.com` bằng domain thật của
-  Control Tower trước khi deploy** — để nguyên placeholder sẽ CHẶN việc
-  nhúng từ mọi domain khác `self` (kể cả domain thật của Control Tower).
-  Trước khi có header này, app không set X-Frame-Options/CSP nào cả nên đã
-  nhúng được từ bất kỳ domain nào — thêm header là để giới hạn lại đúng
-  domain host, không phải để mở thêm quyền.
+  'self' https://ka-control-tower.vercel.app` — domain thật của Control
+  Tower. Trước khi có header này, app không set X-Frame-Options/CSP nào cả
+  nên đã nhúng được từ bất kỳ domain nào; thêm header là để giới hạn lại
+  đúng domain host, không phải để mở thêm quyền. Nếu Control Tower đổi
+  sang domain khác (custom domain riêng) sau này, cần cập nhật lại giá
+  trị này.
 
 ## 1b. Auto-resize theo chiều cao nội dung (iframe-resizer)
 

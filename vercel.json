@@ -14,7 +14,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://control-tower.example.com"
+          "value": "frame-ancestors 'self' https://ka-control-tower.vercel.app"
         }
       ]
     }
