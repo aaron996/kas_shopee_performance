@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { ArrowRightLeft, Download, X, Copy, CalendarRange, Filter } from 'lucide-react';
+import { ArrowRightLeft, Download, X, Copy, Check, CalendarRange, Filter } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 
 export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
   const tableRefs = React.useRef({});
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [copiedLane, setCopiedLane] = useState(null);
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -27,7 +28,8 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       const blob = await res.blob();
       const item = new ClipboardItem({ 'image/png': blob });
       await navigator.clipboard.write([item]);
-      alert(`Đã copy ảnh bảng "Lane: ${laneName}" vào Clipboard! Bạn có thể dán (Ctrl+V) vào Zalo/Chat.`);
+      setCopiedLane(laneName);
+      window.setTimeout(() => setCopiedLane(null), 2500);
     } catch (err) {
       console.error('Error copying image:', err);
       alert('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.');
@@ -221,10 +223,30 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
           <button 
             onClick={() => handleCopyImage(laneName)}
             className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--text-main)', border: '1px solid var(--border-strong)', background: 'var(--surface-hover)', borderRadius: '6px' }}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.4rem', 
+              padding: '0.3rem 0.6rem', 
+              fontSize: '0.75rem', 
+              color: copiedLane === laneName ? '#0F6E56' : 'var(--text-main)', 
+              border: copiedLane === laneName ? '1px solid #0F6E56' : '1px solid var(--border-strong)', 
+              background: copiedLane === laneName ? 'var(--status-success-bg)' : 'var(--surface-hover)', 
+              borderRadius: '6px',
+              transition: 'all 0.2s ease'
+            }}
             title="Copy bảng này thành ảnh"
           >
-            <Copy size={13} /> Copy Ảnh
+            {copiedLane === laneName ? (
+              <>
+                <Check size={13} className="pop-success" style={{ color: '#0F6E56' }} /> 
+                <span style={{ fontWeight: 600 }}>Đã Copy!</span>
+              </>
+            ) : (
+              <>
+                <Copy size={13} /> Copy Ảnh
+              </>
+            )}
           </button>
         </div>
 

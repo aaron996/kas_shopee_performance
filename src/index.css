@@ -31,6 +31,82 @@ body {
   }
 }
 
+/* ==========================================================================
+   ANIMATION PRINCIPLES & MOTION DESIGN SYSTEM
+   ========================================================================== */
+
+/* --- Principle 1: Squash & Stretch (Tactile Interactive Feedback) --- */
+button:active:not(:disabled),
+.sidebar-nav-item:active,
+.sidebar-footer-btn:active,
+.tab-item-sleek:active,
+.filter-item:active,
+.filter-btn:active,
+.filter-select:active,
+.filter-pill:active,
+.mobile-filter-trigger:active,
+.mobile-icon-btn:active,
+.kpi-card:active,
+.btn-primary:active,
+.btn-secondary:active,
+.nav-btn:active,
+.sticky-kpi-item:active,
+.segment-btn:active,
+.client-select-btn:active {
+  transform: scale(0.96);
+  transition: transform var(--duration-instant) var(--ease-spring);
+}
+
+/* --- Principle 10: Exaggeration (Form Validation / Error Shake) --- */
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(4px); }
+}
+
+.shake-error {
+  animation: error-shake 0.38s var(--ease-spring) both !important;
+}
+
+/* --- Principle 8: Secondary Action (Pop Success & Micro-feedback) --- */
+@keyframes pop-success {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pop-success {
+  animation: pop-success var(--duration-fast) var(--ease-spring) both;
+}
+
+/* --- Principle 6: Slow In & Slow Out (Smooth Tab Content Transitions) --- */
+@keyframes view-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-view-content {
+  animation: view-fade-slide var(--duration-fast) var(--ease-snappy) both;
+}
+
+/* --- Principle 8: Target Achievement Pulse Glow --- */
+@keyframes pulse-kpi-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(15, 110, 86, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 10px 2px rgba(15, 110, 86, 0.3);
+  }
+}
+
 /* App Container Layout */
 .app-container {
   min-height: 100vh;
@@ -1249,15 +1325,37 @@ th.sep, td.sep {
   color: #E8362C;
 }
 
-/* Modal Backdrop & Content */
+/* Modal Backdrop & Content (Principle 3: Staging) */
+@keyframes modal-backdrop-enter {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(6px);
+  }
+}
+
+@keyframes modal-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1266,6 +1364,7 @@ th.sep, td.sep {
      a passive background-loading indicator. */
   z-index: 10000;
   padding: 1rem;
+  animation: modal-backdrop-enter var(--duration-fast) var(--ease-smooth) forwards;
 }
 
 .modal-card {
@@ -1278,6 +1377,8 @@ th.sep, td.sep {
   flex-direction: column;
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
+  animation: modal-card-enter var(--duration-modal) var(--ease-snappy) forwards;
+  transform-origin: center center;
 }
 
 .status-notice {
@@ -2967,17 +3068,32 @@ body.dark-mode .chk-icon {
   }
 }
 
+/* Principle 5: Follow Through & Overlapping Action (Staggered KPI Entry) */
+@keyframes kpi-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* Card aesthetics — neumorphic white tiles against the hero's pastel-blue bg */
 .top-split-left .kpi-card {
   background: var(--surface-default);
   border: none;
   box-shadow: var(--shadow-neu);
   color: var(--text-main);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--duration-fast) var(--ease-snappy), box-shadow var(--duration-fast) var(--ease-snappy);
+  animation: kpi-card-enter var(--duration-normal) var(--ease-snappy) both;
+  animation-delay: calc(var(--card-index, 0) * 55ms);
 }
 
 .top-split-left .kpi-card:hover {
   transform: translateY(-4px);
+  box-shadow: 0 16px 32px rgba(20, 60, 100, 0.18), -6px -6px 14px rgba(255, 255, 255, 0.9);
 }
 
 .top-split-left .kpi-card-title span:first-child {

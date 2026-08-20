@@ -1000,14 +1000,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
             )}
           </div>
           <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
-            {kpiCards.map(card => {
+            {kpiCards.map((card, idx) => {
               const diff = card.d1.pct - card.d8.pct;
               const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
               const lateVol = card.d1.tot - card.d1.ont;
               const isGood = card.d1.pct >= card.target;
               
               return (
-                <div key={card.id} className="kpi-card" onClick={() => scrollToRef(card.ref, card.id)}>
+                <div 
+                  key={card.id} 
+                  className="kpi-card" 
+                  style={{ '--card-index': idx }}
+                  onClick={() => scrollToRef(card.ref, card.id)}
+                >
                   <div className="kpi-card-title">
                     <span>{card.title}</span>
                     <span className={`kpi-card-target ${isGood ? 'good' : 'bad'}`}>≥{card.target}%</span>
