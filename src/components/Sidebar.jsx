@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,
@@ -17,7 +17,8 @@ export default function Sidebar({
 
   const tabs = [
     { id: 'report1', label: '1. 4 chỉ số nationwide', icon: Layers },
-    { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft }
+    { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
+    { id: 'report6', label: '3. Leadtime từng chặng', icon: Clock }
   ];
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 

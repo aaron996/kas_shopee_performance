@@ -3,17 +3,19 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
+import Report6Leadtime from './components/Report6Leadtime';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
+import { createDefaultLeadtimeDataset } from './data/leadtimeDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
-import { Layers, ArrowRightLeft, Activity } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, Activity } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -106,6 +108,7 @@ export default function App() {
   const [pickRows, setPickRows] = useState(() => filterAhamove(createDefaultPickDataset()));
   const [deliRows, setDeliRows] = useState(() => filterAhamove(createDefaultDeliDataset()));
   const [ca1Rows, setCa1Rows] = useState(() => filterAhamove(createDefaultCa1Dataset()));
+  const [leadtimeRows, setLeadtimeRows] = useState(() => createDefaultLeadtimeDataset());
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
@@ -202,6 +205,7 @@ export default function App() {
     setPickRows(filterAhamove(createDefaultPickDataset()));
     setDeliRows(filterAhamove(createDefaultDeliDataset()));
     setCa1Rows(filterAhamove(createDefaultCa1Dataset()));
+    setLeadtimeRows(createDefaultLeadtimeDataset());
     setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
@@ -217,6 +221,7 @@ export default function App() {
       setPickRows(filterAhamove(supaRes.pickData));
       setDeliRows(filterAhamove(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(filterAhamove(supaRes.ca1Data));
+      if (supaRes.leadtimeData) setLeadtimeRows(supaRes.leadtimeData);
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
@@ -356,20 +361,20 @@ export default function App() {
           {/* Header Navigation & Filter Bar */}
           <Header
             setActiveTab={setActiveTab}
-        clientFilter={clientFilter}
-        setClientFilter={setClientFilter}
-        selectedRegions={selectedRegions}
-        setSelectedRegions={setSelectedRegions}
-        allHubTypes={allHubTypes}
-        selectedHubTypes={selectedHubTypes}
-        setSelectedHubTypes={setSelectedHubTypes}
-        d1DateFormatted={d1DateFormatted}
-        syncStatus={syncStatus}
-        onOpenSummary={() => setIsSummaryOpen(true)}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
+            clientFilter={clientFilter}
+            setClientFilter={setClientFilter}
+            selectedRegions={selectedRegions}
+            setSelectedRegions={setSelectedRegions}
+            allHubTypes={allHubTypes}
+            selectedHubTypes={selectedHubTypes}
+            setSelectedHubTypes={setSelectedHubTypes}
+            d1DateFormatted={d1DateFormatted}
+            syncStatus={syncStatus}
+            onOpenSummary={() => setIsSummaryOpen(true)}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            isDarkMode={isDarkMode}
+            setIsDarkMode={setIsDarkMode}
             density={density}
             setDensity={setDensity}
             isFullscreen={isFullscreen}
@@ -379,84 +384,100 @@ export default function App() {
 
           {/* Main View Area */}
           <main className="main-content">
-        {activeTab === 'report1' && (
-          <Report1MienVungHub
+            {activeTab === 'report1' && (
+              <Report1MienVungHub
+                pickRows={filteredPickRows}
+                deliRows={filteredDeliRows}
+                clientFilter={clientFilter}
+                expandAllHubs={expandAllHubs}
+                selectedRegions={selectedRegions}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'report5' && (
+              <Report5LaneCa1
+                ca1Rows={filteredCa1Rows}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'report6' && (
+              <Report6Leadtime
+                leadtimeRows={leadtimeRows}
+                density={density}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+              />
+            )}
+
+            {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
+              <DevAdminDashboard onlineUsers={onlineUsers} />
+            )}
+          </main>
+
+          {/* Mobile Bottom Navigation Bar */}
+          <nav className="mobile-bottom-nav">
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report1')}
+            >
+              <Layers size={18} />
+              <span>1. 4 Chỉ Số</span>
+            </button>
+
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report5')}
+            >
+              <ArrowRightLeft size={18} />
+              <span>2. % Ca 1</span>
+            </button>
+
+            <button 
+              className={`mobile-nav-item ${activeTab === 'report6' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report6')}
+            >
+              <Clock size={18} />
+              <span>3. Leadtime</span>
+            </button>
+
+            <button 
+              className="mobile-nav-item"
+              onClick={() => setIsSummaryOpen(true)}
+            >
+              <Activity size={18} />
+              <span>Tóm tắt</span>
+            </button>
+          </nav>
+
+          {/* Executive D-1 vs D-8 Summary Modal */}
+          <ExecutiveSummaryModal
+            isOpen={isSummaryOpen}
+            onClose={() => setIsSummaryOpen(false)}
             pickRows={filteredPickRows}
             deliRows={filteredDeliRows}
             clientFilter={clientFilter}
-            expandAllHubs={expandAllHubs}
-            selectedRegions={selectedRegions}
-            density={density}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
           />
-        )}
 
-        {activeTab === 'report5' && (
-          <Report5LaneCa1
-            ca1Rows={filteredCa1Rows}
-            density={density}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
-          />
-        )}
-
-        {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
-          <DevAdminDashboard onlineUsers={onlineUsers} />
-        )}
-      </main>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav">
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report1')}
-        >
-          <Layers size={18} />
-          <span>1. 4 Chỉ Số</span>
-        </button>
-
-        <button 
-          className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
-          onClick={() => setActiveTab('report5')}
-        >
-          <ArrowRightLeft size={18} />
-          <span>2. % Ca 1</span>
-        </button>
-
-        <button 
-          className="mobile-nav-item"
-          onClick={() => setIsSummaryOpen(true)}
-        >
-          <Activity size={18} />
-          <span>Tóm tắt</span>
-        </button>
-      </nav>
-
-      {/* Executive D-1 vs D-8 Summary Modal */}
-      <ExecutiveSummaryModal
-        isOpen={isSummaryOpen}
-        onClose={() => setIsSummaryOpen(false)}
-        pickRows={filteredPickRows}
-        deliRows={filteredDeliRows}
-        clientFilter={clientFilter}
-      />
-
-      {/* Sheet Data Source Manager Modal (Only visible for dev admin) */}
-      {currentUser && currentUser.isDevAdmin && (
-        <DataSourceManagerModal
-          isOpen={isDataSourceOpen}
-          onClose={() => setIsDataSourceOpen(false)}
-          onUpdatePickData={(rows) => setPickRows(filterAhamove(rows))}
-          onUpdateDeliData={(rows) => setDeliRows(filterAhamove(rows))}
-          onUpdateCa1Data={(rows) => setCa1Rows(filterAhamove(rows))}
-          onResetDefault={handleResetDefaultData}
-        />
-      )}
-
+          {/* Sheet Data Source Manager Modal (Only visible for dev admin) */}
+          {currentUser && currentUser.isDevAdmin && (
+            <DataSourceManagerModal
+              isOpen={isDataSourceOpen}
+              onClose={() => setIsDataSourceOpen(false)}
+              onUpdatePickData={(rows) => setPickRows(filterAhamove(rows))}
+              onUpdateDeliData={(rows) => setDeliRows(filterAhamove(rows))}
+              onUpdateCa1Data={(rows) => setCa1Rows(filterAhamove(rows))}
+              onUpdateLeadtimeData={(rows) => setLeadtimeRows(rows)}
+              onResetDefault={handleResetDefaultData}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
-

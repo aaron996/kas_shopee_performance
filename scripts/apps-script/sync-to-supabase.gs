@@ -1,15 +1,14 @@
 /**
- * Đồng bộ 3 tab (Pick / Deli / Ca1) của Google Sheet nguồn vào 3 bảng
+ * Đồng bộ 4 tab (Pick / Deli / Ca1 / Leadtime) của Google Sheet nguồn vào 4 bảng
  * Supabase dạng quan hệ bình thường (kas_pick_data / kas_deli_data /
- * kas_ca1_data, mỗi tab 1 bảng, mỗi dòng sheet 1 dòng SQL), thay cho cách
- * app đọc trực tiếp link CSV public ("Anyone with link can view") — cách
- * đó đã bị chặn khi GHN tắt share ra ngoài domain.
+ * kas_ca1_data / kas_leadtime_data, mỗi tab 1 bảng, mỗi dòng sheet 1 dòng SQL),
+ * thay cho cách app đọc trực tiếp link CSV public ("Anyone with link can view") —
+ * cách đó đã bị chặn khi GHN tắt share ra ngoài domain.
  *
  * Mỗi lần chạy gọi 1 hàm SQL (sync_kas_pick_data / sync_kas_deli_data /
- * sync_kas_ca1_data) làm full-refresh atomic (xoá hết rồi insert lại trong
+ * sync_kas_ca1_data / sync_kas_leadtime_data) làm full-refresh atomic (xoá hết rồi insert lại trong
  * 1 transaction) — không upsert theo key vì data thật không có cột nào là
- * unique key tự nhiên (đã kiểm tra: report_date+hub+client_name và
- * ngay+lane+vung_giao đều có thể trùng).
+ * unique key tự nhiên.
  *
  * Vì script này chạy NGAY TRONG chính file Sheet (Extensions > Apps Script),
  * dưới quyền của người sở hữu/đang mở file, nó đọc được dữ liệu bất kể sheet
@@ -37,21 +36,23 @@
 
 const SUPABASE_URL = 'https://iyjsihwgnzcytbojvoom.supabase.co';
 
-// Các gid tab hiện tại (khớp với TAB_GIDS trong src/utils/googleSheetsSync.js).
+// Các gid tab hiện tại.
 // gid ổn định hơn tên tab — đổi tên tab không làm hỏng script, chỉ đổi gid
 // (ví dụ nếu tab bị xoá & tạo lại) mới cần sửa lại các số này.
+// Bổ sung gid tab leadtime nếu có tab leadtime trong Sheet nguồn.
 const TAB_GIDS = {
   pick: 1312031199,
   deli: 940798880,
   ca1: 1405399014
+  // leadtime: <GID_CUA_TAB_LEADTIME> (Bỏ comment và điền GID khi có tab leadtime)
 };
 
-// Mỗi tab ứng với 1 hàm RPC full-refresh riêng trong Supabase (xem migration
-// create_kas_normalized_tables).
+// Mỗi tab ứng với 1 hàm RPC full-refresh riêng trong Supabase
 const TAB_RPC_FUNCTIONS = {
   pick: 'sync_kas_pick_data',
   deli: 'sync_kas_deli_data',
-  ca1: 'sync_kas_ca1_data'
+  ca1: 'sync_kas_ca1_data',
+  leadtime: 'sync_kas_leadtime_data'
 };
 
 function syncAllTabs() {
