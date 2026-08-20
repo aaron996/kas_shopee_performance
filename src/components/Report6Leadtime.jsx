@@ -14,7 +14,6 @@ import {
   Sliders,
   RotateCcw,
   Copy,
-  Download,
   AlertTriangle,
   HelpCircle,
   ChevronDown,
@@ -290,6 +289,14 @@ export default function Report6Leadtime({
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [currentRows, unresolvedRows, dateFilter]);
 
+  // The header's single "Xuất CSV" button broadcasts `export-csv`; every report
+  // tab answers it (Report1 / Report5 do the same) so there is exactly one
+  // export control in the whole app.
+  React.useEffect(() => {
+    window.addEventListener('export-csv', handleExportCSV);
+    return () => window.removeEventListener('export-csv', handleExportCSV);
+  }, [handleExportCSV]);
+
   // Custom Chart Tooltip Component
   const CustomLeadtimeTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
@@ -551,15 +558,6 @@ export default function Report6Leadtime({
                 title="Copy Biểu đồ thành ảnh vào clipboard"
               >
                 <Copy size={14} /> Copy Chart
-              </button>
-
-              <button
-                type="button"
-                className="export-confirm-button"
-                onClick={handleExportCSV}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.85rem', fontSize: '0.82rem', borderRadius: '8px' }}
-              >
-                <Download size={14} /> Tải CSV
               </button>
             </div>
           </div>
