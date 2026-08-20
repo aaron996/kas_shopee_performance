@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw, Check } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -86,7 +86,13 @@ export default function Header({
         </div>
         <div className="mobile-header-actions">
           <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncStatus?.kind === 'loading'} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
-            <RefreshCw size={18} className={syncStatus?.kind === 'loading' ? 'is-spinning' : ''} />
+            {syncStatus?.kind === 'loading' ? (
+              <RefreshCw size={18} className="is-spinning" />
+            ) : syncStatus?.kind === 'live' || syncStatus?.kind === 'default' ? (
+              <Check size={18} className="pop-success" style={{ color: '#0F6E56' }} />
+            ) : (
+              <RefreshCw size={18} />
+            )}
           </button>
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1">
             <MessageSquareText size={18} />
@@ -218,8 +224,22 @@ export default function Header({
             disabled={syncStatus?.kind === 'loading'}
             title={syncStatus?.kind === 'error' ? 'Không tải được dữ liệu mới — bấm để thử lại' : 'Tải lại dữ liệu'}
           >
-            <RefreshCw size={14} className={syncStatus?.kind === 'loading' ? 'is-spinning' : ''} />
-            <span style={{ marginLeft: '0.3rem' }}>{syncStatus?.kind === 'error' ? 'Thử lại dữ liệu' : 'Tải lại'}</span>
+            {syncStatus?.kind === 'loading' ? (
+              <RefreshCw size={14} className="is-spinning" />
+            ) : syncStatus?.kind === 'live' || syncStatus?.kind === 'default' ? (
+              <Check size={14} className="pop-success" style={{ color: '#0F6E56' }} />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            <span style={{ marginLeft: '0.3rem' }}>
+              {syncStatus?.kind === 'error' 
+                ? 'Thử lại dữ liệu' 
+                : syncStatus?.kind === 'loading'
+                ? 'Đang tải...'
+                : syncStatus?.kind === 'live'
+                ? 'Đã đồng bộ'
+                : 'Tải lại'}
+            </span>
           </button>
 
           <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>

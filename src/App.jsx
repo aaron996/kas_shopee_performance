@@ -457,42 +457,44 @@ export default function App() {
             onRetryData={handleSyncLiveSheet}
           />
 
-          {/* Main View Area */}
+          {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
-            {activeTab === 'report1' && (
-              <Report1MienVungHub
-                pickRows={filteredPickRows}
-                deliRows={filteredDeliRows}
-                clientFilter={clientFilter}
-                expandAllHubs={expandAllHubs}
-                selectedRegions={selectedRegions}
-                density={density}
-                isFullscreen={isFullscreen}
-                setIsFullscreen={setIsFullscreen}
-              />
-            )}
+            <div key={activeTab} className="tab-view-content">
+              {activeTab === 'report1' && (
+                <Report1MienVungHub
+                  pickRows={filteredPickRows}
+                  deliRows={filteredDeliRows}
+                  clientFilter={clientFilter}
+                  expandAllHubs={expandAllHubs}
+                  selectedRegions={selectedRegions}
+                  density={density}
+                  isFullscreen={isFullscreen}
+                  setIsFullscreen={setIsFullscreen}
+                />
+              )}
 
-            {activeTab === 'report5' && (
-              <Report5LaneCa1
-                ca1Rows={filteredCa1Rows}
-                density={density}
-                isFullscreen={isFullscreen}
-                setIsFullscreen={setIsFullscreen}
-              />
-            )}
+              {activeTab === 'report5' && (
+                <Report5LaneCa1
+                  ca1Rows={filteredCa1Rows}
+                  density={density}
+                  isFullscreen={isFullscreen}
+                  setIsFullscreen={setIsFullscreen}
+                />
+              )}
 
-            {activeTab === 'report6' && (
-              <Report6Leadtime
-                leadtimeRows={leadtimeRows}
-                density={density}
-                isFullscreen={isFullscreen}
-                setIsFullscreen={setIsFullscreen}
-              />
-            )}
+              {activeTab === 'report6' && (
+                <Report6Leadtime
+                  leadtimeRows={leadtimeRows}
+                  density={density}
+                  isFullscreen={isFullscreen}
+                  setIsFullscreen={setIsFullscreen}
+                />
+              )}
 
-            {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
-              <DevAdminDashboard onlineUsers={onlineUsers} />
-            )}
+              {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
+                <DevAdminDashboard onlineUsers={onlineUsers} />
+              )}
+            </div>
           </main>
 
           {/* Mobile Bottom Navigation Bar */}

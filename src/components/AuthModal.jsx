@@ -25,7 +25,13 @@ export default function AuthModal({ isOpen }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
   const emailInputRef = useRef(null);
+
+  const triggerShake = () => {
+    setIsShaking(true);
+    window.setTimeout(() => setIsShaking(false), 400);
+  };
 
   if (!isOpen) return null;
 
@@ -43,6 +49,7 @@ export default function AuthModal({ isOpen }) {
       if (error) throw error;
     } catch (err) {
       setErrorMsg(`Lỗi đăng nhập Google Supabase: ${err.message}`);
+      triggerShake();
       setLoading(false);
     }
   };
@@ -56,11 +63,13 @@ export default function AuthModal({ isOpen }) {
     const email = emailInput.trim().toLowerCase();
     if (!email) {
       setErrorMsg('Vui lòng nhập địa chỉ email GHN của bạn.');
+      triggerShake();
       return;
     }
 
     if (!isAllowedEmail(email)) {
       setErrorMsg(`⚠️ Truy cập bị từ chối: Tài khoản "${email}" không thuộc danh sách được phép truy cập hệ thống GHN (@ghn.vn). Vui lòng đăng nhập bằng email GHN.`);
+      triggerShake();
       return;
     }
 
@@ -88,7 +97,7 @@ export default function AuthModal({ isOpen }) {
       dismissible={false}
       initialFocusRef={emailInputRef}
       titleId="auth-dialog-title"
-      className="auth-modal-card"
+      className={`auth-modal-card ${isShaking ? 'shake-error' : ''}`}
     >
         {/* Custom 3D Artwork Banner */}
         <div style={{ position: 'relative', height: '170px', overflow: 'hidden' }}>
