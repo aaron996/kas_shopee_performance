@@ -3661,6 +3661,11 @@ body.dark-mode .kpi-table-tab.active {
   border-radius: var(--radius-surface);
   padding: 1.1rem 1.35rem;
   box-shadow: var(--shadow-soft);
+  /* Đóng băng ngay dưới navbar (.app-header, cao 52px, z-index 100) khi cuộn
+     trang — không thì đổi lane/kỳ xem phải cuộn lên đầu trang mới bấm được. */
+  position: sticky;
+  top: 52px;
+  z-index: 90;
 }
 .lt-filterbar-head {
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -3982,13 +3987,9 @@ body.dark-mode .kpi-table-tab.active {
 .lt-table td.lt-cell--warning { background: color-mix(in oklab, var(--status-warning-bg) 55%, transparent); }
 .lt-table td.lt-cell--critical { background: color-mix(in oklab, var(--status-danger-bg) 55%, transparent); }
 .lt-col-e2e { background: var(--surface-info); color: var(--action-primary-hover); font-weight: 700; }
-.lt-status {
-  display: inline-flex; align-items: center; gap: 0.2rem;
-  padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700;
-}
-.lt-status--ok { background: var(--status-success-bg); color: var(--status-success-fg); }
-.lt-status--warning { background: var(--status-warning-bg); color: var(--status-warning-fg); }
-.lt-status--critical, .lt-status--suspect { background: var(--status-danger-bg); color: var(--status-danger-fg); }
+.lt-col-e2e .lt-cell-value { color: inherit; }
+.lt-table td.lt-col-e2e.lt-cell--warning { background: color-mix(in oklab, var(--status-warning-bg) 55%, transparent); color: var(--status-warning-fg); }
+.lt-table td.lt-col-e2e.lt-cell--critical { background: color-mix(in oklab, var(--status-danger-bg) 55%, transparent); color: var(--status-danger-fg); }
 .lt-showmore {
   display: block; width: 100%; padding: 0.5rem; border: 0; border-top: 1px solid var(--border);
   background: var(--surface-hover); color: var(--action-primary);
@@ -4021,6 +4022,9 @@ body.dark-mode .kpi-table-tab.active {
 }
 @media (max-width: 768px) {
   .lt-filterbar, .lt-block, .lt-verdict { padding: 0.85rem 0.9rem; }
+  /* .app-header đổi sang chiều cao auto (block, nhiều dòng) trên mobile nên
+     không có mốc top cố định để đóng băng — tắt sticky, tránh đè chồng. */
+  .lt-filterbar { position: static; }
   .lt-filterbar-source { align-items: flex-start; }
   .lt-field--end { margin-left: 0; }
   .lt-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }

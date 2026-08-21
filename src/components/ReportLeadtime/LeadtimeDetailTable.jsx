@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, CheckCircle2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import {
   STAGE_KEYS, STAGE_CONFIG, BASELINE_CONFIG,
   formatHours, formatDeviation, formatOrders
@@ -120,7 +120,6 @@ export default function LeadtimeDetailTable({ rows, lanes, multiDay, onClearPair
                         <th>Số đơn</th>
                         {STAGE_KEYS.map(s => <th key={s}>{STAGE_CONFIG[s].short}</th>)}
                         <th className="lt-col-e2e">E2E</th>
-                        <th>Trạng thái</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -155,16 +154,15 @@ export default function LeadtimeDetailTable({ rows, lanes, multiDay, onClearPair
                               </td>
                             );
                           })}
-                          <td className="lt-col-e2e">{formatHours(row.e2e)}</td>
-                          <td>
-                            {row.suspectData ? (
-                              <span className="lt-status lt-status--suspect"><AlertTriangle size={11} /> Nghi lỗi data</span>
-                            ) : row.level === 'critical' ? (
-                              <span className="lt-status lt-status--critical"><AlertTriangle size={11} /> Nguy cấp</span>
-                            ) : row.level === 'warning' ? (
-                              <span className="lt-status lt-status--warning"><AlertTriangle size={11} /> Cảnh báo</span>
-                            ) : (
-                              <span className="lt-status lt-status--ok"><CheckCircle2 size={11} /> Trong biên</span>
+                          <td className={`lt-col-e2e ${row.e2eInfo.level !== 'normal' ? `lt-cell--${row.e2eInfo.level}` : ''}`}>
+                            <span className="lt-cell-value">{formatHours(row.e2e)}</span>
+                            {row.e2eInfo.pct !== null && (
+                              <span
+                                className={`lt-cell-dev lt-dev--${row.e2eInfo.direction} ${row.e2eInfo.level !== 'normal' ? `lt-dev--${row.e2eInfo.level}` : ''}`}
+                                title={`baseline ${formatHours(row.e2eInfo.baseline)} · ${row.e2eInfo.baselineDays} ngày · cấp ${row.e2eInfo.baselineLevel === 'fallback' ? 'nhóm lane' : 'tuyến'}`}
+                              >
+                                {formatDeviation(row.e2eInfo.pct)}
+                              </span>
                             )}
                           </td>
                         </tr>
