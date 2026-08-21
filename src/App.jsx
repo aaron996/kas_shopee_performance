@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
-import Report6Leadtime from './components/Report6Leadtime';
+// Lazy: recharts chỉ nằm trong chunk của tab này, không kéo theo khi mở tab 1/2.
+const ReportLeadtime = lazy(() => import('./components/ReportLeadtime'));
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
@@ -174,6 +175,10 @@ export default function App() {
   const [deliRows, setDeliRows] = useState(() => normalizeRows(createDefaultDeliDataset()));
   const [ca1Rows, setCa1Rows] = useState(() => normalizeRows(createDefaultCa1Dataset()));
   const [leadtimeRows, setLeadtimeRows] = useState(() => createDefaultLeadtimeDataset());
+  // 'mock' | 'supabase' | 'csv' — tab Leadtime phải nói rõ đang đọc nguồn nào,
+  // bản cũ im lặng hiển thị dữ liệu mẫu như thể là số vận hành (audit A1).
+  const [leadtimeSource, setLeadtimeSource] = useState('mock');
+  const [leadtimeSyncedAt, setLeadtimeSyncedAt] = useState(null);
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
@@ -279,6 +284,8 @@ export default function App() {
     setDeliRows(normalizeRows(createDefaultDeliDataset()));
     setCa1Rows(normalizeRows(createDefaultCa1Dataset()));
     setLeadtimeRows(createDefaultLeadtimeDataset());
+    setLeadtimeSource('mock');
+    setLeadtimeSyncedAt(null);
     setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
@@ -294,7 +301,11 @@ export default function App() {
       setPickRows(normalizeRows(supaRes.pickData));
       setDeliRows(normalizeRows(supaRes.deliData));
       if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
-      if (supaRes.leadtimeData) setLeadtimeRows(supaRes.leadtimeData);
+      if (supaRes.leadtimeData) {
+        setLeadtimeRows(supaRes.leadtimeData);
+        setLeadtimeSource('supabase');
+        setLeadtimeSyncedAt(supaRes.updatedAt || null);
+      }
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       return;
@@ -436,6 +447,7 @@ export default function App() {
           {/* Header Navigation & Filter Bar */}
           <Header
             setActiveTab={setActiveTab}
+            activeTab={activeTab}
             clientFilter={clientFilter}
             setClientFilter={setClientFilter}
             selectedRegions={selectedRegions}
@@ -482,13 +494,16 @@ export default function App() {
                 />
               )}
 
-              {activeTab === 'report6' && (
-                <Report6Leadtime
-                  leadtimeRows={leadtimeRows}
-                  density={density}
-                  isFullscreen={isFullscreen}
-                  setIsFullscreen={setIsFullscreen}
-                />
+              {activeTab === 'report3' && (
+                <Suspense fallback={<LoadingScreen text="Đang mở tab Leadtime..." option={4} />}>
+                  <ReportLeadtime
+                    leadtimeRows={leadtimeRows}
+                    clientFilter={clientFilter}
+                    density={density}
+                    dataSource={leadtimeSource}
+                    syncedAt={leadtimeSyncedAt}
+                  />
+                </Suspense>
               )}
 
               {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
@@ -516,8 +531,8 @@ export default function App() {
             </button>
 
             <button 
-              className={`mobile-nav-item ${activeTab === 'report6' ? 'active' : ''}`}
-              onClick={() => setActiveTab('report6')}
+              className={`mobile-nav-item ${activeTab === 'report3' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report3')}
             >
               <Clock size={18} />
               <span>3. Leadtime</span>
@@ -549,7 +564,7 @@ export default function App() {
               onUpdatePickData={(rows) => setPickRows(normalizeRows(rows))}
               onUpdateDeliData={(rows) => setDeliRows(normalizeRows(rows))}
               onUpdateCa1Data={(rows) => setCa1Rows(normalizeRows(rows))}
-              onUpdateLeadtimeData={(rows) => setLeadtimeRows(rows)}
+              onUpdateLeadtimeData={(rows) => { setLeadtimeRows(rows); setLeadtimeSource('csv'); }}
               onResetDefault={handleResetDefaultData}
             />
           )}

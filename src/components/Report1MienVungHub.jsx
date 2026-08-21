@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
-import { useCountUp } from '../utils/useCountUp';
+import AnimatedNumber from './ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
 import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
@@ -119,10 +119,6 @@ function SparklineChart({ card, isGood }) {
   );
 }
 
-const AnimatedNumber = ({ value, format = v => v, className = '' }) => {
-  const animatedValue = useCountUp(value, 600);
-  return <span className={className}>{format(animatedValue)}</span>;
-};
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
   const [alertsParent] = useAutoAnimate();
