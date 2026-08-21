@@ -166,10 +166,16 @@ export default function ReportLeadtime({
         else if (cls.level === 'warning' && level !== 'critical') level = 'warning';
         if (cls.suspectData) suspectData = true;
       }
+      const e2eCls = classifyDeviation(current.e2e, baseline.e2e.value, thresholds);
       out.push({
         ...meta,
         mau: current.mau,
         e2e: current.e2e,
+        e2eInfo: {
+          value: current.e2e, baseline: baseline.e2e.value,
+          baselineDays: baseline.e2e.dayCount, baselineLevel: baseline.e2e.level,
+          ...e2eCls
+        },
         sumOfStages: current.sumOfStages,
         baselineLevel: baseline.level,
         stages, worstStage, worstImpact, level, suspectData,
