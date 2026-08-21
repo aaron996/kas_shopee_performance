@@ -3,11 +3,19 @@ import { Clock, Info } from 'lucide-react';
 import { THRESHOLD_PRESETS, shiftDate } from '../../utils/leadtimeCalc';
 import { getClientLabel } from '../../utils/clientLabels';
 
-const DATE_PRESETS = [
-  { key: 'd1', label: 'Ngày mới nhất', days: 1 },
-  { key: 'd7', label: '7 ngày', days: 7 },
-  { key: 'd28', label: '28 ngày', days: 28 }
-];
+/**
+ * Preset kỳ xem tự co theo số ngày dữ liệu thật có (`allDates.length`), không
+ * hardcode 1/7/28 ngày. Data nguồn của tab này hiện chỉ có ~14 ngày gần nhất —
+ * preset "28 ngày" cũ luôn bị kẹp về đúng bằng đó ngày, hiện ra như một lựa
+ * chọn có nghĩa trong khi thực chất trùng với "toàn bộ". Còn ít ngày thì càng
+ * ít preset (data 1 ngày -> chỉ còn "Ngày mới nhất").
+ */
+function buildDatePresets(totalDays) {
+  const presets = [{ key: 'd1', label: 'Ngày mới nhất', days: 1 }];
+  if (totalDays > 1) presets.push({ key: 'dAll', label: `Toàn bộ ${totalDays} ngày`, days: totalDays });
+  if (totalDays > 7) presets.splice(1, 0, { key: 'd7', label: '7 ngày', days: 7 });
+  return presets;
+}
 
 /**
  * Thanh filter.
@@ -27,6 +35,8 @@ export default function LeadtimeFilterBar({
   pairs, pairFilter, onPairChange,
   clients, clientFilter, dataSource, syncedAt, dateHasData
 }) {
+  const datePresets = buildDatePresets(allDates.length);
+
   const applyDatePreset = (preset) => {
     const to = latestDate;
     const from = preset.days === 1 ? to : shiftDate(to, -(preset.days - 1));
@@ -75,7 +85,7 @@ export default function LeadtimeFilterBar({
         <div className="lt-field">
           <span className="lt-field-label">Kỳ xem</span>
           <div className="lt-segmented">
-            {DATE_PRESETS.map(p => (
+            {datePresets.map(p => (
               <button
                 key={p.key}
                 type="button"

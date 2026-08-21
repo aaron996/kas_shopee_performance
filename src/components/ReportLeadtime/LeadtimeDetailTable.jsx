@@ -11,8 +11,10 @@ const PAGE = 25;
  * Bảng chi tiết.
  *
  * Khác bản cũ (audit A2b, A4, C8, C9, B6):
- *  - Nhóm chính là LANE, mỗi lane là một section collapse; mặc định chỉ mở lane
- *    đang có cảnh báo. Bản cũ đổ 325-763 dòng phẳng ra DOM, trang cao ~20 màn hình.
+ *  - Nhóm chính là LANE, mỗi lane là một section collapse. Mặc định TẤT CẢ đóng
+ *    — trước đây tự mở lane có cảnh báo (hoặc lane đầu) nên "Đào sâu theo tuyến"
+ *    lúc nào mở ra cũng thấy cả trăm dòng bung sẵn, phải cuộn qua mới thấy hết
+ *    các lane khác. Giờ người xem bấm vào lane nào thì mới load dòng của lane đó.
  *  - Gộp theo tuyến cho cả kỳ nhiều ngày, nên không còn cảnh một tuyến hiện 7 lần
  *    với 7 bộ số mà không có cột ngày để phân biệt.
  *  - Cột text canh trái, font sans (class .lt-cell-text). Bản cũ chỉ set textAlign
@@ -22,7 +24,7 @@ const PAGE = 25;
  */
 export default function LeadtimeDetailTable({ rows, lanes, multiDay, onClearPairFilter }) {
   const [showLowSample, setShowLowSample] = useState(false);
-  const [expandedLanes, setExpandedLanes] = useState(null);
+  const [openLanes, setOpenLanes] = useState(() => new Set());
   const [pageByLane, setPageByLane] = useState({});
 
   const groups = useMemo(() => {
@@ -43,19 +45,13 @@ export default function LeadtimeDetailTable({ rows, lanes, multiDay, onClearPair
       .sort((a, b) => (order.get(a.laneKey) ?? 99) - (order.get(b.laneKey) ?? 99));
   }, [rows, lanes, showLowSample]);
 
-  // Mặc định mở lane có cảnh báo; nếu không lane nào có thì mở lane đầu tiên.
-  const openLanes = useMemo(() => {
-    if (expandedLanes) return expandedLanes;
-    const auto = new Set(groups.filter(g => g.alertCount > 0).map(g => g.laneKey));
-    if (!auto.size && groups.length) auto.add(groups[0].laneKey);
-    return auto;
-  }, [expandedLanes, groups]);
-
   const toggleLane = (laneKey) => {
-    const next = new Set(openLanes);
-    if (next.has(laneKey)) next.delete(laneKey);
-    else next.add(laneKey);
-    setExpandedLanes(next);
+    setOpenLanes(prev => {
+      const next = new Set(prev);
+      if (next.has(laneKey)) next.delete(laneKey);
+      else next.add(laneKey);
+      return next;
+    });
   };
 
   const hiddenLowSample = rows.filter(r => r.lowSample).length;
