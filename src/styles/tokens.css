@@ -88,9 +88,30 @@
   --amber-text: var(--status-warning-fg);
   --bad-red-bg: var(--status-danger-bg);
   --bad-red-text: var(--status-danger-fg);
+  /* --- Bảng màu 4 chặng leadtime -----------------------------------------
+     Categorical (định danh 4 chặng), thứ tự CỐ ĐỊNH theo hành trình, không bao
+     giờ xoay vòng. Đã chạy scripts/validate_palette.js của skill dataviz trên
+     đúng surface của app — không chọn bằng mắt:
+       light  (#ffffff): lightness band PASS · chroma PASS · CVD protan ΔE 13.8 ·
+                         normal ΔE 22.6 · contrast >= 3:1 PASS
+       dark   (#131c31): lightness band PASS · chroma PASS · CVD deutan ΔE 13.6 ·
+                         normal ΔE 17.4 · contrast >= 3:1 PASS
+     Tritan của cặp teal↔cam nằm dưới mức mong muốn (6.4 light / 3.4 dark), nên
+     màu KHÔNG bao giờ là kênh thông tin duy nhất: luôn có legend, có nhãn chữ
+     trong tooltip, có khe 2px giữa các segment, và có bảng số ở lớp 2.
+     Bản dark là bước màu CHỌN RIÊNG cho nền tối, không phải đảo tự động. */
+  --stage-prepickup: #2563EB;
+  --stage-firstmile: #0E9488;
+  --stage-middlemile: #EA580C;
+  --stage-lastmile: #7C3AED;
 }
 
 body.dark-mode {
+  --stage-prepickup: #4189E0;
+  --stage-firstmile: #12A085;
+  --stage-middlemile: #DF6413;
+  --stage-lastmile: #9668E8;
+
   --surface-canvas: #0b1329;
   --surface-default: #1e293b;
   --surface-subtle: #334155;

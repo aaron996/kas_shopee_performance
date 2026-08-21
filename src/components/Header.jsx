@@ -4,6 +4,7 @@ import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
   setActiveTab,
+  activeTab,
   clientFilter,
   setClientFilter,
   selectedRegions,
@@ -24,6 +25,7 @@ export default function Header({
   setIsFullscreen,
   onRetryData
 }) {
+  const isLeadtimeTab = activeTab === 'report3';
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -125,6 +127,10 @@ export default function Header({
             </select>
           </div>
 
+          {/* Vùng + Loại Hub chỉ áp cho dữ liệu Pick/Deli/Ca1 (grain hub). Tab
+              Leadtime ở grain tỉnh-tỉnh, 2 bộ lọc này không tác động gì nên phải
+              ẩn thay vì để sáng cho người dùng tưởng đã lọc (audit B9). */}
+          {!isLeadtimeTab && <>
           <div className="filter-divider"></div>
 
           <div className="filter-item">
@@ -205,6 +211,7 @@ export default function Header({
               )}
             </div>
           </div>
+          </>}
 
         </div>
 
