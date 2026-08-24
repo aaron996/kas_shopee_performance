@@ -54,7 +54,7 @@ button:active:not(:disabled),
 .segment-btn:active,
 .client-select-btn:active {
   transform: scale(0.96);
-  transition: transform var(--duration-instant) var(--ease-spring);
+  transition: transform var(--duration-instant) var(--ease-snappy);
 }
 
 /* --- Principle 10: Exaggeration (Form Validation / Error Shake) --- */
@@ -67,7 +67,10 @@ button:active:not(:disabled),
 }
 
 .shake-error {
-  animation: error-shake 0.38s var(--ease-spring) both !important;
+  /* Biên độ lắc đã tự giảm dần qua các keyframe ở trên — dùng ease-snappy
+     (exponential, không overshoot) để mỗi đoạn dứt khoát, tránh nảy chồng
+     nảy với chính keyframe (audit impeccable 2026-08-24, P2). */
+  animation: error-shake 0.38s var(--ease-snappy) both !important;
 }
 
 /* --- Principle 8: Secondary Action (Pop Success & Micro-feedback) --- */
@@ -78,7 +81,9 @@ button:active:not(:disabled),
 }
 
 .pop-success {
-  animation: pop-success var(--duration-fast) var(--ease-spring) both;
+  /* Overshoot đã nằm trong keyframe (60% scale 1.15) — ease-snappy tránh
+     cộng dồn thêm bounce từ chính easing curve (audit impeccable 2026-08-24, P2). */
+  animation: pop-success var(--duration-fast) var(--ease-snappy) both;
 }
 
 /* --- Principle 6: Slow In & Slow Out (Smooth Tab Content Transitions) --- */
@@ -157,6 +162,11 @@ button:active:not(:disabled),
   box-shadow: 10px 0 32px rgba(20, 60, 100, 0.16);
   z-index: 101;
   transition: width 0.3s ease;
+  /* Sidebar thật sự cần đổi width (điều khiển layout khối chính bên cạnh) nên
+     không đổi được sang transform/opacity thuần, nhưng contain giới hạn vùng
+     reflow lại trong chính sidebar thay vì lan ra toàn cây layout (audit
+     impeccable 2026-08-24, P2). */
+  contain: layout style;
 }
 
 .app-sidebar.collapsed {
@@ -976,7 +986,7 @@ body.dark-mode .client-select-option {
 }
 
 body.dark-mode .client-select-option-desc {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 @keyframes status-pulse {
@@ -989,7 +999,7 @@ body.dark-mode .sub-header {
 }
 
 body.dark-mode .tab-item-sleek {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 body.dark-mode .tab-item-sleek:hover {
@@ -1005,13 +1015,13 @@ body.dark-mode .tab-item-sleek.active {
 body.dark-mode .filter-select-sleek,
 body.dark-mode .dropdown-toggle-sleek,
 body.dark-mode .nav-btn-sleek {
-  background: #1e293b;
-  border-color: #334155;
-  color: #e2e8f0;
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-main);
 }
 
 body.dark-mode .filter-divider {
-  background: #334155;
+  background: var(--border);
 }
 
 /* Base Buttons */
@@ -1469,33 +1479,6 @@ th.sep, td.sep {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-}
-
-/* Special styles for Report 4 (Focus 1 Vùng) */
-.report4-grid {
-  border: 1px solid #111;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.report4-grid th, .report4-grid td {
-  border: 1px solid #111 !important;
-}
-
-.sub-table-container {
-  margin-top: 1rem;
-  margin-bottom: 1.5rem;
-  background: #f8fafc;
-  border-left: 4px solid var(--ghn-orange);
-  padding: 0.85rem;
-  border-radius: 8px;
-}
-
-.sub-table-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--ghn-blue-dark);
-  margin-bottom: 0.6rem;
 }
 
 /* KPI Cards */
@@ -2282,19 +2265,18 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 
 /* ==========================================================================
    LUXURY SLATE NAVY DARK MODE
-   ========================================================================== */
+
+   --bg-main/--surface/--surface-hover/--text-main/--text-muted/--border/
+   --border-strong/--card-bg/--card-border/--input-bg/--input-text KHÔNG được
+   khai báo lại ở đây nữa (audit impeccable 2026-08-24, P1): chúng đã là alias
+   của tokens.css (vd. --surface: var(--surface-default)) và tokens.css tự có
+   bản dark cho từng token gốc (--surface-default, --text-primary,
+   --border-subtle, --border-strong...), đã qua kiểm tra contrast + CVD. Khai
+   báo lại hex tay ở đây từng đè lên bản đã kiểm tra đó vì cascade load sau —
+   hai hệ trùng tên biến nhưng ra giá trị khác nhau cho cùng 1 dark mode.
+   Chỉ giữ lại ở đây những token tokens.css CHƯA có bản dark (info-box,
+   good-green, amber, bad-red) — xoá nốt sẽ làm mất màu, không phải trùng lặp. */
 body.dark-mode {
-  --bg-main: #0b1329;
-  --surface: #131c31;
-  --surface-hover: #1c2843;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --border: #233252;
-  --border-strong: #33466e;
-  --card-bg: #131c31;
-  --card-border: #233252;
-  --input-bg: #1c2843;
-  --input-text: #f1f5f9;
   --info-box-bg: rgba(14, 165, 196, 0.25);
   --info-box-text: #60a5fa;
   --info-box-border: #2563eb;
@@ -2306,8 +2288,8 @@ body.dark-mode {
   --bad-red-bg: rgba(161, 59, 42, 0.25);
   --bad-red-text: #f87171;
 
-  background-color: #0b1329;
-  color: #f1f5f9;
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
 body.dark-mode .metric-block,
@@ -2880,12 +2862,14 @@ body.dark-mode .export-menu-icon, body.dark-mode .export-text-button:hover:not(:
   border: 0;
   text-align: left;
   font-family: inherit;
-  transition: background-color 0.15s ease, padding-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* transform thay vì padding-left: cùng hiệu ứng "nhích phải" khi hover,
+     không gây layout thrash (audit impeccable 2026-08-24, P2). */
+  transition: background-color 0.15s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dropdown-item:hover {
   background: #f1f5f9;
-  padding-left: 1.75rem;
+  transform: translateX(0.25rem);
 }
 
 .dropdown-item:active {
@@ -2894,7 +2878,7 @@ body.dark-mode .export-menu-icon, body.dark-mode .export-text-button:hover:not(:
 
 .chk-icon {
   color: var(--ghn-blue);
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s;
+  transition: transform 0.15s var(--ease-snappy), color 0.15s;
 }
 
 .dropdown-item:hover .chk-icon {
@@ -3062,6 +3046,9 @@ body.dark-mode .chk-icon {
     gap: 5px;
     justify-content: center;
     margin-top: 0.6rem;
+    /* Dot pill co giãn width khi active — chỉ vài phần tử, nhưng vẫn giới hạn
+       vùng reflow lại đúng hàng dot này (audit impeccable 2026-08-24, P2). */
+    contain: layout;
   }
 
   .kpi-carousel-dot {

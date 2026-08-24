@@ -49,10 +49,8 @@
   /* Motion Design Tokens (Slow In & Slow Out / Timing) */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-out-back: cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  
+
   --duration-instant: 120ms;
   --duration-fast: 180ms;
   --duration-normal: 260ms;
@@ -119,4 +117,21 @@ body.dark-mode {
   --text-secondary: #94a3b8;
   --border-subtle: #334155;
   --border-strong: #475569;
+
+  /* Custom property KHÔNG tự re-resolve xuống cây DOM: --surface: var(--surface-default)
+     khai báo ở :root chỉ substitute MỘT LẦN bằng --surface-default của chính :root
+     (giá trị light), rồi truyền giá trị ĐÃ RESOLVE đó xuống con — không phải công
+     thức sống tự tính lại theo override bên dưới. Nên các alias legacy phải được
+     khai báo lại ở đây, trỏ vào chính token vừa override phía trên trong CÙNG rule
+     này, để tự chúng resolve ra bản dark (audit impeccable 2026-08-24, P1). */
+  --bg-main: var(--surface-canvas);
+  --surface: var(--surface-default);
+  --surface-hover: var(--surface-subtle);
+  --text-main: var(--text-primary);
+  --text-muted: var(--text-secondary);
+  --border: var(--border-subtle);
+  --card-bg: var(--surface-default);
+  --card-border: var(--border-subtle);
+  --input-bg: var(--surface-default);
+  --input-text: var(--text-primary);
 }
