@@ -5,6 +5,8 @@ import Report1MienVungHub from './components/Report1MienVungHub';
 import Report5LaneCa1 from './components/Report5LaneCa1';
 // Lazy: recharts chỉ nằm trong chunk của tab này, không kéo theo khi mở tab 1/2.
 const ReportLeadtime = lazy(() => import('./components/ReportLeadtime'));
+// Lazy: kéo theo leadtimeCalc (build index cho tab 3) — chỉ cần tải khi mở tab Insight.
+const ReportInsight = lazy(() => import('./components/ReportInsight'));
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
@@ -19,7 +21,7 @@ import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProc
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
 import { useToast } from './components/ui/Toast';
-import { Layers, ArrowRightLeft, Clock, Activity } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, Activity, Sparkles } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -310,7 +312,7 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [showToast]);
 
   const handleResetDefaultData = () => {
     setPickRows(normalizeRows(createDefaultPickDataset()));
@@ -369,7 +371,7 @@ export default function App() {
       console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
       setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Đang hiển thị dữ liệu gần nhất' });
     }
-  }, [currentUser]);
+  }, [currentUser, showToast]);
 
   const [hasFetchedLive, setHasFetchedLive] = useState(false);
 
@@ -475,6 +477,7 @@ export default function App() {
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
         onSelectRegion={handleJumpToRegion}
+        hasInsightTab
       />
 
       {/* Main Layout wrapper for Sidebar + Content */}
@@ -556,6 +559,18 @@ export default function App() {
                 </Suspense>
               )}
 
+              {activeTab === 'report-insight' && (
+                <Suspense fallback={<LoadingScreen text="Đang mở tab Insight..." option={4} />}>
+                  <ReportInsight
+                    pickRows={pickRows}
+                    deliRows={deliRows}
+                    leadtimeRows={leadtimeRows}
+                    clientFilter={clientFilter}
+                    onJumpToRegion={handleJumpToRegion}
+                  />
+                </Suspense>
+              )}
+
               {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
                 <DevAdminDashboard onlineUsers={onlineUsers} />
               )}
@@ -580,7 +595,7 @@ export default function App() {
               <span>2. % Ca 1</span>
             </button>
 
-            <button 
+            <button
               className={`mobile-nav-item ${activeTab === 'report3' ? 'active' : ''}`}
               onClick={() => setActiveTab('report3')}
             >
@@ -588,7 +603,15 @@ export default function App() {
               <span>3. Leadtime</span>
             </button>
 
-            <button 
+            <button
+              className={`mobile-nav-item ${activeTab === 'report-insight' ? 'active' : ''}`}
+              onClick={() => setActiveTab('report-insight')}
+            >
+              <Sparkles size={18} />
+              <span>4. Insight</span>
+            </button>
+
+            <button
               className="mobile-nav-item"
               onClick={() => setIsSummaryOpen(true)}
             >

@@ -1971,6 +1971,11 @@ table.mtx-table th.col-summary {
     justify-content: space-around;
     align-items: center;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+    /* 5 mục (thêm tab Insight) không luôn vừa các màn ≤360px ở min-width cũ
+       (76px × 5 = 380px) — cho phép cuộn ngang làm lưới an toàn thay vì vỡ
+       layout, không đổi gì trên màn đủ rộng vì khi đó không có gì để cuộn. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .mobile-nav-item {
@@ -1981,14 +1986,16 @@ table.mtx-table th.col-summary {
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.7);
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     font-weight: 500;
-    min-width: 76px;
+    min-width: 64px;
     min-height: 44px;
-    padding: 0.25rem 0.4rem;
+    flex: 1 1 0;
+    padding: 0.25rem 0.3rem;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
+    white-space: nowrap;
   }
 
   .mobile-nav-item.active {
@@ -4179,6 +4186,116 @@ body.dark-mode .kpi-table-tab.active {
   display: flex;
 }
 .toast-close:hover { opacity: 1; background: rgba(0, 0, 0, 0.08); }
+
+/* ---------------------------------------------------------------------
+   Tab Insight */
+.insight-card {
+  background: var(--surface-default);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-soft);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.insight-card-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  margin-bottom: 0.7rem;
+  display: flex;
+  align-items: center;
+}
+
+.insight-narrative-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.insight-narrative-ok {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.insight-stage-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.insight-stage-chip {
+  flex: 1 1 110px;
+  min-width: 100px;
+  border-radius: var(--radius-control);
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.insight-stage-label { font-size: 0.7rem; font-weight: 600; opacity: 0.85; }
+.insight-stage-value { font-size: 1.05rem; font-weight: 700; }
+.insight-stage-dev { font-size: 0.72rem; font-weight: 600; }
+.insight-stage-chip--e2e { border: 1px dashed currentColor; }
+
+.insight-attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.insight-attention-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+}
+
+.insight-attention-rank {
+  flex: none;
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  min-width: 1.6rem;
+}
+
+.insight-attention-main { flex: 1; min-width: 0; }
+.insight-attention-hub { font-size: 0.85rem; margin-bottom: 0.1rem; }
+.insight-attention-region { color: var(--text-secondary); font-weight: 400; font-size: 0.78rem; }
+.insight-attention-metric { font-size: 0.78rem; color: var(--text-secondary); }
+.insight-attention-pct { color: var(--status-danger-fg); }
+
+.insight-attention-jump {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-default);
+  color: var(--action-primary);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.insight-attention-jump:hover { background: var(--surface-info); }
+
+@media (max-width: 768px) {
+  .insight-attention-row { flex-wrap: wrap; }
+  .insight-attention-jump { margin-left: auto; }
+}
 
 /* ---------------------------------------------------------------------
    Command palette (Cmd/Ctrl+K) — nhảy nhanh tab / client / vùng. */

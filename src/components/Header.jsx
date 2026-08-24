@@ -27,7 +27,11 @@ export default function Header({
   setIsFullscreen,
   onRetryData
 }) {
-  const isLeadtimeTab = activeTab === 'report3';
+  // Vùng/Loại Hub chỉ áp cho dữ liệu grain hub (Report 1/2). Tab Leadtime
+  // (grain tỉnh-tỉnh) và tab Insight (nationwide, nối cả 2 grain) đều không
+  // bị 2 bộ lọc này tác động — ẩn đi thay vì để sáng cho người dùng tưởng đã
+  // lọc (cùng lý do đã áp cho tab Leadtime, xem audit B9).
+  const hideRegionHubFilters = activeTab === 'report3' || activeTab === 'report-insight';
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -147,7 +151,7 @@ export default function Header({
           {/* Vùng + Loại Hub chỉ áp cho dữ liệu Pick/Deli/Ca1 (grain hub). Tab
               Leadtime ở grain tỉnh-tỉnh, 2 bộ lọc này không tác động gì nên phải
               ẩn thay vì để sáng cho người dùng tưởng đã lọc (audit B9). */}
-          {!isLeadtimeTab && <>
+          {!hideRegionHubFilters && <>
           <div className="filter-divider"></div>
 
           <div className="filter-item">
