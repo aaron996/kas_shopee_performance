@@ -64,11 +64,19 @@ export default function LeadtimeTrendChart({ data, windowDays, periodFrom, perio
               tickFormatter={(v) => `${Math.round(v)}h`}
             />
             {/* Kỳ 1 ngày thì ReferenceArea có x1 === x2 nên không vẽ ra gì —
-                phải dùng ReferenceLine cho trường hợp đó. */}
+                phải dùng ReferenceLine cho trường hợp đó. Label để filter
+                "Kỳ xem" luôn thấy rõ đang tác động vào chart, không chỉ là
+                một dải mờ dễ bị 5 đường Line che mất. */}
             {periodFrom && periodTo && (periodFrom === periodTo ? (
-              <ReferenceLine x={periodTo.slice(5)} className="lt-period-line" ifOverflow="hidden" />
+              <ReferenceLine
+                x={periodTo.slice(5)} className="lt-period-line" ifOverflow="hidden"
+                label={{ value: 'Kỳ đang xem', position: 'insideTopRight', className: 'lt-period-label' }}
+              />
             ) : (
-              <ReferenceArea x1={periodFrom.slice(5)} x2={periodTo.slice(5)} className="lt-period-band" ifOverflow="hidden" />
+              <ReferenceArea
+                x1={periodFrom.slice(5)} x2={periodTo.slice(5)} className="lt-period-band" ifOverflow="hidden"
+                label={{ value: 'Kỳ đang xem', position: 'insideTop', className: 'lt-period-label' }}
+              />
             ))}
             <Tooltip content={<TrendTooltip showE2E={showE2E} />} />
             {showE2E && (

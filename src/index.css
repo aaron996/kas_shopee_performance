@@ -3867,7 +3867,26 @@ body.dark-mode .kpi-table-tab.active {
 .lt-line--e2e .recharts-line-curve {
   stroke: var(--text-muted); stroke-dasharray: 5 4; stroke-width: 2;
 }
-.lt-period-band { fill: color-mix(in oklab, var(--action-primary) 8%, transparent); }
+/* Recharts gắn className lên thẻ <g> bao ngoài, còn fill/stroke thật sự nằm
+   trên thẻ con (<path>/<line>) dưới dạng presentation attribute — attribute
+   đó thắng giá trị kế thừa từ CSS trên <g>. Phải nhắm thẳng vào thẻ con và ép
+   fill-opacity/stroke về 1, nếu không Recharts hiện màu xám mặc định (#ccc)
+   thay vì token màu của mình, khiến dải "kỳ đang xem" trông như không đổi gì
+   khi user bấm preset khác. */
+.lt-period-band .recharts-reference-area-rect {
+  fill: color-mix(in oklab, var(--action-primary) 16%, transparent);
+  fill-opacity: 1;
+  stroke: var(--action-primary);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.lt-period-label {
+  fill: var(--action-primary);
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
 
 .lt-multiple-title {
   margin: 0 0 0.35rem; font-size: 0.85rem; font-weight: 700; color: var(--text-main);
@@ -4103,7 +4122,9 @@ body.dark-mode .kpi-table-tab.active {
 .density-compact .lt-table th, .density-compact .lt-table td { padding: 0.25rem 0.45rem; }
 .density-compact .lt-cards { gap: 0.55rem; }
 .density-compact .lt-block { padding: 0.8rem 1rem; }
-.lt-period-line { stroke: var(--action-primary); stroke-width: 2; stroke-dasharray: 4 3; }
+.lt-period-line .recharts-reference-line-line {
+  stroke: var(--action-primary); stroke-width: 2; stroke-dasharray: 4 3; stroke-opacity: 1;
+}
 
 /* Legend HTML tự dựng — recharts 3 không cho ép thứ tự payload nên tự xếp theo
    bảng chữ cái, làm mất thứ tự hành trình của 4 chặng. */
