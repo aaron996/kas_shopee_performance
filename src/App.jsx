@@ -10,6 +10,7 @@ import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import ClientSelectModal from './components/ClientSelectModal';
+import CommandPalette from './components/CommandPalette';
 import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
 import { createDefaultLeadtimeDataset } from './data/leadtimeDataset';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
@@ -17,6 +18,7 @@ import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
+import { useToast } from './components/ui/Toast';
 import { Layers, ArrowRightLeft, Clock, Activity } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
@@ -59,6 +61,7 @@ async function recordAccess(email) {
 }
 
 export default function App() {
+  const showToast = useToast();
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ghn_user');
@@ -151,6 +154,32 @@ export default function App() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+
+  // Command palette: Cmd/Ctrl+K từ bất kỳ đâu trong app, trừ khi đang gõ vào
+  // 1 input/textarea khác (không cướp phím của ô tìm kiếm khác nếu có).
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      if (!isCmdK) return;
+      e.preventDefault();
+      setIsPaletteOpen(prev => !prev);
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // Chọn 1 vùng từ command palette: mở Report 1 (grain hub, nơi Vùng thực sự
+  // có tác dụng lọc), thu hẹp bộ lọc Vùng về đúng vùng đó, rồi báo Report1 tự
+  // mở rộng + cuộn tới đúng section — cùng cơ chế CustomEvent app đã dùng cho
+  // nút "Xuất CSV" ở Header, chỉ khác tên sự kiện.
+  const handleJumpToRegion = useCallback((region) => {
+    setActiveTab('report1');
+    setSelectedRegions([region]);
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new CustomEvent('jump-to-region', { detail: { region } }));
+    });
+  }, []);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('ghn_theme') === 'dark';
@@ -223,6 +252,10 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đang hiển thị dữ liệu mẫu' });
+  // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
+  // chỉ tab Leadtime có "syncedAt" riêng). Không dùng cho việc chặn UI: sync
+  // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -241,7 +274,7 @@ export default function App() {
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
           setCurrentUser(userObj);
         } else {
-          alert(`⚠️ Truy cập bị từ chối:\n\nTài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`);
+          showToast(`Tài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`, { tone: 'error', title: 'Truy cập bị từ chối', duration: 9000 });
           supabase.auth.signOut();
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
@@ -265,7 +298,7 @@ export default function App() {
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
           setCurrentUser(userObj);
         } else {
-          alert(`⚠️ Truy cập bị từ chối:\n\nTài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`);
+          showToast(`Tài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`, { tone: 'error', title: 'Truy cập bị từ chối', duration: 9000 });
           supabase.auth.signOut();
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);
@@ -286,6 +319,7 @@ export default function App() {
     setLeadtimeRows(createDefaultLeadtimeDataset());
     setLeadtimeSource('mock');
     setLeadtimeSyncedAt(null);
+    setLastSyncedAt(null);
     setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
   };
 
@@ -308,6 +342,7 @@ export default function App() {
       }
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
+      setLastSyncedAt(new Date());
       return;
     }
 
@@ -321,13 +356,14 @@ export default function App() {
       setDeliRows(normalizeRows(res.deliData));
       if (res.ca1Data) setCa1Rows(normalizeRows(res.ca1Data));
       setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
+      setLastSyncedAt(new Date());
     } else {
       if (res.error === 'FILE_PRIVATE') {
         if (currentUser && currentUser.isDevAdmin) {
-          alert('⚠️ Chưa có dữ liệu Supabase (chưa chạy Apps Script sync) và Google Sheet cũng không còn public.\n\nXem docs/google-sheet-supabase-sync.md để cài Apps Script, hoặc dùng "Quản Lý Nguồn Dữ Liệu" để upload CSV thủ công.');
+          showToast('Chưa có dữ liệu Supabase (chưa chạy Apps Script sync) và Google Sheet cũng không còn public. Xem docs/google-sheet-supabase-sync.md để cài Apps Script, hoặc dùng "Quản Lý Nguồn Dữ Liệu" để upload CSV thủ công.', { tone: 'warning', title: 'Chưa có dữ liệu live', duration: 9000 });
           setIsDataSourceOpen(true);
         } else {
-          alert('⚠️ Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.');
+          showToast('Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.', { tone: 'warning', duration: 7000 });
         }
       }
       console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
@@ -424,10 +460,22 @@ export default function App() {
         onSelect={handleClientPick}
       />
 
-      {/* Full-screen Loading Overlay for Initial Fetch/Sync */}
-      {isSyncing && (
-        <LoadingScreen text={syncStatus.text} option={4} />
-      )}
+      {/* Đồng bộ chạy NỀN — không còn full-screen overlay chặn UI mỗi lần mở
+          app/tải lại dữ liệu. Số liệu cũ (mock hoặc lần sync trước) vẫn hiển
+          thị nguyên trong lúc chờ; chỉ có 1 thanh tiến trình mảnh ở mép trên
+          + trạng thái xoay trên nút "Tải lại" ở Header báo đang tải. */}
+      {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}
+
+      {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        clientFilter={clientFilter}
+        setClientFilter={setClientFilter}
+        onSelectRegion={handleJumpToRegion}
+      />
 
       {/* Main Layout wrapper for Sidebar + Content */}
       <div className="app-layout">
@@ -457,7 +505,9 @@ export default function App() {
             setSelectedHubTypes={setSelectedHubTypes}
             d1DateFormatted={d1DateFormatted}
             syncStatus={syncStatus}
+            lastSyncedAt={lastSyncedAt}
             onOpenSummary={() => setIsSummaryOpen(true)}
+            onOpenPalette={() => setIsPaletteOpen(true)}
             currentUser={currentUser}
             onLogout={handleLogout}
             isDarkMode={isDarkMode}

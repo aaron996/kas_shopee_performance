@@ -5,6 +5,7 @@ import * as htmlToImage from 'html-to-image';
 import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
+import { useToast } from './ui/Toast';
 
 function SparklineChart({ card, isGood }) {
   const [hoverIndex, setHoverIndex] = useState(null);
@@ -122,6 +123,7 @@ function SparklineChart({ card, isGood }) {
 
 export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen }) {
   const [alertsParent] = useAutoAnimate();
+  const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState({});
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -249,10 +251,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       const blob = await res.blob();
       const item = new ClipboardItem({ 'image/png': blob });
       await navigator.clipboard.write([item]);
-      alert(`Đã copy ảnh bảng "${titleText}" vào Clipboard! Bạn có thể dán (Ctrl+V) vào Zalo/Chat.`);
+      showToast(`Đã copy ảnh bảng "${titleText}" — dán (Ctrl+V) vào Zalo/Chat.`, { tone: 'success' });
     } catch (err) {
       console.error('Error copying image:', err);
-      alert('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.');
+      showToast('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.', { tone: 'error' });
     }
   };
 
@@ -318,6 +320,20 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const handleExportEvent = () => handleExportCSV();
     window.addEventListener('export-csv', handleExportEvent);
     return () => window.removeEventListener('export-csv', handleExportEvent);
+  });
+
+  // Command palette "nhảy tới vùng": mở rộng đúng vùng đó rồi cuộn tới bảng
+  // 1st Pickup (mục đầu tiên) — cùng cơ chế handleRiskChipClick đã dùng cho
+  // chip cảnh báo, chỉ khác là không có metric cụ thể nên mặc định về p1st.
+  useEffect(() => {
+    const handleJumpToRegion = (e) => {
+      const region = e.detail?.region;
+      if (!region) return;
+      setExpandedRegions(prev => ({ ...prev, [region]: true }));
+      scrollToRef(refP1st, 'p1st');
+    };
+    window.addEventListener('jump-to-region', handleJumpToRegion);
+    return () => window.removeEventListener('jump-to-region', handleJumpToRegion);
   });
 
 

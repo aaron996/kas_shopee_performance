@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw, Check } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw, Check, Search } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -14,7 +14,9 @@ export default function Header({
   setSelectedHubTypes,
   d1DateFormatted,
   syncStatus,
+  lastSyncedAt,
   onOpenSummary,
+  onOpenPalette,
   currentUser,
   onLogout,
   isDarkMode,
@@ -46,6 +48,18 @@ export default function Header({
   }, []);
 
   const allRegions = React.useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+
+  // "Cập nhật lúc HH:MM" — trước đây chỉ tab Leadtime hiện giờ đồng bộ
+  // (syncedAt riêng của nó), 2 tab còn lại không cho biết số đang xem có mới
+  // hay không. Hiện chung ở Header cho MỌI tab, tính từ lần sync THÀNH CÔNG
+  // gần nhất (App.jsx: lastSyncedAt), không phải D-1 (ngày nghiệp vụ).
+  const lastSyncedLabel = React.useMemo(() => {
+    if (!lastSyncedAt) return null;
+    const d = lastSyncedAt instanceof Date ? lastSyncedAt : new Date(lastSyncedAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  }, [lastSyncedAt]);
   
   const handleToggleRegion = (region) => {
     if (selectedRegions.includes(region)) {
@@ -84,7 +98,7 @@ export default function Header({
       <div className="mobile-header-row">
         <div className="mobile-header-title">
           <strong>BCĐH Shopee</strong>
-          <span>D-1: {d1DateFormatted || 'Đang cập nhật'}</span>
+          <span>D-1: {d1DateFormatted || 'Đang cập nhật'}{lastSyncedLabel ? ` · cập nhật ${lastSyncedLabel}` : ''}</span>
         </div>
         <div className="mobile-header-actions">
           <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncStatus?.kind === 'loading'} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
@@ -98,6 +112,9 @@ export default function Header({
           </button>
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1">
             <MessageSquareText size={18} />
+          </button>
+          <button className="mobile-icon-btn" onClick={onOpenPalette} title="Tìm nhanh" aria-label="Tìm nhanh (tab, client, vùng)">
+            <Search size={18} />
           </button>
           <button className={`mobile-filter-trigger ${isMobileFiltersOpen ? 'active' : ''}`} onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)} aria-expanded={isMobileFiltersOpen}>
             <Filter size={18} /> <span>Bộ lọc</span>
@@ -221,6 +238,11 @@ export default function Header({
         <div className="header-actions">
           <div className="meta-date-sleek">
             <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
+            {lastSyncedLabel && (
+              <span className="meta-synced-at" title="Giờ đồng bộ dữ liệu thành công gần nhất">
+                · cập nhật {lastSyncedLabel}
+              </span>
+            )}
           </div>
 
           <div className="filter-divider"></div>
@@ -251,6 +273,11 @@ export default function Header({
 
           <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
             <MessageSquareText size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Nhận Xét D-1</span>
+          </button>
+
+          <button className="nav-btn-sleek" onClick={onOpenPalette} title="Tìm nhanh: tab, client, vùng (Cmd/Ctrl+K)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
+            <Search size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Tìm nhanh</span>
+            <kbd className="cmdk-kbd" style={{ marginLeft: '0.15rem' }}>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
 
           <button type="button" className="density-toggle-sleek" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title="Bật để xem dữ liệu dày hơn" role="switch" aria-checked={density === 'compact'}>
