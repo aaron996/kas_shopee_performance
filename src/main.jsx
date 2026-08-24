@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { ToastProvider } from './components/ui/Toast.jsx'
 
 // Embed support (Control Tower "Sức khỏe vận hành" tab): reports this
 // page's real content height to whatever parent window has it in an
@@ -14,6 +15,8 @@ import 'iframe-resizer/js/iframeResizer.contentWindow.min.js'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ToastProvider>
+      <App />
+    </ToastProvider>
   </StrictMode>,
 )

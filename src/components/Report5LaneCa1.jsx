@@ -3,10 +3,12 @@ import * as htmlToImage from 'html-to-image';
 import { ArrowRightLeft, X, Copy, Check } from 'lucide-react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
+import { useToast } from './ui/Toast';
 
 export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
   const tableRefs = React.useRef({});
   const [copiedLane, setCopiedLane] = useState(null);
+  const showToast = useToast();
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -31,7 +33,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       window.setTimeout(() => setCopiedLane(null), 2500);
     } catch (err) {
       console.error('Error copying image:', err);
-      alert('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.');
+      showToast('Có lỗi xảy ra khi copy ảnh! Vui lòng thử lại.', { tone: 'error' });
     }
   };
 
