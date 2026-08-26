@@ -1,5 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Layers, Sun, Moon, ShieldCheck, LogOut, RefreshCw, Check, Search } from 'lucide-react';
+import { Filter, MapPin, CheckSquare, Square, Download, MessageSquareText, Layers, ShieldCheck, LogOut, Search } from 'lucide-react';
+// Icon DATA cho các nút đổi trạng thái (sync, fullscreen, theme) — morphicons
+// chỉ nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx.
+import {
+  Maximize2 as Maximize2Data,
+  Minimize2 as Minimize2Data,
+  Sun as SunData,
+  Moon as MoonData,
+  RefreshCw as RefreshCwData,
+  Check as CheckData
+} from 'lucide';
+import MorphIcon from './ui/MorphIcon';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -52,6 +63,12 @@ export default function Header({
   }, []);
 
   const allRegions = React.useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
+
+  // Nút "Tải lại" có 3 trạng thái nhưng chỉ 2 hình: đang tải và lỗi đều là
+  // RefreshCw (khác nhau ở class quay), xong thì là Check. Tách ra biến để 2
+  // bản mobile/desktop bên dưới không lặp lại cùng một ternary 3 lần.
+  const syncIsLoading = syncStatus?.kind === 'loading';
+  const syncIsDone = syncStatus?.kind === 'live' || syncStatus?.kind === 'default';
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 
   // "Cập nhật lúc HH:MM" — trước đây chỉ tab Leadtime hiện giờ đồng bộ
@@ -105,14 +122,17 @@ export default function Header({
           <span>D-1: {d1DateFormatted || 'Đang cập nhật'}{lastSyncedLabel ? ` · cập nhật ${lastSyncedLabel}` : ''}</span>
         </div>
         <div className="mobile-header-actions">
-          <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncStatus?.kind === 'loading'} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
-            {syncStatus?.kind === 'loading' ? (
-              <RefreshCw size={18} className="is-spinning" />
-            ) : syncStatus?.kind === 'live' || syncStatus?.kind === 'default' ? (
-              <Check size={18} className="pop-success" style={{ color: '#0F6E56' }} />
-            ) : (
-              <RefreshCw size={18} />
-            )}
+          <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncIsLoading} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
+            {/* Bỏ .pop-success: keyframe đó chạy từ opacity 0 → 1, tức là
+                animation LÚC MOUNT. Giờ icon không remount nữa (cùng một
+                <MorphIcon>, chỉ đổi prop icon) nên nó sẽ không bao giờ chạy
+                lại — chính cú morph RefreshCw → Check là animation "xong" rồi. */}
+            <MorphIcon
+              icon={syncIsDone ? CheckData : RefreshCwData}
+              size={18}
+              className={syncIsLoading ? 'is-spinning' : undefined}
+              style={syncIsDone ? { color: '#0F6E56' } : undefined}
+            />
           </button>
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1">
             <MessageSquareText size={18} />
@@ -254,19 +274,18 @@ export default function Header({
           <button
             className={`nav-btn-sleek ${syncStatus?.kind === 'error' ? 'data-retry-warning' : ''}`}
             onClick={onRetryData}
-            disabled={syncStatus?.kind === 'loading'}
+            disabled={syncIsLoading}
             title={syncStatus?.kind === 'error' ? 'Không tải được dữ liệu mới — bấm để thử lại' : 'Tải lại dữ liệu'}
           >
-            {syncStatus?.kind === 'loading' ? (
-              <RefreshCw size={14} className="is-spinning" />
-            ) : syncStatus?.kind === 'live' || syncStatus?.kind === 'default' ? (
-              <Check size={14} className="pop-success" style={{ color: '#0F6E56' }} />
-            ) : (
-              <RefreshCw size={14} />
-            )}
+            <MorphIcon
+              icon={syncIsDone ? CheckData : RefreshCwData}
+              size={14}
+              className={syncIsLoading ? 'is-spinning' : undefined}
+              style={syncIsDone ? { color: '#0F6E56' } : undefined}
+            />
             <span style={{ marginLeft: '0.3rem' }}>
-              {syncStatus?.kind === 'error' 
-                ? 'Thử lại dữ liệu' 
+              {syncStatus?.kind === 'error'
+                ? 'Thử lại dữ liệu'
                 : syncStatus?.kind === 'loading'
                 ? 'Đang tải...'
                 : syncStatus?.kind === 'live'
@@ -298,7 +317,7 @@ export default function Header({
             title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'}
             style={{ padding: '0.25rem 0.4rem' }}
           >
-            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            <MorphIcon icon={isFullscreen ? Minimize2Data : Maximize2Data} size={15} />
           </button>
 
           <button 
@@ -319,7 +338,7 @@ export default function Header({
               title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
               style={{ padding: '0.25rem 0.4rem' }}
             >
-              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+              <MorphIcon icon={isDarkMode ? SunData : MoonData} size={15} />
             </button>
 
             {currentUser?.isDevAdmin && (

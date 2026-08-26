@@ -1,5 +1,9 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, Sun, Moon, ChevronLeft, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, ShieldCheck, Sparkles } from 'lucide-react';
+// Icon DATA (không phải component) cho 2 nút toggle bên dưới — morphicons chỉ
+// nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx.
+import { Sun as SunData, Moon as MoonData, ChevronLeft as ChevronLeftData, ChevronRight as ChevronRightData } from 'lucide';
+import MorphIcon from './ui/MorphIcon';
 
 export default function Sidebar({
   activeTab,
@@ -44,7 +48,7 @@ export default function Sidebar({
           onClick={onToggleCollapse}
           title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
         >
-          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          <MorphIcon icon={isCollapsed ? ChevronRightData : ChevronLeftData} size={18} />
         </button>
       </div>
 
@@ -88,7 +92,7 @@ export default function Sidebar({
           onClick={() => setIsDarkMode(!isDarkMode)} 
           title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
         >
-          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          <MorphIcon icon={isDarkMode ? SunData : MoonData} size={18} />
           <span>{isDarkMode ? 'Sáng' : 'Tối'}</span>
         </button>
 

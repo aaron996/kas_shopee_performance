@@ -1341,17 +1341,13 @@ th.sep, td.sep {
 }
 
 /* Modal Backdrop & Content (Principle 3: Staging) */
-@keyframes modal-backdrop-enter {
-  from {
-    opacity: 0;
-    backdrop-filter: blur(0px);
-  }
-  to {
-    opacity: 1;
-    backdrop-filter: blur(6px);
-  }
-}
-
+/* modal-backdrop-enter đã bị bỏ: animation mở/đóng của .modal-backdrop và
+   .modal-card giờ do GSAP điều khiển trong ui/ModalDialog.jsx, để lần đầu tiên
+   modal có cả animation ĐÓNG (CSS keyframes chỉ làm được chiều mở). Không thể
+   để cả hai: CSS animation ghi đè inline style trong lúc nó chạy, nên GSAP và
+   keyframe sẽ giành nhau opacity/transform.
+   modal-card-enter thì GIỮ LẠI — .cmdk-panel (CommandPalette, không dùng
+   ModalDialog) vẫn đang dùng. */
 @keyframes modal-card-enter {
   from {
     opacity: 0;
@@ -1379,7 +1375,7 @@ th.sep, td.sep {
      a passive background-loading indicator. */
   z-index: 10000;
   padding: 1rem;
-  animation: modal-backdrop-enter var(--duration-fast) var(--ease-smooth) forwards;
+  /* animation mở/đóng: GSAP, xem ui/ModalDialog.jsx */
 }
 
 .modal-card {
@@ -1392,7 +1388,7 @@ th.sep, td.sep {
   flex-direction: column;
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
-  animation: modal-card-enter var(--duration-modal) var(--ease-snappy) forwards;
+  /* animation mở/đóng: GSAP, xem ui/ModalDialog.jsx */
   transform-origin: center center;
 }
 
@@ -3482,18 +3478,11 @@ table.mtx-table td,
   vertical-align: middle;
 }
 
-/* 4. Glassmorphism Modal Overlay & Pop-in Spring Physics */
-@keyframes modalPopIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.96) translateY(12px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
+/* 4. Glassmorphism Modal Overlay */
+/* @keyframes modalPopIn đã bỏ: nó là animation mở THỨ HAI áp lên .modal-card
+   (cùng lúc với modal-card-enter ở trên), và cả hai đều giành opacity/transform
+   với GSAP trong ui/ModalDialog.jsx — CSS animation thắng inline style trong
+   lúc nó chạy, nên modal sẽ không animate theo GSAP chút nào. */
 .modal-overlay,
 .modal-backdrop,
 .executive-modal-overlay,
@@ -3504,11 +3493,15 @@ table.mtx-table td,
   background-color: rgba(15, 23, 42, 0.65) !important;
 }
 
+/* .executive-modal-content / .datasource-modal-content / .auth-card không còn
+   xuất hiện trong JSX nào — các modal đó giờ đi qua ui/ModalDialog và nhận
+   class .modal-card + class riêng (.auth-modal-card, .data-source-modal-card,
+   .client-select-card). Giữ lại selector ở đây cho đỡ sợ vỡ style cũ. */
 .modal-card,
 .executive-modal-content,
 .datasource-modal-content,
 .auth-card {
-  animation: modalPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* animation mở/đóng: GSAP, xem ui/ModalDialog.jsx */
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
@@ -4161,12 +4154,9 @@ body.dark-mode .kpi-table-tab.active {
   padding: 0.7rem 0.75rem;
   box-shadow: var(--shadow-raised);
   background: var(--surface-default);
-  animation: toast-slide-in var(--duration-normal) var(--ease-snappy) forwards;
-}
-
-@keyframes toast-slide-in {
-  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  /* animation vào/ra: GSAP, xem ui/Toast.jsx. Keyframe toast-slide-in cũ đã bỏ
+     — CSS animation ghi đè inline style trong lúc chạy nên nó sẽ giành
+     opacity/transform với GSAP, và bản thân nó cũng chỉ làm được chiều vào. */
 }
 
 .toast-item--info { background: var(--surface-info); color: var(--info-box-text); }
