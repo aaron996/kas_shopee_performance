@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useLeadtimeReveal } from './useLeadtimeReveal';
 
 import {
   STAGE_KEYS, THRESHOLD_PRESETS, DEFAULT_PRESET, BASELINE_CONFIG,
@@ -236,6 +237,14 @@ export default function ReportLeadtime({
     [pairRows, pairFilter]
   );
 
+  // --- reveal khi cuộn -----------------------------------------------------
+  // Phải gọi TRƯỚC các early return bên dưới (rule of hooks). resetKey chỉ đổi
+  // khi TẬP KHỐI được render đổi (có dữ liệu ↔ rỗng ↔ không có client) — không
+  // gắn vào from/to, nếu không mỗi lần đổi ngày là cả trang fade lại một lượt.
+  const ltRootRef = useRef(null);
+  const hasContent = !!overall && overall.mau > 0 && clients.length > 0;
+  useLeadtimeReveal(ltRootRef, hasContent, openLayer2);
+
   // --- empty state --------------------------------------------------------
   if (!allDates.length) {
     return (
@@ -253,7 +262,7 @@ export default function ReportLeadtime({
   const isEmptyPeriod = !overall || !(overall.mau > 0);
 
   return (
-    <div className={`lt-root density-${density}`}>
+    <div ref={ltRootRef} className={`lt-root density-${density}`}>
       {dataSource === 'mock' && (
         <StatusNotice tone="warning">
           <strong>Đang hiển thị dữ liệu mẫu.</strong> Mẫu cắt từ output thật

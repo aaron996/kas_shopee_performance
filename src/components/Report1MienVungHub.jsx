@@ -2,10 +2,17 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallba
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import AnimatedNumber from './ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
+// Maximize2/Minimize2 từng nằm ở đây nhưng không dòng JSX nào dùng — nút
+// fullscreen duy nhất nằm ở Header. Bỏ luôn import chết.
+import { ChevronRight, Layers, ArrowUp, AlertTriangle, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { gsap, Flip, shouldAnimate, settleAnimations } from '../utils/gsapSetup';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 import { useToast } from './ui/Toast';
+
+// Row của bảng 1.x mà FLIP theo dõi. Scope theo id của <tbody> để không quét
+// trúng bảng khác nếu về sau có thêm bảng dùng cùng attribute.
+const FLIP_ROW_SELECTOR = '#r1-table-body tr[data-flip-id]';
 
 function SparklineChart({ card, isGood }) {
   const [hoverIndex, setHoverIndex] = useState(null);
@@ -137,61 +144,46 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
   const tableBodyRef = useRef(null);
-  const previousRowPositions = useRef(new Map());
+  const flipStateRef = useRef(null);
 
+  // FLIP cho bảng khi mở/thu gọn hub của một vùng: chụp vị trí TRƯỚC khi
+  // setState, so với vị trí SAU khi React commit, rồi animate phần lệch.
+  //
+  // Trước đây phần này là ~50 dòng tự đo getBoundingClientRect + Map +
+  // row.animate(), và phải tự dọn animation cũ bằng row.getAnimations().cancel()
+  // — chỉ dọn được từng row một, nên bấm mở/thu liên tiếp là hai lượt FLIP chồng
+  // nhau. Flip.getState/Flip.from tự lo việc ngắt giữa dòng và giữ nguyên hành
+  // vi cũ (translateY cho row dịch chỗ, fade cho row hub mới), nên bỏ được cả
+  // đoạn tự viết.
   const captureTableLayout = useCallback(() => {
-    const tableBody = tableBodyRef.current;
-    if (!tableBody || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    previousRowPositions.current = new Map(
-      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
-        row.dataset.motionId,
-        row.getBoundingClientRect(),
-      ]),
-    );
+    if (!tableBodyRef.current || !shouldAnimate()) return;
+    // PHẢI là selector text, không phải NodeList: onEnter/onLeave chỉ hoạt động
+    // khi Flip tự query lại được DOM ở thời điểm Flip.from. Truyền NodeList thì
+    // Flip chỉ biết đúng những row đã tồn tại lúc chụp, nên row hub mới xuất
+    // hiện sẽ hiện tức thời thay vì fade vào (mất hành vi của bản cũ).
+    flipStateRef.current = Flip.getState(FLIP_ROW_SELECTOR);
   }, []);
 
   useLayoutEffect(() => {
-    const tableBody = tableBodyRef.current;
-    if (!tableBody) return;
+    const state = flipStateRef.current;
+    if (!state) return;
+    // Dùng 1 lần rồi bỏ: nếu expandedRegions đổi vì lý do khác (không qua nút
+    // bấm) thì không có state nào để so, và cũng không nên animate.
+    flipStateRef.current = null;
 
-    const nextPositions = new Map(
-      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
-        row.dataset.motionId,
-        { row, rect: row.getBoundingClientRect() },
-      ]),
-    );
-    const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    if (!shouldReduceMotion && previousRowPositions.current.size > 0) {
-      nextPositions.forEach(({ row, rect }, id) => {
-        const previousRect = previousRowPositions.current.get(id);
-
-        row.getAnimations().forEach((animation) => animation.cancel());
-
-        if (previousRect) {
-          const offsetY = previousRect.top - rect.top;
-          if (Math.abs(offsetY) > 0.5) {
-            row.animate(
-              [
-                { transform: `translateY(${offsetY}px)` },
-                { transform: 'translateY(0)' },
-              ],
-              { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
-            );
-          }
-        } else if (row.dataset.hubRow === 'true') {
-          row.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 120,
-            easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
-          });
-        }
-      });
-    }
-
-    previousRowPositions.current = new Map(
-      [...nextPositions.entries()].map(([id, { rect }]) => [id, rect]),
-    );
+    Flip.from(state, {
+      // BẮT BUỘC truyền lại targets dạng selector: Flip dựng "toState" từ
+      // `vars.targets || state.targets`, mà state.targets là danh sách element
+      // đã resolve LÚC CHỤP — không có row hub vừa được thêm. Thiếu dòng này
+      // thì mảng `entering` luôn rỗng và onEnter không bao giờ chạy.
+      targets: FLIP_ROW_SELECTOR,
+      duration: 0.28,
+      ease: 'power2.out',
+      // Chỉ animate transform. KHÔNG dùng absolute:true — nó nhấc element ra
+      // khỏi luồng layout, và với <tr> thì bảng sẽ sụp ngay.
+      onEnter: (els) => gsap.fromTo(els, { opacity: 0 }, { opacity: 1, duration: 0.16 }),
+      onLeave: (els) => gsap.to(els, { opacity: 0, duration: 0.12 })
+    });
   }, [expandedRegions]);
   const theadRef = useRef(null);
   const allRowRef = useRef(null);
@@ -246,6 +238,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const handleCopyImage = async (ref, titleText) => {
     if (!ref.current) return;
     try {
+      // Ép mọi tween đang bay về đích TRƯỚC khi chụp. Không có dòng này thì
+      // bấm "Copy ảnh" ngay sau khi mở/thu một vùng (FLIP đang chạy) hoặc khi
+      // số đang đếm dần sẽ chụp đúng trạng thái dở dang: row lệch vị trí, số
+      // hiển thị nửa đường.
+      settleAnimations();
       const dataUrl = await htmlToImage.toPng(ref.current, { backgroundColor: '#ffffff', pixelRatio: 2 });
       const res = await fetch(dataUrl);
       const blob = await res.blob();
@@ -730,10 +727,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               </tr>
             </thead>
 
-            <tbody ref={tableBodyRef}>
+            {/* id dùng cho selector của Flip.getState — xem captureTableLayout:
+                Flip cần selector text (không phải NodeList) để tự query lại DOM
+                và nhận ra row mới/row biến mất. */}
+            <tbody ref={tableBodyRef} id="r1-table-body">
               {/* 1. TOÀN QUỐC ROW — pinned right below the sticky thead so it
                   never scrolls out of view underneath the header. */}
-              <tr className="all-row all-row-sticky" ref={allRowRef} data-motion-id="all">
+              <tr className="all-row all-row-sticky" ref={allRowRef} data-flip-id="all">
                 <td colSpan="2" className="lbl lbl-1 all-row-label desktop-only">TOÀN QUỐC</td>
                 <td colSpan="1" className="lbl lbl-2 all-row-label mobile-only">TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
@@ -799,7 +799,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2px solid var(--action-primary-deep)' }}>
+                    <tr className="grp-row" data-flip-id={`mien:${mien}`} style={{ borderTop: '2px solid var(--action-primary-deep)' }}>
                       {/* Sticky so the region name stays visible for as long as any of
                           its rows (spanned by rowSpan) are on screen — otherwise it only
                           ever renders on this one row and disappears the moment this row
@@ -864,7 +864,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
                       return (
                         <React.Fragment key={reg}>
-                          <tr data-motion-id={`region:${reg}`}>
+                          <tr data-flip-id={`region:${reg}`}>
                             <td className="lbl lbl-2">
                               <button
                                 className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
@@ -914,7 +914,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                             const hubD1 = calcStats(`HUB_${reg}_${hub}`, [d1Date]);
                             const hubWtd = calcStats(`HUB_${reg}_${hub}`, weekCur);
                             return (
-                              <tr key={hub} className="sub-row" data-motion-id={`hub:${reg}:${hub}`} data-hub-row="true">
+                              <tr key={hub} className="sub-row" data-flip-id={`hub:${reg}:${hub}`} data-hub-row="true">
                                 <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{hub}</td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(`HUB_${reg}_${hub}`, [d]);

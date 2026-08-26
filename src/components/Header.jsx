@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, CheckSquare, Square, Maximize2, Minimize2, Download, MessageSquareText, Sun, Moon, ShieldCheck, LogOut, RefreshCw, Check, Search, SlidersHorizontal, AlertTriangle } from 'lucide-react';
+import { Filter, CheckSquare, Square, Download, MessageSquareText, ShieldCheck, LogOut, RefreshCw, Search, SlidersHorizontal, AlertTriangle } from 'lucide-react';
+// Icon DATA cho các nút đổi trạng thái (sync, fullscreen, theme) — morphicons
+// chỉ nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx. Chỉ
+// mobile block + fullscreen + theme toggle còn morph; freshness-chip (Zone 2,
+// redesign gần đây) không có trạng thái "thành công" bằng icon riêng nên
+// không cần morph — RefreshCw/AlertTriangle tĩnh ở đó đủ.
+import {
+  Maximize2 as Maximize2Data,
+  Minimize2 as Minimize2Data,
+  Sun as SunData,
+  Moon as MoonData,
+  RefreshCw as RefreshCwData,
+  Check as CheckData
+} from 'lucide';
+import MorphIcon from './ui/MorphIcon';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -57,6 +71,12 @@ export default function Header({
   }, []);
 
   const allRegions = React.useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
+
+  // Nút "Tải lại" có 3 trạng thái nhưng chỉ 2 hình: đang tải và lỗi đều là
+  // RefreshCw (khác nhau ở class quay), xong thì là Check. Tách ra biến để 2
+  // bản mobile/desktop bên dưới không lặp lại cùng một ternary 3 lần.
+  const syncIsLoading = syncStatus?.kind === 'loading';
+  const syncIsDone = syncStatus?.kind === 'live' || syncStatus?.kind === 'default';
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 
   // "Cập nhật lúc HH:MM" — trước đây chỉ tab Leadtime hiện giờ đồng bộ
@@ -110,14 +130,17 @@ export default function Header({
           <span>D-1: {d1DateFormatted || 'Đang cập nhật'}{lastSyncedLabel ? ` · cập nhật ${lastSyncedLabel}` : ''}</span>
         </div>
         <div className="mobile-header-actions">
-          <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncStatus?.kind === 'loading'} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
-            {syncStatus?.kind === 'loading' ? (
-              <RefreshCw size={18} className="is-spinning" />
-            ) : syncStatus?.kind === 'live' || syncStatus?.kind === 'default' ? (
-              <Check size={18} className="pop-success" style={{ color: '#0F6E56' }} />
-            ) : (
-              <RefreshCw size={18} />
-            )}
+          <button className="mobile-icon-btn" onClick={onRetryData} disabled={syncIsLoading} title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
+            {/* Bỏ .pop-success: keyframe đó chạy từ opacity 0 → 1, tức là
+                animation LÚC MOUNT. Giờ icon không remount nữa (cùng một
+                <MorphIcon>, chỉ đổi prop icon) nên nó sẽ không bao giờ chạy
+                lại — chính cú morph RefreshCw → Check là animation "xong" rồi. */}
+            <MorphIcon
+              icon={syncIsDone ? CheckData : RefreshCwData}
+              size={18}
+              className={syncIsLoading ? 'is-spinning' : undefined}
+              style={syncIsDone ? { color: '#0F6E56' } : undefined}
+            />
           </button>
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1">
             <MessageSquareText size={18} />
@@ -321,6 +344,11 @@ export default function Header({
             )}
           </div>
 
+          {/* Nút "Tải lại" riêng + 2 nút "Nhận Xét D-1"/"Tìm nhanh" trùng lặp +
+              density switch cũ đã bị bỏ trong redesign Zone 2/3 (freshness-chip
+              + view-menu phía trên đã gộp hết các chức năng này). MorphIcon cho
+              sync (B3 trong plan cũ) không còn chỗ để gắn — freshness-chip
+              không có trạng thái "thành công" riêng bằng icon nữa. */}
           <button
             className="nav-btn-sleek icon-btn"
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -328,7 +356,7 @@ export default function Header({
             aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'}
             aria-pressed={isFullscreen}
           >
-            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            <MorphIcon icon={isFullscreen ? Minimize2Data : Maximize2Data} size={15} />
           </button>
 
           <button
@@ -347,7 +375,7 @@ export default function Header({
               onClick={() => setIsDarkMode(!isDarkMode)}
               title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
             >
-              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+              <MorphIcon icon={isDarkMode ? SunData : MoonData} size={15} />
             </button>
 
             {currentUser?.isDevAdmin && (
