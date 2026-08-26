@@ -689,22 +689,25 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
                 <th rowSpan="2" className="lbl lbl-2">Vùng / Hub</th>
                 {weekPrev.length > 0 && (
-                  <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
+                  <th colSpan={weekPrev.length}>
                     TUẦN W-1 {prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}
                   </th>
                 )}
-                {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
+                {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols).
+                    Ranh giới giữa các khối tuần dùng chung class .sep với thân
+                    bảng — một quy tắc 1px duy nhất, thay cho 5 inline border
+                    1.5px viết tay rải rác trong thead. */}
                 {weekCur.length > 0 && (
-                  <th colSpan={weekCur.length + 1}>
+                  <th colSpan={weekCur.length + 1} className="sep">
                     TUẦN HIỆN TẠI {curWeekNum ? `(Tuần ${curWeekNum})` : ''}
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
-                <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th colSpan="2" rowSpan="2" className="sep" style={{ background: 'var(--action-primary-deep)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}
-                <th rowSpan="2" className="col-summary" style={{ borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th rowSpan="2" className="col-summary sep" style={{ verticalAlign: 'middle' }}>
                   Tốt nhất<br />6 tuần
                 </th>
                 <th rowSpan="2" className="col-summary" style={{ verticalAlign: 'middle' }}>
@@ -717,11 +720,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 {weekPrev.map((d, idx) => (
                   <th key={d} className={idx === 0 ? 'sep' : ''}>{formatDateLabel(d)}</th>
                 ))}
-                {weekCur.slice(0, -1).map(d => (
-                  <th key={d}>{formatDateLabel(d)}</th>
+                {weekCur.slice(0, -1).map((d, idx) => (
+                  <th key={d} className={idx === 0 ? 'sep' : ''}>{formatDateLabel(d)}</th>
                 ))}
                 {/* D-1 header (merged over 2 cols, replacing % Ontime and Vol D-1) */}
-                <th colSpan="2" style={{ background: 'var(--action-primary-hover)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th colSpan="2" className="sep" style={{ background: 'var(--action-primary-hover)' }}>
                   {formatDateLabel(d1Date)}
                 </th>
               </tr>
@@ -796,7 +799,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
+                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2px solid var(--action-primary-deep)' }}>
                       {/* Sticky so the region name stays visible for as long as any of
                           its rows (spanned by rowSpan) are on screen — otherwise it only
                           ever renders on this one row and disappears the moment this row
