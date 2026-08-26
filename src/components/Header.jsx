@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, MapPin, CheckSquare, Square, Download, MessageSquareText, Layers, ShieldCheck, LogOut, Search } from 'lucide-react';
+import { Filter, CheckSquare, Square, Download, MessageSquareText, ShieldCheck, LogOut, RefreshCw, Search, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 // Icon DATA cho các nút đổi trạng thái (sync, fullscreen, theme) — morphicons
-// chỉ nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx.
+// chỉ nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx. Chỉ
+// mobile block + fullscreen + theme toggle còn morph; freshness-chip (Zone 2,
+// redesign gần đây) không có trạng thái "thành công" bằng icon riêng nên
+// không cần morph — RefreshCw/AlertTriangle tĩnh ở đó đủ.
 import {
   Maximize2 as Maximize2Data,
   Minimize2 as Minimize2Data,
@@ -46,8 +49,10 @@ export default function Header({
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
   const regionMenuRef = useRef(null);
   const hubTypeMenuRef = useRef(null);
+  const viewMenuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -56,6 +61,9 @@ export default function Header({
       }
       if (hubTypeMenuRef.current && !hubTypeMenuRef.current.contains(event.target)) {
         setIsHubTypeMenuOpen(false);
+      }
+      if (viewMenuRef.current && !viewMenuRef.current.contains(event.target)) {
+        setIsViewMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -150,21 +158,25 @@ export default function Header({
           Không tải được dữ liệu mới. Đang hiển thị dữ liệu gần nhất. <button onClick={onRetryData}>Thử lại</button>
         </div>
       )}
-      <div className="filter-group-sleek" style={{ width: '100%', justifyContent: 'space-between' }}>
-        
-        {/* Left Side: Context / Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-          <div className="filter-item">
-            <Filter size={14} className="filter-icon" />
-            <span className="filter-label-text">Client:</span>
-            <select 
+      <div className="filter-group-sleek">
+
+        {/* Zone 1 — SCOPE: "dữ liệu tôi đang xem là của ai".
+            Chỉ nhóm này còn giữ viền: input thì trông như input, còn nút hành
+            động ở Zone 3 đều ghost. Bỏ icon + bỏ divider giữa các filter —
+            nhãn chữ đã nói đủ, icon chỉ là lớp trang trí thứ ba trên cùng một
+            control. */}
+        <div className="header-scope">
+          <div className="hdr-field">
+            <span className="hdr-field-label">Client</span>
+            <select
               className="filter-select-sleek"
-              value={clientFilter} 
+              value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
+              aria-label="Chọn client"
             >
               <option value="SPB">SPB</option>
               <option value="SPE">SPE</option>
-              <option value="ALL">Toàn Bộ (SPB + SPE)</option>
+              <option value="ALL">SPB + SPE</option>
             </select>
           </div>
 
@@ -172,21 +184,18 @@ export default function Header({
               Leadtime ở grain tỉnh-tỉnh, 2 bộ lọc này không tác động gì nên phải
               ẩn thay vì để sáng cho người dùng tưởng đã lọc (audit B9). */}
           {!hideRegionHubFilters && <>
-          <div className="filter-divider"></div>
-
-          <div className="filter-item">
-            <MapPin size={14} className="filter-icon" />
-            <span className="filter-label-text">Vùng:</span>
+          <div className="hdr-field">
+            <span className="hdr-field-label">Vùng</span>
             <div className="custom-dropdown" ref={regionMenuRef}>
-              <button 
+              <button
                 type="button"
-                className="dropdown-toggle-sleek" 
+                className={`dropdown-toggle-sleek ${selectedRegions.length !== allRegions.length ? 'is-filtered' : ''}`}
                 onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
                 aria-expanded={isRegionMenuOpen}
                 aria-controls="region-filter-menu"
                 title={selectedRegions.length === allRegions.length ? "Đã chọn tất cả vùng" : `Đã chọn ${selectedRegions.length} vùng`}
               >
-                <span>{selectedRegions.length === allRegions.length ? "Tất Cả Vùng" : `Đã chọn (${selectedRegions.length})`}</span>
+                <span>{selectedRegions.length === allRegions.length ? "Tất cả" : `${selectedRegions.length} vùng`}</span>
               </button>
 
               {isRegionMenuOpen && (
@@ -196,7 +205,7 @@ export default function Header({
                     <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
                   </button>
                   <div className="dropdown-divider"></div>
-                  
+
                   <div className="dropdown-scroll-area">
                     {Object.keys(MIEN_REGIONS).map(mien => (
                       <div key={mien} className="dropdown-section">
@@ -215,21 +224,18 @@ export default function Header({
             </div>
           </div>
 
-          <div className="filter-divider"></div>
-
-          <div className="filter-item">
-            <Layers size={14} className="filter-icon" />
-            <span className="filter-label-text">Loại Hub:</span>
+          <div className="hdr-field">
+            <span className="hdr-field-label">Loại hub</span>
             <div className="custom-dropdown" ref={hubTypeMenuRef}>
-              <button 
+              <button
                 type="button"
-                className="dropdown-toggle-sleek" 
+                className={`dropdown-toggle-sleek ${selectedHubTypes.length !== allHubTypes.length ? 'is-filtered' : ''}`}
                 onClick={() => setIsHubTypeMenuOpen(!isHubTypeMenuOpen)}
                 aria-expanded={isHubTypeMenuOpen}
                 aria-controls="hub-type-filter-menu"
                 title={selectedHubTypes.length === allHubTypes.length ? "Đã chọn tất cả loại Hub" : `Đã chọn ${selectedHubTypes.length} loại Hub`}
               >
-                <span>{selectedHubTypes.length === allHubTypes.length ? "Tất Cả Loại" : `Đã chọn (${selectedHubTypes.length})`}</span>
+                <span>{selectedHubTypes.length === allHubTypes.length ? "Tất cả" : `${selectedHubTypes.length} loại`}</span>
               </button>
 
               {isHubTypeMenuOpen && (
@@ -239,7 +245,7 @@ export default function Header({
                     <span style={{ fontWeight: 600 }}>Chọn tất cả loại</span>
                   </button>
                   <div className="dropdown-divider"></div>
-                  
+
                   <div className="dropdown-scroll-area">
                     {allHubTypes.map(type => (
                       <button type="button" key={type} className="dropdown-item" onClick={() => handleToggleHubType(type)} aria-pressed={selectedHubTypes.includes(type)}>
@@ -253,110 +259,140 @@ export default function Header({
             </div>
           </div>
           </>}
-
         </div>
 
-        {/* Right Side: View Controls & Export */}
-        {/* Layout lives in .header-actions so breakpoints can adjust it — the
-            header is a fixed 52px row, so wrapping has to be controlled. */}
+        {/* Zone 2 + 3 — trạng thái dữ liệu rồi mới tới hành động. */}
         <div className="header-actions">
-          <div className="meta-date-sleek">
-            <span>D-1: <strong>{d1DateFormatted || '...'}</strong></span>
-            {lastSyncedLabel && (
-              <span className="meta-synced-at" title="Giờ đồng bộ dữ liệu thành công gần nhất">
-                · cập nhật {lastSyncedLabel}
+
+          {/* Zone 2 — FRESHNESS. Trước đây đây là 2 thứ tách rời nói cùng một
+              chuyện: dòng chữ "D-1 … · cập nhật 09:21" và nút "Đã đồng bộ".
+              Gộp làm một: dòng chữ CHÍNH LÀ nút tải lại, và cũng là nơi báo
+              lỗi (chuyển hổ phách) — thay cho .data-retry-warning cũ. */}
+          <button
+            type="button"
+            className={`freshness-chip ${syncStatus?.kind === 'error' ? 'is-error' : ''} ${syncStatus?.kind === 'loading' ? 'is-loading' : ''}`}
+            onClick={onRetryData}
+            disabled={syncStatus?.kind === 'loading'}
+            title={syncStatus?.kind === 'error'
+              ? 'Không tải được dữ liệu mới — bấm để thử lại'
+              : `Ngày nghiệp vụ D-1${lastSyncedLabel ? `, đồng bộ lúc ${lastSyncedLabel}` : ''} — bấm để tải lại`}
+          >
+            {syncStatus?.kind === 'loading' ? (
+              <RefreshCw size={13} className="is-spinning" />
+            ) : syncStatus?.kind === 'error' ? (
+              <AlertTriangle size={13} />
+            ) : (
+              <RefreshCw size={13} className="freshness-chip-idle-icon" />
+            )}
+            {syncStatus?.kind === 'error' ? (
+              <span className="freshness-text">Lỗi tải · Thử lại</span>
+            ) : syncStatus?.kind === 'loading' ? (
+              <span className="freshness-text">Đang tải…</span>
+            ) : (
+              <span className="freshness-text">
+                D-1 <strong>{d1DateFormatted || '...'}</strong>
+                {lastSyncedLabel && <span className="freshness-sub"> · {lastSyncedLabel}</span>}
               </span>
+            )}
+          </button>
+
+          <span className="header-sep" aria-hidden="true"></span>
+
+          <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)">
+            <MessageSquareText size={14} /> <span className="nav-btn-label">Nhận xét D-1</span>
+          </button>
+
+          <button className="nav-btn-sleek icon-btn" onClick={onOpenPalette} title="Tìm nhanh: tab, client, vùng" aria-label="Tìm nhanh">
+            <Search size={14} />
+            <kbd className="cmdk-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
+
+          {/* Zone 3 — tuỳ chọn HIỂN THỊ gom vào một popover thay vì nằm rải rác
+              trên thanh. Mật độ bảng là preference đặt-một-lần, không đáng
+              chiếm ~110px thường trực cạnh các hành động chính. */}
+          <div className="custom-dropdown view-menu" ref={viewMenuRef}>
+            <button
+              type="button"
+              className={`nav-btn-sleek icon-btn ${isViewMenuOpen ? 'is-open' : ''}`}
+              onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
+              aria-expanded={isViewMenuOpen}
+              aria-controls="view-options-menu"
+              title="Tuỳ chọn hiển thị"
+              aria-label="Tuỳ chọn hiển thị"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+
+            {isViewMenuOpen && (
+              <div className="dropdown-menu view-menu-panel" id="view-options-menu">
+                <div className="dropdown-section-title">Mật độ bảng</div>
+                <div className="segmented" role="group" aria-label="Mật độ bảng">
+                  <button
+                    type="button"
+                    className={density === 'comfortable' ? 'active' : ''}
+                    aria-pressed={density === 'comfortable'}
+                    onClick={() => setDensity('comfortable')}
+                  >Thoáng</button>
+                  <button
+                    type="button"
+                    className={density === 'compact' ? 'active' : ''}
+                    aria-pressed={density === 'compact'}
+                    onClick={() => setDensity('compact')}
+                  >Dày</button>
+                </div>
+              </div>
             )}
           </div>
 
-          <div className="filter-divider"></div>
-
+          {/* Nút "Tải lại" riêng + 2 nút "Nhận Xét D-1"/"Tìm nhanh" trùng lặp +
+              density switch cũ đã bị bỏ trong redesign Zone 2/3 (freshness-chip
+              + view-menu phía trên đã gộp hết các chức năng này). MorphIcon cho
+              sync (B3 trong plan cũ) không còn chỗ để gắn — freshness-chip
+              không có trạng thái "thành công" riêng bằng icon nữa. */}
           <button
-            className={`nav-btn-sleek ${syncStatus?.kind === 'error' ? 'data-retry-warning' : ''}`}
-            onClick={onRetryData}
-            disabled={syncIsLoading}
-            title={syncStatus?.kind === 'error' ? 'Không tải được dữ liệu mới — bấm để thử lại' : 'Tải lại dữ liệu'}
-          >
-            <MorphIcon
-              icon={syncIsDone ? CheckData : RefreshCwData}
-              size={14}
-              className={syncIsLoading ? 'is-spinning' : undefined}
-              style={syncIsDone ? { color: '#0F6E56' } : undefined}
-            />
-            <span style={{ marginLeft: '0.3rem' }}>
-              {syncStatus?.kind === 'error'
-                ? 'Thử lại dữ liệu'
-                : syncStatus?.kind === 'loading'
-                ? 'Đang tải...'
-                : syncStatus?.kind === 'live'
-                ? 'Đã đồng bộ'
-                : 'Tải lại'}
-            </span>
-          </button>
-
-          <button className="nav-btn-sleek" onClick={onOpenSummary} title="Nhận Xét D-1 (Summary)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
-            <MessageSquareText size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Nhận Xét D-1</span>
-          </button>
-
-          <button className="nav-btn-sleek" onClick={onOpenPalette} title="Tìm nhanh: tab, client, vùng (Cmd/Ctrl+K)" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.6rem' }}>
-            <Search size={14} /> <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>Tìm nhanh</span>
-            <kbd className="cmdk-kbd" style={{ marginLeft: '0.15rem' }}>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
-          </button>
-
-          <button type="button" className="density-toggle-sleek" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title="Bật để xem dữ liệu dày hơn" role="switch" aria-checked={density === 'compact'}>
-             <span className={density === 'comfortable' ? 'active' : ''}>Thoáng</span>
-             <div className={`switch ${density === 'compact' ? 'on' : 'off'}`}>
-                <div className="slider"></div>
-             </div>
-             <span className={density === 'compact' ? 'active' : ''}>Dày</span>
-          </button>
-
-          <button 
-            className="nav-btn-sleek"
+            className="nav-btn-sleek icon-btn"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'}
-            style={{ padding: '0.25rem 0.4rem' }}
+            aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'}
+            aria-pressed={isFullscreen}
           >
             <MorphIcon icon={isFullscreen ? Minimize2Data : Maximize2Data} size={15} />
           </button>
 
-          <button 
+          <button
             className="nav-btn-sleek primary"
             onClick={() => window.dispatchEvent(new CustomEvent('export-csv'))}
             title="Tải bảng dữ liệu dạng CSV"
-            style={{ background: '#0F6E56', borderColor: '#0F6E56', padding: '0.25rem 0.6rem' }}
           >
-            <Download size={14} style={{ marginRight: '0.3rem' }} /> <span>Xuất CSV</span>
+            <Download size={14} /> <span className="nav-btn-label">Xuất CSV</span>
           </button>
 
           {/* Mobile-only: the desktop sidebar (theme, dev admin, logout) is
               hidden below 768px, so surface those controls here instead. */}
           <div className="mobile-only-controls">
             <button
-              className="nav-btn-sleek"
+              className="nav-btn-sleek icon-btn"
               onClick={() => setIsDarkMode(!isDarkMode)}
               title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
-              style={{ padding: '0.25rem 0.4rem' }}
             >
               <MorphIcon icon={isDarkMode ? SunData : MoonData} size={15} />
             </button>
 
             {currentUser?.isDevAdmin && (
               <button
-                className="nav-btn-sleek"
+                className="nav-btn-sleek icon-btn"
                 onClick={() => setActiveTab('dev-admin')}
                 title="Dev Admin"
-                style={{ padding: '0.25rem 0.4rem', color: '#0F6E56' }}
+                style={{ color: 'var(--status-success-fg)' }}
               >
                 <ShieldCheck size={15} />
               </button>
             )}
 
             <button
-              className="nav-btn-sleek"
+              className="nav-btn-sleek icon-btn"
               onClick={onLogout}
               title="Đăng xuất"
-              style={{ padding: '0.25rem 0.4rem' }}
             >
               <LogOut size={15} />
             </button>
