@@ -49,6 +49,7 @@ export function getWeekdayName(dateStr) {
 }
 
 export function formatDateLabel(dateStr) {
+  if (typeof dateStr !== 'string' || !/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) return '–';
   const parts = dateStr.split('-');
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);

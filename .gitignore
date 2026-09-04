@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 extracted/
+.playwright-cli/
+output/playwright/
 
 # Editor directories and files
 .vscode/*

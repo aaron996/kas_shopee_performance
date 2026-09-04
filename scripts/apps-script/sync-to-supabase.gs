@@ -24,17 +24,29 @@
  *                service_role secret key> — KHÔNG hardcode key vào code.
  * 4. Chạy hàm `syncAllTabs` một lần thủ công (Run) để cấp quyền
  *    (Authorize access) — cần cấp quyền đọc Sheet hiện tại + gọi URL ngoài.
- * 5. Vào Triggers (icon đồng hồ bên trái) → Add Trigger:
- *      - Function: syncAllTabs
- *      - Event source: Time-driven
- *      - Type: Minutes timer → Every 15 minutes (tuỳ nhu cầu)
- * 6. Xong — mỗi lần trigger chạy, Apps Script tự đẩy data mới nhất lên
- *    Supabase; app sẽ đọc live từ đó (không cần đăng nhập gì thêm).
+ * 5. Chạy hàm `createDailyTrigger` một lần (Run) để tự tạo trigger 1 lần/ngày.
+ *    KHÔNG tạo trigger qua UI (Triggers > Add Trigger > Day timer) — kiểu
+ *    "Day timer, 8am to 9am" của UI chỉ hứa chạy TRONG khung giờ đó, có thể
+ *    rơi vào 8:01AM (trước khi BI kịp đổ data lúc 8:15) mà không có cách nào
+ *    ghim giờ chính xác hơn từ UI. `createDailyTrigger` dùng `nearMinute()`
+ *    để ghim giờ chạy gần đúng MIN_RUN_HOUR:MIN_RUN_MINUTE hơn nhiều.
+ *    Nếu trước đó đã lỡ tạo trigger qua UI, hàm này cũng tự xoá trigger cũ
+ *    của syncAllTabs trước khi tạo trigger mới, để không bị chạy trùng.
+ * 6. Xong — mỗi ngày trigger tự chạy 1 lần; app đọc live từ Supabase (không
+ *    cần đăng nhập gì thêm). Muốn đổi lại chạy nhiều lần/ngày thì tự thêm
+ *    trigger như cũ, guard giờ chạy ở dưới vẫn sẽ chặn các lần chạy quá sớm.
  *
- * Muốn đổi Spreadsheet ID / gid các tab thì sửa 3 hằng số ngay dưới đây.
+ * Muốn đổi Spreadsheet ID / gid các tab thì sửa các hằng số ngay dưới đây.
  */
 
 const SUPABASE_URL = 'https://iyjsihwgnzcytbojvoom.supabase.co';
+
+// BI đổ data về Sheet lúc 8h15 mỗi ngày — chừa thêm buffer, không chạy sync
+// trước giờ này. Đây là chốt chặn Ở CODE, độc lập với trigger: dù trigger có
+// lỡ chạy sớm (jitter của Apps Script, hoặc ai đó bấm Run tay để test) thì
+// sync vẫn không đẩy data cũ/thiếu lên Supabase.
+const MIN_RUN_HOUR = 8;
+const MIN_RUN_MINUTE = 30;
 
 // Các gid tab hiện tại.
 // gid ổn định hơn tên tab — đổi tên tab không làm hỏng script, chỉ đổi gid
@@ -54,8 +66,59 @@ const TAB_RPC_FUNCTIONS = {
   leadtime: 'sync_kas_leadtime_data'
 };
 
+/**
+ * Tạo trigger chạy `syncAllTabs` 1 lần/ngày, ghim gần đúng
+ * MIN_RUN_HOUR:MIN_RUN_MINUTE (chính xác hơn UI Trigger vốn chỉ chọn được cả
+ * khung giờ, vd "8am to 9am"). Chạy hàm này 1 LẦN thủ công lúc cài đặt — nó
+ * tự xoá trigger cũ của syncAllTabs trước khi tạo trigger mới, nên chạy lại
+ * bao nhiêu lần cũng không bị tạo trùng.
+ *
+ * Lưu ý: Apps Script không hứa chạy chính xác tuyệt đối tới từng phút — chỉ
+ * đảm bảo chạy trong khoảng ~15 phút kể từ nearMinute. Đây là lý do vẫn cần
+ * chốt chặn ở isBeforeRunWindow_() bên dưới làm lớp bảo vệ thứ 2.
+ */
+function createDailyTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'syncAllTabs')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+
+  ScriptApp.newTrigger('syncAllTabs')
+    .timeBased()
+    .atHour(MIN_RUN_HOUR)
+    .nearMinute(MIN_RUN_MINUTE + 15) // thêm buffer để không rơi đúng biên dưới
+    .everyDays(1)
+    .inTimezone(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
+    .create();
+
+  Logger.log('Đã tạo trigger syncAllTabs chạy 1 lần/ngày, gần ' + MIN_RUN_HOUR + ':' + (MIN_RUN_MINUTE + 15) + '.');
+}
+
+/**
+ * true nếu thời điểm hiện tại (theo timezone của Sheet) còn TRƯỚC
+ * MIN_RUN_HOUR:MIN_RUN_MINUTE — tức là chưa nên sync (BI có thể chưa đổ data
+ * xong lúc 8h15).
+ */
+function isBeforeRunWindow_(ss) {
+  const tz = ss.getSpreadsheetTimeZone();
+  const now = new Date();
+  const hour = Number(Utilities.formatDate(now, tz, 'H'));
+  const minute = Number(Utilities.formatDate(now, tz, 'm'));
+  return hour < MIN_RUN_HOUR || (hour === MIN_RUN_HOUR && minute < MIN_RUN_MINUTE);
+}
+
 function syncAllTabs() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (isBeforeRunWindow_(ss)) {
+    Logger.log(
+      'Bỏ qua lần chạy này: mới ' +
+      Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'HH:mm') +
+      ', còn trước ' + MIN_RUN_HOUR + ':' + (MIN_RUN_MINUTE < 10 ? '0' : '') + MIN_RUN_MINUTE +
+      ' — BI có thể chưa đổ data về Sheet xong.'
+    );
+    return;
+  }
+
   const errors = [];
 
   Object.keys(TAB_GIDS).forEach((tabKey) => {

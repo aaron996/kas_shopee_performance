@@ -56,11 +56,29 @@ Code đã có sẵn trong repo:
   được `SELECT`; ghi chỉ qua các hàm RPC (`security definer`, quyền `EXECUTE`
   chỉ cấp cho `service_role`).
 
+## Tần suất chạy: 1 lần/ngày sau 8h30, không phải mỗi 15 phút
+
+Bản đầu chạy mỗi 15 phút cả ngày (full delete+insert 4 bảng mỗi lần) — quá
+tải ghi (disk I/O) cho compute tier nhỏ của Supabase khi chạy liên tục.
+BI chỉ đổ data về Sheet 1 lần/ngày lúc 8h15, nên **không cần sync nhiều hơn
+1 lần/ngày**. Bản `.gs` hiện tại:
+
+- Chỉ tạo **1 trigger/ngày**, ghim gần giờ `MIN_RUN_HOUR:MIN_RUN_MINUTE`
+  (mặc định 8:30, đổi ở đầu file `.gs` nếu cần) bằng `createDailyTrigger()` —
+  xem bước 5 bên dưới. KHÔNG tạo trigger qua UI (Triggers > Add Trigger) kiểu
+  "Day timer, 8am to 9am": UI đó chỉ hứa chạy đâu đó TRONG khung giờ, có thể
+  rơi vào 8:01AM — trước khi BI kịp đổ data.
+- Có thêm chốt chặn NGAY TRONG code (`isBeforeRunWindow_`): nếu hàm
+  `syncAllTabs` vì lý do gì đó chạy trước `MIN_RUN_HOUR:MIN_RUN_MINUTE` (kể
+  cả bấm Run tay để test), nó tự bỏ qua thay vì đẩy data cũ/thiếu lên
+  Supabase — log lại lý do bỏ qua trong Executions, không báo lỗi.
+
 ## Cài đặt / cập nhật (cần người có quyền edit Sheet)
 
 > Nếu bạn đã cài bản cũ rồi — chỉ cần **dán lại code `.gs` mới**
-> (bước 3 dưới) vào đúng project Apps Script đã tạo — không cần tạo lại
-> Script Property hay Trigger, cứ giữ nguyên, chỉ thay nội dung code.
+> (bước 3 dưới) vào đúng project Apps Script đã tạo, RỒI CHẠY LẠI
+> `createDailyTrigger` (bước 5) một lần để thay trigger cũ (mỗi 15 phút)
+> bằng trigger mới (1 lần/ngày) — không cần tạo lại Script Property.
 
 1. Lấy **service_role secret key** trong Supabase Dashboard → chọn project
    *TTS Dashboard* (`iyjsihwgnzcytbojvoom`) → Project Settings → API →
@@ -83,20 +101,24 @@ Code đã có sẵn trong repo:
 6. Kiểm tra **Executions** (icon đồng hồ, tab bên trái) không có lỗi, hoặc
    xem `Logger.log` trong View → Logs — sẽ thấy dòng
    `pick: đã đẩy N dòng lên Supabase (bảng kas_pick_data).` cho các tab.
-7. (Chỉ cần nếu chưa làm) Cài lịch tự động: **Triggers** (icon đồng hồ khác,
-   ⏰) → **Add Trigger**:
-   - Choose which function to run: `syncAllTabs`
-   - Event source: `Time-driven`
-   - Type: `Minutes timer` → `Every 15 minutes` (điều chỉnh theo nhu cầu;
-     15–30 phút là hợp lý cho báo cáo D-1)
-   - Save.
+7. Cài lịch tự động: chọn hàm `createDailyTrigger` ở dropdown trên cùng →
+   bấm **Run** một lần. Hàm này tự xoá mọi trigger cũ của `syncAllTabs`
+   (kể cả trigger "Every 15 minutes" tạo qua UI ở bản trước) rồi tạo 1
+   trigger mới chạy 1 lần/ngày, gần giờ `MIN_RUN_HOUR:MIN_RUN_MINUTE` (mặc
+   định 8:30, xem đầu file `.gs`). Không cần vào tab **Triggers** ⏰ để tạo
+   tay — chỉ dùng tab đó để **xem lại** trigger đã tạo đúng chưa.
+   - Muốn đổi giờ chạy: sửa `MIN_RUN_HOUR`/`MIN_RUN_MINUTE` đầu file `.gs`,
+     lưu, rồi chạy lại `createDailyTrigger` để áp dụng.
 
-Xong — từ giờ Apps Script tự chạy nền, app sẽ tự thấy data mới mỗi lần load
-hoặc bấm "Sync Từ Supabase" trong modal Dev Admin → "Quản Lý Nguồn Dữ Liệu".
+Xong — từ giờ Apps Script tự chạy nền 1 lần/ngày, app sẽ tự thấy data mới
+mỗi lần load hoặc bấm "Sync Từ Supabase" trong modal Dev Admin → "Quản Lý
+Nguồn Dữ Liệu".
 
 ## Debug khi app không thấy data mới
 
 1. Vào Apps Script → **Executions** — xem lần chạy gần nhất có lỗi không.
+   Một dòng log "Bỏ qua lần chạy này: mới HH:mm, còn trước 8:30" là **bình
+   thường**, không phải lỗi — đó là chốt chặn giờ chạy hoạt động đúng.
 2. Kiểm tra các bảng `kas_pick_data` / `kas_deli_data` / `kas_ca1_data` / `kas_leadtime_data` trong
    Supabase Table Editor — cột `synced_at` có cập nhật gần đây không, số
    dòng có hợp lý không.

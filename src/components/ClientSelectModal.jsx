@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Zap, Boxes, Layers, Check } from 'lucide-react';
+import { Layers } from 'lucide-react';
+import { Boxes, Check, Zap } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import ModalDialog from './ui/ModalDialog';
 
 const OPTIONS = [
@@ -62,7 +64,7 @@ export default function ClientSelectModal({ isOpen, onSelect }) {
               disabled={!!picked}
             >
               <span className="client-select-icon">
-                {isPicked ? <Check size={26} /> : <Icon size={26} />}
+                <MorphIcon icon={isPicked ? Check : Icon} size={26} reducedMotion="user" />
               </span>
               <span className="client-select-option-title">{title}</span>
               <span className="client-select-option-tag">{tag}</span>

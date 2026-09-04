@@ -34,10 +34,10 @@ export default function DataSourceManagerModal({
     setIsSyncing(false);
 
     if (res.success) {
-      onUpdatePickData(res.pickData);
-      onUpdateDeliData(res.deliData);
-      if (res.ca1Data && onUpdateCa1Data) onUpdateCa1Data(res.ca1Data);
-      if (res.leadtimeData && onUpdateLeadtimeData) onUpdateLeadtimeData(res.leadtimeData);
+      onUpdatePickData(res.pickData, 'Supabase');
+      onUpdateDeliData(res.deliData, 'Supabase');
+      if (res.ca1Data && onUpdateCa1Data) onUpdateCa1Data(res.ca1Data, 'Supabase');
+      if (res.leadtimeData && onUpdateLeadtimeData) onUpdateLeadtimeData(res.leadtimeData, 'supabase');
 
       setPickTabStatus(`Supabase: ${res.pickData.length} dòng`);
       setDeliTabStatus(`Supabase: ${res.deliData.length} dòng`);
@@ -59,8 +59,9 @@ export default function DataSourceManagerModal({
     setIsSyncing(false);
 
     if (res.success) {
-      onUpdatePickData(res.pickData);
-      onUpdateDeliData(res.deliData);
+      onUpdatePickData(res.pickData, 'Google Sheet');
+      onUpdateDeliData(res.deliData, 'Google Sheet');
+      if (res.ca1Data && onUpdateCa1Data) onUpdateCa1Data(res.ca1Data, 'Google Sheet');
       setPickTabStatus(`Live: ${res.pickData.length} dòng`);
       setDeliTabStatus(`Live: ${res.deliData.length} dòng`);
       setMsg(`✓ Đã tải Live thành công ${res.pickData.length} dòng Pick và ${res.deliData.length} dòng Deli!`);

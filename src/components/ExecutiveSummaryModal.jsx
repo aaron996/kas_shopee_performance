@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Copy, Check, MessageSquareText, X } from 'lucide-react';
+import { MessageSquareText, X } from 'lucide-react';
+import { Check, Copy } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import { generateExecutiveSummary } from '../utils/dataProcessor';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
@@ -75,7 +77,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
             Đóng
           </button>
           <button className="nav-btn primary" onClick={handleCopy} style={{ gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '8px' }}>
-            {copied ? <Check size={16} /> : <Copy size={16} />}
+            <MorphIcon icon={copied ? Check : Copy} size={16} reducedMotion="user" />
             {copied ? 'Đã Sao Chép Zalo!' : 'Sao Chép Nội Dung Zalo / Telegram'}
           </button>
         </div>

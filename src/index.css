@@ -2235,7 +2235,7 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 /* Sticky Mini KPI Top Bar (positioned directly below navbar) */
 .sticky-kpi-bar {
   position: fixed;
-  top: 60px;
+  top: calc(var(--app-header-height, 52px) + 8px);
   left: 0;
   right: 0;
   z-index: 99;
@@ -2309,11 +2309,11 @@ table.mtx-table tbody tr:hover td.lbl-2 {
    leaving it off on desktop lets sticky anchor to the document viewport. */
 .report1-master-table {
   overflow: visible;
-  --master-table-sticky-top: 60px;
+  --master-table-sticky-top: calc(var(--app-header-height, 52px) + 8px);
 }
 
 .has-sticky-kpi .report1-master-table {
-  --master-table-sticky-top: 108px;
+  --master-table-sticky-top: calc(var(--app-header-height, 52px) + 56px);
 }
 
 .report1-master-table table.mtx-table thead {
@@ -3472,7 +3472,7 @@ body.dark-mode .chk-icon {
 
   .mobile-icon-btn,
   .mobile-filter-trigger {
-    min-height: 40px;
+    min-height: 44px;
     border: 1px solid var(--border-strong);
     background: var(--surface);
     color: var(--text-main);
@@ -3483,7 +3483,7 @@ body.dark-mode .chk-icon {
     cursor: pointer;
   }
 
-  .mobile-icon-btn { width: 40px; }
+  .mobile-icon-btn { width: 44px; }
   .mobile-icon-btn:disabled { opacity: 0.5; cursor: wait; }
   .mobile-filter-trigger { gap: 0.35rem; padding: 0 0.65rem; font: inherit; font-size: 0.78rem; font-weight: 700; }
   .mobile-filter-trigger.active { background: var(--ghn-blue); border-color: var(--ghn-blue); color: white; }
@@ -3849,7 +3849,7 @@ body.dark-mode .kpi-table-tab.active {
   /* Đóng băng ngay dưới navbar (.app-header, cao 52px, z-index 100) khi cuộn
      trang — không thì đổi lane/kỳ xem phải cuộn lên đầu trang mới bấm được. */
   position: sticky;
-  top: 52px;
+  top: var(--app-header-height, 52px);
   z-index: 90;
 }
 .lt-filterbar-head {
@@ -4617,6 +4617,31 @@ body.dark-mode .kpi-table-tab.active {
 @keyframes sync-progress-sweep {
   0% { left: -40%; }
   100% { left: 100%; }
+}
+
+.report-data-context { margin-bottom: 1rem; }
+.report-data-context .status-notice { font-size: 0.875rem; overflow-wrap: anywhere; }
+.report-data-context .status-notice--info { background: var(--surface-subtle); color: var(--text-primary); border-color: var(--border-strong); }
+.mobile-export-actions, .jump-latest-day { display: none; }
+.nav-btn-sleek:disabled { opacity: 0.5; cursor: not-allowed; }
+button.kpi-card { font: inherit; color: inherit; text-align: left; }
+.dropdown-toggle-sleek, .filter-label-text { white-space: nowrap; }
+
+@media (min-width: 769px) {
+  .app-header { height: auto; min-height: 52px; padding-block: 0.5rem; }
+  .app-header .filter-group-sleek { flex-wrap: wrap; overflow: visible; }
+  .app-header .filter-group-sleek > div { flex-wrap: wrap; row-gap: 0.5rem; }
+  .header-actions { flex-shrink: 1; }
+}
+
+@media (max-width: 768px) {
+  .mobile-header-row { flex-wrap: wrap; gap: 0.5rem; }
+  .mobile-header-title { flex: 1 0 100%; }
+  .mobile-header-actions { width: 100%; justify-content: space-between; }
+  .mobile-export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
+  .mobile-export-actions > span { flex-basis: 100%; color: var(--text-secondary); font-size: 0.875rem; }
+  .mobile-export-actions button, .report-data-context button, .jump-latest-day { min-height: 44px; }
+  .jump-latest-day { display: inline-flex; align-items: center; padding: 0.4rem 0.6rem; }
 }
 
 @media (max-width: 768px) {

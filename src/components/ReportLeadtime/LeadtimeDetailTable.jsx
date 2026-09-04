@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import {
   STAGE_KEYS, STAGE_CONFIG, BASELINE_CONFIG,
   formatHours, formatDeviation, formatOrders
@@ -95,7 +97,7 @@ export default function LeadtimeDetailTable({ rows, lanes, multiDay, onClearPair
         return (
           <div className="lt-lane-group" key={group.laneKey}>
             <button type="button" className="lt-lane-head" onClick={() => toggleLane(group.laneKey)} aria-expanded={isOpen}>
-              {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              <MorphIcon icon={isOpen ? ChevronDown : ChevronRight} size={15} reducedMotion="user" />
               <strong>{group.label}</strong>
               <span className="lt-lane-meta">
                 {formatOrders(group.rows.length)} tuyến · {formatOrders(group.mau)} đơn
