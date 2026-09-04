@@ -29,6 +29,9 @@ export default function ReportInsight({ pickRows = [], deliRows = [], leadtimeRo
     [pickRows, deliRows, clientFilter]
   );
 
+  const hasClientData = [...pickRows, ...deliRows].some(row => clientFilter === 'ALL' || row.client_name === clientFilter);
+  if (!hasClientData) return <StatusNotice>Chưa có dữ liệu Pickup/Deli cho {clientFilter}. Chưa thể kết luận chỉ số tốt hay xấu; hãy tải lại dữ liệu hoặc chọn Client khác.</StatusNotice>;
+
   return (
     <div className="insight-root">
       <div className="section-header">

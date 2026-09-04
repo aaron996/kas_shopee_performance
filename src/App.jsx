@@ -13,8 +13,9 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal, { isAllowedEmail, isDevAdminEmail } from './components/AuthModal';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
-import { createDefaultPickDataset, createDefaultDeliDataset, createDefaultCa1Dataset, MIEN_REGIONS } from './data/defaultDataset';
-import { createDefaultLeadtimeDataset } from './data/leadtimeDataset';
+import { MIEN_REGIONS } from './data/defaultDataset';
+import { readDashboardView, saveDashboardView, dataCoverage } from './utils/dashboardState';
+import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
@@ -90,7 +91,8 @@ export default function App() {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState('report1');
+  const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
+  const [activeTab, setActiveTab] = useState(initialView.tab);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
   // When this app is loaded inside an <iframe>, the host page can pass the
@@ -101,18 +103,7 @@ export default function App() {
   // If the host later flips its toggle without reloading the iframe, it can
   // instead postMessage into the iframe (see the `message` listener below)
   // — cheaper than mutating iframe.src and re-triggering a full reload.
-  const readInitialScopeFromQuery = () => {
-    try {
-      const raw = new URLSearchParams(window.location.search).get('scope');
-      const normalized = raw ? raw.trim().toUpperCase() : null;
-      return normalized === 'SPB' || normalized === 'SPE' ? normalized : null;
-    } catch (e) {
-      return null;
-    }
-  };
-  const initialScopeFromQuery = readInitialScopeFromQuery();
-
-  const [clientFilter, setClientFilter] = useState(initialScopeFromQuery || 'SPB');
+  const [clientFilter, setClientFilter] = useState(initialView.client);
   const [expandAllHubs] = useState(false);
 
   // Ask "SPE or SPB?" once per browser session, right after login. The
@@ -121,7 +112,7 @@ export default function App() {
   // When a valid ?scope= is present (embedded mode), skip this prompt
   // entirely — the host app already made the choice.
   const [hasPickedClient, setHasPickedClient] = useState(() => (
-    !!initialScopeFromQuery || sessionStorage.getItem('ghn_client_choice') === 'true'
+    initialView.hasPickedClient
   ));
 
   // Let the host page (Control Tower) update the scope live via postMessage
@@ -202,58 +193,48 @@ export default function App() {
     return reassignKaRegion(rows);
   };
 
-  const [pickRows, setPickRows] = useState(() => normalizeRows(createDefaultPickDataset()));
-  const [deliRows, setDeliRows] = useState(() => normalizeRows(createDefaultDeliDataset()));
-  const [ca1Rows, setCa1Rows] = useState(() => normalizeRows(createDefaultCa1Dataset()));
-  const [leadtimeRows, setLeadtimeRows] = useState(() => createDefaultLeadtimeDataset());
-  // 'mock' | 'supabase' | 'csv' — tab Leadtime phải nói rõ đang đọc nguồn nào,
-  // bản cũ im lặng hiển thị dữ liệu mẫu như thể là số vận hành (audit A1).
-  const [leadtimeSource, setLeadtimeSource] = useState('mock');
+  const [pickRows, setPickRows] = useState([]);
+  const [deliRows, setDeliRows] = useState([]);
+  const [ca1Rows, setCa1Rows] = useState([]);
+  const [leadtimeRows, setLeadtimeRows] = useState([]);
+  const [dataSources, setDataSources] = useState({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải' });
+  // Sources stay explicit; operational reports start empty, never with mock rows.
+  const [leadtimeSource, setLeadtimeSource] = useState('none');
   const [leadtimeSyncedAt, setLeadtimeSyncedAt] = useState(null);
 
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
-  const [selectedRegions, setSelectedRegions] = useState(allRegions);
+  const [selectedRegions, setSelectedRegions] = useState(() => initialView.regions === null ? allRegions : initialView.regions.filter(r => allRegions.includes(r)));
 
   const allHubTypes = React.useMemo(() => {
     const types = new Set();
-    pickRows.forEach(r => {
+    [...pickRows, ...deliRows, ...ca1Rows].forEach(r => {
       const type = getHubType(r);
-      if (type && type !== 'Unknown') {
+      if (type) {
         types.add(type);
       }
     });
     // Add 'Unknown' if we want it as a fallback, but let's just use what's in data.
     // If we want a default fallback just in case:
-    if (types.size === 0) {
-      types.add('Mega Hub');
-      types.add('Hub LM');
-    }
     return Array.from(types).sort();
-  }, [pickRows]);
+  }, [pickRows, deliRows, ca1Rows]);
   
   // Initial state should be all hub types
-  const [selectedHubTypes, setSelectedHubTypes] = useState(allHubTypes);
+  const [hubTypeSelection, setHubTypeSelection] = useState(initialView.hubTypes);
+  const selectedHubTypes = hubTypeSelection === null ? allHubTypes : hubTypeSelection;
+  const setSelectedHubTypes = values => setHubTypeSelection(values.length === allHubTypes.length && allHubTypes.length > 0 ? null : values);
 
-  // Re-sync selectedHubTypes whenever the set of available hub types actually
-  // changes (e.g., switching from mock to live data).
-  const lastHubTypesKeyRef = React.useRef(null);
+  // null follows all available types; an explicit subset (including []) survives sync.
+  const [density, setDensity] = useState(initialView.density);
   useEffect(() => {
-    if (allHubTypes.length === 0) return;
-    const key = allHubTypes.join('|');
-    if (lastHubTypesKeyRef.current !== key) {
-      lastHubTypesKeyRef.current = key;
-      setSelectedHubTypes(allHubTypes);
-    }
-  }, [allHubTypes]);
-
-  const [density, setDensity] = useState('comfortable');
+    if (hasPickedClient) saveDashboardView(sessionStorage, { client: clientFilter, tab: activeTab, regions: selectedRegions, hubTypes: hubTypeSelection, density });
+  }, [hasPickedClient, clientFilter, activeTab, selectedRegions, hubTypeSelection, density]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đang hiển thị dữ liệu mẫu' });
+  const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
   // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
   // chỉ tab Leadtime có "syncedAt" riêng). Không dùng cho việc chặn UI: sync
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
@@ -315,19 +296,24 @@ export default function App() {
   }, [showToast]);
 
   const handleResetDefaultData = () => {
-    setPickRows(normalizeRows(createDefaultPickDataset()));
-    setDeliRows(normalizeRows(createDefaultDeliDataset()));
-    setCa1Rows(normalizeRows(createDefaultCa1Dataset()));
-    setLeadtimeRows(createDefaultLeadtimeDataset());
-    setLeadtimeSource('mock');
+    setPickRows([]);
+    setDeliRows([]);
+    setCa1Rows([]);
+    setLeadtimeRows([]);
+    setDataSources({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải' });
+    setLeadtimeSource('none');
     setLeadtimeSyncedAt(null);
     setLastSyncedAt(null);
-    setSyncStatus({ kind: 'default', source: 'Dữ liệu mẫu', text: 'Đã khôi phục dữ liệu mẫu' });
+    setSyncStatus({ kind: 'default', source: 'Chưa tải', text: 'Đã xóa dữ liệu trên phiên này. Tải lại để lấy dữ liệu vận hành.' });
   };
 
+  const syncRequestRef = React.useRef(false);
   const handleSyncLiveSheet = useCallback(async () => {
+    if (syncRequestRef.current) return;
+    syncRequestRef.current = true;
     setIsSyncing(true);
     setSyncStatus({ kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
+    try {
 
     // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
     // timer (no longer depends on the Sheet being publicly link-shared —
@@ -336,6 +322,7 @@ export default function App() {
     if (supaRes.success) {
       setPickRows(normalizeRows(supaRes.pickData));
       setDeliRows(normalizeRows(supaRes.deliData));
+      setDataSources(prev => ({ pick: 'Supabase', deli: 'Supabase', ca1: supaRes.ca1Data ? 'Supabase' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)` }));
       if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
       if (supaRes.leadtimeData) {
         setLeadtimeRows(supaRes.leadtimeData);
@@ -356,6 +343,7 @@ export default function App() {
     if (res.success) {
       setPickRows(normalizeRows(res.pickData));
       setDeliRows(normalizeRows(res.deliData));
+      setDataSources(prev => ({ pick: 'Google Sheet', deli: 'Google Sheet', ca1: res.ca1Data ? 'Google Sheet' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)` }));
       if (res.ca1Data) setCa1Rows(normalizeRows(res.ca1Data));
       setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
       setLastSyncedAt(new Date());
@@ -367,9 +355,25 @@ export default function App() {
         } else {
           showToast('Chưa có dữ liệu live. Vui lòng báo Dev Admin để cài đồng bộ dữ liệu.', { tone: 'warning', duration: 7000 });
         }
+      } else {
+        // Report the failed fetch without assuming the cause or prior live data.
+        const isTimeout = /timeout/i.test(supaRes.error || '') || /timeout/i.test(res.error || '');
+        showToast(
+          isTimeout
+            ? 'Nguồn dữ liệu phản hồi quá chậm. Chưa lấy được dữ liệu mới; kiểm tra nguồn và thử lại.'
+            : 'Không đồng bộ được dữ liệu mới từ nguồn (Supabase/Google Sheet). Vui lòng thử lại.',
+          { tone: 'warning', title: 'Nguồn dữ liệu đang gặp sự cố', duration: 9000 }
+        );
       }
       console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
-      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Đang hiển thị dữ liệu gần nhất' });
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Nếu có số liệu bên dưới, đó là bản đã tải trước đó trong phiên này.' });
+    }
+    } catch (error) {
+      console.error('Unexpected data sync failure:', error);
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trong phiên này được giữ nguyên; vui lòng thử lại.' });
+    } finally {
+      syncRequestRef.current = false;
+      setIsSyncing(false);
     }
   }, [currentUser, showToast]);
 
@@ -430,11 +434,6 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // Extract dynamic date info for the Header
-  const allDates = [...new Set(pickRows.map(r => r.report_date))].filter(Boolean).sort();
-  const { d1Date } = groupDatesByWeek(allDates);
-  const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
-
   // Filter datasets based on selectedRegions and selectedHubTypes
   const filteredPickRows = React.useMemo(() => {
     return pickRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
@@ -447,6 +446,22 @@ export default function App() {
   const filteredCa1Rows = React.useMemo(() => {
     return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao) && selectedHubTypes.includes(getHubType(r)));
   }, [ca1Rows, selectedRegions, selectedHubTypes]);
+
+  const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
+  const scopedDeli = filteredDeliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
+  const headerRows = activeTab === 'report5' ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...pickRows, ...deliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
+  const allDates = [...new Set(headerRows.map(r => activeTab === 'report5' ? r.ngay : r.report_date))].filter(Boolean).sort();
+  const { d1Date } = groupDatesByWeek(allDates);
+  const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
+  const canExport = activeTab === 'report1' ? scopedPick.length + scopedDeli.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
+  const exportContext = {
+    'Phạm vi Client': activeTab === 'report5' ? 'Không phân tách Client (nguồn Ca 1)' : clientFilter,
+    'Vùng đã chọn': selectedRegions.join(' | ') || 'Không chọn vùng',
+    'Loại Hub đã chọn': selectedHubTypes.join(' | ') || 'Không chọn loại Hub',
+    'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}`,
+    'Khoảng dữ liệu': activeTab === 'report5' ? dataCoverage(filteredCa1Rows, 'ngay') : dataCoverage([...scopedPick, ...scopedDeli]),
+  };
+  const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
 
   return (
     <div className="app-container">
@@ -462,10 +477,7 @@ export default function App() {
         onSelect={handleClientPick}
       />
 
-      {/* Đồng bộ chạy NỀN — không còn full-screen overlay chặn UI mỗi lần mở
-          app/tải lại dữ liệu. Số liệu cũ (mock hoặc lần sync trước) vẫn hiển
-          thị nguyên trong lúc chờ; chỉ có 1 thanh tiến trình mảnh ở mép trên
-          + trạng thái xoay trên nút "Tải lại" ở Header báo đang tải. */}
+      {/* Background refresh preserves only data actually loaded in this session. */}
       {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}
 
       {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
@@ -520,10 +532,24 @@ export default function App() {
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
             onRetryData={handleSyncLiveSheet}
+            canExport={canExport}
+            exportContext={exportContext}
+            onResetFilters={resetFilters}
           />
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
+            {activeTab !== 'dev-admin' && (activeTab !== 'report3' || syncStatus.kind === 'error') && <div className="report-data-context">
+              <StatusNotice tone={syncStatus.kind === 'error' ? 'warning' : 'info'}>
+                {syncStatus.kind === 'error' && <div>{syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button></div>}
+                {activeTab === 'report5' ? <div>Ca 1 không phân tách Client trong nguồn hiện tại; bộ lọc SPB/SPE không áp dụng. Nguồn: {dataSources.ca1} · {dataCoverage(filteredCa1Rows, 'ngay')}</div> : activeTab !== 'report3' && <>
+                  <div>Pickup · {dataSources.pick} · {dataCoverage(activeTab === 'report-insight' ? pickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedPick)}</div>
+                  <div>Deli · {dataSources.deli} · {dataCoverage(activeTab === 'report-insight' ? deliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedDeli)}</div>
+                  {activeTab === 'report-insight' && <div>Leadtime · {leadtimeSource === 'none' ? 'Chưa tải' : leadtimeSource} · {leadtimeRows.length} dòng dữ liệu</div>}
+                </>}
+                {(activeTab === 'report1' || activeTab === 'report5') && <div>{clientFilter !== 'ALL' && activeTab === 'report1' ? `${clientFilter} · ` : ''}{selectedRegions.length}/{allRegions.length} vùng · {selectedHubTypes.length}/{allHubTypes.length} loại Hub <button type="button" className="nav-btn-sleek" onClick={resetFilters}>Đặt lại bộ lọc</button></div>}
+              </StatusNotice>
+            </div>}
             <div key={activeTab} className="tab-view-content">
               {activeTab === 'report1' && (
                 <Report1MienVungHub
@@ -535,6 +561,7 @@ export default function App() {
                   density={density}
                   isFullscreen={isFullscreen}
                   setIsFullscreen={setIsFullscreen}
+                  onResetFilters={resetFilters}
                 />
               )}
 
@@ -581,6 +608,7 @@ export default function App() {
           <nav className="mobile-bottom-nav">
             <button 
               className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
+              aria-current={activeTab === 'report1' ? 'page' : undefined}
               onClick={() => setActiveTab('report1')}
             >
               <Layers size={18} />
@@ -589,6 +617,7 @@ export default function App() {
 
             <button 
               className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
+              aria-current={activeTab === 'report5' ? 'page' : undefined}
               onClick={() => setActiveTab('report5')}
             >
               <ArrowRightLeft size={18} />
@@ -597,6 +626,7 @@ export default function App() {
 
             <button
               className={`mobile-nav-item ${activeTab === 'report3' ? 'active' : ''}`}
+              aria-current={activeTab === 'report3' ? 'page' : undefined}
               onClick={() => setActiveTab('report3')}
             >
               <Clock size={18} />
@@ -605,6 +635,7 @@ export default function App() {
 
             <button
               className={`mobile-nav-item ${activeTab === 'report-insight' ? 'active' : ''}`}
+              aria-current={activeTab === 'report-insight' ? 'page' : undefined}
               onClick={() => setActiveTab('report-insight')}
             >
               <Sparkles size={18} />
@@ -634,10 +665,10 @@ export default function App() {
             <DataSourceManagerModal
               isOpen={isDataSourceOpen}
               onClose={() => setIsDataSourceOpen(false)}
-              onUpdatePickData={(rows) => setPickRows(normalizeRows(rows))}
-              onUpdateDeliData={(rows) => setDeliRows(normalizeRows(rows))}
-              onUpdateCa1Data={(rows) => setCa1Rows(normalizeRows(rows))}
-              onUpdateLeadtimeData={(rows) => { setLeadtimeRows(rows); setLeadtimeSource('csv'); }}
+              onUpdatePickData={(rows, source = 'CSV tải lên') => { setPickRows(normalizeRows(rows)); setDataSources(prev => ({ ...prev, pick: source })); }}
+              onUpdateDeliData={(rows, source = 'CSV tải lên') => { setDeliRows(normalizeRows(rows)); setDataSources(prev => ({ ...prev, deli: source })); }}
+              onUpdateCa1Data={(rows, source = 'CSV tải lên') => { setCa1Rows(normalizeRows(rows)); setDataSources(prev => ({ ...prev, ca1: source })); }}
+              onUpdateLeadtimeData={(rows, source = 'csv') => { setLeadtimeRows(rows); setLeadtimeSource(source); setLeadtimeSyncedAt(source === 'supabase' ? rows[0]?.synced_at : null); }}
               onResetDefault={handleResetDefaultData}
             />
           )}

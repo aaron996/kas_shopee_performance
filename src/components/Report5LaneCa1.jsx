@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { ArrowRightLeft, X, Copy, Check } from 'lucide-react';
+import { ArrowRightLeft, X } from 'lucide-react';
+import { Check, Copy } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 import { useToast } from './ui/Toast';
+import StatusNotice from './ui/StatusNotice';
+import { appendCsvContext, csvCell } from '../utils/dashboardState';
 
 export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
   const tableRefs = React.useRef({});
@@ -42,12 +46,12 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
 
   // Single export entry point: the header's "Xuất CSV" button dispatches
   // `export-csv`; there is deliberately no in-tab duplicate of this button.
-  const handleExportCSV = useCallback(() => {
+  const handleExportCSV = useCallback((event) => {
     if (ca1Rows.length === 0) return;
     const headers = ['Lane', 'Vung Giao', 'Ngay', 'Tong Don', 'Don Hub Giao Ca 1', '% Ca 1'];
     const csvRows = [headers.join(',')];
 
-    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const escapeCsv = csvCell;
     ca1Rows.forEach(r => {
       const tot = Number(r.tong_don) || 0;
       const ca1 = Number(r.don_hub_giao_ca1) || 0;
@@ -55,14 +59,15 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       csvRows.push([escapeCsv(r.lane), escapeCsv(r.vung_giao), escapeCsv(r.ngay), tot, ca1, `${pct}%`].join(','));
     });
 
-    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, event?.detail)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `GHN_Shopee_Ca1_Lane_Matrix_${d1Date || 'all-data'}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  }, [ca1Rows, d1Date]);
+    showToast('Đã tạo CSV Ca 1 theo vùng/loại Hub đang chọn. Nguồn Ca 1 không phân tách Client.', { tone: 'success' });
+  }, [ca1Rows, d1Date, showToast]);
 
   React.useEffect(() => {
     window.addEventListener('export-csv', handleExportCSV);
@@ -195,16 +200,16 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
             }}
             title="Copy bảng này thành ảnh"
           >
-            {copiedLane === laneName ? (
-              <>
-                <Check size={13} className="pop-success" style={{ color: '#0F6E56' }} /> 
-                <span style={{ fontWeight: 600 }}>Đã Copy!</span>
-              </>
-            ) : (
-              <>
-                <Copy size={13} /> Copy Ảnh
-              </>
-            )}
+            <MorphIcon
+              icon={copiedLane === laneName ? Check : Copy}
+              size={13}
+              reducedMotion="user"
+              className={copiedLane === laneName ? 'pop-success' : undefined}
+              style={copiedLane === laneName ? { color: '#0F6E56' } : undefined}
+            />
+            <span style={{ fontWeight: copiedLane === laneName ? 600 : undefined }}>
+              {copiedLane === laneName ? 'Đã Copy!' : 'Copy Ảnh'}
+            </span>
           </button>
         </div>
 
@@ -413,6 +418,8 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       </div>
     );
   };
+
+  if (!ca1Rows.length) return <StatusNotice>Không có dữ liệu Ca 1 phù hợp. Hãy kiểm tra vùng, loại Hub hoặc tải lại dữ liệu.</StatusNotice>;
 
   return (
     <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>

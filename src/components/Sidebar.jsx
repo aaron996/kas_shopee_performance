@@ -1,9 +1,7 @@
 import React from 'react';
 import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, ShieldCheck, Sparkles } from 'lucide-react';
-// Icon DATA (không phải component) cho 2 nút toggle bên dưới — morphicons chỉ
-// nhận IconNode từ `lucide`, xem src/components/ui/MorphIcon.jsx.
-import { Sun as SunData, Moon as MoonData, ChevronLeft as ChevronLeftData, ChevronRight as ChevronRightData } from 'lucide';
-import MorphIcon from './ui/MorphIcon';
+import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 
 export default function Sidebar({
   activeTab,
@@ -28,7 +26,7 @@ export default function Sidebar({
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 
   return (
-    <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside id="app-sidebar" className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
         <button type="button" className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
           <img 
@@ -44,11 +42,15 @@ export default function Sidebar({
         
         {/* Sidebar Toggle Button at Top Right */}
         <button 
+          type="button"
           className="sidebar-toggle-btn top-toggle"
           onClick={onToggleCollapse}
           title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
+          aria-label={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
+          aria-controls="app-sidebar"
+          aria-expanded={!isCollapsed}
         >
-          <MorphIcon icon={isCollapsed ? ChevronRightData : ChevronLeftData} size={18} />
+          <MorphIcon icon={isCollapsed ? ChevronRight : ChevronLeft} size={18} reducedMotion="user" />
         </button>
       </div>
 
@@ -60,6 +62,7 @@ export default function Sidebar({
           return (
             <button
               key={tab.id}
+              aria-current={activeTab === tab.id ? 'page' : undefined}
               className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
             >
@@ -88,11 +91,13 @@ export default function Sidebar({
         
         {/* Theme Toggle */}
         <button 
+          type="button"
           className="sidebar-footer-btn" 
           onClick={() => setIsDarkMode(!isDarkMode)} 
           title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
+          aria-pressed={isDarkMode}
         >
-          <MorphIcon icon={isDarkMode ? SunData : MoonData} size={18} />
+          <MorphIcon icon={isDarkMode ? Sun : Moon} size={18} reducedMotion="user" />
           <span>{isDarkMode ? 'Sáng' : 'Tối'}</span>
         </button>
 

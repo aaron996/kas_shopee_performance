@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide';
+import { MorphIcon } from 'morphicons/react';
 import { STAGE_KEYS, BASELINE_CONFIG, formatOrders } from '../../utils/leadtimeCalc';
 
 /**
@@ -38,7 +39,7 @@ export default function LeadtimeDataQuality({ missingStage, unresolvedLane, clea
   return (
     <section className="lt-block lt-block--quality">
       <button type="button" className="lt-quality-toggle" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-        {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        <MorphIcon icon={open ? ChevronDown : ChevronRight} size={15} reducedMotion="user" />
         <span>Chất lượng dữ liệu</span>
         <span className="lt-quality-summary">
           loại {formatOrders(stats.missingRows + stats.unresolvedRows)}/{formatOrders(stats.totalRows)} dòng
