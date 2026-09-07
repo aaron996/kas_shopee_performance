@@ -36,10 +36,56 @@ export default function AuthModal({ isOpen }) {
   if (!isOpen) return null;
 
   // Supabase Google OAuth Login
+  //
+  // Google's login page refuses to render inside ANY iframe (anti-
+  // clickjacking; not something either side can configure around), so when
+  // this app is embedded (Control Tower's "Sức khỏe vận hành" tab) a normal
+  // redirect just shows the browser's "This content is blocked" page. In
+  // that case we open Google in a real top-level popup instead; Supabase
+  // redirects the popup to /auth/popup-callback when done, which hands the
+  // session back to this window via postMessage (see App.jsx's listener)
+  // and closes itself. See docs/control-tower-embed.md.
+  const isEmbedded = () => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      // Cross-origin frame access throws => definitely embedded cross-site.
+      return true;
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
       setErrorMsg('');
+
+      if (isEmbedded()) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            skipBrowserRedirect: true,
+            redirectTo: `${window.location.origin}/auth/popup-callback`
+          }
+        });
+        if (error) throw error;
+
+        const popup = window.open(data.url, 'ghn-auth', 'width=480,height=640');
+        if (!popup) {
+          throw new Error('Trình duyệt đã chặn cửa sổ đăng nhập (popup). Vui lòng cho phép popup cho trang này rồi thử lại.');
+        }
+
+        // The App-level 'message' listener applies the session as soon as
+        // the popup posts it back; this just clears the loading state if
+        // the user closes the popup without finishing login.
+        const popupCheck = window.setInterval(() => {
+          if (popup.closed) {
+            window.clearInterval(popupCheck);
+            setLoading(false);
+          }
+        }, 500);
+        return;
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

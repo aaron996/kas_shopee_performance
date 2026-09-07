@@ -138,6 +138,28 @@ export default function App() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  // Receive the session from the popup-based Google sign-in (see
+  // AuthModal.jsx + PopupCallback.jsx). The popup runs on this same origin
+  // (it's just a separate top-level window, opened so Google's login page
+  // is never inside an iframe), so we only accept messages from our own
+  // origin — never '*' — before trusting the session payload.
+  useEffect(() => {
+    const handleAuthMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || typeof data !== 'object' || data.type !== 'ghn-auth' || !data.session) return;
+
+      const { error } = await supabase.auth.setSession(data.session);
+      if (error) {
+        console.error('Failed to apply session from popup sign-in:', error);
+      }
+      // onAuthStateChange (below) picks up the resulting session and sets
+      // currentUser — nothing else to do here.
+    };
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, []);
+
   const handleClientPick = (key) => {
     setClientFilter(key);
     sessionStorage.setItem('ghn_client_choice', 'true');
