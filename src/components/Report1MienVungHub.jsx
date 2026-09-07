@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallba
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import AnimatedNumber from './ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image } from 'lucide-react';
+import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image, MessageSquareText } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
@@ -123,7 +123,7 @@ function SparklineChart({ card, isGood }) {
 }
 
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData, onOpenSummary }) {
   const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState({});
@@ -1025,11 +1025,17 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               <span className="kpi-header-accent"></span>
               TỔNG QUAN D-1 <span className="kpi-header-scope">· Nationwide</span>
             </span>
-            {compareDates && (
-              <span className="kpi-header-compare">
-                so với D-8: <b>{compareDates.d1}</b> vs {compareDates.d8}
-              </span>
-            )}
+            <span className="kpi-header-context">
+              <button type="button" className="kpi-comment-button" onClick={onOpenSummary} title="Mở nhận xét D-1">
+                <MessageSquareText size={15} />
+                <span>Nhận xét D-1</span>
+              </button>
+              {compareDates && (
+                <span className="kpi-header-compare">
+                  so với D-8: <b>{compareDates.d1}</b> vs {compareDates.d8}
+                </span>
+              )}
+            </span>
           </div>
           <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
             {kpiCards.map((card, idx) => {

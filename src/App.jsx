@@ -529,19 +529,6 @@ export default function App() {
                 {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
               </StatusNotice>
             </div>}
-            {activeTab !== 'dev-admin' && activeTab !== 'report3' && syncStatus.kind !== 'error' && (
-              <div className="report-source-line" aria-label="Nguồn và phạm vi dữ liệu">
-                {activeTab === 'report5' ? (
-                  <span>Ca 1 · {dataSources.ca1} · {dataCoverage(filteredCa1Rows, 'ngày')}</span>
-                ) : (
-                  <>
-                    <span>Pickup · {dataSources.pick} · {dataCoverage(activeTab === 'report-insight' ? pickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedPick)}</span>
-                    <span>Deli · {dataSources.deli} · {dataCoverage(activeTab === 'report-insight' ? deliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedDeli)}</span>
-                    {activeTab === 'report-insight' && <span>Leadtime · {leadtimeSource === 'none' ? 'Chưa tải' : leadtimeSource} · {leadtimeRows.length} dòng</span>}
-                  </>
-                )}
-              </div>
-            )}
             <div key={activeTab} className="tab-view-content">
               {activeTab === 'report1' && (
                 <Report1MienVungHub
@@ -554,6 +541,7 @@ export default function App() {
                   isFullscreen={isFullscreen}
                   setIsFullscreen={setIsFullscreen}
                   onRetryData={handleSyncLiveSheet}
+                  onOpenSummary={() => setIsSummaryOpen(true)}
                 />
               )}
 

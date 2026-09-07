@@ -64,16 +64,19 @@ export default function Header({
 
       <div className="filter-group-sleek">
         <div className="header-scope">
+          <button className="command-search-field" onClick={onOpenPalette} title="Chuyển nhanh báo cáo (Cmd/Ctrl+K)" aria-label="Chuyển nhanh báo cáo">
+            <Search size={16} />
+            <span>Tìm và chuyển báo cáo...</span>
+            <kbd className="cmdk-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
+        </div>
+
+        <div className="header-actions">
           <button type="button" className={`freshness-chip ${syncStatus?.kind === 'error' ? 'is-error' : ''}`} onClick={onRetryData} disabled={isLoading} title={freshnessTitle}>
             {syncIcon}
             <span>Dữ liệu tới <strong>{d1DateFormatted || '...'}</strong></span>
             {lastSyncedLabel && <span className="freshness-sub">· đồng bộ {lastSyncedLabel}</span>}
           </button>
-        </div>
-
-        <div className="header-actions">
-          <button className="nav-btn-sleek" onClick={onOpenSummary} title="Mở nhận xét D-1"><MessageSquareText size={15} /> <span className="nav-btn-label">Nhận xét D-1</span></button>
-          <button className="nav-btn-sleek" onClick={onOpenPalette} title="Chuyển nhanh báo cáo (Cmd/Ctrl+K)"><Search size={15} /> <span className="nav-btn-label">Chuyển báo cáo</span><kbd className="cmdk-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd></button>
           <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-pressed={density === 'compact'}>
             <Rows3 size={16} />
           </button>
