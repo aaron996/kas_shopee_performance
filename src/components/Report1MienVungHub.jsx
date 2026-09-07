@@ -123,7 +123,7 @@ function SparklineChart({ card, isGood }) {
 }
 
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onResetFilters }) {
+export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData }) {
   const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState({});
@@ -972,9 +972,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   if (!pD1 && !dD1) return (
     <StatusNotice>
-      <strong>Không có dữ liệu phù hợp</strong>
-      <p>{selectedRegions.length === 0 ? 'Chưa chọn vùng. Chọn lại vùng để xem chỉ số vận hành.' : 'Hãy kiểm tra Client, vùng, loại Hub hoặc tải lại nguồn dữ liệu.'}</p>
-      <button type="button" className="nav-btn-sleek" onClick={onResetFilters}>Đặt lại bộ lọc</button>
+      <strong>Chưa có dữ liệu vận hành</strong>
+      <p>Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.</p>
+      <button type="button" className="nav-btn-sleek" onClick={onRetryData}>Tải lại dữ liệu</button>
     </StatusNotice>
   );
 

@@ -4623,6 +4623,31 @@ body.dark-mode .kpi-table-tab.active {
 .report-data-context .status-notice { font-size: 0.875rem; overflow-wrap: anywhere; }
 .report-data-context .status-notice--info { background: var(--surface-subtle); color: var(--text-primary); border-color: var(--border-strong); }
 .mobile-export-actions, .jump-latest-day { display: none; }
+.report-source-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: -0.15rem 0 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.report-source-line span + span::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-right: 1rem;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.mobile-primary-action {
+  border-color: var(--ghn-blue);
+  background: var(--ghn-blue);
+  color: white;
+}
 .nav-btn-sleek:disabled { opacity: 0.5; cursor: not-allowed; }
 button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .dropdown-toggle-sleek, .filter-label-text { white-space: nowrap; }
@@ -4636,8 +4661,12 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 
 @media (max-width: 768px) {
   .mobile-header-row { flex-wrap: wrap; gap: 0.5rem; }
-  .mobile-header-title { flex: 1 0 100%; }
-  .mobile-header-actions { width: 100%; justify-content: space-between; }
+  .mobile-header-title { flex: 1 1 120px; }
+  .mobile-header-actions { width: auto; justify-content: flex-end; }
+  .mobile-icon-btn { width: 40px; min-height: 40px; }
+  .report-source-line { margin-top: 0; font-size: 0.74rem; }
+  .report-source-line span { flex-basis: 100%; }
+  .report-source-line span + span::before { display: none; }
   .mobile-export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
   .mobile-export-actions > span { flex-basis: 100%; color: var(--text-secondary); font-size: 0.875rem; }
   .mobile-export-actions button, .report-data-context button, .jump-latest-day { min-height: 44px; }
