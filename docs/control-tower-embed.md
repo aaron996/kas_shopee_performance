@@ -58,6 +58,54 @@ Nếu host chưa muốn thêm dependency, có thể tạm bỏ qua bước này 
 — script child vẫn build/deploy bình thường, chỉ là height sẽ fallback về
 `min-height` CSS cố định cho tới khi host wire nốt phần parent.
 
+## 1c. Đăng nhập Google trong iframe (popup + postMessage)
+
+Vấn đề: Google chặn tuyệt đối trang đăng nhập của họ (`accounts.google.com`)
+bị nhúng trong bất kỳ iframe nào (chống clickjacking) — không cấu hình lách
+được. Ngoài ra trình duyệt tách riêng vùng lưu trữ cho nội dung nhúng
+(storage partitioning), nên đăng nhập ở tab khác cũng không "chảy" session
+vào được iframe.
+
+Đã sửa ở app nguồn (repo này) theo hướng: giữ nguyên mô hình auth hiện tại
+(Supabase OAuth), chỉ đổi cách trang Google được mở khi app đang chạy
+trong iframe — mở ở cửa sổ popup top-level thay vì điều hướng trực tiếp:
+
+- **`src/components/AuthModal.jsx`**: `handleGoogleSignIn` kiểm tra
+  `window.self !== window.top`. Nếu đang nhúng, gọi
+  `signInWithOAuth({ provider: 'google', options: { skipBrowserRedirect: true, redirectTo: '<origin>/auth/popup-callback' } })`
+  rồi `window.open(data.url, ...)` — trang Google luôn ở cửa sổ tầng trên
+  cùng, không bao giờ trong iframe. Nếu không nhúng (mở app trực tiếp),
+  giữ nguyên hành vi redirect cũ.
+- **`src/components/PopupCallback.jsx`** (mới) + **`src/main.jsx`**: route
+  tĩnh `/auth/popup-callback` (không dùng router, chỉ check
+  `window.location.pathname`) render component này thay vì `<App />`. Nó
+  đọc session vừa tạo (`supabase.auth.getSession()`), gửi về
+  `window.opener` qua `postMessage({ type: 'ghn-auth', session }, <cùng origin>)`
+  rồi tự đóng cửa sổ.
+- **`src/App.jsx`**: thêm listener `message` nhận `type: 'ghn-auth'` (chỉ
+  chấp nhận `event.origin === window.location.origin`), gọi
+  `supabase.auth.setSession(session)` — session được ghi vào đúng vùng lưu
+  trữ của iframe, nên lần sau vào lại không cần đăng nhập lại nữa.
+- **`vercel.json`**: đổi `Cross-Origin-Opener-Policy` từ `same-origin`
+  sang `same-origin-allow-popups`. **Bắt buộc** — nếu để `same-origin`,
+  `window.opener` trong popup sẽ bị trình duyệt cắt đứt ngay khi popup điều
+  hướng sang domain khác (Google), khiến `PopupCallback.jsx` không gửi
+  session về được.
+
+**Việc cần làm thủ công (ngoài code) trước khi deploy:** thêm
+`https://kas-shopee-performance.vercel.app/auth/popup-callback` vào danh
+sách **Redirect URLs** được phép trong Supabase Dashboard → Authentication
+→ URL Configuration — nếu không, Supabase sẽ từ chối redirect về trang này
+sau khi đăng nhập Google xong.
+
+Đánh đổi: người dùng cần đăng nhập lại một lần trong khung nhúng (vùng lưu
+trữ của iframe tách riêng khỏi tab ngoài), và cần cho phép popup cho domain
+này nếu trình duyệt chặn theo mặc định.
+
+Phía Control Tower (host): không cần thay đổi gì cho phần này — chỉ cần
+giữ nguyên `frame-ancestors` đã khai đúng và script `iframe-resizer` như
+mục 1b.
+
 ## 2. Chưa có: toggle "Theo ngày / Theo tháng"
 
 App nguồn hiện **chưa có** state global "theo ngày/theo tháng" ở mức app —
