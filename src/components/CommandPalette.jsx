@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Layers, ArrowRightLeft, Clock, Sparkles, MapPin, Filter, CornerDownLeft } from 'lucide-react';
-import { MIEN_REGIONS } from '../data/defaultDataset';
+import { Search, Layers, ArrowRightLeft, Clock, Sparkles, CornerDownLeft } from 'lucide-react';
 
 // Command palette (Cmd/Ctrl+K) — nhảy nhanh tới tab / client / vùng mà không
 // phải rời tay khỏi bàn phím. App có ~40 vùng/hub và 3-4 tab; trước đây phải
@@ -15,9 +14,6 @@ export default function CommandPalette({
   onClose,
   activeTab,
   setActiveTab,
-  clientFilter,
-  setClientFilter,
-  onSelectRegion,
   hasInsightTab = false
 }) {
   const [query, setQuery] = useState('');
@@ -45,24 +41,7 @@ export default function CommandPalette({
       tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', icon: Sparkles });
     }
 
-    const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
-      type: 'client',
-      id: code,
-      label: code === 'ALL' ? 'Client: Toàn bộ (SPB + SPE)' : `Client: ${code}`,
-      icon: Filter
-    }));
-
-    const regionItems = Object.entries(MIEN_REGIONS).flatMap(([mien, regions]) =>
-      regions.map(reg => ({
-        type: 'region',
-        id: reg,
-        label: reg,
-        group: mien,
-        icon: MapPin
-      }))
-    );
-
-    return [...tabItems, ...clientItems, ...regionItems];
+    return tabItems;
   }, [hasInsightTab]);
 
   const filtered = useMemo(() => {
@@ -85,8 +64,6 @@ export default function CommandPalette({
   const runItem = (item) => {
     if (!item) return;
     if (item.type === 'tab') setActiveTab(item.id);
-    else if (item.type === 'client') setClientFilter(item.id);
-    else if (item.type === 'region') onSelectRegion?.(item.id);
     onClose();
   };
 
@@ -122,7 +99,7 @@ export default function CommandPalette({
             ref={inputRef}
             className="cmdk-input"
             type="text"
-            placeholder="Tìm tab, client (SPB/SPE), hoặc vùng..."
+            placeholder="Tìm và chuyển báo cáo..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

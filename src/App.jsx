@@ -206,7 +206,7 @@ export default function App() {
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
-  const [selectedRegions, setSelectedRegions] = useState(() => initialView.regions === null ? allRegions : initialView.regions.filter(r => allRegions.includes(r)));
+  const [selectedRegions, setSelectedRegions] = useState(allRegions);
 
   const allHubTypes = React.useMemo(() => {
     const types = new Set();
@@ -222,10 +222,8 @@ export default function App() {
   }, [pickRows, deliRows, ca1Rows]);
   
   // Initial state should be all hub types
-  const [hubTypeSelection, setHubTypeSelection] = useState(initialView.hubTypes);
+  const hubTypeSelection = null;
   const selectedHubTypes = hubTypeSelection === null ? allHubTypes : hubTypeSelection;
-  const setSelectedHubTypes = values => setHubTypeSelection(values.length === allHubTypes.length && allHubTypes.length > 0 ? null : values);
-
   // null follows all available types; an explicit subset (including []) survives sync.
   const [density, setDensity] = useState(initialView.density);
   useEffect(() => {
@@ -461,8 +459,6 @@ export default function App() {
     'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}`,
     'Khoảng dữ liệu': activeTab === 'report5' ? dataCoverage(filteredCa1Rows, 'ngay') : dataCoverage([...scopedPick, ...scopedDeli]),
   };
-  const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
-
   return (
     <div className="app-container">
       {/* Authentication Protection Modal */}
@@ -486,9 +482,6 @@ export default function App() {
         onClose={() => setIsPaletteOpen(false)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        clientFilter={clientFilter}
-        setClientFilter={setClientFilter}
-        onSelectRegion={handleJumpToRegion}
         hasInsightTab
       />
 
@@ -511,13 +504,6 @@ export default function App() {
           <Header
             setActiveTab={setActiveTab}
             activeTab={activeTab}
-            clientFilter={clientFilter}
-            setClientFilter={setClientFilter}
-            selectedRegions={selectedRegions}
-            setSelectedRegions={setSelectedRegions}
-            allHubTypes={allHubTypes}
-            selectedHubTypes={selectedHubTypes}
-            setSelectedHubTypes={setSelectedHubTypes}
             d1DateFormatted={d1DateFormatted}
             syncStatus={syncStatus}
             lastSyncedAt={lastSyncedAt}
@@ -534,22 +520,28 @@ export default function App() {
             onRetryData={handleSyncLiveSheet}
             canExport={canExport}
             exportContext={exportContext}
-            onResetFilters={resetFilters}
           />
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
-            {activeTab !== 'dev-admin' && (activeTab !== 'report3' || syncStatus.kind === 'error') && <div className="report-data-context">
-              <StatusNotice tone={syncStatus.kind === 'error' ? 'warning' : 'info'}>
-                {syncStatus.kind === 'error' && <div>{syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button></div>}
-                {activeTab === 'report5' ? <div>Ca 1 không phân tách Client trong nguồn hiện tại; bộ lọc SPB/SPE không áp dụng. Nguồn: {dataSources.ca1} · {dataCoverage(filteredCa1Rows, 'ngay')}</div> : activeTab !== 'report3' && <>
-                  <div>Pickup · {dataSources.pick} · {dataCoverage(activeTab === 'report-insight' ? pickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedPick)}</div>
-                  <div>Deli · {dataSources.deli} · {dataCoverage(activeTab === 'report-insight' ? deliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedDeli)}</div>
-                  {activeTab === 'report-insight' && <div>Leadtime · {leadtimeSource === 'none' ? 'Chưa tải' : leadtimeSource} · {leadtimeRows.length} dòng dữ liệu</div>}
-                </>}
-                {(activeTab === 'report1' || activeTab === 'report5') && <div>{clientFilter !== 'ALL' && activeTab === 'report1' ? `${clientFilter} · ` : ''}{selectedRegions.length}/{allRegions.length} vùng · {selectedHubTypes.length}/{allHubTypes.length} loại Hub <button type="button" className="nav-btn-sleek" onClick={resetFilters}>Đặt lại bộ lọc</button></div>}
+            {activeTab !== 'dev-admin' && syncStatus.kind === 'error' && <div className="report-data-context">
+              <StatusNotice tone="warning">
+                {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
               </StatusNotice>
             </div>}
+            {activeTab !== 'dev-admin' && activeTab !== 'report3' && syncStatus.kind !== 'error' && (
+              <div className="report-source-line" aria-label="Nguồn và phạm vi dữ liệu">
+                {activeTab === 'report5' ? (
+                  <span>Ca 1 · {dataSources.ca1} · {dataCoverage(filteredCa1Rows, 'ngày')}</span>
+                ) : (
+                  <>
+                    <span>Pickup · {dataSources.pick} · {dataCoverage(activeTab === 'report-insight' ? pickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedPick)}</span>
+                    <span>Deli · {dataSources.deli} · {dataCoverage(activeTab === 'report-insight' ? deliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : scopedDeli)}</span>
+                    {activeTab === 'report-insight' && <span>Leadtime · {leadtimeSource === 'none' ? 'Chưa tải' : leadtimeSource} · {leadtimeRows.length} dòng</span>}
+                  </>
+                )}
+              </div>
+            )}
             <div key={activeTab} className="tab-view-content">
               {activeTab === 'report1' && (
                 <Report1MienVungHub
@@ -561,7 +553,7 @@ export default function App() {
                   density={density}
                   isFullscreen={isFullscreen}
                   setIsFullscreen={setIsFullscreen}
-                  onResetFilters={resetFilters}
+                  onRetryData={handleSyncLiveSheet}
                 />
               )}
 
