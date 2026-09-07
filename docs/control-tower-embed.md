@@ -86,11 +86,21 @@ trong iframe — mở ở cửa sổ popup top-level thay vì điều hướng t
   chấp nhận `event.origin === window.location.origin`), gọi
   `supabase.auth.setSession(session)` — session được ghi vào đúng vùng lưu
   trữ của iframe, nên lần sau vào lại không cần đăng nhập lại nữa.
-- **`vercel.json`**: đổi `Cross-Origin-Opener-Policy` từ `same-origin`
-  sang `same-origin-allow-popups`. **Bắt buộc** — nếu để `same-origin`,
-  `window.opener` trong popup sẽ bị trình duyệt cắt đứt ngay khi popup điều
-  hướng sang domain khác (Google), khiến `PopupCallback.jsx` không gửi
-  session về được.
+- **`vercel.json`**: `Cross-Origin-Opener-Policy` được khai **hai giá trị
+  khác nhau** cho hai nhóm route, và đây là chỗ dễ làm hỏng luồng đăng
+  nhập nhất nếu sửa mà không hiểu lý do:
+  - Toàn app (`/((?!auth/popup-callback).*)`):
+    `same-origin-allow-popups`.
+  - Riêng `/auth/popup-callback`: **`unsafe-none`** — bắt buộc. COOP chỉ
+    có hiệu lực với cửa sổ top-level (bị bỏ qua với iframe), nên số phận
+    của `window.opener` do chuỗi điều hướng của chính popup quyết định:
+    `about:blank` → Supabase → Google → trang callback. Cả ba chặng đầu
+    đều chạy ở `unsafe-none`; theo spec COOP, nếu document cuối khai một
+    giá trị khác `unsafe-none` thì trình duyệt đổi browsing context group
+    và **`window.opener` thành `null`** — popup đứng lại, không gửi được
+    session về iframe. `same-origin-allow-popups` chỉ giúp trang *mở*
+    popup, đặt lên chính *trang popup* thì vẫn bị cắt. Đừng "siết" lại
+    giá trị này mà không test lại toàn bộ luồng đăng nhập nhúng.
 
 **Việc cần làm thủ công (ngoài code) trước khi deploy:** thêm
 `https://kas-shopee-performance.vercel.app/auth/popup-callback` vào danh

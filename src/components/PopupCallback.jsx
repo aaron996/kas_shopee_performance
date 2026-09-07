@@ -15,30 +15,48 @@ import { supabase } from '../utils/supabaseClient';
 // iframe's own (partitioned) storage — exactly where it needs to live.
 const SELF_ORIGIN = window.location.origin;
 
+// Distinct failure states — they look similar to the user but have very
+// different causes, so keep them apart to stay debuggable.
+const MESSAGES = {
+  processing: 'Đang hoàn tất đăng nhập…',
+  'no-session': 'Không nhận được phiên đăng nhập từ Google. Vui lòng đóng cửa sổ này và thử lại.',
+  'no-opener': 'Mất liên kết với cửa sổ báo cáo. Vui lòng đóng cửa sổ này và thử lại.',
+  failed: 'Đăng nhập không hoàn tất. Vui lòng đóng cửa sổ này và thử lại.',
+};
+
 export default function PopupCallback() {
-  const [status, setStatus] = useState('processing'); // processing | error
+  const [status, setStatus] = useState('processing');
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        // supabase-js parses the OAuth redirect (code/hash) during client
-        // init and getSession() awaits that before resolving, so this is
-        // safe to call immediately on mount.
+        // supabase-js parses the OAuth redirect (tokens arrive in the URL
+        // hash on the default implicit flow) during client init, and
+        // getSession() awaits that before resolving — safe to call right
+        // on mount.
         const { data: { session }, error } = await supabase.auth.getSession();
         if (cancelled) return;
 
         if (error || !session) {
           console.error('Popup callback: no session after OAuth redirect', error);
-          setStatus('error');
+          setStatus('no-session');
           return;
         }
 
         if (!window.opener) {
-          // Opened directly (not as a popup, or opener link was severed) —
-          // nothing to hand the session back to.
-          setStatus('error');
+          // Either opened directly (not as a popup), or the browser severed
+          // the opener link. The usual cause of the latter is this page
+          // being served with a Cross-Origin-Opener-Policy other than
+          // `unsafe-none`: the popup's navigation chain (Supabase → Google
+          // → back here) runs at `unsafe-none`, so any stricter value here
+          // makes the browser swap browsing context groups and null out
+          // window.opener. See the /auth/popup-callback header override in
+          // vercel.json — don't "harden" that value without re-testing the
+          // embedded login flow end to end.
+          console.error('Popup callback: window.opener is null — cannot hand the session back');
+          setStatus('no-opener');
           return;
         }
 
@@ -47,7 +65,7 @@ export default function PopupCallback() {
       } catch (err) {
         if (cancelled) return;
         console.error('Popup callback failed:', err);
-        setStatus('error');
+        setStatus('failed');
       }
     })();
 
@@ -69,11 +87,7 @@ export default function PopupCallback() {
         color: '#334155',
       }}
     >
-      <p>
-        {status === 'error'
-          ? 'Đăng nhập không hoàn tất. Bạn có thể đóng cửa sổ này và thử lại.'
-          : 'Đang hoàn tất đăng nhập…'}
-      </p>
+      <p>{MESSAGES[status] || MESSAGES.failed}</p>
     </div>
   );
 }
