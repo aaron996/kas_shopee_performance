@@ -1,24 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { ShieldCheck, AlertCircle, Mail } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { isAllowedEmail } from '../utils/authPolicy';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
-
-// This controls navigation only. Supabase RLS is the authority that protects
-// the Dev Admin data; keep the email check here in sync with its SQL policy.
-const DEV_ADMIN_EMAIL = 'vinhlt@ghn.vn';
-
-export function isAllowedEmail(email) {
-  if (!email) return false;
-  const cleanEmail = email.trim().toLowerCase();
-  return cleanEmail.endsWith('@ghn.vn') || cleanEmail === 'luongthevinh996@gmail.com';
-}
-
-export function isDevAdminEmail(email) {
-  if (!email) return false;
-  const cleanEmail = email.trim().toLowerCase();
-  return cleanEmail === DEV_ADMIN_EMAIL;
-}
 
 export default function AuthModal({ isOpen }) {
   const [emailInput, setEmailInput] = useState('');

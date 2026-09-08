@@ -1,403 +1,469 @@
-# Plan: Chatbot AI + Mascot 2D cho GHN KAS Dashboard
+# Plan: Chatbot Luna + Mascot 2D cho GHN KAS Dashboard
 
-> Trạng thái: PLAN — chưa code. Viết sau khi đọc repo thực tế (React 19 + Vite 8,
-> Supabase auth, deploy Vercel với CSP chặt, GSAP 3.15 đã cài kèm `gsapSetup.js`).
-> Số model/giá ở mục 10 tra từ reference chính thức, không nhớ từ đầu.
+> Cập nhật 08/09/2026 theo review và quyết định của Vinh: Luna trả lời chatbot
+> trong app, backend đọc trực tiếp database. Trạng thái: Task 1 đã code local;
+> migration đã áp dụng Supabase ngày 08/09/2026. Key/API, SQL parity và Luna
+> streaming đã kiểm tra riêng; full endpoint với JWT người dùng và deploy còn chờ.
 
-## 0. Quyết định đã chốt
+### Kết quả smoke test 08/09/2026
 
-| Vấn đề | Quyết định | Lý do |
+- Env đầy đủ tại `D:/Github/GHN/.env.local`; script đọc trực tiếp file này.
+- Migration `create_ai_chat_backend` đã áp dụng trên project `iyjsihwgnzcytbojvoom`.
+- RPC chạy với role authenticated: ODR SPB toàn quốc 07/09/2026 = 92,06%,
+  tử số 92.047 và mẫu 99.988, khớp SQL trực tiếp.
+- Anonymous gọi RPC bị từ chối với mã 42501. Authenticated không có quyền
+  execute reserve/finalize; bốn RPC dữ liệu là SECURITY INVOKER.
+- Reserve/finalize được test trong transaction rollback: reserved về 0,
+  used ghi đúng 8 microUSD cho cả user và org. Không lưu quota test giả.
+- `scripts/chat-smoke.mjs`: Luna thật chọn metric tool và stream đúng kết quả
+  từ fixture đã đối chiếu SQL; 3 model calls, chi phí ước tính 857 microUSD.
+  Đây chưa phải E2E: tool được thay bằng fixture, chưa có JWT user cho HTTP endpoint.
+- Supabase advisors: ba bảng quota/usage có RLS không policy là chủ đích
+  service-role-only; có cảnh báo Auth leaked-password protection hiện đang tắt.
+- Giữ flag trong file env là false; script chỉ bật trong process smoke test.
+> Repo đã đối chiếu: React 19, Vite 8, Supabase auth/data, Vercel, GSAP 3.15.
+> Schema/quyền DB live, model access và hiệu năng còn phải kiểm chứng ở Phase 0.
+
+## 0. Quyết định triển khai
+
+| Thành phần | Quyết định |
+|---|---|
+| Nhiệm vụ | Hỏi đáp số liệu vận hành trong DB và hướng dẫn dùng dashboard |
+| Model trong app | OpenAI `gpt-5.6-luna`, `reasoning.effort: low` khởi đầu |
+| API | SDK `openai`, Responses API, API key riêng trên backend |
+| Backend | Vercel Node.js Function `/api/chat`, cùng origin |
+| Nguồn v1 | Bốn bảng KAS trong Supabase hiện có |
+| Tool execution | Toàn bộ tool đọc DB và vòng gọi model chạy trên server |
+| Query scope | Theo câu hỏi/hội thoại và quyền truy cập, độc lập bộ lọc UI |
+| Mascot | Inline SVG + GSAP, năm state cốt lõi |
+| History | Bản đọc trong sessionStorage theo user, không lưu nội dung vào DB v1 |
+| DB bổ sung | Metadata quota/usage và RPC đọc có tham số cố định |
+
+Luna là model chatbot trong sản phẩm, không phải yêu cầu thay model Codex đang
+phát triển. Giữ Luna trong toàn bộ v1; không tự route sang model đắt hơn khi lỗi
+hoặc chất lượng chưa đạt. Tối ưu prompt, tools và effort trên Luna trước.
+
+## 1. Kiến trúc: backend truy vấn DB
+
+```text
+Browser: câu hỏi + history text giới hạn + requestId
+    |
+    | POST /api/chat + Supabase access token
+    v
+Vercel: verify JWT -> kiểm tra quyền -> reserve quota
+    |
+    +-> Luna chọn function + arguments
+    |       |
+    |       v
+    |   Server validate -> RPC/query cố định -> Supabase KAS
+    |       |
+    |       v
+    |   Số đã tổng hợp + phạm vi + ngày dữ liệu + nguồn
+    |       |
+    +-------+-> Luna diễn giải; tối đa 3 vòng tool
+    |
+    v
+SSE: trạng thái / text / nguồn / hoàn tất hoặc lỗi
+    |
+    v
+ChatPanel + mascot
+```
+
+Browser không gửi raw rows, data brief, ảnh màn hình hoặc kết quả tool. Backend
+không đọc DOM hay rows trong React state. DB mới hơn bản dashboard đang load thì
+chatbot dùng DB và ghi thời điểm đồng bộ. Đọc trực tiếp DB vẫn là đọc snapshot
+đồng bộ từ Sheet, không đồng nghĩa dữ liệu realtime warehouse.
+
+Server chạy truy vấn được lập trình và review. Luna chọn client/ngày/vùng/lane
+trong schema cho phép; không có tool nhận SQL, tên bảng/cột tự do. Vòng tool nằm
+trong một HTTP request server; không có continuation tool qua browser.
+
+### Request và history
+
+- Chỉ nhận `question`, `history`, `requestId`. Câu hỏi tối đa 4.000 ký tự;
+  history tối đa 10 cặp hỏi/đáp hoàn tất, text role user/assistant; body <=64 KiB.
+  Server validate cấu trúc, tổng token và từ chối unknown fields.
+- Không nhận model, instructions, system/developer, tools, SQL, raw data,
+  function outputs hoặc provider response ID từ client.
+- History browser là untrusted, chỉ giúp hiểu câu nối tiếp. Server đóng gói thành
+  dữ liệu hội thoại giới hạn, không forward input provider tùy ý. Số liệu trong
+  history không là bằng chứng: câu trả lời số phải có evidence DB của lượt hiện tại.
+- Unique user/requestId và payload hash trong metadata: claim một lần. Request
+  trùng đang chạy trả 409; cùng ID nhưng body khác bị từ chối. Đứt mạng báo gián
+  đoạn, user chủ động gửi lượt mới; không tự phát lại request có thể đã tính phí.
+- History đầy thì bắt đầu hội thoại mới. Logout/hết session hủy request và xóa
+  history đang dùng; storage key theo user ID, tránh lộ cho tài khoản kế tiếp.
+
+## 2. Data source và query scope
+
+Theo `src/utils/supabaseSheetSync.js` và `docs/google-sheet-supabase-sync.md`,
+Google Sheet được Apps Script đồng bộ vào các bảng dưới đây. Đây là bằng chứng
+repo; Phase 0 phải kiểm tra schema/quyền live trước implementation.
+
+| Bảng | Mục đích | Quy tắc |
 |---|---|---|
-| Scope bot | Hỏi-đáp trên data đang load **+** hướng dẫn dùng dashboard | Không cần DB mới, không cần quyền warehouse |
-| Backend | Vercel Serverless Function `/api/chat` | Cùng origin → **không phải sửa CSP**, deploy chung 1 lần với app |
-| Mascot | Inline SVG + GSAP | 0 dependency mới, 0 asset ngoài → CSP-safe, điều khiển state tự do |
-| Model | `claude-opus-5` (mặc định) | Xem mục 10 — hạ model là quyết định của Vinh, không phải mặc định của plan |
-| Tool execution | Chạy ở **client**, không phải server | Xem mục 1 — data sống trong RAM của browser |
+| `kas_pick_data` | 1st Pickup, OPR, pickup volume | Map tử/mẫu, chuẩn hóa vùng/hub như app |
+| `kas_deli_data` | 1st Delivery, ODR, delivery volume | Giữ mẫu số/grain theo metric |
+| `kas_ca1_data` | % về ca 1 theo lane/vùng | Không giả định nguồn tách SPB/SPE; UI hiện không phân client |
+| `kas_leadtime_data` | Bốn chặng, E2E, lane/cặp tỉnh | Weighted theo mau, NULL riêng từng chặng |
 
-## 1. Kiến trúc — điểm quan trọng nhất: tool chạy ở CLIENT
+Không truy vấn auth, access logs, quota hoặc bảng ứng dụng khác bằng chatbot tools.
 
-Đây là quyết định định hình cả plan, nên nói trước.
+`QueryScope` do server chuẩn hóa từ hội thoại: client, dateFrom/dateTo, regions,
+hubTypes, lane, provincePair, grain. Không copy activeTab/clientFilter/selectedRegions
+hay bộ lọc riêng của Leadtime từ màn hình.
 
-Data của app (`pickRows`, `deliRows`, `ca1Rows`, `leadtimeRows`) sống trong React state
-của browser, sync từ Supabase/Google Sheet lúc load. Serverless function **không có**
-data đó. Hai cách xử lý:
+- Thiếu client mà ảnh hưởng câu trả lời: hỏi rõ SPB/SPE/tất cả. Scope đã nói trong
+  chat dùng cho câu nối tiếp; không đoán theo tab đang mở.
+- “Mới nhất” lấy ngày có dữ liệu của nguồn đang hỏi. “Hôm nay/hôm qua” theo
+  Asia/Ho_Chi_Minh; thiếu ngày đó thì báo thiếu, không tự chuyển sang ngày khác.
+- Ca 1 hỏi riêng client mà nguồn không hỗ trợ: nói rõ giới hạn.
+- Vượt coverage lịch sử DB thì báo thiếu; không điền số từ history. V1 tối đa 90
+  ngày/query; yêu cầu lớn hơn cần thu hẹp.
+- Nếu sau này có nút “Dùng bộ lọc đang xem”, phải là thao tác chủ động và có adapter
+  đầy đủ cho từng report; nằm ngoài v1.
 
-- Server tự query Supabase lại → nhân đôi logic filter/aggregate đã có trong
-  `dataProcessor.js` + `leadtimeCalc.js`, và bot sẽ trả lời trên tập data **khác** với
-  cái Vinh đang nhìn trên màn hình. Sai lệch kiểu này rất khó debug và làm mất tin tưởng.
-- Tool chạy ở client. Server chỉ là proxy giữ API key. **Chọn cái này.**
+### Độ tươi và snapshot
 
-Vòng lặp:
+Result có `source`, `queriedAt`, `dataAsOf`, `syncedAt`, `scope`,
+`coverage`, `truncated`, `evidenceId`. DataAsOf là ngày nghiệp vụ, syncedAt là
+thời điểm đồng bộ; không dùng timestamp mới nhất của một bảng cho mọi nguồn.
+Bảng lỗi, bảng rỗng và kỳ không có dữ liệu phải trả trạng thái khác nhau.
 
+Full refresh hiện chạy từng bảng, không đảm bảo cả bốn bảng cùng batch. Mỗi query
+tổng hợp cần snapshot trong một statement/transaction. So sánh đa nguồn phải trả
+coverage/timestamp từng bảng; khác kỳ thì không kết luận so sánh tương đương.
+Giữa các vòng tool kiểm tra sync version: nguồn đã đổi thì hủy evidence cũ và báo
+đang cập nhật. Không giữ transaction DB trong lúc chờ model. Nếu marker hiện có
+không phân biệt refresh đầy đủ, Phase 0 chốt metadata version theo bảng cập nhật
+cùng transaction sync trước khi mở rộng.
+
+## 3. Quyền DB và metric layer
+
+Tạo Supabase client server theo từng request với user JWT để RLS có hiệu lực;
+không import singleton browser `src/utils/supabaseClient.js`. Client service role
+riêng chỉ quản lý quota/usage, không truyền cho tool dispatcher.
+
+RPC đọc dùng SECURITY INVOKER, tên/parameters cố định, column allowlist, không
+dynamic SQL từ model. Kiểm tra grants/RLS live; email allowlist của app không thay
+RLS. Nếu quyền chưa đủ, viết migration/test đúng phạm vi thay vì bypass bằng
+service role. Không cho tool gọi RPC sync hoặc thao tác ghi vận hành.
+
+Ưu tiên aggregate DB rồi mới đưa kết quả sang model. Không sao chép
+`fetchAllRows().select('*')` để tải mọi bảng mỗi câu hỏi. Query cần pagination
+phải có order ổn định, không coi 1.000 rows mặc định PostgREST là toàn bộ dữ liệu.
+Trần ban đầu: 5s/query, 50 dòng/result, 16 KiB/result; top-N/cắt rows sau khi
+aggregate/ranking, có truncated. Kiểm tra EXPLAIN/index trên dữ liệu đại diện.
+
+| Nguồn logic repo | Cần bảo toàn |
+|---|---|
+| `dataProcessor.js` | reassignKaRegion, getHubType, nhóm ngày và công thức KPI |
+| `insightAnalysis.js` | computeKpiDeltas, attention ranking, giới hạn narrative |
+| `leadtimeCalc.js`, `laneTaxonomy.js` | Weighted/NULL, chuẩn hóa lane, baseline trước kỳ, sample |
+| `clientLabels.js`, `defaultDataset.js` | Nhóm client và target hiện hành |
+| `Report5LaneCa1.jsx` | Công thức Ca 1: tách hàm thuần nếu dùng chung |
+
+Hàm JS tái dùng phải chạy trong Node (ESM imports đúng extension, không DOM/React).
+Nếu chuyển aggregate sang SQL, test fixture SQL/JS cùng nguồn/ngày/scope trước
+khi dùng. Giữ grain ngày cần cho median/baseline; không thay bằng mean toàn kỳ.
+Tỷ lệ, delta, weighted average và ranking do code/SQL tính; Luna diễn giải.
+Không đổi thiếu data thành 0, không biến tương quan thành nguyên nhân đã chứng minh.
+
+## 4. Tools server-side và glossary
+
+| Tool | Input chính | Output |
+|---|---|---|
+| `get_data_coverage` | Dataset/client hợp lệ | Coverage, sync marker, dimensions hỗ trợ |
+| `get_metric_table` | Metric, scope, grain, sort, limit | KPI, tử/mẫu, delta nếu yêu cầu, evidence |
+| `get_leadtime_stages` | Client, kỳ, lane/cặp tỉnh | Bốn chặng/E2E, sample, baseline, evidence |
+| `get_ca1` | Kỳ, lane, vùng | Tỷ lệ/tử/mẫu, coverage; không giả client filter |
+| `explain_metric` | Metric enum | Formula/định nghĩa từ glossary repo |
+| `get_dashboard_help` | Topic enum | Hướng dẫn chức năng có thật và route allowlist |
+
+OpenAI function schemas dùng type function, strict true, additionalProperties false;
+field tùy chọn nullable và vẫn trong required. Strict đảm bảo cấu trúc arguments;
+server vẫn validate quyền, enum, ngày, limit và tính hợp lệ nghiệp vụ.
+
+Không có navigate tự đổi UI v1. Help trả link/chip để user mở report; route được
+allowlist trên client. Không có tools ghi DB, export, gửi tin, web search, shell,
+MCP tổng quát hoặc arbitrary SQL.
+
+`src/data/metricGlossary.js` giữ định nghĩa OPR/ODR/1st Pickup/1st Delivery/Ca 1/
+bốn chặng, đơn vị, target, công thức, NULL/sample rules và ngày hiệu lực. Dùng lại
+target constants hiện có thay vì tạo bản sao dễ lệch. Dashboard help cũng có version.
+
+Mọi số cần evidence lượt hiện tại hoặc glossary cố định. Chỉ gửi cột allowlist và
+label giới hạn độ dài tới model. Text trong DB vẫn là untrusted; XML/JSON chỉ phân
+tách nội dung, không tự chặn injection. Test label chứa chỉ thị giả, HTML và yêu
+cầu truy cập ngoài scope. Không dùng denylist kiểu “bỏ field có phone”.
+
+## 5. Backend OpenAI Responses API
+
+```text
+api/chat.js                    POST entrypoint
+server/chat/auth.js            JWT + email policy
+server/chat/protocol.js        body/history validation
+server/chat/quota.js           atomic reserve/finalize
+server/chat/agent.js           Responses API + server tool loop
+server/chat/db.js              user-scoped queries/RPC
+server/chat/tools.js           schemas + read-only dispatcher
+server/chat/context.js         evidence metadata và byte budget bảo thủ
+server/chat/sse.js             SSE ứng dụng
+src/data/metricGlossary.js     glossary không secrets
+src/data/dashboardHelp.js      hướng dẫn đã đối chiếu app
 ```
-Browser                         /api/chat (Vercel)          Claude API
-  |  POST {messages, tools}  ------->  verify JWT
-  |                                    + inject system   --------->
-  |  <---- SSE stream --------------------------------------------  text / tool_use
-  |
-  |  stop_reason === "tool_use"?
-  |    +-> chay tool NGAY TRONG BROWSER (doc pickRows/deliRows/leadtimeIndex)
-  |    +-> POST lai /api/chat kem tool_result
-  v
-render
-```
 
-Hệ quả: **không** dùng `client.beta.messages.tool_runner` — helper đó chạy vòng lặp
-server-side, không chạm được RAM browser. Viết manual loop ở client (`while stop_reason
-=== 'tool_use'`), server stateless hoàn toàn.
+Khi implementation cài SDK `openai`, khóa version bằng lockfile; không import SDK/
+server helpers vào bundle client. JS/JSX có thể dùng JSDoc type SDK, không cần đổi
+cả project sang TypeScript.
 
-## 2. Phase 0 — Spike 0.5 ngày, 3 thứ phải verify trước khi build gì cả
-
-Ba cái này mà sai thì kiến trúc mục 1 phải làm lại, nên làm trước.
-
-1. **`vercel.json` có ăn mất `/api/chat` không.** Hiện có catch-all
-   `{"source": "/(.*)", "destination": "/index.html"}`. Theo thứ tự routing của
-   Vercel, `rewrites` trong `vercel.json` hành xử như `afterFiles` — tức filesystem
-   (bao gồm serverless function trong `api/`) được check TRƯỚC, nên về lý thuyết
-   `/api/chat` vẫn tới function. **Phải test thật, đừng tin lý thuyết**: deploy một
-   function `api/ping.js` trả `{ok:true}` lên preview rồi `curl` nó.
-   Nếu bị catch-all ăn → sửa source thành negative lookahead:
-   `"source": "/((?!api/).*)"`.
-2. **Streaming SSE qua Vercel.** Function phải trả `text/event-stream` và không bị
-   buffer. Test bằng function đếm 1→5 mỗi 500ms, xem browser nhận từng chunk hay
-   nhận một cục sau 2.5s.
-3. **CSP.** `connect-src 'self'` đã cho phép `/api/chat` → không cần sửa
-   `vercel.json` headers. Verify bằng cách xem Console không có CSP violation.
-   Đây chính là lý do chọn Vercel thay Supabase Edge Function (cái kia phải thêm domain).
-
-4. **Max duration của Vercel function.** Một lượt chat Opus 5 có adaptive thinking +
-   tool loop có thể mất 15-30s. Giới hạn thời gian chạy function khác nhau theo plan
-   (Hobby thấp hơn Pro đáng kể) và nếu bị cắt giữa stream thì user thấy câu trả lời
-   đứt ngang — trông như bug chứ không như timeout. Phải tra giới hạn thực tế của
-   plan Vercel đang dùng, rồi test bằng một prompt cố tình dài (bắt bot gọi 3-4 vòng
-   tool). Nếu không đủ: hoặc nâng `maxDuration` trong config function, hoặc hạ
-   `effort`/`max_tokens`, hoặc chuyển sang Edge runtime (streaming không bị cap
-   duration nhưng không chạy được Node SDK — phải dùng fetch thẳng, cân nhắc kỹ).
-
-Nếu (2) thất bại → fallback là non-streaming (`messages.create`) + mascot state
-"đang nghĩ", chấp nhận chờ 3-8s. UX kém hơn nhưng không chặn dự án.
-
-## 3. Backend `api/chat.js`
-
-```
-api/
-  chat.js        # POST — proxy streaming toi Claude API
-  _auth.js       # verify Supabase JWT + allowlist email
-  _ratelimit.js  # dem luot theo email, luu Supabase
-```
-
-Dependency mới: `@anthropic-ai/sdk`. Dùng SDK chính thức, không tự `fetch` thẳng.
-
-### Model & tham số
+Ví dụ cấu hình upstream, chưa phải implementation hoàn chỉnh:
 
 ```js
-// api/chat.js
-const stream = client.messages.stream({
-  model: 'claude-opus-5',
-  max_tokens: 8192,
-  thinking: { type: 'adaptive' },        // Opus 5 bat thinking mac dinh
-  output_config: { effort: 'low' },      // chat khong huong loi tu effort cao
-  system: [ /* xem layout cache ben duoi */ ],
-  tools: TOOLS,                          // strict: true, xem muc 5
-  messages,
-});
+const stream = await openai.responses.create({
+  model: 'gpt-5.6-luna',
+  instructions: SERVER_INSTRUCTIONS,
+  input: serverBuiltInput,
+  tools: READ_ONLY_TOOLS,
+  reasoning: { effort: 'low' },
+  max_output_tokens: 2048,
+  store: false,
+  stream: true,
+}, { signal });
 ```
 
-Ghi chú kỹ thuật (dễ sai nếu làm theo trí nhớ):
+2.048 là trần thử nghiệm gồm reasoning và visible output, không phải độ dài answer
+mong muốn. So sánh none/low trên Luna bằng eval; không mặc định effort nhỏ nhất
+luôn xử lý tốt câu nhiều bước.
 
-- **Không** truyền `budget_tokens` — Opus 5 trả 400. Dùng `output_config.effort`.
-- **Không** dùng assistant prefill — Opus 5 trả 400. Cần ép format thì dùng
-  `output_config.format` (structured outputs).
-- `effort: 'low'` là chủ ý: chat/Q&A không phải workload hưởng lợi từ effort cao;
-  nâng lên `medium` chỉ khi đo được câu trả lời sai/nông ở `low`.
-- Parse `tool_use.input` bằng `JSON.parse`, **không** string-match.
-- Nhiều `tool_use` trong một assistant message là bình thường → chạy song song rồi
-  gửi **tất cả** `tool_result` trong **MỘT** user message. Tách ra nhiều message sẽ
-  âm thầm dạy model bỏ parallel tool use.
-- Dùng type của SDK (`Anthropic.MessageParam`, `Anthropic.Tool`), đừng tự khai
-  `interface ChatMessage`.
-- Error handling: chain từ hẹp đến rộng — `RateLimitError` → `APIStatusError` →
-  `APIConnectionError`. Một `catch (e)` chung sẽ trộn lẫn lỗi retry được và không.
+Server ghép response hoàn chỉnh rồi xử lý function_call. Responses API trả
+`arguments` dạng JSON string: `JSON.parse(item.arguments)`, validate rồi dispatch.
+Giữ response.output, kể cả reasoning items cần thiết, trong input vòng kế tiếp và
+thêm function_call_output đúng call_id. Không thực thi input delta còn dở. Với
+store false, spike phải verify replay reasoning/encrypted content theo SDK hiện
+hành; không dựa vào response đã lưu ở provider. Tool transcript chỉ sống trong RAM
+request, không gửi về browser.
 
-### Layout prompt caching (quan trọng cho chi phí)
+Tối đa hai query độc lập chạy song song; so sánh cần snapshot chung thì dùng batch
+RPC. Tối đa ba vòng tool, bốn calls/batch, bốn lần gọi model/câu; lượt cuối tắt tools
+để tổng hợp hoặc báo thiếu dữ liệu. Implementation chặn history theo ký tự và
+evidence theo UTF-8 bytes ở mức bảo thủ; token thật lấy từ usage của provider để
+đo và tinh chỉnh, không coi string.length là token count.
 
-Cache là **prefix match** — đổi một byte ở đầu là mất cache toàn bộ phía sau. Thứ tự
-render là `tools` → `system` → `messages`. Nên:
+Không cache raw data xuyên user. Giữ instructions/glossary/schemas ổn định để tận
+dụng prompt cache khi có; đo cached tokens, không giả định cache luôn hit. Store
+false không đồng nghĩa không có retention khác ở provider; kiểm tra data controls.
 
-```
-[on dinh, cache_control: ephemeral]
-  tools (thu tu co dinh, khong sort dong)
-  system: persona + rule + metricGlossary (muc 6)
---------- breakpoint ---------
-[bien dong, KHONG cache]
-  messages: history + data brief (muc 4) + cau hoi
-```
+## 6. Auth, quota và ngân sách
 
-Sai kinh điển cần tránh: nhét `new Date()`, tên user, hay data brief vào `system`.
-Làm vậy là mỗi request cache miss 100%. Verify bằng `usage.cache_read_input_tokens`
-— nếu nó bằng 0 qua nhiều request liên tiếp thì có invalidator ẩn.
+Client gửi Bearer Supabase access token; server verify bằng auth.getUser(token)
+và policy email hiện có. Tách isAllowedEmail vào src/utils/authPolicy.js, cập nhật
+imports AuthModal.jsx/App.jsx, dùng chung với server. Lấy user ID từ JWT đã verify,
+org từ server config. Không nhận email/org/admin flag trong body làm quyền.
 
-Bonus dùng được vì đã chọn Opus 5: **mid-conversation system message** (append
-`{role:'system', content:...}` vào `messages`, không cần beta header). Dùng để bơm
-"user vừa đổi sang tab Leadtime, client SPE" giữa hội thoại mà không phá cache
-prefix. Không hợp lệ ở `messages[0]`, phải đứng sau một user message.
-
-### Auth
-
-Client gửi `Authorization: Bearer <supabase access_token>`. Server:
-
-1. Verify token qua `supabase.auth.getUser(token)` (anon key là đủ, Supabase tự
-   verify signature).
-2. Check email nằm trong allowlist. Vấn đề: `isAllowedEmail` hiện nằm trong
-   `src/components/AuthModal.jsx` — component React, không import sạch sẽ vào
-   serverless function được. **Refactor nhỏ**: tách sang `src/utils/authPolicy.js`,
-   `AuthModal.jsx` và `api/_auth.js` cùng import. Đây là thay đổi duy nhất plan này
-   đụng vào code auth hiện có.
-3. Không tin `localStorage`/body của client cho bất cứ thứ gì về quyền — cùng lý do
-   `App.jsx:77` đã cẩn thận với `isDevAdmin`.
-
-### Rate limit
-
-Serverless stateless nên không giữ counter trong RAM. Bảng Supabase mới:
-
-```sql
-create table ai_chat_usage (
-  id bigserial primary key,
-  email text not null,
-  created_at timestamptz not null default now(),
-  input_tokens int, output_tokens int, model text,
-  tool_names text[]        -- metadata, KHONG luu noi dung cau hoi
-);
-create index on ai_chat_usage (email, created_at desc);
-```
-
-RLS: khoá đọc như migration `20260813_lock_dev_admin_access_logs.sql` đã làm; ghi
-bằng service-role key từ server. Hạn mức đề xuất: 60 lượt/user/ngày + 600 lượt/toàn
-org/ngày, trả 429 kèm message tiếng Việt để mascot hiển thị được ("Hôm nay mình hết
-lượt rồi").
-
-## 4. Context builder — `src/utils/chatContext.js`
-
-Không được dump raw rows vào prompt: pick/deli là hub-level x nhiều ngày, dễ vài trăm
-nghìn token. Thay vào đó build **data brief** đã pre-aggregate, tái dùng đúng những
-hàm đã có và đã test:
-
-| Nguồn | Dùng lại từ |
+| Metadata | Khóa/ý nghĩa |
 |---|---|
-| KPI D-1 vs D-8, delta | `computeKpiDeltas` (`insightAnalysis.js:119`) |
-| Vùng/hub đáng lo | `buildAttentionList` (`insightAnalysis.js:78`) |
-| Tín hiệu leadtime | `buildLeadtimeSignal` (`insightAnalysis.js:141`) |
-| Câu chuyện "vì sao đổi" | `buildNarrative` (`insightAnalysis.js:182`) |
-| Tóm tắt điều hành | `generateExecutiveSummary` (`dataProcessor.js:162`) |
-| Phạm vi ngày có data | `dataCoverage` (`dashboardState.js:23`) |
+| ai_chat_quota_daily | Unique scope/user-or-org/day; số câu, reserved/used cost |
+| ai_chat_requests | Unique user/requestId, payload hash, status, deadline/lock |
+| ai_chat_usage | Unique request/round; model, effort, tokens, tool names, latency/status |
 
-Cộng thêm **view state**: tab đang mở, `clientFilter`, `selectedRegions`, `density`.
-Bot phải biết Vinh đang nhìn gì mới trả lời đúng ngữ cảnh.
+RPC reserve khóa bucket cùng thứ tự org rồi user trong một transaction, kiểm tra
+limit/claim trước upstream. Không count-then-insert tách rời. Finalize atomic và
+idempotent đúng một lần. Client service role riêng gọi quota RPC; RLS chặn browser
+đọc/ghi metadata và revoke execute khỏi anon/authenticated. SECURITY DEFINER cho
+quota phải có search_path cố định và schema-qualified names.
 
-Hai quy tắc cứng:
+- Ban đầu 60 câu/user/ngày, 600 câu/org/ngày; ngày Asia/Ho_Chi_Minh. Một câu tăng
+  count một lần nhưng từng API round phải reserve cost. Một in-flight/user.
+  Quota DB lỗi thì dừng trước upstream.
+- Pilot đề xuất trần USD 0,50/user/ngày và USD 5/org/ngày cho model. Đây là giới
+  hạn cấu hình, không phải dự báo chi tiêu; Phase 0 chốt trước pilot.
+- Reserve input với giá uncached/cache-write cao nhất áp dụng và trần output;
+  reconcile usage thật. SDK maxRetries: 0 ở v1, không có calls tính phí bị ẩn.
+- Lỗi chắc chắn trước upstream release cost. Abort/timeout không rõ usage giữ
+  reservation và đánh dấu unknown. Cleanup sau deadline giải phóng in-flight lock,
+  chuyển cost thành estimate bảo thủ nếu không reconcile được.
+- Metadata giữ 30 ngày; không log prompt, query results hoặc raw SDK errors.
+  Không đưa email/JWT/credentials vào model. Redact payload trong error logging.
 
-1. **Field allowlist, không dùng denylist.** Brief chỉ được chứa các cột liệt kê
-   tường minh. Denylist kiểu "bỏ cột nào có chữ phone" sẽ rò khi nguồn Sheet thêm cột
-   mới. Pick/deli hiện là aggregate theo hub nên không có PII, nhưng nguồn là Google
-   Sheet do người khác sửa được — không đặt cược vào việc nó mãi như vậy.
-2. **Ngân sách token đo được, không đoán.** Target brief <= 2.000 token. Viết
-   `src/utils/chatContext.test.mjs` (đúng pattern `npm test` hiện có: `node --test
-   src/utils/*.test.mjs`) assert độ dài brief dưới ngưỡng, để nó không âm thầm phình
-   ra khi thêm field.
+## 7. Streaming và vòng đời request
 
-## 5. Tools — chạy ở client (`src/utils/chatTools.js`)
+Browser dùng fetch POST + ReadableStream, server trả text/event-stream và
+Cache-Control no-store. Parser chịu được SSE/UTF-8 bị tách giữa chunks.
 
-| Tool | Làm gì | Đọc từ | Ghi chú |
-|---|---|---|---|
-| `get_metric_table` | KPI theo miền/vùng/hub, khoảng ngày | `pickRows`/`deliRows` | Trả tối đa N dòng, kèm `truncated: true` khi cắt |
-| `get_leadtime_stages` | 4 chặng theo lane/tỉnh | `buildLeadtimeIndex` + `aggregate` | Weighted theo `mau`, không mean đơn giản |
-| `get_ca1` | % đơn về ca 1 theo lane | `ca1Rows` | |
-| `explain_metric` | Định nghĩa OPR/ODR/%ca1/4 chặng | `metricGlossary.js` | Mục 6 |
-| `navigate` | Đổi tab / client / vùng đang chọn | gọi `setActiveTab`, `setClientFilter`, `handleJumpToRegion` (`App.jsx:169`) | Hiện chip "Bot đã chuyển sang tab 3" để user biết ai vừa đổi UI |
+| Event ứng dụng | Chức năng |
+|---|---|
+| message_start | Request ID, bắt đầu câu trả lời |
+| status | Đang tra DB / đang phân tích; không lộ SQL |
+| text_delta | Text đang stream |
+| sources | Evidence ID, phạm vi, ngày/sync do server tạo |
+| message_end | Complete/incomplete/refused và usage summary phù hợp |
+| error | Mã lỗi an toàn, thông báo tiếng Việt |
 
-Mọi tool khai `strict: true` + `additionalProperties: false` + `required` đầy đủ →
-`input` chắc chắn validate đúng schema, khỏi viết code phòng thân.
+Adapter xử lý response.output_text.delta, response.completed và failure/incomplete/
+refusal của Responses API. Upstream completed nhưng có function calls là bước
+trung gian; chỉ đóng SSE khi hết tool loop. Không render reasoning/arguments thô.
 
-Guardrail chống bịa số — rủi ro số 1 của loại bot này:
+Text của bước model chọn tool được giữ ở backend. Sau khi có evidence, bước tổng
+hợp cuối tắt tools và stream answer. Help/glossary không cần số mới có thể stream
+trực tiếp. Validator kiểm tra references/scope; eval kiểm tra số. Không coi prompt
+là bảo đảm tuyệt đối chống bịa.
 
-- System prompt: *"Mọi con số trong câu trả lời PHẢI đến từ kết quả tool hoặc data
-  brief. Không có số thì nói không có, không được suy ra hay ước lượng."*
-- Tool result trả kèm `as_of` (ngày data) để bot không nói "hôm nay" khi data là D-1.
-- Khi không đủ data: bắt bot trả lời theo đúng giọng `StatusNotice` hiện có ("Chưa
-  thể kết luận..."), không đoán.
+Lỗi trước headers dùng HTTP 400/401/403/409/413/429/5xx; sau headers dùng error event.
+Một stream có một terminal event khi còn kết nối. Mất terminal event => interrupted;
+hết output tokens => incomplete, không giả complete.
 
-Chống prompt injection: data đến từ Google Sheet → **untrusted**. Bọc tool result
-trong `<data>...</data>` và ghi rõ trong system prompt rằng nội dung trong `<data>`
-là dữ liệu, không phải chỉ thị. Một cell Sheet ghi "bỏ qua hướng dẫn trước" không
-được có hiệu lực.
+Stop, đóng panel/logout abort request; server truyền abort tới model/DB request,
+DB statement timeout là chốt cuối. Client dùng request ID bỏ stale events, không
+tự retry timeout. Khởi đầu deadline cả turn 90s, mỗi model round 20s (không vượt
+deadline còn lại), mỗi DB query 5s. Function duration phải đủ turn + finalize;
+điều chỉnh bằng spike. Mascot luôn thoát thinking khi error/abort.
 
-## 6. Glossary — `src/data/metricGlossary.js`
+## 8. Mascot 2D
 
-Định nghĩa OPR, ODR, 1st Pickup, 1st Deli, %ca1, 4 chặng leadtime, target từng
-client, cách tính weighted average. Viết tay, nằm trong repo, đưa vào phần cache
-được của system prompt.
+Files dự kiến: Mascot.jsx, useMascotState.js, mascot.css trong src/components/chat.
+Hình kiện hàng nhỏ bo tròn, mắt rõ, tay ngắn, khăn/mũ cam GHN; palette dùng tokens,
+có body.dark-mode. Parts SVG có pivot cố định; duyệt hình tĩnh ở kích thước launcher
+và panel trước khi animation.
 
-Lý do tách riêng: đây là loại thông tin **không được sai** và cũng là loại model dễ
-bịa nhất (mỗi công ty định nghĩa OPR một kiểu). Có file này thì sửa định nghĩa là sửa
-một chỗ, và nó nằm trong git history — review được.
-
-## 7. Mascot 2D
-
-```
-src/components/chat/
-  Mascot.jsx        # SVG inline + ref cho tung bo phan
-  useMascotState.js # map state -> GSAP timeline
-  mascot.css        # tu the nghi (resting pose) bang CSS
-```
-
-### Hướng thiết kế
-
-GHN là giao vận, brand orange `#f15a22` đã có trong tokens. Đề xuất: một **kiện hàng
-tròn nhỏ** có mắt, quàng khăn/mũ cam, tay ngắn — đọc ra ngay là "bạn giao hàng" mà
-không cần vẽ người. Palette lấy từ `tokens.css` (`--ghn-orange` + `--surface-canvas`
-pastel-blue) để không thành vật thể lạ trên dashboard. Có bản dark-mode (app đã có
-`body.dark-mode`).
-
-### States
-
-| State | Animation | Trigger |
+| State v1 | Trigger | Motion |
 |---|---|---|
-| `idle` | thở (scale 1→1.03), nháy mắt random 3-6s | mặc định |
-| `listening` | nghiêng đầu, mắt to hơn | user focus vào input |
-| `thinking` | nhấp nhô + 3 dấu chấm quay quanh | đang chờ stream |
-| `speaking` | nhún nhẹ theo nhịp token về | đang stream text |
-| `happy` | nhảy + sparkle | trả lời xong, KPI đạt target |
-| `worried` | rũ xuống, mày cong | trong câu trả lời có vùng đỏ |
-| `sleeping` | nhắm mắt, Zzz | idle > 60s |
+| idle | Không request/input focus | Nghỉ, thở nhẹ/blink thưa khi panel mở |
+| listening | Input focus, không request | Nghiêng nhẹ |
+| thinking | Query DB/chờ model | Nhấp nhô nhỏ, kèm trạng thái text |
+| speaking | Answer đang stream | Nhịp cố định, không một tween mỗi token |
+| error | Lỗi/quota/timeout | Một phản ứng ngắn rồi nghỉ, kèm text |
 
-### 4 quy tắc GSAP bắt buộc (rút từ chính comment trong `gsapSetup.js`)
+Ưu tiên error -> speaking -> thinking -> listening -> idle. User hủy về idle.
+Answer xong không có nghĩa KPI tốt. Happy/worried/sleeping để v1.1; nếu thêm cảm
+xúc KPI phải derive từ evidence metadata (tone/belowTargetCount), không dò từ trong
+câu trả lời.
 
-1. **Chỉ dùng `gsap.to()`, không bao giờ `gsap.from()`/`fromTo()` cho mascot.**
-   `gsap.from()` ghi trạng thái ĐẦU (opacity 0) vào inline style ngay lập tức, còn
-   trạng thái cuối phải chờ rAF tick. Tab ẩn → không có tick → mascot đứng ở opacity 0,
-   tức là **biến mất**. Bug này đã xảy ra thật với 5 khối của tab Leadtime (xem
-   docblock `shouldAnimate` trong `gsapSetup.js`). Tư thế nghỉ đặt trong CSS, GSAP chỉ
-   animate từ đó đi.
-2. **Đi qua `runAnimation()`**, không gọi `gsap` trực tiếp → tự tôn trọng
-   `prefers-reduced-motion` + `document.hidden`, tự revert khi unmount.
-3. **Reduce-motion phải ra mascot TĨNH nhưng ĐẦY ĐỦ**, không phải mascot mất tích.
-   Đây là hệ quả trực tiếp của (1).
-4. **Pause khi không thấy.** Idle loop chạy rAF vô hạn → `timeline.pause()` khi panel
-   đóng và trên `visibilitychange`. `will-change` chỉ set trong lúc đang animate, bỏ
-   ngay sau đó.
+- Base pose bằng CSS; dùng runAnimation và gsap.to để tránh initial pose vô hình
+  lúc mount trong tab ẩn. Một hook sở hữu một timeline, revert trước đổi state/unmount.
+- runAnimation chỉ kiểm tra hidden/reduced-motion lúc khởi tạo. Hook phải lắng nghe
+  visibilitychange và matchMedia change để cleanup/restart khi thích hợp.
+- Clear blink timers, temporary transforms/will-change. Panel đóng thì launcher
+  tĩnh, không loop vô hạn. Kiểm tra settleAnimations khi export không làm loop treo.
+- Reduced motion luôn hiện mascot đầy đủ. Mascot aria-hidden; mọi trạng thái quan
+  trọng có text riêng trong chat.
 
-Accessibility: mascot là trang trí → `aria-hidden="true"`. Đổi state **không** thông
-báo cho screen reader; thông tin thật đi qua live region của khung chat.
+## 9. Chat UI
 
-## 8. Chat UI
+Files: ChatLauncher.jsx, ChatPanel.jsx, ChatMessage.jsx, useChat.js, chat.css.
+useChat chỉ fetch/SSE/cancel/history, không query DB hoặc chạy tools.
 
+Panel ghi “Tra cứu dữ liệu KAS trong database”, có câu hỏi mẫu. Answer hiện nguồn,
+ngày và phạm vi để hiểu chênh lệch với view cũ. Có Stop và hỏi lại khi lỗi.
+
+- Desktop non-modal role dialog có accessible name; mở focus input, Escape đóng
+  trả focus launcher, không trap toàn dashboard.
+- Mobile sheet đủ chỗ đọc, tính safe area/nav/bàn phím; modal thì aria-modal,
+  focus trap, background inert. Chỉ một modal tương tác cùng lúc.
+- Live region thông báo trạng thái/answer hoàn tất, không từng token. Không ép
+  scroll xuống khi user đang đọc phía trên.
+- Launcher tránh home-fab bottom/right 2rem và mobile-bottom-nav. Desktop z-index
+  khởi đầu 1100, dưới toast 1200, Command Palette 1400 và modal. Mobile modal dùng
+  cơ chế overlay app. Fullscreen dựa app state để ẩn chat, tránh selector sibling sai.
+- Print/DOM export không có mascot/chat. Lazy-load, SDK/backend không vào browser.
+- Iframe mặc định ẩn launcher. Host bật qua postMessage phải kiểm tra origin
+  allowlist, source === window.parent và schema. Listener scope App.jsx hiện chưa
+  kiểm origin đầy đủ; không sao chép nguyên pattern.
+- Markdown subset render React elements, không raw HTML/innerHTML. Unsupported
+  syntax thành plain text; links validate protocol/route. CSP không thay escaping.
+
+## 10. Chi phí Luna và đo lường
+
+[Trang Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) đã mở đọc
+ngày 08/09/2026 xác nhận input USD 0,20, cached input USD 0,02, output USD 1,20 trên
+một triệu token. Model hỗ trợ streaming, function calling và effort none/low/medium/
+high/xhigh/max. Chọn Luna theo ưu tiên chi phí, không khẳng định rẻ nhất mọi API.
+
+Ví dụ sizing: tổng tất cả vòng API của một câu là 8.000 input uncached + 1.000
+output gồm reasoning:
+
+```text
+8.000 / 1.000.000 * 0,20 + 1.000 / 1.000.000 * 1,20 = USD 0,0028/câu
+50 câu/ngày * 30 ngày = USD 4,20/tháng
+600 câu/ngày * 30 ngày = USD 50,40/tháng
 ```
-src/components/chat/
-  ChatLauncher.jsx  # FAB + mascot thu nho
-  ChatPanel.jsx     # panel hoi thoai
-  ChatMessage.jsx   # 1 bong bong
-  useChat.js        # state + vong lap tool (muc 1)
-  chat.css
-```
 
-### Xung đột layout đã kiểm tra trong `index.css`
+Đây là minh họa, chưa benchmark; không gồm DB/Vercel/thuế, retry hay cache-write
+phụ phí nếu áp dụng. Không cộng reasoning hai lần nếu đã nằm trong output total.
+Sizing report gom mọi round: input/cache/output, số query, failure, latency text
+đầu/hoàn tất p50/p95 và USD/câu/ngày. So sánh none/low trên cùng fixture Luna, chọn
+cấu hình rẻ nhất đạt eval. Không nâng model tự động.
 
-- `.home-fab` đã chiếm `bottom: 2rem; right: 2rem` (`index.css:1731`) → FAB chat phải
-  lệch: đề xuất `bottom: 5.5rem` trên desktop.
-- `<=768px` có `.mobile-bottom-nav` → mobile đặt FAB phía trên bottom nav, tham chiếu
-  cách `.toast-viewport` đã xử lý (`index.css:4326`).
-- Thang z-index hiện tại: `.home-fab` auto - `.toast-viewport` 1200 -
-  `.sync-progress-bar` 1300 - `.cmdk-backdrop` 1400 - `.fullscreen-mode-active` 1500 -
-  `.dropdown-menu` 2000 - modal overlay 10000.
-  → Chat FAB + panel đặt **1100**: dưới toast (toast vẫn phải đọc được), dưới Command
-  Palette, dưới modal. Và ẩn FAB khi `.fullscreen-mode-active` đang bật.
-- Print CSS (`index.css:2781`) đã ẩn `.home-fab` → thêm chat vào cùng danh sách đó.
-
-### Embed mode
-
-App được nhúng iframe trong Control Tower (`docs/control-tower-embed.md`,
-`frame-ancestors` trong CSP). Trong iframe, host có thể có chat riêng → **ẩn FAB khi
-`window.self !== window.top`**, cho host bật lại qua `postMessage` nếu muốn (dùng lại
-listener `message` đã có trong `App.jsx`).
-
-### Render câu trả lời
-
-Bot trả markdown. **Không** thêm markdown renderer nặng và **không** dùng
-`innerHTML`. Chỉ hỗ trợ subset tự parse: bold, list, inline code, bảng đơn giản —
-render bằng React element, không dựng HTML string. CSP `script-src 'self'` không cứu
-được XSS qua `innerHTML` vì đó không phải script.
-
-## 9. Checklist bảo mật & quyền riêng tư
-
-- [ ] `ANTHROPIC_API_KEY` chỉ nằm trong Vercel env, không bao giờ trong client bundle
-- [ ] `/api/chat` verify Supabase JWT thật, không tin body
-- [ ] Rate limit theo email + theo org
-- [ ] Field allowlist ở context builder (mục 4)
-- [ ] Tool result bọc `<data>`, system prompt tuyên bố đó là data
-- [ ] Log **chỉ** metadata (email, token, latency, tool). Nội dung câu hỏi: không log
-      mặc định; muốn debug thì bật opt-in có thời hạn
-- [ ] Không gửi email user vào prompt (chỉ dùng để rate-limit)
-- [ ] `navigate` tool chỉ đổi UI, không được gọi tool nào có side effect ra ngoài
-      (không gửi mail, không ghi DB, không export)
-
-## 10. Chi phí
-
-Giá API (tính trên 1M token):
-
-| Model | Input | Output |
-|---|---|---|
-| `claude-opus-5` | $5 | $25 |
-| `claude-sonnet-5` | $2 | $10 |
-| `claude-haiku-4-5` | $1 | $5 |
-
-Ước tính một lượt hỏi. Giả định: system + tools + glossary ~4k token **được cache**,
-brief ~2k token không cache, output ~600 token, trung bình 2 lần gọi API vì có tool
-loop:
-
-| Model | ~$/lượt | 50 lượt/ngày → ~$/tháng |
-|---|---|---|
-| `claude-opus-5` | ~$0.05 | ~$75 |
-| `claude-sonnet-5` | ~$0.02 | ~$30 |
-| `claude-haiku-4-5` | ~$0.01 | ~$15 |
-
-Plan mặc định `claude-opus-5`. Cache read rẻ khoảng 10x so với giá input nên phần
-system prompt gần như miễn phí từ lượt 2 — đó là lý do mục 3 làm layout cache cẩn
-thận. Nếu Vinh muốn đổi sang Sonnet 5 để rẻ hơn ~2.5x thì đổi một dòng `model:`; đó
-là lựa chọn của Vinh, plan không tự hạ.
+Dùng API key/billing project cho ứng dụng, không lấy credential hoặc phiên Codex
+làm backend. Quyền gọi model của tài khoản phải test trong Phase 0.
 
 ## 11. Lộ trình
 
-| Phase | Việc | Ngày |
+| Phase | Đầu ra kiểm tra được | Ngày |
 |---|---|---|
-| 0 | Spike: verify rewrite / streaming / CSP (mục 2) | 0.5 |
-| 1 | `api/chat.js` + auth + rate limit + tách `authPolicy.js` | 2 |
-| 2 | Chat UI shell + render streaming + z-index/layout | 2 |
-| 3 | `chatContext.js` + `metricGlossary.js` + test ngân sách token | 2 |
-| 4 | Tool loop client-side + `navigate` + guardrail chống bịa số | 3 |
-| 5 | Mascot SVG + 7 state GSAP + dark mode + reduce-motion | 3 |
-| 6 | Polish: a11y, perf, print CSS, embed mode, eval | 2 |
-| | **Tổng** | **~14.5 ngày làm việc** |
+| 0 | Model access, schema/RLS, query thật, route/SSE/abort, quota/sync marker | 1–2 |
+| 1 | Auth/quota + chat shell + glossary/help + một metric DB tool + sources | 2–3 |
+| 2 | DB tools còn lại, scope/coverage, SQL/JS parity, query/history budgets | 3–4 |
+| 3 | Mascot tĩnh duyệt, năm state, dark/reduced-motion/visibility | 2 |
+| 4 | 40 câu eval, quyền/concurrency/lỗi, browser/mobile/embed, sizing report | 3–4 |
+| Tổng | Một người, tùy schema/RPC sẵn sàng | **11–15 ngày làm việc** |
 
-Phase 1 và 2 độc lập nhau, làm song song được nếu có 2 người. Phase 5 (mascot) độc
-lập hoàn toàn với 1-4 — giao người khác được.
+Phase 0 kiểm /api/ping trên preview vì vercel.json catch-all tới index.html;
+xác nhận POST/API route, CSP và SSE không buffer. Node hỗ trợ streaming; đọc plan/
+Fluid Compute/maxDuration thực tế. Edge vẫn có cap, không dùng như cách né timeout.
+Dọn route spike trước production. Nếu stream chưa đạt, thử non-stream cùng deadline/
+abort/quota rồi đo latency thật.
 
-## 12. Định nghĩa "xong"
+DB spike xác minh bảng/schema/coverage, user permissions, sync marker và một metric
+end-to-end. Nếu quyền/model access thiếu thì ghi blocker; UI mock/contract vẫn có
+thể tiếp tục, không tự đổi model. Chốt hỏi -> query DB -> số có nguồn -> answer
+trước khi mở rộng. Một người sở hữu metric contract và tích hợp, mascot phụ thuộc
+state machine/UI. Rollout bằng feature flag, pilot nội bộ, mở rộng sau eval;
+kill switch dừng endpoint/API spend, dashboard vẫn dùng bình thường.
 
-- `npm test` xanh, có thêm `chatContext.test.mjs` (ngân sách token) và
-  `chatTools.test.mjs` (tool trả đúng số với dataset mẫu)
-- Eval tay 20 câu hỏi thật: 10 câu có đáp án số kiểm chứng được bằng tab tương ứng,
-  5 câu về định nghĩa chỉ số, 5 câu bot **phải** từ chối trả lời (data không có).
-  Bar: 0 câu bịa số. Đây là tiêu chí đi/không đi, không phải "nice to have".
-- Bật `prefers-reduced-motion` → mascot tĩnh, vẫn nhìn thấy, không tween nào chạy
-- Mở app trong tab ẩn rồi switch sang → mascot hiện đúng, không mất
-- Bundle chính không tăng > 30KB gzip (chat + mascot lazy-load, cùng pattern `lazy()`
-  mà tab Leadtime/Insight đang dùng)
+## 12. Định nghĩa xong
 
-## 13. Cố tình KHÔNG làm ở v1
+- Implementation đạt npm run lint, npm test, npm run build. Bổ sung server/RPC
+  tests vào script/CI vì hiện chỉ chạy src/utils/*.test.mjs. Lần sửa docs này chỉ
+  cần kiểm diff và nhất quán, không coi test app là bằng chứng cho kiến trúc mới.
+- 40 câu: 20 số (client/ngày/vùng/lane, tỷ lệ/delta/NULL/weighted), 8 glossary/help,
+  6 thiếu/mơ hồ/coverage, 6 injection/vượt scope. Expected từ fixture/query xác định.
+- 20/20 câu số khớp tử/mẫu/ngày/scope/làm tròn; glossary/help đúng; thiếu data thì
+  hỏi rõ hoặc từ chối đúng. 0 số bịa, 0 vượt quyền trong bộ eval, không hứa tuyệt
+  đối cho mọi câu ngoài tập kiểm thử.
+- Tab/filter UI không đổi query scope; câu nối tiếp theo scope đã nói trong chat;
+  DB mới hơn browser vẫn trả DB với timestamp đúng.
+- Test >1.000 rows, top-N sau aggregate, NULL/zero, thiếu bảng/nguồn lỗi, refresh
+  giữa calls, đa bảng khác coverage và SQL/JS parity.
+- JWT giả/hết hạn/user ngoài quyền; body/history chứa role/tool/SQL giả; query
+  injection; concurrency/quota/replay; lock timeout đều có test.
+- Preview thật kiểm UTF-8/chunking, incomplete/refusal, Stop/logout/đóng panel,
+  disconnect, stale event; không kẹt thinking.
+- Keyboard/mobile/bàn phím ảo/embed origin, live region, dark/print/export/fullscreen.
+  Reduced-motion tĩnh đầy đủ; mount hidden rồi hiện đúng; không rò timer/timeline.
+- Initial bundle tăng <=30 KB gzip so baseline đo, chat lazy, không SDK/secret.
+- Pilot mục tiêu p95 <=20s/câu và DB query p95 <=2s trên dataset đại diện. Report
+  ghi số đo/số mẫu/cold-warm/cache và giới hạn; không đạt thì điều chỉnh trước mở
+  rộng. Feature flag và budget kill switch được test.
 
-- **Text-to-SQL** — cần quyền warehouse + guardrail query nặng + review bảo mật. Là
-  dự án riêng, không phải phần của cái này.
-- **Bot tự gửi Zalo/Telegram** — outbound message cần luồng xác nhận riêng.
-- **Lịch sử hội thoại lưu server** — v1 giữ trong `sessionStorage`, mất khi đóng tab.
-  Muốn lưu thì phải quyết định thời hạn giữ và ai đọc được, chưa cần bàn ở v1.
-- **Voice** — chưa có nhu cầu rõ.
+## 13. Ngoài v1
+
+- SQL tùy ý do model viết hoặc warehouse ngoài bốn bảng KAS.
+- Tools ghi dữ liệu vận hành, export hoặc tự gửi tin.
+- Đọc màn hình, rows RAM hoặc tự đổi bộ lọc UI.
+- Nội dung history lưu server, sync đa thiết bị, voice.
+- Happy/worried/sleeping, avatar raster/rig ngoài SVG.
+- Tự chuyển model đắt hơn/routing nhiều model.
+
+## 14. Nguồn và giới hạn xác minh
+
+- [Luna model/API/pricing](https://developers.openai.com/api/docs/models/gpt-5.6-luna): model ID, capabilities, giá, effort đã mở đọc trong lượt sửa docs.
+- [OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling): arguments, call_id, function_call_output, replay items.
+- [OpenAI streaming](https://developers.openai.com/api/docs/guides/streaming-responses): typed events/lifecycle.
+- [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data): store/retention; kiểm chính sách tài khoản trong spike.
+- [Vercel Functions limits](https://vercel.com/docs/functions/limitations) và [rewrites config](https://vercel.com/docs/project-configuration/vercel-json): nguồn đã đối chiếu trong review, chưa verify cấu hình live.
+- Repo: src/utils/supabaseSheetSync.js, docs/google-sheet-supabase-sync.md,
+  supabase/migrations/20260820_create_kas_leadtime_data.sql, src/utils/gsapSetup.js,
+  các metric modules mục 3 và src/App.jsx.
+
+Chưa chạy API tính phí, query DB live, migration hoặc deployment trong lần sửa docs.
