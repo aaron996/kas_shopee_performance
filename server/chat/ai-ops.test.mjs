@@ -296,6 +296,45 @@ test('api/ai-ops allows dev admin (vinhlt@ghn.vn) to fetch overview metrics', as
   assert.equal(json.totalCostFormatted, '$0.000077');
 });
 
+test('api/ai-ops records the authenticated Dev Admin in a quota override audit entry', async () => {
+  const rpcCalls = [];
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'u-dev-admin', email: 'vinhlt@ghn.vn' },
+      serviceClient: {
+        rpc: async (name, params) => {
+          rpcCalls.push({ name, params });
+          return { data: { success: true }, error: null };
+        }
+      }
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  const res = new FakeResponse();
+  const response = handler(req, res);
+  process.nextTick(() => {
+    req.emit('data', JSON.stringify({
+      action: 'set-override',
+      userId: '15333a48-af77-4093-822f-0cb40bc5e106',
+      userEmail: 'vinhlt@ghn.vn',
+      dailyTurnLimit: 20,
+      isUnlimited: false,
+      reason: 'Kiểm thử audit'
+    }));
+    req.emit('end');
+  });
+  await response;
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(rpcCalls[0].name, 'admin_set_user_quota_override');
+  assert.equal(rpcCalls[0].params.p_changed_by, 'vinhlt@ghn.vn');
+});
+
 test('api/ai-ops export-csv outputs UTF-8 CSV with masked user and without secrets', async () => {
   const mockRequests = [
     {
