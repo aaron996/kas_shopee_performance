@@ -19,7 +19,7 @@ export default function Mascot({ state = 'idle', active = false }) {
 
   return <span className={`kas-mascot${active ? ' kas-mascot--active' : ''}`} data-state={state} aria-hidden="true">
     {failed ? <MessageSquareText size={28} /> : <span className={`kas-mascot-sprite kas-mascot-sprite--${sprite}`}>
-      <img src={`/mascot/animation/kas-parcel-${sprite}-sprite.png`} alt=""
+      <img key={state} src={`/mascot/animation/kas-parcel-${sprite}-sprite.png`} alt=""
         draggable="false" onError={() => setFailed(true)} />
     </span>}
   </span>;
