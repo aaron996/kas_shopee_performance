@@ -378,6 +378,7 @@ declare
   v_used integer := 0;
   v_daily_limit integer := 10;
   v_is_unlimited boolean := false;
+  v_has_override boolean := false;
   v_caller_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
   v_is_admin boolean := (v_caller_email = 'vinhlt@ghn.vn' or coalesce(auth.jwt() ->> 'role', '') = 'service_role');
 begin
@@ -391,6 +392,7 @@ begin
   -- Check override
   select * into v_override from public.ai_chat_user_quota where user_id = v_target_user;
   if found then
+    v_has_override := true;
     if v_override.is_unlimited then
       v_is_unlimited := true;
       v_daily_limit := null;
@@ -410,7 +412,7 @@ begin
     'dailyLimit', v_daily_limit,
     'usedToday', v_used,
     'isUnlimited', v_is_unlimited,
-    'hasOverride', found,
+    'hasOverride', v_has_override,
     'remainingTurns', case when v_is_unlimited then null else greatest(0, v_daily_limit - v_used) end,
     'resetAt', ((v_day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh')
   );
@@ -423,7 +425,8 @@ create or replace function public.admin_set_user_quota_override(
   p_user_email text,
   p_daily_turn_limit integer,
   p_is_unlimited boolean,
-  p_reason text
+  p_reason text,
+  p_changed_by text default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -431,6 +434,7 @@ set search_path = ''
 as $$
 declare
   v_caller_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  v_changed_by text := coalesce(nullif(lower(trim(p_changed_by)), ''), nullif(v_caller_email, ''), 'service_role');
   v_is_admin boolean := (v_caller_email = 'vinhlt@ghn.vn' or coalesce(auth.jwt() ->> 'role', '') = 'service_role');
   v_old public.ai_chat_user_quota%rowtype;
 begin
@@ -450,7 +454,7 @@ begin
     user_id, user_email, daily_turn_limit, is_unlimited, updated_by, reason, updated_at
   ) values (
     p_user_id, lower(p_user_email), case when p_is_unlimited then null else p_daily_turn_limit end,
-    p_is_unlimited, coalesce(v_caller_email, 'service_role'), trim(p_reason), now()
+    p_is_unlimited, v_changed_by, trim(p_reason), now()
   ) on conflict (user_id) do update set
     daily_turn_limit = excluded.daily_turn_limit,
     is_unlimited = excluded.is_unlimited,
@@ -464,7 +468,7 @@ begin
   ) values (
     p_user_id, lower(p_user_email), v_old.daily_turn_limit, coalesce(v_old.is_unlimited, false),
     case when p_is_unlimited then null else p_daily_turn_limit end, p_is_unlimited,
-    'set_override', coalesce(v_caller_email, 'service_role'), trim(p_reason)
+    'set_override', v_changed_by, trim(p_reason)
   );
 
   return jsonb_build_object('success', true, 'userId', p_user_id, 'isUnlimited', p_is_unlimited, 'limit', p_daily_turn_limit);
@@ -474,7 +478,8 @@ $$;
 -- 11. RPC: admin_reset_user_quota
 create or replace function public.admin_reset_user_quota(
   p_user_id uuid,
-  p_reason text
+  p_reason text,
+  p_changed_by text default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -482,6 +487,7 @@ set search_path = ''
 as $$
 declare
   v_caller_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  v_changed_by text := coalesce(nullif(lower(trim(p_changed_by)), ''), nullif(v_caller_email, ''), 'service_role');
   v_is_admin boolean := (v_caller_email = 'vinhlt@ghn.vn' or coalesce(auth.jwt() ->> 'role', '') = 'service_role');
   v_old public.ai_chat_user_quota%rowtype;
 begin
@@ -504,7 +510,7 @@ begin
     new_limit, new_is_unlimited, action, changed_by, reason
   ) values (
     p_user_id, v_old.user_email, v_old.daily_turn_limit, v_old.is_unlimited,
-    10, false, 'reset_default', coalesce(v_caller_email, 'service_role'), trim(p_reason)
+    10, false, 'reset_default', v_changed_by, trim(p_reason)
   );
 
   return jsonb_build_object('success', true, 'userId', p_user_id, 'defaultLimit', 10);

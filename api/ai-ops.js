@@ -335,7 +335,8 @@ export function createAiOpsHandler(dependencies = {}) {
             p_user_email: userEmail,
             p_daily_turn_limit: isUnlimited ? null : (dailyTurnLimit ?? 10),
             p_is_unlimited: Boolean(isUnlimited),
-            p_reason: reason.trim()
+            p_reason: reason.trim(),
+            p_changed_by: currentUser.email
           });
 
           if (error) throw error;
@@ -352,7 +353,8 @@ export function createAiOpsHandler(dependencies = {}) {
 
           const { data, error } = await serviceClient.rpc('admin_reset_user_quota', {
             p_user_id: userId,
-            p_reason: reason.trim()
+            p_reason: reason.trim(),
+            p_changed_by: currentUser.email
           });
 
           if (error) throw error;
