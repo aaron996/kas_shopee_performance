@@ -19,6 +19,8 @@ function escapeCsv(val) {
   return `"${s}"`;
 }
 
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function createAiOpsHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readChatConfig;
   const authenticate = dependencies.authenticate ?? authenticateRequest;
@@ -314,50 +316,78 @@ export function createAiOpsHandler(dependencies = {}) {
     // POST Requests
     if (req.method === 'POST') {
       try {
-        const bodyText = await new Promise((resolve, reject) => {
-          let b = '';
-          req.on('data', chunk => { b += chunk; });
-          req.on('end', () => resolve(b));
-          req.on('error', reject);
-        });
-        const body = bodyText ? JSON.parse(bodyText) : {};
+        let body = req.body;
+        if (!body) {
+          const bodyText = await new Promise((resolve, reject) => {
+            let b = '';
+            req.on('data', chunk => { b += chunk; });
+            req.on('end', () => resolve(b));
+            req.on('error', reject);
+          });
+          body = bodyText ? JSON.parse(bodyText) : {};
+        }
         const action = body.action;
 
         if (action === 'set-override') {
           const { userId, userEmail, dailyTurnLimit, isUnlimited, reason } = body;
-          if (!userId || !userEmail || !reason?.trim()) {
-            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu thông tin user ID, email hoặc lý do thay đổi.' } });
+          const cleanEmail = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : '';
+          const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+          const validUserId = (typeof userId === 'string' && UUID_REGEX.test(userId.trim())) ? userId.trim() : null;
+
+          if ((!validUserId && !cleanEmail) || !cleanReason) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu email hoặc lý do thay đổi hạn mức.' } });
             return;
           }
 
           const { data, error } = await serviceClient.rpc('admin_set_user_quota_override', {
-            p_user_id: userId,
-            p_user_email: userEmail,
+            p_user_id: validUserId,
+            p_user_email: cleanEmail || null,
             p_daily_turn_limit: isUnlimited ? null : (dailyTurnLimit ?? 10),
             p_is_unlimited: Boolean(isUnlimited),
-            p_reason: reason.trim(),
-            p_changed_by: currentUser.email
+            p_reason: cleanReason,
+            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
           });
 
-          if (error) throw error;
+          if (error) {
+            const isNotFound = error.message?.includes('AI_CHAT_USER_NOT_FOUND');
+            const message = isNotFound
+              ? `Không tìm thấy tài khoản người dùng với email ${cleanEmail}.`
+              : (error.message || 'Lỗi cập nhật quota.');
+            sendJson(res, 400, { error: { code: error.code || 'AI_OPS_ERROR', message } });
+            return;
+          }
+
           sendJson(res, 200, { success: true, data });
           return;
         }
 
         if (action === 'reset-override') {
-          const { userId, reason } = body;
-          if (!userId || !reason?.trim()) {
-            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu user ID hoặc lý do đặt lại mặc định.' } });
+          const { userId, userEmail, reason } = body;
+          const cleanEmail = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : '';
+          const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+          const validUserId = (typeof userId === 'string' && UUID_REGEX.test(userId.trim())) ? userId.trim() : null;
+
+          if ((!validUserId && !cleanEmail) || !cleanReason) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu thông tin user hoặc lý do đặt lại mặc định.' } });
             return;
           }
 
           const { data, error } = await serviceClient.rpc('admin_reset_user_quota', {
-            p_user_id: userId,
-            p_reason: reason.trim(),
-            p_changed_by: currentUser.email
+            p_user_id: validUserId,
+            p_reason: cleanReason,
+            p_changed_by: currentUser.email || 'vinhlt@ghn.vn',
+            p_user_email: cleanEmail || null
           });
 
-          if (error) throw error;
+          if (error) {
+            const isNotFound = error.message?.includes('AI_CHAT_USER_NOT_FOUND');
+            const message = isNotFound
+              ? `Không tìm thấy thông tin quota của user ${cleanEmail || ''} để đặt lại mặc định.`
+              : (error.message || 'Lỗi đặt lại quota.');
+            sendJson(res, 400, { error: { code: error.code || 'AI_OPS_ERROR', message } });
+            return;
+          }
+
           sendJson(res, 200, { success: true, data });
           return;
         }

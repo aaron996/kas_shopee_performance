@@ -385,3 +385,160 @@ test('api/ai-ops export-csv outputs UTF-8 CSV with masked user and without secre
   assert.ok(!res.body.includes('Bearer')); // No secrets
   assert.match(res.body, /ODR SPB hôm nay\?/);
 });
+
+test('api/ai-ops set-override handles email string as userId safely and passes null p_user_id to RPC', async () => {
+  let rpcCall = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      rpcCall = { name, params };
+      return { data: { success: true, userId: '0a417740-4032-4d43-9557-35727f2b5293' }, error: null };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'u-admin', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  req.body = {
+    action: 'set-override',
+    userId: 'bachpt@ghn.vn',
+    userEmail: 'bachpt@ghn.vn',
+    isUnlimited: true,
+    reason: 'Phê duyệt hạn mức đặc biệt'
+  };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(rpcCall.name, 'admin_set_user_quota_override');
+  assert.equal(rpcCall.params.p_user_id, null); // Must be null, NOT 'bachpt@ghn.vn'
+  assert.equal(rpcCall.params.p_user_email, 'bachpt@ghn.vn');
+  assert.equal(rpcCall.params.p_is_unlimited, true);
+  assert.equal(rpcCall.params.p_daily_turn_limit, null);
+  assert.equal(rpcCall.params.p_changed_by, 'vinhlt@ghn.vn');
+});
+
+test('api/ai-ops set-override preserves valid UUID when provided', async () => {
+  let rpcCall = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      rpcCall = { name, params };
+      return { data: { success: true }, error: null };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'u-admin', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const uuid = '0a417740-4032-4d43-9557-35727f2b5293';
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  req.body = {
+    action: 'set-override',
+    userId: uuid,
+    userEmail: 'bachpt@ghn.vn',
+    dailyTurnLimit: 25,
+    isUnlimited: false,
+    reason: 'Tăng quota 25 lượt'
+  };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(rpcCall.params.p_user_id, uuid);
+  assert.equal(rpcCall.params.p_user_email, 'bachpt@ghn.vn');
+  assert.equal(rpcCall.params.p_daily_turn_limit, 25);
+  assert.equal(rpcCall.params.p_is_unlimited, false);
+});
+
+test('api/ai-ops set-override returns friendly error when user not found', async () => {
+  const serviceClient = {
+    rpc: async () => ({
+      data: null,
+      error: { message: 'AI_CHAT_USER_NOT_FOUND: Không tìm thấy tài khoản người dùng với email unknown@ghn.vn' }
+    })
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'u-admin', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  req.body = {
+    action: 'set-override',
+    userId: null,
+    userEmail: 'unknown@ghn.vn',
+    isUnlimited: true,
+    reason: 'Test unknown user'
+  };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  const json = JSON.parse(res.body);
+  assert.match(json.error.message, /Không tìm thấy tài khoản người dùng với email unknown@ghn\.vn/);
+});
+
+test('api/ai-ops reset-override supports email resolution and null userId', async () => {
+  let rpcCall = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      rpcCall = { name, params };
+      return { data: { success: true, defaultLimit: 10 }, error: null };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'u-admin', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  req.body = {
+    action: 'reset-override',
+    userId: 'bachpt@ghn.vn', // email mistakenly sent as userId
+    userEmail: 'bachpt@ghn.vn',
+    reason: 'Quay về mặc định'
+  };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(rpcCall.name, 'admin_reset_user_quota');
+  assert.equal(rpcCall.params.p_user_id, null);
+  assert.equal(rpcCall.params.p_user_email, 'bachpt@ghn.vn');
+  assert.equal(rpcCall.params.p_changed_by, 'vinhlt@ghn.vn');
+});
+

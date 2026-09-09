@@ -205,13 +205,17 @@ export default function AiOperationsDashboard() {
   // Handle Submit Quota Override
   const handleSubmitQuota = async (e) => {
     e.preventDefault();
-    if (!modalTargetUser?.email || !modalReason.trim()) {
-      setModalError('Vui lòng nhập đầy đủ thông tin và lý do.');
+    if (!modalTargetUser?.email?.trim() || !modalReason.trim()) {
+      setModalError('Vui lòng nhập đầy đủ email và lý do.');
       return;
     }
 
     setIsSubmittingQuota(true);
     setModalError('');
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validUserId = (modalTargetUser.userId && UUID_REGEX.test(modalTargetUser.userId)) ? modalTargetUser.userId : null;
+    const userEmail = modalTargetUser.email.trim().toLowerCase();
 
     try {
       if (modalQuotaType === 'default') {
@@ -220,7 +224,8 @@ export default function AiOperationsDashboard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'reset-override',
-            userId: modalTargetUser.userId,
+            userId: validUserId,
+            userEmail,
             reason: modalReason.trim()
           })
         });
@@ -230,8 +235,8 @@ export default function AiOperationsDashboard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'set-override',
-            userId: modalTargetUser.userId,
-            userEmail: modalTargetUser.email,
+            userId: validUserId,
+            userEmail,
             dailyTurnLimit: modalQuotaType === 'unlimited' ? null : Number(modalCustomLimit),
             isUnlimited: modalQuotaType === 'unlimited',
             reason: modalReason.trim()
@@ -563,7 +568,7 @@ export default function AiOperationsDashboard() {
                 type="button"
                 className="nav-btn primary"
                 onClick={() => {
-                  setModalTargetUser({ email: '', userId: '' });
+                  setModalTargetUser({ email: '', originalEmail: '', userId: null });
                   setModalQuotaType('custom');
                   setModalCustomLimit(20);
                   setModalReason('');
@@ -623,7 +628,7 @@ export default function AiOperationsDashboard() {
                           type="button"
                           className="btn-secondary"
                           onClick={() => {
-                            setModalTargetUser({ email: u.userEmail, userId: u.userId });
+                            setModalTargetUser({ email: u.userEmail, originalEmail: u.userEmail, userId: u.userId });
                             setModalQuotaType(u.isUnlimited ? 'unlimited' : 'custom');
                             setModalCustomLimit(u.dailyTurnLimit || 20);
                             setModalReason('');
@@ -870,7 +875,11 @@ export default function AiOperationsDashboard() {
                   required
                   placeholder="ví dụ: user@ghn.vn"
                   value={modalTargetUser?.email || ''}
-                  onChange={(e) => setModalTargetUser(prev => ({ ...prev, email: e.target.value, userId: prev?.userId || e.target.value }))}
+                  onChange={(e) => setModalTargetUser(prev => ({
+                    ...prev,
+                    email: e.target.value,
+                    userId: (prev?.originalEmail && prev.originalEmail.toLowerCase() === e.target.value.trim().toLowerCase()) ? prev.userId : null
+                  }))}
                   style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem' }}
                 />
               </div>
