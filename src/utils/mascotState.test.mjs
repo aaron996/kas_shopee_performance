@@ -7,7 +7,10 @@ test('mascot follows request lifecycle and exits thinking on stop/close', () => 
   assert.equal(getMascotState(open), 'idle');
   assert.equal(getMascotState({ ...open, focused: true }), 'listening');
   assert.equal(getMascotState({ ...open, focused: true, pending: { answer: '' } }), 'thinking');
-  assert.equal(getMascotState({ ...open, pending: { answer: 'Kết quả' } }), 'speaking');
+  assert.equal(getMascotState({ ...open, pending: { answer: '' }, status: { phase: 'querying_database' } }), 'searching');
+  assert.equal(getMascotState({ ...open, pending: { answer: '' }, status: { phase: 'answering' } }), 'result');
+  assert.equal(getMascotState({ ...open, pending: { answer: 'Kết quả' } }), 'result');
+  assert.equal(getMascotState({ ...open, completed: true }), 'result');
   assert.equal(getMascotState({ ...open, pending: { answer: 'Kết quả' }, error: 'quota' }), 'error');
   assert.equal(getMascotState({ ...open, pending: null, focused: false, error: null }), 'idle');
   assert.equal(getMascotState({ isOpen: false, error: 'quota', pending: { answer: '' } }), 'idle');

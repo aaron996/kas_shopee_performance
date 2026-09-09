@@ -95,7 +95,14 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
 
   const history = useMemo(() => messages.slice(-20).map(({ role, content }) => ({ role, content })), [messages]);
   const isStreaming = Boolean(pending);
-  const mascotState = getMascotState({ isOpen, error, pending, focused });
+  const mascotState = getMascotState({
+    isOpen,
+    error,
+    pending,
+    status,
+    focused,
+    completed: announcement === 'Đã trả lời xong.'
+  });
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -215,7 +222,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       aria-controls={isOpen ? 'kas-chat-panel' : undefined}
       title={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}
       aria-label={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}>
-      <Mascot />
+      <Mascot state="idle" active={!isOpen} />
     </button>
     {isOpen && <section id="kas-chat-panel" className="chat-panel" role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
@@ -234,7 +241,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       <div className="chat-panel-body" ref={scrollRef}>
         {!messages.length && !pending && !failedQuestion && !error && (
           <div className="chat-welcome">
-            <div className="chat-mascot-intro"><Mascot /></div>
+            <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
             <p>Trợ lý không đọc màn hình hay bộ lọc hiện tại. Mỗi số liệu được truy vấn từ database và kèm evidence khi có.</p>
             <div className="chat-suggestions">
