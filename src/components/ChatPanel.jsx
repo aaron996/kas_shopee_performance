@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
+import { Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
@@ -88,7 +88,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [failedQuestion, setFailedQuestion] = useState(null);
   const [focused, setFocused] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
+  const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
   const launcherRef = useRef(null);
+  const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
@@ -111,7 +114,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       if (event.key === 'Escape') {
         abortRef.current?.abort();
         onClose();
-        launcherRef.current?.focus();
+        window.requestAnimationFrame(() => (mascotHidden ? revealRef.current : launcherRef.current)?.focus());
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -122,11 +125,33 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   }, [isOpen, onClose]);
 
   useEffect(() => {
+    if (!messages.length && !pending && !error && !failedQuestion) {
+      scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
-  }, [messages, pending, error, status, isOpen]);
+  }, [messages, pending, error, failedQuestion, status, isOpen]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!visibilityMenuOpen) return undefined;
+    const closeMenu = () => setVisibilityMenuOpen(false);
+    window.addEventListener('click', closeMenu);
+    window.addEventListener('keydown', closeMenu);
+    return () => {
+      window.removeEventListener('click', closeMenu);
+      window.removeEventListener('keydown', closeMenu);
+    };
+  }, [visibilityMenuOpen]);
+
+  const setMascotVisibility = hidden => {
+    window.localStorage.setItem('kas-mascot-hidden', String(hidden));
+    setMascotHidden(hidden);
+    setVisibilityMenuOpen(false);
+    window.requestAnimationFrame(() => (hidden ? revealRef.current : launcherRef.current)?.focus());
+  };
 
   const stopStreaming = () => {
     abortRef.current?.abort();
@@ -136,7 +161,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
     stopStreaming();
     setFocused(false);
     onClose();
-    launcherRef.current?.focus();
+    window.requestAnimationFrame(() => (mascotHidden ? revealRef.current : launcherRef.current)?.focus());
   };
 
   const submitQuestion = async question => {
@@ -217,13 +242,22 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
 
   return (
     <>
-    <button ref={launcherRef} type="button" className="chat-fab chat-fab--mascot"
-      onClick={isOpen ? closePanel : onOpen} aria-expanded={isOpen}
-      aria-controls={isOpen ? 'kas-chat-panel' : undefined}
-      title={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}
-      aria-label={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}>
-      <Mascot state="idle" active={!isOpen} />
-    </button>
+    {!isOpen && !mascotHidden && <div className="chat-mascot-launcher">
+      <button ref={launcherRef} type="button" className="chat-fab chat-fab--mascot"
+        onClick={onOpen} onContextMenu={event => { event.preventDefault(); setVisibilityMenuOpen(true); }}
+        aria-expanded="false" aria-controls="kas-chat-panel" aria-haspopup="menu" title="Mở Trợ lý KAS"
+        aria-label="Mở Trợ lý KAS. Click chuột phải để ẩn mascot">
+        <Mascot state="idle" active />
+      </button>
+      {visibilityMenuOpen && <div className="chat-mascot-menu" role="menu" aria-label="Tùy chọn mascot">
+        <button type="button" role="menuitem" onClick={() => setMascotVisibility(true)}><EyeOff size={15} /> Ẩn mascot</button>
+      </div>}
+    </div>}
+    {!isOpen && mascotHidden && <div className="chat-mascot-reveal">
+      <button ref={revealRef} type="button" onClick={() => setMascotVisibility(false)}
+        onContextMenu={event => { event.preventDefault(); setMascotVisibility(false); }}
+        title="Hiện Trợ lý KAS" aria-label="Hiện Trợ lý KAS"><Eye size={16} /> Hiện trợ lý</button>
+    </div>}
     {isOpen && <section id="kas-chat-panel" className="chat-panel" role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
         <div className="chat-panel-title">
