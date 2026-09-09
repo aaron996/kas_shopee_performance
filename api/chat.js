@@ -1,10 +1,13 @@
-import { readChatConfig } from '../server/chat/config.js';
+import { readChatConfig, ALLOWED_MODELS } from '../server/chat/config.js';
 import { authenticateRequest } from '../server/chat/auth.js';
 import { runChatAgent } from '../server/chat/agent.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { MAX_BODY_BYTES, parseRequestBody, requestPayloadHash } from '../server/chat/protocol.js';
 import { finalizeChatRequest, getUserQuotaInfo, recordQuotaRejection, reserveChatRequest } from '../server/chat/quota.js';
 import { sendJson, sendSse, startSse } from '../server/chat/sse.js';
+import { isDevAdminEmail } from '../src/utils/authPolicy.js';
+
+const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map(m => m.id));
 
 async function readBody(req) {
   if (req.body !== undefined) return req.body;
@@ -35,7 +38,12 @@ export function createChatHandler(dependencies = {}) {
         const config = getConfig();
         const { user, serviceClient } = await authenticate(req.headers.authorization, config);
         const quotaInfo = await getQuota(serviceClient, user.id);
-        sendJson(res, 200, { quota: quotaInfo });
+        const responsePayload = { quota: quotaInfo };
+        if (isDevAdminEmail(user.email)) {
+          responsePayload.allowedModels = config.allowedModels;
+          responsePayload.defaultModel = config.model;
+        }
+        sendJson(res, 200, responsePayload);
       } catch (error) {
         const failure = toPublicError(error);
         sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });
@@ -70,9 +78,15 @@ export function createChatHandler(dependencies = {}) {
       serviceClient = privilegedClient;
       currentUser = user;
 
+      // Model override: Dev Admin can switch models from the UI
+      let effectiveConfig = config;
+      if (request.model && isDevAdminEmail(user.email) && ALLOWED_MODEL_IDS.has(request.model)) {
+        effectiveConfig = { ...config, model: request.model };
+      }
+
       const reservation = await reserve(
         serviceClient,
-        config,
+        effectiveConfig,
         request,
         user.id,
         requestPayloadHash(request),
@@ -87,12 +101,12 @@ export function createChatHandler(dependencies = {}) {
       startSse(res);
       sendSse(res, 'message_start', {
         requestId: request.requestId,
-        model: config.model,
+        model: effectiveConfig.model,
         quota: reservation
       });
 
       const result = await runAgent({
-        config,
+        config: effectiveConfig,
         request,
         userClient,
         signal: controller.signal,

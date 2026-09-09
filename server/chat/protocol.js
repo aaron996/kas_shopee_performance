@@ -7,7 +7,7 @@ export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_HISTORY_CHARS = 24000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId']);
+const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model']);
 
 function badRequest(message) {
   throw new ChatError('CHAT_BAD_REQUEST', message, 400);
@@ -76,7 +76,9 @@ export function parseRequestBody(rawBody, contentLength) {
     badRequest('Lịch sử phải kết thúc bằng câu trả lời assistant trước câu hỏi mới.');
   }
 
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase() };
+  const model = typeof body.model === 'string' ? body.model.trim() : null;
+
+  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), model };
 }
 
 export function requestPayloadHash(request) {

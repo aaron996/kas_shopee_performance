@@ -1,5 +1,18 @@
 import { ChatError } from './errors.js';
 
+/**
+ * Models that Dev Admins can switch to from the UI.
+ * The default model (from env AI_CHAT_MODEL) must also be in this list.
+ */
+export const ALLOWED_MODELS = [
+  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', default: true },
+  { id: 'gpt-5-turbo', label: 'GPT-5 Turbo' },
+  { id: 'o4-mini', label: 'o4-mini' },
+  { id: 'gpt-4.1', label: 'GPT-4.1' }
+];
+
+const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map(m => m.id));
+
 const readInt = (env, key, fallback, min, max) => {
   const raw = env[key];
   const value = raw === undefined || raw === '' ? fallback : Number(raw);
@@ -21,13 +34,14 @@ export function readChatConfig(env = process.env) {
   }
 
   const model = env.AI_CHAT_MODEL?.trim() || 'gpt-5.6-luna';
-  if (model !== 'gpt-5.6-luna') {
-    throw new ChatError('CHAT_CONFIG_INVALID', 'AI_CHAT_MODEL phải là gpt-5.6-luna trong v1.', 503);
+  if (!ALLOWED_MODEL_IDS.has(model)) {
+    throw new ChatError('CHAT_CONFIG_INVALID', `AI_CHAT_MODEL "${model}" không nằm trong danh sách model hỗ trợ.`, 503);
   }
 
   return {
     openaiApiKey: requireValue(env, 'OPENAI_API_KEY'),
     model,
+    allowedModels: ALLOWED_MODELS,
     reasoningEffort: env.AI_CHAT_REASONING_EFFORT?.trim() || 'low',
     supabaseUrl: requireValue(env, 'SUPABASE_URL'),
     supabaseAnonKey: requireValue(env, 'SUPABASE_ANON_KEY'),
