@@ -14,6 +14,7 @@ import AuthModal from './components/AuthModal';
 import { isAllowedEmail, isDevAdminEmail } from './utils/authPolicy';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
+import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS } from './data/defaultDataset';
 import { readDashboardView, saveDashboardView, dataCoverage } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
@@ -94,6 +95,7 @@ export default function App() {
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
   // When this app is loaded inside an <iframe>, the host page can pass the
@@ -315,6 +317,10 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, [showToast]);
+
+  useEffect(() => {
+    if (!currentUser) setIsChatOpen(false);
+  }, [currentUser]);
 
   const handleResetDefaultData = () => {
     setPickRows([]);
@@ -541,6 +547,7 @@ export default function App() {
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
             onRetryData={handleSyncLiveSheet}
+            onOpenChat={() => setIsChatOpen(true)}
             canExport={canExport}
             exportContext={exportContext}
           />
@@ -675,6 +682,7 @@ export default function App() {
               onResetDefault={handleResetDefaultData}
             />
           )}
+          {currentUser && <ChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />}
         </div>
       </div>
     </div>
