@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
+import { ChevronDown, Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
@@ -80,7 +80,7 @@ function SourceList({ sources }) {
   );
 }
 
-export default function ChatPanel({ isOpen, onOpen, onClose }) {
+export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
@@ -92,11 +92,16 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
+  const [allowedModels, setAllowedModels] = useState(null);
+  const [defaultModel, setDefaultModel] = useState(null);
+  const [selectedModel, setSelectedModel] = useState(() => window.localStorage.getItem('kas-chat-model') || null);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
+  const modelDropdownRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -111,6 +116,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
         if (res.ok && !isCancelled) {
           const body = await res.json();
           if (body?.quota) setQuota(body.quota);
+          if (body?.allowedModels) {
+            setAllowedModels(body.allowedModels);
+            setDefaultModel(body.defaultModel);
+          }
         }
       } catch {
         // Non-blocking quota check
@@ -170,6 +179,32 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
     };
   }, [visibilityMenuOpen]);
 
+  useEffect(() => {
+    if (!modelDropdownOpen) return undefined;
+    const handleClickOutside = event => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target)) {
+        setModelDropdownOpen(false);
+      }
+    };
+    const handleEsc = event => { if (event.key === 'Escape') setModelDropdownOpen(false); };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [modelDropdownOpen]);
+
+  const handleSelectModel = modelId => {
+    setSelectedModel(modelId);
+    window.localStorage.setItem('kas-chat-model', modelId);
+    setModelDropdownOpen(false);
+  };
+
+  const activeModelId = selectedModel || defaultModel || 'gpt-5.6-luna';
+  const activeModelLabel = allowedModels?.find(m => m.id === activeModelId)?.label || activeModelId;
+  const isNonDefaultModel = defaultModel && activeModelId !== defaultModel;
+
   const setMascotVisibility = hidden => {
     window.localStorage.setItem('kas-mascot-hidden', String(hidden));
     setMascotHidden(hidden);
@@ -207,13 +242,18 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       if (!session?.access_token) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi thử lại.');
 
+      const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
+      if (isDevAdmin && isNonDefaultModel) {
+        requestBody.model = activeModelId;
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ requestId: createRequestId(), question: normalizedQuestion, history }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       });
 
@@ -295,9 +335,43 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
             <p role="status" aria-live="polite">{error ? 'Chưa thể trả lời' : pending ? (pending.answer ? 'Đang trả lời…' : statusText(status)) : focused ? 'Mình đang nghe…' : announcement || 'Tra cứu dữ liệu KAS'}</p>
           </div>
         </div>
-        <button type="button" className="chat-icon-button" onClick={closePanel} title="Đóng trợ lý" aria-label="Đóng trợ lý">
-          <X size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          {isDevAdmin && allowedModels && (
+            <div className="chat-model-selector" ref={modelDropdownRef}>
+              <button
+                type="button"
+                className={`chat-model-trigger${isNonDefaultModel ? ' chat-model-trigger--custom' : ''}`}
+                onClick={() => setModelDropdownOpen(prev => !prev)}
+                disabled={isStreaming}
+                title="Chọn AI model"
+                aria-haspopup="listbox"
+                aria-expanded={modelDropdownOpen}
+              >
+                <span className="chat-model-trigger-label">{activeModelLabel}</span>
+                <ChevronDown size={13} />
+              </button>
+              {modelDropdownOpen && (
+                <ul className="chat-model-dropdown" role="listbox" aria-label="Chọn AI model">
+                  {allowedModels.map(model => (
+                    <li key={model.id} role="option" aria-selected={model.id === activeModelId}>
+                      <button
+                        type="button"
+                        className={`chat-model-option${model.id === activeModelId ? ' chat-model-option--active' : ''}`}
+                        onClick={() => handleSelectModel(model.id)}
+                      >
+                        <span>{model.label}</span>
+                        {model.id === defaultModel && <span className="chat-model-default-badge">mặc định</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <button type="button" className="chat-icon-button" onClick={closePanel} title="Đóng trợ lý" aria-label="Đóng trợ lý">
+            <X size={18} />
+          </button>
+        </div>
       </header>
 
       <div className="chat-panel-body" ref={scrollRef}>

@@ -14,7 +14,7 @@ test('chat config fails closed while feature flag is off', () => {
   assert.throws(() => readChatConfig({ ...validEnv, AI_CHAT_ENABLED: 'false' }), error => error.code === 'CHAT_DISABLED');
 });
 
-test('chat config locks v1 to Luna and low reasoning by default', () => {
+test('chat config defaults to Luna with low reasoning and rejects unknown models', () => {
   const config = readChatConfig(validEnv);
   assert.equal(config.model, 'gpt-5.6-luna');
   assert.equal(config.reasoningEffort, 'low');
@@ -22,4 +22,13 @@ test('chat config locks v1 to Luna and low reasoning by default', () => {
     () => readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'gpt-6-astra' }),
     error => error.code === 'CHAT_CONFIG_INVALID'
   );
+});
+
+test('chat config accepts allowed models and exports allowedModels list', () => {
+  const config = readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'o4-mini' });
+  assert.equal(config.model, 'o4-mini');
+  assert.ok(Array.isArray(config.allowedModels));
+  assert.ok(config.allowedModels.length >= 2);
+  assert.ok(config.allowedModels.some(m => m.id === 'gpt-5.6-luna'));
+  assert.ok(config.allowedModels.some(m => m.id === 'o4-mini'));
 });

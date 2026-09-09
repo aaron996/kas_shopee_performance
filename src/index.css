@@ -4803,6 +4803,41 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 }
 .chat-icon-button:hover { color: var(--text-primary); background: var(--surface-subtle); border-color: var(--border-subtle); }
 
+/* Model selector (Dev Admin only) */
+.chat-model-selector { position: relative; }
+.chat-model-trigger {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.22rem 0.5rem; border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill); background: var(--surface-subtle);
+  color: var(--text-secondary); font-size: 0.7rem; font-weight: 600;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap; max-width: 130px;
+}
+.chat-model-trigger:hover { border-color: var(--border-default, var(--border-subtle)); background: var(--surface-hover, var(--surface-subtle)); color: var(--text-primary); }
+.chat-model-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-model-trigger--custom { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08); color: #d97706; }
+.chat-model-trigger--custom:hover { border-color: rgba(245, 158, 11, 0.6); background: rgba(245, 158, 11, 0.14); }
+.chat-model-trigger-label { overflow: hidden; text-overflow: ellipsis; }
+.chat-model-dropdown {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 100;
+  min-width: 160px; padding: 0.3rem 0; margin: 0; list-style: none;
+  background: var(--surface-default); border: 1px solid var(--border-subtle);
+  border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.chat-model-dropdown li { margin: 0; }
+.chat-model-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; padding: 0.45rem 0.75rem; border: none; background: transparent;
+  color: var(--text-primary); font-size: 0.78rem; cursor: pointer; text-align: left;
+}
+.chat-model-option:hover { background: var(--surface-subtle); }
+.chat-model-option--active { font-weight: 700; color: var(--action-primary); }
+.chat-model-default-badge {
+  font-size: 0.62rem; font-weight: 600; padding: 1px 5px;
+  border-radius: 3px; background: var(--surface-subtle); color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
+
 .chat-panel-body { flex: 1; overflow-y: auto; padding: 1rem; background: var(--surface-canvas); }
 .chat-welcome { max-width: 34ch; margin: 2.1rem auto 0; text-align: center; }
 .chat-welcome-mark { width: 42px; height: 42px; margin: 0 auto 0.85rem; }
