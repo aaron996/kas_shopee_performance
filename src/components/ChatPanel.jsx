@@ -3,6 +3,7 @@ import { Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from '
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
+import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 
 const QUICK_QUESTIONS = [
   'Dữ liệu mới nhất của SPB có tới ngày nào?',
@@ -289,7 +290,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
         {messages.map((message, index) => (
           <article className={`chat-message chat-message--${message.role}`} key={`${message.role}-${index}`}>
             <div className="chat-message-bubble">
-              {message.content.split('\n').map((line, lineIndex) => <p key={lineIndex}>{line || '\u00a0'}</p>)}
+              {message.role === 'assistant' ? (
+                <ChatMessageMarkdown content={message.content} />
+              ) : (
+                message.content.split('\n').map((line, lineIndex) => <p key={lineIndex}>{line || '\u00a0'}</p>)
+              )}
             </div>
             {message.role === 'assistant' && <SourceList sources={message.sources} />}
           </article>
@@ -301,7 +306,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
             <article className="chat-message chat-message--assistant">
               <div className="chat-message-bubble chat-message-bubble--pending">
                 {pending.answer
-                  ? pending.answer.split('\n').map((line, index) => <p key={index}>{line || '\u00a0'}</p>)
+                  ? <ChatMessageMarkdown content={pending.answer} />
                   : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
               </div>
               <SourceList sources={pending.sources} />
