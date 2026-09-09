@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw } from 'lucide-react';
+import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import AiOperationsDashboard from './AiOperationsDashboard';
 
 const PAGE_SIZE = 1000;
 
@@ -19,6 +20,7 @@ function downloadCsv(filename, headers, rows) {
 }
 
 export default function DevAdminDashboard({ onlineUsers }) {
+  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'access'
   const [accessLogs, setAccessLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -106,14 +108,59 @@ export default function DevAdminDashboard({ onlineUsers }) {
   return (
     <div className="report-container" style={{ padding: '2rem', animation: 'fadeIn 0.3s ease-out', maxWidth: '1400px', margin: '0 auto' }}>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem', background: 'var(--ghn-blue)', padding: '1.5rem', borderRadius: '12px', color: 'white', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', background: 'var(--ghn-blue)', padding: '1.5rem', borderRadius: '12px', color: 'white', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
         <ShieldAlert size={32} />
         <div>
           <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>CỔNG QUẢN TRỊ DEV ADMIN</h1>
-          <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Theo dõi lưu lượng truy cập và người dùng đang hoạt động theo thời gian thực</p>
+          <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Vận hành Chatbot AI, hạn mức Quota theo user và giám sát lưu lượng hệ thống</p>
         </div>
       </div>
-      
+
+      {/* Main Mode Tabs */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+        <button
+          type="button"
+          onClick={() => setAdminTab('ai-ops')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 1.25rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: adminTab === 'ai-ops' ? 'var(--ghn-blue)' : 'var(--card-bg)',
+            color: adminTab === 'ai-ops' ? 'white' : 'var(--text-main)',
+            fontWeight: adminTab === 'ai-ops' ? 700 : 500,
+            cursor: 'pointer'
+          }}
+        >
+          <Bot size={18} /> VẬN HÀNH CHATBOT (AI OPERATIONS)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminTab('access')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 1.25rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: adminTab === 'access' ? 'var(--ghn-blue)' : 'var(--card-bg)',
+            color: adminTab === 'access' ? 'white' : 'var(--text-main)',
+            fontWeight: adminTab === 'access' ? 700 : 500,
+            cursor: 'pointer'
+          }}
+        >
+          <Activity size={18} /> LƯU LƯỢNG HỆ THỐNG
+        </button>
+      </div>
+
+      {adminTab === 'ai-ops' ? (
+        <AiOperationsDashboard />
+      ) : (
+        <>
       {/* Top KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
@@ -262,6 +309,8 @@ export default function DevAdminDashboard({ onlineUsers }) {
           </div>
         </div>
       </div>
+      </>
+      )}
       
     </div>
   );

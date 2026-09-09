@@ -3,7 +3,7 @@ import { authenticateRequest } from '../server/chat/auth.js';
 import { runChatAgent } from '../server/chat/agent.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { MAX_BODY_BYTES, parseRequestBody, requestPayloadHash } from '../server/chat/protocol.js';
-import { finalizeChatRequest, reserveChatRequest } from '../server/chat/quota.js';
+import { finalizeChatRequest, getUserQuotaInfo, recordQuotaRejection, reserveChatRequest } from '../server/chat/quota.js';
 import { sendJson, sendSse, startSse } from '../server/chat/sse.js';
 
 async function readBody(req) {
@@ -26,16 +26,32 @@ export function createChatHandler(dependencies = {}) {
   const reserve = dependencies.reserve ?? reserveChatRequest;
   const runAgent = dependencies.runAgent ?? runChatAgent;
   const finalize = dependencies.finalize ?? finalizeChatRequest;
+  const getQuota = dependencies.getUserQuotaInfo ?? getUserQuotaInfo;
+  const recordRejection = dependencies.recordQuotaRejection ?? recordQuotaRejection;
 
   return async function handler(req, res) {
+    if (req.method === 'GET') {
+      try {
+        const config = getConfig();
+        const { user, serviceClient } = await authenticate(req.headers.authorization, config);
+        const quotaInfo = await getQuota(serviceClient, user.id);
+        sendJson(res, 200, { quota: quotaInfo });
+      } catch (error) {
+        const failure = toPublicError(error);
+        sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });
+      }
+      return;
+    }
+
     if (req.method !== 'POST') {
-      res.setHeader('Allow', 'POST');
-      sendJson(res, 405, { error: { code: 'CHAT_METHOD_NOT_ALLOWED', message: 'Chỉ hỗ trợ POST.' } });
+      res.setHeader('Allow', 'GET, POST');
+      sendJson(res, 405, { error: { code: 'CHAT_METHOD_NOT_ALLOWED', message: 'Chỉ hỗ trợ GET và POST.' } });
       return;
     }
 
     let serviceClient;
     let request;
+    let currentUser;
     let reserved = false;
     const controller = new AbortController();
     let timeout;
@@ -52,12 +68,29 @@ export function createChatHandler(dependencies = {}) {
         config
       );
       serviceClient = privilegedClient;
+      currentUser = user;
 
-      await reserve(serviceClient, config, request, user.id, requestPayloadHash(request));
+      const reservation = await reserve(
+        serviceClient,
+        config,
+        request,
+        user.id,
+        requestPayloadHash(request),
+        {
+          email: user.email,
+          clientFilter: req.headers['x-client-filter'],
+          activeTab: req.headers['x-active-tab']
+        }
+      );
       reserved = true;
 
       startSse(res);
-      sendSse(res, 'message_start', { requestId: request.requestId, model: config.model });
+      sendSse(res, 'message_start', {
+        requestId: request.requestId,
+        model: config.model,
+        quota: reservation
+      });
+
       const result = await runAgent({
         config,
         request,
@@ -68,7 +101,13 @@ export function createChatHandler(dependencies = {}) {
         onSource: source => sendSse(res, 'source', source)
       });
 
-      await finalize(serviceClient, request.requestId, { status: 'completed', ...result });
+      try {
+        await finalize(serviceClient, request.requestId, { status: 'completed', ...result });
+      } catch (finalizeErr) {
+        // Controlled logging: do not fail user response if telemetry write fails after answering
+        console.error('Usage logging failure after successful chat answer:', finalizeErr);
+      }
+
       sendSse(res, 'message_end', {
         requestId: request.requestId,
         usage: result.usage,
@@ -77,12 +116,35 @@ export function createChatHandler(dependencies = {}) {
       res.end();
     } catch (error) {
       const failure = toPublicError(error);
+
+      if (failure.code === 'CHAT_QUOTA_EXCEEDED' && serviceClient && request && currentUser) {
+        try {
+          await recordRejection(
+            serviceClient,
+            getConfig(),
+            request,
+            currentUser.id,
+            requestPayloadHash(request),
+            currentUser.email
+          );
+        } catch {
+          // Non-blocking quota rejection logging
+        }
+      }
+
       if (reserved && serviceClient && request) {
+        const isAborted = controller.signal.aborted;
         const details = error.chatDetails ?? { usage: [], toolNames: [], actualMicrousd: 0 };
         try {
-          await finalize(serviceClient, request.requestId, { status: 'failed', ...details });
+          await finalize(serviceClient, request.requestId, {
+            status: isAborted ? 'aborted' : 'failed',
+            refundTurn: true, // Refund quota turn if failed or aborted before completion
+            errorCode: failure.code,
+            errorMessage: failure.message,
+            ...details
+          });
         } catch {
-          // Preserve the original error. Stale reservations can be reconciled operationally.
+          // Preserve the original error.
         }
       }
 
@@ -90,7 +152,12 @@ export function createChatHandler(dependencies = {}) {
         sendSse(res, 'error', { code: failure.code, message: failure.message });
         if (!res.writableEnded) res.end();
       } else {
-        sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });
+        sendJson(res, failure.status, {
+          error: {
+            code: failure.code,
+            message: failure.message
+          }
+        });
       }
     } finally {
       if (timeout) clearTimeout(timeout);

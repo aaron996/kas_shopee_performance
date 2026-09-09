@@ -33,7 +33,7 @@ export function readChatConfig(env = process.env) {
     supabaseAnonKey: requireValue(env, 'SUPABASE_ANON_KEY'),
     supabaseServiceRoleKey: requireValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
     orgId: env.AI_CHAT_ORG_ID?.trim() || 'ghn-kas',
-    userDailyTurns: readInt(env, 'AI_CHAT_USER_DAILY_TURNS', 60, 1, 10000),
+    userDailyTurns: readInt(env, 'AI_CHAT_USER_DAILY_TURNS', 10, 1, 10000),
     orgDailyTurns: readInt(env, 'AI_CHAT_ORG_DAILY_TURNS', 600, 1, 1000000),
     userDailyMicrousd: readInt(env, 'AI_CHAT_USER_DAILY_MICROUSD', 500000, 1, 1000000000),
     orgDailyMicrousd: readInt(env, 'AI_CHAT_ORG_DAILY_MICROUSD', 5000000, 1, 10000000000),

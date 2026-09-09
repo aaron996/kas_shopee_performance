@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { serializeEvidence, toPublicSource } from './context.js';
 import { ChatError } from './errors.js';
 import { CHAT_TOOLS, executeChatTool } from './tools.js';
+import { calculateModelCost } from './pricing.js';
 
 const MAX_PLANNER_ROUNDS = 3;
 const MAX_CALLS_PER_ROUND = 4;
@@ -28,11 +29,12 @@ function usageRow(response, round, model, effort, toolNames, latencyMs, status =
   const cachedInputTokens = usage.input_tokens_details?.cached_tokens ?? 0;
   const outputTokens = usage.output_tokens ?? 0;
   const reasoningTokens = usage.output_tokens_details?.reasoning_tokens ?? 0;
-  const estimatedMicrousd = Math.ceil(
-    Math.max(0, inputTokens - cachedInputTokens) * 0.2
-      + cachedInputTokens * 0.02
-      + outputTokens * 1.2
-  );
+  const costResult = calculateModelCost(model, {
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    reasoningTokens
+  });
 
   return {
     round,
@@ -42,7 +44,8 @@ function usageRow(response, round, model, effort, toolNames, latencyMs, status =
     cachedInputTokens,
     outputTokens,
     reasoningTokens,
-    estimatedMicrousd,
+    estimatedMicrousd: costResult.microusd,
+    costConfigured: costResult.configured,
     toolNames,
     latencyMs,
     status

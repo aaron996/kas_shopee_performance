@@ -87,6 +87,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
   const [failedQuestion, setFailedQuestion] = useState(null);
+  const [quota, setQuota] = useState(null);
   const [focused, setFocused] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
@@ -96,6 +97,28 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let isCancelled = false;
+    async function loadQuota() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || isCancelled) return;
+        const res = await fetch('/api/chat', {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (res.ok && !isCancelled) {
+          const body = await res.json();
+          if (body?.quota) setQuota(body.quota);
+        }
+      } catch {
+        // Non-blocking quota check
+      }
+    }
+    loadQuota();
+    return () => { isCancelled = true; };
+  }, [isOpen]);
 
   const history = useMemo(() => messages.slice(-20).map(({ role, content }) => ({ role, content })), [messages]);
   const isStreaming = Boolean(pending);
@@ -197,6 +220,9 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       if (!response.ok) {
         let payload;
         try { payload = await response.json(); } catch { /* Use the safe fallback below. */ }
+        if (response.status === 429) {
+          setQuota(prev => prev ? { ...prev, remainingTurns: 0 } : null);
+        }
         throw new Error(toChatError(payload, `Chatbot chưa phản hồi được (${response.status}).`));
       }
 
@@ -204,6 +230,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       let answer = '';
       let sources = [];
       await readSse(response, (eventName, payload) => {
+        if (eventName === 'message_start' && payload.quota) setQuota(payload.quota);
         if (eventName === 'status') setStatus(payload);
         if (eventName === 'text_delta') {
           answer += payload.delta || '';
@@ -342,11 +369,27 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
           disabled={isStreaming}
         />
         <div className="chat-composer-actions">
-          <span>Enter để gửi · Shift + Enter xuống dòng</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span>Enter để gửi · Shift + Enter xuống dòng</span>
+            {quota && !quota.isUnlimited && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  background: quota.remainingTurns <= 0 ? 'rgba(239, 68, 68, 0.15)' : quota.remainingTurns <= 2 ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface-hover)',
+                  color: quota.remainingTurns <= 0 ? 'var(--status-danger-fg)' : quota.remainingTurns <= 2 ? '#d97706' : 'var(--text-muted)'
+                }}
+              >
+                Còn {quota.remainingTurns}/{quota.dailyLimit || 10} lượt hôm nay
+              </span>
+            )}
+          </div>
           {isStreaming ? (
             <button type="button" className="chat-stop-button" onClick={stopStreaming}><Square size={13} /> Dừng</button>
           ) : (
-            <button type="submit" className="chat-send-button" disabled={!draft.trim()} aria-label="Gửi câu hỏi"><SendHorizontal size={17} /></button>
+            <button type="submit" className="chat-send-button" disabled={!draft.trim() || (quota && !quota.isUnlimited && quota.remainingTurns <= 0)} aria-label="Gửi câu hỏi"><SendHorizontal size={17} /></button>
           )}
         </div>
       </form>
