@@ -334,20 +334,20 @@ deadline còn lại), mỗi DB query 5s. Function duration phải đủ turn + f
 
 Triển khai local 09/09/2026: `src/components/chat/Mascot.jsx`, `mascot.css`,
 `src/utils/mascotState.js` và asset `public/mascot/kas-parcel.png`.
-Mascot là kiện hàng nhỏ, mắt rõ, tay ngắn, khăn/mũ cam; ảnh PNG nền trong suốt
-được tạo bằng công cụ ImageGen tích hợp. Prompt/provenance nằm cạnh asset.
-Thay thiết kế SVG dự kiến bằng một hình tĩnh duy nhất, chuyển động toàn thân qua
-pivot cố định 50% 90%; chưa có rig mặt, blink hay animation miệng riêng.
+Mascot là kiện hàng nhỏ, mắt rõ, tay ngắn, khăn/mũ cam; asset PNG nền trong suốt
+được tạo bằng công cụ ImageGen tích hợp. Prompt/provenance nằm cạnh asset. Mỗi
+state chính dùng sprite sheet bốn frame trong `public/mascot/animation/`, nên có
+pose/biểu cảm riêng thay vì chỉ xoay một hình tĩnh.
 Launcher 68px desktop / 60px mobile; avatar panel 52px; hình chào 100px.
 Container dùng tokens và hỗ trợ `body.dark-mode`; ảnh không đổi màu theo theme.
 
 | State v1 | Trigger | Motion |
 |---|---|---|
-| idle | Không request/input focus | Thở nhẹ liên tục, biên độ thấp; launcher cũng dùng state này |
-| listening | Input focus, không request | Nghiêng nhẹ |
-| thinking | Model đang hiểu/lập kế hoạch | Nhấp nhô nhỏ, kèm trạng thái text |
-| searching | Đang query DB | Quét ngang ngắn, kèm trạng thái text |
-| result | Bắt đầu stream/hoàn tất answer | Nảy gọn một lần, không một tween mỗi token |
+| idle | Không request/input focus | Rest → inhale → blink → rest, lặp chậm; launcher cũng dùng state này |
+| listening | Input focus, không request | Neutral → nghiêng trái → nghiêng phải → neutral |
+| thinking | Model đang hiểu/lập kế hoạch | Ponder → nhìn lên → blink → nhận ra, lặp khi generate |
+| searching | Đang query DB | Dùng chuỗi thinking để biểu thị đang xử lý dữ liệu, kèm trạng thái text |
+| result | Bắt đầu stream/hoàn tất answer | Smile → giơ tay → chào nhẹ → ready, chạy một lần |
 | error | Lỗi/quota/timeout | Một phản ứng ngắn rồi nghỉ, kèm text |
 
 Ưu tiên error -> speaking -> thinking -> listening -> idle. User hủy về idle.
@@ -355,9 +355,10 @@ Answer xong không có nghĩa KPI tốt. Happy/worried/sleeping để v1.1; nế
 xúc KPI phải derive từ evidence metadata (tone/belowTargetCount), không dò từ trong
 câu trả lời.
 
-- Base pose và state motion dùng CSS transform, luôn hiển thị cả khi mount trong
-  tab ẩn; không cần tạo timeline JS trong lúc browser đang xử lý stream.
-- Lắng nghe `visibilitychange` và `matchMedia` change để cleanup/restart.
+- Sprite chuyển frame bằng CSS `steps(4, end)`, luôn hiển thị frame đầu kể cả khi
+  mount trong tab ẩn; không cần tạo timeline JS trong lúc browser đang xử lý stream.
+- Trình duyệt tự throttle CSS animation khi tab ẩn; `prefers-reduced-motion` dùng
+  frame đầu và opacity nhẹ, không chạy sprite loop.
 - Launcher chạy idle nhẹ khi panel đóng; avatar panel thể hiện thinking/searching/
   result theo trạng thái request, không tạo tween cho từng token. Print ẩn panel/launcher.
 - Reduced motion luôn hiện mascot đầy đủ. Mascot aria-hidden; mọi trạng thái quan
