@@ -10,6 +10,7 @@ const GRAINS = new Set(['nationwide', 'region', 'hub']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);
 const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime']);
 const HELP_TOPICS = new Set(['metrics', 'ca1', 'leadtime', 'insight', 'data_source']);
+const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli' });
 
 function invalid(message) {
   throw new ChatError('CHAT_TOOL_ARGUMENTS_INVALID', message, 400);
@@ -104,6 +105,25 @@ export const CHAT_TOOLS = Object.freeze([
   },
   {
     type: 'function',
+    name: 'get_latest_metric_summary',
+    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Dùng khi người dùng nói hiện tại, hôm nay, mới nhất hoặc không nêu ngày; không hỏi lại ngày trong các trường hợp này.',
+    strict: true,
+    parameters: {
+      type: 'object', additionalProperties: false,
+      required: ['metric', 'client', 'grain', 'regions', 'hub_types', 'limit', 'sort'],
+      properties: {
+        metric: { type: 'string', enum: [...METRICS] },
+        client: { type: 'string', enum: [...CLIENTS] },
+        grain: { type: 'string', enum: [...GRAINS] },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        limit: { type: 'integer', minimum: 1, maximum: 50 },
+        sort: { type: 'string', enum: [...SORTS] }
+      }
+    }
+  },
+  {
+    type: 'function',
     name: 'get_ca1_summary',
     description: 'Đọc tỷ lệ đơn về ca 1 theo lane/vùng. Nguồn ca 1 hiện không có chiều client.',
     strict: true,
@@ -178,6 +198,30 @@ export async function executeChatTool(call, context) {
         p_client: enumValue(args.client, CLIENTS, 'client'),
         p_date_from: from,
         p_date_to: to,
+        p_grain: enumValue(args.grain, GRAINS, 'grain'),
+        p_regions: textList(args.regions, 'regions'),
+        p_hub_types: textList(args.hub_types, 'hub_types'),
+        p_limit: limit(args.limit),
+        p_sort: enumValue(args.sort, SORTS, 'sort')
+      });
+    }
+    case 'get_latest_metric_summary': {
+      const metric = enumValue(args.metric, METRICS, 'metric');
+      const client = enumValue(args.client, CLIENTS, 'client');
+      const coverage = await callDashboardRpc(userClient, DASHBOARD_RPCS.coverage, {
+        p_dataset: METRIC_DATASETS[metric],
+        p_client: client
+      });
+      const dataAsOf = coverage.data?.dataAsOf;
+      if (!dataAsOf) {
+        throw new ChatError('CHAT_DATA_EMPTY', 'Database chưa có ngày dữ liệu phù hợp với phạm vi này.', 422);
+      }
+      const latestDate = date(dataAsOf, 'dataAsOf');
+      return callDashboardRpc(userClient, DASHBOARD_RPCS.metric, {
+        p_metric: metric,
+        p_client: client,
+        p_date_from: latestDate,
+        p_date_to: latestDate,
         p_grain: enumValue(args.grain, GRAINS, 'grain'),
         p_regions: textList(args.regions, 'regions'),
         p_hub_types: textList(args.hub_types, 'hub_types'),

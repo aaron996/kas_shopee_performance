@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, LoaderCircle, MessageSquareText, SendHorizontal, Square, X } from 'lucide-react';
+import { Database, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import Mascot from './chat/Mascot';
+import { getMascotState } from '../utils/mascotState';
 
 const QUICK_QUESTIONS = [
   'Dữ liệu mới nhất của SPB có tới ngày nào?',
@@ -35,11 +37,13 @@ async function readSse(response, onEvent) {
       if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
     }
     if (!dataLines.length) return;
+    let payload;
     try {
-      onEvent(eventName, JSON.parse(dataLines.join('\n')));
+      payload = JSON.parse(dataLines.join('\n'));
     } catch {
       throw new Error('Phản hồi chatbot không đúng định dạng.');
     }
+    onEvent(eventName, payload);
   };
 
   while (true) {
@@ -75,18 +79,23 @@ function SourceList({ sources }) {
   );
 }
 
-export default function ChatPanel({ isOpen, onClose }) {
+export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [failedQuestion, setFailedQuestion] = useState(null);
+  const [focused, setFocused] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
+  const launcherRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
 
   const history = useMemo(() => messages.slice(-20).map(({ role, content }) => ({ role, content })), [messages]);
   const isStreaming = Boolean(pending);
+  const mascotState = getMascotState({ isOpen, error, pending, focused });
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -95,6 +104,7 @@ export default function ChatPanel({ isOpen, onClose }) {
       if (event.key === 'Escape') {
         abortRef.current?.abort();
         onClose();
+        launcherRef.current?.focus();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -105,7 +115,8 @@ export default function ChatPanel({ isOpen, onClose }) {
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
   }, [messages, pending, error, status, isOpen]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -116,22 +127,28 @@ export default function ChatPanel({ isOpen, onClose }) {
 
   const closePanel = () => {
     stopStreaming();
+    setFocused(false);
     onClose();
+    launcherRef.current?.focus();
   };
 
   const submitQuestion = async question => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || isStreaming) return;
+    if (!normalizedQuestion || abortRef.current) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
     setDraft('');
     setError(null);
+    setFailedQuestion(null);
+    setFocused(false);
+    setAnnouncement('');
     setStatus({ phase: 'planning' });
     setPending({ question: normalizedQuestion, answer: '', sources: [] });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       if (!session?.access_token) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi thử lại.');
 
       const response = await fetch('/api/chat', {
@@ -172,11 +189,15 @@ export default function ChatPanel({ isOpen, onClose }) {
       setMessages(current => [...current, { role: 'user', content: normalizedQuestion }, { role: 'assistant', content: answer, sources }]);
       setPending(null);
       setStatus(null);
+      setAnnouncement('Đã trả lời xong.');
     } catch (requestError) {
       const wasAborted = controller.signal.aborted;
       setPending(null);
       setStatus(null);
-      setError(wasAborted ? 'Đã dừng lượt trả lời này.' : requestError.message || 'Không thể gửi câu hỏi lúc này.');
+      setFocused(false);
+      setError(wasAborted ? null : requestError.message || 'Không thể gửi câu hỏi lúc này.');
+      setFailedQuestion(wasAborted ? null : normalizedQuestion);
+      setAnnouncement(wasAborted ? 'Đã dừng trả lời.' : 'Chưa thể trả lời. Vui lòng thử lại.');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
@@ -187,16 +208,22 @@ export default function ChatPanel({ isOpen, onClose }) {
     submitQuestion(draft);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <section className="chat-panel" role="dialog" aria-modal="true" aria-labelledby="chat-panel-title">
+    <>
+    <button ref={launcherRef} type="button" className="chat-fab chat-fab--mascot"
+      onClick={isOpen ? closePanel : onOpen} aria-expanded={isOpen}
+      aria-controls={isOpen ? 'kas-chat-panel' : undefined}
+      title={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}
+      aria-label={isOpen ? 'Đóng Trợ lý KAS' : 'Mở Trợ lý KAS'}>
+      <Mascot />
+    </button>
+    {isOpen && <section id="kas-chat-panel" className="chat-panel" role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
         <div className="chat-panel-title">
-          <span className="chat-panel-icon"><MessageSquareText size={18} /></span>
+          <span className="chat-mascot-avatar"><Mascot state={mascotState} active={isOpen} /></span>
           <div>
             <h2 id="chat-panel-title">Trợ lý KAS</h2>
-            <p>Tra cứu trực tiếp database vận hành</p>
+            <p role="status" aria-live="polite">{error ? 'Chưa thể trả lời' : pending ? (pending.answer ? 'Đang trả lời…' : statusText(status)) : focused ? 'Mình đang nghe…' : announcement || 'Tra cứu dữ liệu KAS'}</p>
           </div>
         </div>
         <button type="button" className="chat-icon-button" onClick={closePanel} title="Đóng trợ lý" aria-label="Đóng trợ lý">
@@ -205,9 +232,9 @@ export default function ChatPanel({ isOpen, onClose }) {
       </header>
 
       <div className="chat-panel-body" ref={scrollRef}>
-        {!messages.length && !pending && (
+        {!messages.length && !pending && !failedQuestion && !error && (
           <div className="chat-welcome">
-            <div className="chat-welcome-mark"><Database size={20} /></div>
+            <div className="chat-mascot-intro"><Mascot /></div>
             <h3>Hỏi dữ liệu KAS</h3>
             <p>Trợ lý không đọc màn hình hay bộ lọc hiện tại. Mỗi số liệu được truy vấn từ database và kèm evidence khi có.</p>
             <div className="chat-suggestions">
@@ -241,6 +268,11 @@ export default function ChatPanel({ isOpen, onClose }) {
           </>
         )}
 
+        {failedQuestion && !pending && (
+          <article className="chat-message chat-message--user">
+            <div className="chat-message-bubble"><p>{failedQuestion}</p></div>
+          </article>
+        )}
         {error && <div className="chat-error" role="alert">{error}</div>}
       </div>
 
@@ -250,6 +282,8 @@ export default function ChatPanel({ isOpen, onClose }) {
           ref={inputRef}
           id="chat-question"
           value={draft}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -270,6 +304,7 @@ export default function ChatPanel({ isOpen, onClose }) {
           )}
         </div>
       </form>
-    </section>
+    </section>}
+    </>
   );
 }

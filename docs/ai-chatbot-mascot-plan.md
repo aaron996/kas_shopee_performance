@@ -35,7 +35,7 @@
 | Nguồn v1 | Bốn bảng KAS trong Supabase hiện có |
 | Tool execution | Toàn bộ tool đọc DB và vòng gọi model chạy trên server |
 | Query scope | Theo câu hỏi/hội thoại và quyền truy cập, độc lập bộ lọc UI |
-| Mascot | Inline SVG + GSAP, năm state cốt lõi |
+| Mascot | PNG nền trong suốt + GSAP trên một pivot cố định, năm state cốt lõi |
 | History | Bản đọc trong sessionStorage theo user, không lưu nội dung vào DB v1 |
 | DB bổ sung | Metadata quota/usage và RPC đọc có tham số cố định |
 
@@ -174,10 +174,11 @@ Không đổi thiếu data thành 0, không biến tương quan thành nguyên n
 | Tool | Input chính | Output |
 |---|---|---|
 | `get_data_coverage` | Dataset/client hợp lệ | Coverage, sync marker, dimensions hỗ trợ |
-| `get_metric_table` | Metric, scope, grain, sort, limit | KPI, tử/mẫu, delta nếu yêu cầu, evidence |
-| `get_leadtime_stages` | Client, kỳ, lane/cặp tỉnh | Bốn chặng/E2E, sample, baseline, evidence |
-| `get_ca1` | Kỳ, lane, vùng | Tỷ lệ/tử/mẫu, coverage; không giả client filter |
-| `explain_metric` | Metric enum | Formula/định nghĩa từ glossary repo |
+| `get_metric_summary` | Metric, client, kỳ, grain, sort, limit | KPI, tử/mẫu và evidence |
+| `get_latest_metric_summary` | Metric, client, grain, sort, limit | Tự lấy ngày mới nhất từ coverage rồi trả KPI/evidence |
+| `get_leadtime_summary` | Client, kỳ, lane/cặp tỉnh | Bốn chặng/E2E, sample và evidence |
+| `get_ca1_summary` | Kỳ, lane, vùng | Tỷ lệ/tử/mẫu, coverage; không giả client filter |
+| `get_metric_definition` | Metric enum | Formula/định nghĩa từ glossary repo |
 | `get_dashboard_help` | Topic enum | Hướng dẫn chức năng có thật và route allowlist |
 
 OpenAI function schemas dùng type function, strict true, additionalProperties false;
@@ -254,6 +255,11 @@ Không cache raw data xuyên user. Giữ instructions/glossary/schemas ổn đ�
 dụng prompt cache khi có; đo cached tokens, không giả định cache luôn hit. Store
 false không đồng nghĩa không có retention khác ở provider; kiểm tra data controls.
 
+Với KPI pickup/delivery, câu “hiện tại”, “hôm nay”, “mới nhất” hoặc không nêu ngày
+dùng `get_latest_metric_summary`: server đọc `dataAsOf` từ coverage rồi query đúng
+ngày đó. “Vùng/miền”, “hub/kho”, “tệ nhất”, “tốt nhất” được ánh xạ sang grain/sort
+an toàn. Chỉ hỏi lại KPI hoặc client khi lịch sử cũng không xác định được.
+
 ## 6. Auth, quota và ngân sách
 
 Client gửi Bearer Supabase access token; server verify bằng auth.getUser(token)
@@ -300,8 +306,13 @@ Cache-Control no-store. Parser chịu được SSE/UTF-8 bị tách giữa chunk
 | message_end | Complete/incomplete/refused và usage summary phù hợp |
 | error | Mã lỗi an toàn, thông báo tiếng Việt |
 
-Adapter xử lý response.output_text.delta, response.completed và failure/incomplete/
-refusal của Responses API. Upstream completed nhưng có function calls là bước
+Adapter xử lý response.output_text.delta, response.refusal.delta,
+response.completed và failure/incomplete của Responses API. Nếu stream không có
+delta, lấy text hoàn tất từ response output; nếu vẫn rỗng thì tổng hợp lại đúng
+một lần và trả `CHAT_MODEL_EMPTY` thay vì phát message_end giả thành công.
+Nếu vòng planner không gọi tool nhưng đã có text (ví dụ câu hỏi làm rõ), server trả
+text đó trực tiếp và không gọi thêm một lượt tổng hợp.
+Upstream completed nhưng có function calls là bước
 trung gian; chỉ đóng SSE khi hết tool loop. Không render reasoning/arguments thô.
 
 Text của bước model chọn tool được giữ ở backend. Sau khi có evidence, bước tổng
@@ -321,14 +332,18 @@ deadline còn lại), mỗi DB query 5s. Function duration phải đủ turn + f
 
 ## 8. Mascot 2D
 
-Files dự kiến: Mascot.jsx, useMascotState.js, mascot.css trong src/components/chat.
-Hình kiện hàng nhỏ bo tròn, mắt rõ, tay ngắn, khăn/mũ cam GHN; palette dùng tokens,
-có body.dark-mode. Parts SVG có pivot cố định; duyệt hình tĩnh ở kích thước launcher
-và panel trước khi animation.
+Triển khai local 09/09/2026: `src/components/chat/Mascot.jsx`, `mascot.css`,
+`src/utils/mascotState.js` và asset `public/mascot/kas-parcel.png`.
+Mascot là kiện hàng nhỏ, mắt rõ, tay ngắn, khăn/mũ cam; ảnh PNG nền trong suốt
+được tạo bằng công cụ ImageGen tích hợp. Prompt/provenance nằm cạnh asset.
+Thay thiết kế SVG dự kiến bằng một hình tĩnh duy nhất, chuyển động toàn thân qua
+pivot cố định 50% 90%; chưa có rig mặt, blink hay animation miệng riêng.
+Launcher 68px desktop / 60px mobile; avatar panel 52px; hình chào 100px.
+Container dùng tokens và hỗ trợ `body.dark-mode`; ảnh không đổi màu theo theme.
 
 | State v1 | Trigger | Motion |
 |---|---|---|
-| idle | Không request/input focus | Nghỉ, thở nhẹ/blink thưa khi panel mở |
+| idle | Không request/input focus | Thở nhẹ một chu kỳ rồi nghỉ khi panel mở |
 | listening | Input focus, không request | Nghiêng nhẹ |
 | thinking | Query DB/chờ model | Nhấp nhô nhỏ, kèm trạng thái text |
 | speaking | Answer đang stream | Nhịp cố định, không một tween mỗi token |
@@ -339,14 +354,16 @@ Answer xong không có nghĩa KPI tốt. Happy/worried/sleeping để v1.1; nế
 xúc KPI phải derive từ evidence metadata (tone/belowTargetCount), không dò từ trong
 câu trả lời.
 
-- Base pose bằng CSS; dùng runAnimation và gsap.to để tránh initial pose vô hình
-  lúc mount trong tab ẩn. Một hook sở hữu một timeline, revert trước đổi state/unmount.
-- runAnimation chỉ kiểm tra hidden/reduced-motion lúc khởi tạo. Hook phải lắng nghe
-  visibilitychange và matchMedia change để cleanup/restart khi thích hợp.
-- Clear blink timers, temporary transforms/will-change. Panel đóng thì launcher
-  tĩnh, không loop vô hạn. Kiểm tra settleAnimations khi export không làm loop treo.
+- Base pose bằng CSS, luôn hiển thị cả khi mount trong tab ẩn. Một effect sở hữu
+  timeline qua `gsap.context`, revert trước đổi state/unmount.
+- Lắng nghe `visibilitychange` và `matchMedia` change để cleanup/restart.
+- Launcher luôn tĩnh; chỉ avatar trong panel mở có chuyển động. Thinking/speaking
+  loop theo trạng thái request, không tạo tween cho từng token. Print ẩn panel/launcher.
 - Reduced motion luôn hiện mascot đầy đủ. Mascot aria-hidden; mọi trạng thái quan
   trọng có text riêng trong chat.
+- Ảnh lỗi tải có icon chat dự phòng. Đóng/Escape hủy request và trả focus về launcher.
+- Kiểm chứng local bằng fixture SSE độc lập (không gọi model/DB thật), unit test
+  chuyển trạng thái và build. Chưa đồng nghĩa đã deploy hoặc test production.
 
 ## 9. Chat UI
 
@@ -452,7 +469,7 @@ kill switch dừng endpoint/API spend, dashboard vẫn dùng bình thường.
 - Tools ghi dữ liệu vận hành, export hoặc tự gửi tin.
 - Đọc màn hình, rows RAM hoặc tự đổi bộ lọc UI.
 - Nội dung history lưu server, sync đa thiết bị, voice.
-- Happy/worried/sleeping, avatar raster/rig ngoài SVG.
+- Happy/worried/sleeping, rig nhiều bộ phận hoặc animation mặt riêng.
 - Tự chuyển model đắt hơn/routing nhiều model.
 
 ## 14. Nguồn và giới hạn xác minh

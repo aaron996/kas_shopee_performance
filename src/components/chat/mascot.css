@@ -1,0 +1,18 @@
+.kas-mascot { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-primary); }
+.kas-mascot img { display: block; width: 100%; height: 100%; object-fit: contain; transform-origin: 50% 90%; user-select: none; }
+.chat-fab.chat-fab--mascot { width: 68px; height: 68px; padding: 3px; background: var(--surface-default); }
+.chat-fab.chat-fab--mascot:hover { background: var(--surface-subtle); }
+.chat-fab--mascot[aria-expanded="true"] { outline: 2px solid var(--action-primary); outline-offset: 3px; }
+.chat-mascot-avatar { width: 52px; height: 52px; flex: none; }
+.chat-mascot-intro { width: 100px; height: 100px; margin: 0 auto 0.5rem; }
+.chat-panel .chat-panel-header, .chat-panel .chat-composer { flex-shrink: 0; }
+.chat-panel .chat-panel-body { min-height: 0; }
+#kas-chat-panel { bottom: calc(1.25rem + 68px + 12px); height: min(660px, calc(100dvh - 120px)); }
+@media (max-width: 768px) {
+  .chat-fab.chat-fab--mascot { width: 60px; height: 60px; }
+  #kas-chat-panel { bottom: calc(64px + env(safe-area-inset-bottom) + 0.75rem + 60px + 12px); height: min(660px, calc(100dvh - 164px - env(safe-area-inset-bottom))); }
+  .chat-panel .chat-composer textarea { font-size: 16px; }
+  .chat-panel .chat-icon-button { width: 44px; height: 44px; }
+  .chat-panel .chat-welcome { margin-top: 0.5rem; }
+}
+@media print { .chat-fab, .chat-panel { display: none !important; } }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runChatAgent, usageRow } from './agent.js';
+import { BASE_INSTRUCTIONS, runChatAgent, usageRow } from './agent.js';
 
 const config = {
   model: 'gpt-5.6-luna', reasoningEffort: 'low', maxOutputTokens: 1024,
@@ -73,4 +73,68 @@ test('agent replays reasoning/tool output then streams a grounded final answer',
   assert.equal(sources[0].evidenceId, 'db_abc');
   assert.equal(result.usage.length, 3);
   assert.deepEqual(result.toolNames, ['get_metric_summary']);
+});
+
+test('agent tells Luna to infer safe scope and use latest DB data instead of asking for a date', () => {
+  assert.match(BASE_INSTRUCTIONS, /PHẢI dùng get_latest_metric_summary/);
+  assert.match(BASE_INSTRUCTIONS, /"vùng\/miền" = grain region/);
+  assert.match(BASE_INSTRUCTIONS, /"tệ nhất\/thấp nhất" = sort worst/);
+  assert.match(BASE_INSTRUCTIONS, /không hỏi lại khoảng ngày/);
+});
+
+test('agent returns a no-tool clarification directly without a second model call', async () => {
+  let calls = 0;
+  const openai = {
+    responses: {
+      async create() {
+        calls += 1;
+        return {
+          status: 'completed', usage,
+          output: [{
+            type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: 'Bạn muốn xem KPI ODR hay OPR?' }]
+          }]
+        };
+      }
+    }
+  };
+  const deltas = [];
+  const result = await runChatAgent({
+    config, request: { ...request, question: 'Vùng nào đang tệ nhất?' }, userClient: {},
+    onText: delta => deltas.push(delta)
+  }, { openai });
+
+  assert.equal(calls, 1);
+  assert.deepEqual(deltas, ['Bạn muốn xem KPI ODR hay OPR?']);
+  assert.equal(result.usage.length, 1);
+});
+
+test('agent retries one empty completed answer before returning text', async () => {
+  let calls = 0;
+  const emptyResponse = { status: 'completed', usage, output: [] };
+  const answeredResponse = { status: 'completed', usage, output: [] };
+  const openai = {
+    responses: {
+      async create(body) {
+        calls += 1;
+        if (!body.stream) return emptyResponse;
+        const response = calls === 2 ? emptyResponse : answeredResponse;
+        return {
+          async *[Symbol.asyncIterator]() {
+            if (calls === 3) yield { type: 'response.output_text.delta', delta: 'Mình cần bạn cho biết KPI.' };
+            yield { type: 'response.completed', response };
+          }
+        };
+      }
+    }
+  };
+  const deltas = [];
+  const result = await runChatAgent({
+    config, request: { ...request, question: 'Vùng nào đang tệ nhất?' }, userClient: {},
+    onText: delta => deltas.push(delta)
+  }, { openai });
+
+  assert.equal(calls, 3);
+  assert.deepEqual(deltas, ['Mình cần bạn cho biết KPI.']);
+  assert.equal(result.usage.length, 3);
 });

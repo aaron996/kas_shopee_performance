@@ -1,5 +1,5 @@
 // Run with: node --env-file=D:/Github/GHN/.env.local scripts/chat-smoke.mjs
-// Uses a SQL-verified fixture for the model loop; does not impersonate a user.
+// Uses a deterministic fixture for the model loop; does not impersonate a user or read production rows.
 import { createClient } from '@supabase/supabase-js';
 import { readChatConfig } from '../server/chat/config.js';
 import { runChatAgent } from '../server/chat/agent.js';
@@ -10,19 +10,19 @@ console.log(JSON.stringify({ check: 'anonymous_rpc_denied', passed: !!denial.err
 let answer = '';
 const result = await runChatAgent({
   config,
-  request: { question: 'ODR SPB toàn quốc ngày 2026-09-07 là bao nhiêu? Dùng get_metric_summary để lấy số liệu.', history: [] },
+  request: { question: 'ODR SPB thì vùng nào đang tệ nhất?', history: [] },
   userClient: null,
   onText: delta => { answer += delta; }
 }, {
   executeTool: async call => {
-    if (call.name !== 'get_metric_summary') throw new Error('Smoke fixture only supports metric summary');
+    if (call.name !== 'get_latest_metric_summary') throw new Error('Expected latest metric summary');
     const args = JSON.parse(call.arguments);
-    if (args.metric !== 'odr' || args.client !== 'SPB' || args.date_from !== '2026-09-07' || args.date_to !== '2026-09-07' || args.grain !== 'nationwide') throw new Error('Unexpected metric scope');
-    return { evidenceId: 'smoke_sql_verified', data: {
-      metric: 'odr', scope: { client: 'SPB', dateFrom: '2026-09-07', dateTo: '2026-09-07', grain: 'nationwide' },
+    if (args.metric !== 'odr' || args.client !== 'SPB' || args.grain !== 'region' || args.sort !== 'worst') throw new Error('Unexpected inferred metric scope');
+    return { evidenceId: 'smoke_natural_language_fixture', data: {
+      metric: 'odr', scope: { client: 'SPB', dateFrom: '2026-09-07', dateTo: '2026-09-07', grain: 'region' },
       dataAsOf: '2026-09-07', syncedAt: '2026-09-08T01:47:46.687585+00:00',
-      rows: [{ value: 92.06, entity: 'Toàn quốc', ontime: 92047, volume: 99988 }]
+      rows: [{ value: 88.5, entity: 'Vùng kiểm thử', ontime: 885, volume: 1000 }]
     } };
   }
 });
-console.log(JSON.stringify({ check: 'live_luna_with_sql_verified_fixture', answer, toolNames: result.toolNames, usage: result.usage, estimatedMicrousd: result.actualMicrousd }));
+console.log(JSON.stringify({ check: 'live_luna_natural_language_fixture', answer, toolNames: result.toolNames, usage: result.usage, estimatedMicrousd: result.actualMicrousd }));
