@@ -343,10 +343,11 @@ Container dùng tokens và hỗ trợ `body.dark-mode`; ảnh không đổi màu
 
 | State v1 | Trigger | Motion |
 |---|---|---|
-| idle | Không request/input focus | Thở nhẹ một chu kỳ rồi nghỉ khi panel mở |
+| idle | Không request/input focus | Thở nhẹ liên tục, biên độ thấp; launcher cũng dùng state này |
 | listening | Input focus, không request | Nghiêng nhẹ |
-| thinking | Query DB/chờ model | Nhấp nhô nhỏ, kèm trạng thái text |
-| speaking | Answer đang stream | Nhịp cố định, không một tween mỗi token |
+| thinking | Model đang hiểu/lập kế hoạch | Nhấp nhô nhỏ, kèm trạng thái text |
+| searching | Đang query DB | Quét ngang ngắn, kèm trạng thái text |
+| result | Bắt đầu stream/hoàn tất answer | Nảy gọn một lần, không một tween mỗi token |
 | error | Lỗi/quota/timeout | Một phản ứng ngắn rồi nghỉ, kèm text |
 
 Ưu tiên error -> speaking -> thinking -> listening -> idle. User hủy về idle.
@@ -354,11 +355,11 @@ Answer xong không có nghĩa KPI tốt. Happy/worried/sleeping để v1.1; nế
 xúc KPI phải derive từ evidence metadata (tone/belowTargetCount), không dò từ trong
 câu trả lời.
 
-- Base pose bằng CSS, luôn hiển thị cả khi mount trong tab ẩn. Một effect sở hữu
-  timeline qua `gsap.context`, revert trước đổi state/unmount.
+- Base pose và state motion dùng CSS transform, luôn hiển thị cả khi mount trong
+  tab ẩn; không cần tạo timeline JS trong lúc browser đang xử lý stream.
 - Lắng nghe `visibilitychange` và `matchMedia` change để cleanup/restart.
-- Launcher luôn tĩnh; chỉ avatar trong panel mở có chuyển động. Thinking/speaking
-  loop theo trạng thái request, không tạo tween cho từng token. Print ẩn panel/launcher.
+- Launcher chạy idle nhẹ khi panel đóng; avatar panel thể hiện thinking/searching/
+  result theo trạng thái request, không tạo tween cho từng token. Print ẩn panel/launcher.
 - Reduced motion luôn hiện mascot đầy đủ. Mascot aria-hidden; mọi trạng thái quan
   trọng có text riêng trong chat.
 - Ảnh lỗi tải có icon chat dự phòng. Đóng/Escape hủy request và trả focus về launcher.
