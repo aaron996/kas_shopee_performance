@@ -48,3 +48,37 @@ test('metric tool rejects date ranges over 90 days before touching DB', async ()
   );
   assert.equal(called, false);
 });
+
+test('latest metric tool resolves the newest DB date without asking the user', async () => {
+  const calls = [];
+  const userClient = {
+    async rpc(name, params) {
+      calls.push({ name, params });
+      if (name === 'get_ai_chat_coverage') {
+        return { data: { dataAsOf: '2026-09-08', client: 'SPB', dataset: 'deli' }, error: null };
+      }
+      return {
+        data: {
+          scope: { client: 'SPB', dateFrom: '2026-09-08', dateTo: '2026-09-08', grain: 'region' },
+          dataAsOf: '2026-09-08', rows: [{ entity: 'Miền Trung', value: 88.5 }]
+        },
+        error: null
+      };
+    }
+  };
+
+  const result = await executeChatTool({
+    name: 'get_latest_metric_summary',
+    arguments: JSON.stringify({
+      metric: 'odr', client: 'SPB', grain: 'region', regions: [], hub_types: [], limit: 5, sort: 'worst'
+    })
+  }, { userClient });
+
+  assert.deepEqual(calls.map(call => call.name), ['get_ai_chat_coverage', 'get_ai_chat_metric']);
+  assert.equal(calls[0].params.p_dataset, 'deli');
+  assert.equal(calls[1].params.p_date_from, '2026-09-08');
+  assert.equal(calls[1].params.p_date_to, '2026-09-08');
+  assert.equal(calls[1].params.p_grain, 'region');
+  assert.equal(calls[1].params.p_sort, 'worst');
+  assert.equal(result.data.rows[0].entity, 'Miền Trung');
+});

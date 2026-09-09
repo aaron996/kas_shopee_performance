@@ -7,7 +7,7 @@ export default function Header({
   setActiveTab, activeTab, d1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, currentUser, onLogout, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
-  onRetryData, onOpenChat, canExport, exportContext
+  onRetryData, canExport, exportContext
 }) {
   const headerRef = useRef(null);
   const supportsExport = activeTab === 'report1' || activeTab === 'report5';
@@ -56,7 +56,6 @@ export default function Header({
         </div>
         <div className="mobile-header-actions">
           <button className="mobile-icon-btn" onClick={onRetryData} disabled={isLoading} title={freshnessTitle} aria-label={freshnessTitle}>{syncIcon}</button>
-          {currentUser && <button className="mobile-icon-btn" onClick={onOpenChat} title="Mở Trợ lý KAS" aria-label="Mở Trợ lý KAS"><MessageSquareText size={18} /></button>}
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1"><MessageSquareText size={18} /></button>
           <button className="mobile-icon-btn" onClick={onOpenPalette} title="Chuyển nhanh báo cáo" aria-label="Chuyển nhanh báo cáo"><Search size={18} /></button>
           {supportsExport && <button className="mobile-icon-btn mobile-primary-action" onClick={exportCsv} disabled={!canExport} title={exportLabel} aria-label={exportLabel}><Download size={18} /></button>}
@@ -78,7 +77,6 @@ export default function Header({
             <span>Dữ liệu tới <strong>{d1DateFormatted || '...'}</strong></span>
             {lastSyncedLabel && <span className="freshness-sub">· đồng bộ {lastSyncedLabel}</span>}
           </button>
-          {currentUser && <button type="button" className="nav-btn-sleek chat-trigger" onClick={onOpenChat} title="Mở Trợ lý KAS" aria-label="Mở Trợ lý KAS"><MessageSquareText size={16} /><span className="nav-btn-label">Trợ lý KAS</span></button>}
           <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-pressed={density === 'compact'}>
             <Rows3 size={16} />
           </button>
