@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPct, formatVol, groupDatesByWeek, getContinuousColorStyle } from './dataProcessor.js';
+import { formatPct, formatVol, groupDatesByWeek, getContinuousColorStyle, formatShortDate, getComparisonDateInfo } from './dataProcessor.js';
 import { METRIC_GLOSSARY } from '../data/metricGlossary.js';
 
 test('metricGlossary defines fd with target = null and percentage format', () => {
@@ -184,4 +184,16 @@ test('composite coverage and header date logic: handles FD older, newer, identic
   // 4. FD empty / no data
   const covEmptyFd = formatCompositeCoverage({ opsRows: opsRowsOlder, fdRows: [] });
   assert.equal(covEmptyFd, '2026-08-27 → 2026-09-09 (2 ngày có dữ liệu)');
+});
+
+test('KPI comparison dates use their actual calendar offsets', () => {
+  assert.equal(formatShortDate('2026-09-09'), '09/09');
+
+  const ops = getComparisonDateInfo('2026-09-09', ['2026-09-02', '2026-09-09'], 7);
+  assert.deepEqual(ops, { d1: '09/09', dComp: '02/09', comparisonDateStr: '2026-09-02' });
+
+  const fd = getComparisonDateInfo('2026-09-02', ['2026-08-26', '2026-09-02'], 7);
+  assert.deepEqual(fd, { d1: '02/09', dComp: '26/08', comparisonDateStr: '2026-08-26' });
+
+  assert.equal(getComparisonDateInfo('2026-09-09', ['2026-09-01', '2026-09-09'], 7), null);
 });

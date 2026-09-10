@@ -6,7 +6,7 @@ import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Dow
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
 import { useToast } from './ui/Toast';
 
 function SparklineChart({ card, isGood }) {
@@ -372,25 +372,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
   const { weekPrev: dWPrev, weekCurrent: dWCur, d1Date: dD1 } = useMemo(() => groupDatesByWeek(deliDates), [deliDates]);
   const { weekPrev: fWPrev, weekCurrent: fWCur, d1Date: fD1 } = useMemo(() => groupDatesByWeek(fdDates), [fdDates]);
 
-  // "so với D-8" comparison badge shown in the hero header (mockup: dd/mm vs dd/mm)
-  const compareDates = useMemo(() => {
-    if (!pD1) return null;
-    const shortLabel = (dateStr) => {
-      const p = dateStr.split('-');
-      return `${String(parseInt(p[2], 10)).padStart(2, '0')}/${String(parseInt(p[1], 10)).padStart(2, '0')}`;
-    };
-    const p = pD1.split('-');
-    const d8Obj = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
-    d8Obj.setDate(d8Obj.getDate() - 7);
-    const toDateStr = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    let d8Str = toDateStr(d8Obj);
-    if (!pickDates.includes(d8Str)) {
-      const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
-      if (pickDates.includes(unpadded)) d8Str = unpadded;
-    }
-    return { d1: shortLabel(pD1), d8: shortLabel(d8Str) };
-  }, [pD1, pickDates]);
-
   // Helper row value extractor for flexible column names (handling mau_deli vs mau_del)
   const getRowVal = (r, primaryCol, fallbackCol) => {
     if (r[primaryCol] !== undefined && r[primaryCol] !== null) return Number(r[primaryCol]) || 0;
@@ -543,12 +524,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
         const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
         if (datesArr.includes(unpadded)) d8Str = unpadded;
       }
-      return datesArr.includes(d8Str) ? d8Str : datesArr[0];
+      return datesArr.includes(d8Str) ? d8Str : null;
     };
 
     const pickD8 = getD8(pD1, pickDates);
     const deliD8 = getD8(dD1, deliDates);
     const fdD8 = getD8(fD1, fdDates);
+
+    const deliComparison = getComparisonDateInfo(dD1, deliDates, 7);
+    const fdComparison = getComparisonDateInfo(fD1, fdDates, 7);
+    const comparisonNote = (label, comparison) => comparison ? `${label}: ${comparison.d1} vs ${comparison.dComp}` : null;
 
     const p1stD1 = getAgg(filteredPick, pD1, false, '1st');
     const poprD1 = getAgg(filteredPick, pD1, false, 'OPR');
@@ -591,8 +576,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist.vals, historyDates: p1stHist.dates, ref: refP1st },
       { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
       { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
-      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn thành' }
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, compareNote: comparisonNote('So với D-8', deliComparison), history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
+      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, compareNote: comparisonNote('So với D-15', fdComparison), history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn thành' }
     ];
   }, [pD1, dD1, fD1, filteredPick, filteredDeli, filteredFd, pickDates, deliDates, fdDates]);
 
@@ -1118,11 +1103,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                 <MessageSquareText size={15} />
                 <span>Nhận xét D-1</span>
               </button>
-              {compareDates && (
-                <span className="kpi-header-compare">
-                  so với D-8: <b>{compareDates.d1}</b> vs {compareDates.d8}
-                </span>
-              )}
             </span>
           </div>
           <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
@@ -1189,6 +1169,10 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                         )}
                       </div>
 
+                      {card.compareNote && diff !== null && (
+                        <div className="kpi-card-compare-note">{card.compareNote}</div>
+                      )}
+
                       {/* Visual sparkline */}
                       <div className="kpi-card-chart">
                         <SparklineChart card={card} isGood={isGood} />
@@ -1241,6 +1225,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
             {riskAlertHubs.map((chip, idx) => (
               <button
                 key={`${chip.hub}_${idx}`}
+                type="button"
                 className="risk-chip-sleek"
                 onClick={() => handleRiskChipClick(chip)}
                 title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
