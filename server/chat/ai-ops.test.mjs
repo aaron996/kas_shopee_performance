@@ -42,6 +42,17 @@ test('MODEL_PRICING calculates exact integer micro-USD for Luna without float in
   assert.equal(formatMicrousdToUsd(0), '$0.00');
 });
 
+test('MODEL_PRICING calculates Terra cost using the published token rates', () => {
+  assert.ok(MODEL_PRICING['gpt-5.6-terra']);
+  const cost = calculateModelCost('gpt-5.6-terra', {
+    inputTokens: 100,
+    cachedInputTokens: 20,
+    outputTokens: 50
+  });
+  assert.equal(cost.configured, true);
+  assert.equal(cost.microusd, 764); // 80*2 + 20*0.2 + 50*12
+});
+
 test('calculateModelCost fails gracefully when model pricing is missing', () => {
   const cost = calculateModelCost('unknown-model-xyz', { inputTokens: 500, outputTokens: 200 });
   assert.equal(cost.configured, false);

@@ -1,4 +1,4 @@
-import { readChatConfig, ALLOWED_MODELS } from '../server/chat/config.js';
+import { readChatConfig, ALLOWED_MODELS, resolveModelSelection } from '../server/chat/config.js';
 import { authenticateRequest } from '../server/chat/auth.js';
 import { runChatAgent } from '../server/chat/agent.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
@@ -42,6 +42,7 @@ export function createChatHandler(dependencies = {}) {
         if (isDevAdminEmail(user.email)) {
           responsePayload.allowedModels = config.allowedModels;
           responsePayload.defaultModel = config.model;
+          responsePayload.defaultReasoningEffort = config.reasoningEffort;
         }
         sendJson(res, 200, responsePayload);
       } catch (error) {
@@ -60,6 +61,7 @@ export function createChatHandler(dependencies = {}) {
     let serviceClient;
     let request;
     let currentUser;
+    let effectiveConfig;
     let reserved = false;
     const controller = new AbortController();
     let timeout;
@@ -69,6 +71,7 @@ export function createChatHandler(dependencies = {}) {
 
     try {
       const config = getConfig();
+      effectiveConfig = config;
       timeout = setTimeout(() => controller.abort(new Error('Turn timeout')), config.turnTimeoutMs);
       request = parseRequestBody(await readBody(req), req.headers['content-length']);
       const { user, userClient, serviceClient: privilegedClient } = await authenticate(
@@ -78,10 +81,16 @@ export function createChatHandler(dependencies = {}) {
       serviceClient = privilegedClient;
       currentUser = user;
 
-      // Model override: Dev Admin can switch models from the UI
-      let effectiveConfig = config;
-      if (request.model && isDevAdminEmail(user.email) && ALLOWED_MODEL_IDS.has(request.model)) {
-        effectiveConfig = { ...config, model: request.model };
+      // Model/reasoning override: only Dev Admin can change execution settings.
+      // Ordinary users always keep the server defaults, even if they forge fields.
+      if (isDevAdminEmail(user.email) && (request.model || request.reasoningEffort)) {
+        const selectedModel = request.model || config.model;
+        if (!ALLOWED_MODEL_IDS.has(selectedModel)) {
+          throw new ChatError('CHAT_MODEL_NOT_ALLOWED', `Model "${selectedModel}" không nằm trong danh sách hỗ trợ.`, 400);
+        }
+        const requestedEffort = request.reasoningEffort
+          || (selectedModel === config.model ? config.reasoningEffort : undefined);
+        effectiveConfig = { ...config, ...resolveModelSelection(selectedModel, requestedEffort) };
       }
 
       const reservation = await reserve(
@@ -102,6 +111,7 @@ export function createChatHandler(dependencies = {}) {
       sendSse(res, 'message_start', {
         requestId: request.requestId,
         model: effectiveConfig.model,
+        reasoningEffort: effectiveConfig.reasoningEffort,
         quota: reservation
       });
 
@@ -135,7 +145,7 @@ export function createChatHandler(dependencies = {}) {
         try {
           await recordRejection(
             serviceClient,
-            getConfig(),
+            effectiveConfig,
             request,
             currentUser.id,
             requestPayloadHash(request),
