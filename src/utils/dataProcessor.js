@@ -83,6 +83,23 @@ export function getComparisonDateInfo(d1Str, datesArr = [], offsetDays = 7) {
   };
 }
 
+// FD is reported after its operational delay. Its matrix must show the full
+// D-22 → D-8 window: 15 calendar days ending at the latest available FD day.
+// Keep only dates that exist in the supplied dataset; missing source dates are
+// never replaced with a neighbouring day.
+export function getTrailingDateRange(datesArr = [], days = 15) {
+  if (!Array.isArray(datesArr) || !datesArr.length || days < 1) return [];
+  const sorted = [...new Set(datesArr)].sort((a, b) => new Date(a) - new Date(b));
+  const lastDate = new Date(sorted[sorted.length - 1]);
+  if (Number.isNaN(lastDate.getTime())) return [];
+  const firstDate = new Date(lastDate);
+  firstDate.setDate(lastDate.getDate() - (days - 1));
+  return sorted.filter(date => {
+    const value = new Date(date);
+    return !Number.isNaN(value.getTime()) && value >= firstDate && value <= lastDate;
+  });
+}
+
 export function getWeekNumber(dateStr) {
   if (!dateStr) return '';
   const p = dateStr.split('-');
@@ -155,6 +172,23 @@ export function getContinuousColorStyle(val, target, minVal) {
   return {
     backgroundColor: `rgba(225, 45, 35, ${alpha.toFixed(2)})`,
     color: textColor,
+    fontWeight: ratio > 0.3 ? '700' : '500'
+  };
+}
+
+// FD is an exception: a larger completion ratio means more failed-delivery
+// orders, so the colour scale is intentionally inverted. The lowest observed
+// value stays neutral; higher values progressively receive a red overlay.
+export function getHigherIsWorseColorStyle(val, minVal, maxVal) {
+  if (val === null || val === undefined || isNaN(val) || minVal === null || minVal === undefined || maxVal === null || maxVal === undefined || isNaN(minVal) || isNaN(maxVal) || maxVal <= minVal) {
+    return {};
+  }
+  const ratio = Math.min(1, Math.max(0, (val - minVal) / (maxVal - minVal)));
+  if (ratio === 0) return {};
+  const alpha = 0.25 + ratio * 0.75;
+  return {
+    backgroundColor: `rgba(225, 45, 35, ${alpha.toFixed(2)})`,
+    color: ratio >= 0.35 ? '#FFFFFF' : 'inherit',
     fontWeight: ratio > 0.3 ? '700' : '500'
   };
 }
