@@ -44,11 +44,13 @@ test('getContinuousColorStyle returns empty style when target is null', () => {
   assert.deepEqual(style, {});
 });
 
-test('FD highlights higher completion ratios as worse', () => {
-  assert.deepEqual(getHigherIsWorseColorStyle(2, 2, 8), {});
-  const worse = getHigherIsWorseColorStyle(8, 2, 8);
+test('FD keeps values at or below 3% neutral and highlights higher values as worse', () => {
+  assert.deepEqual(getHigherIsWorseColorStyle(2.9, 3, 8), {});
+  assert.deepEqual(getHigherIsWorseColorStyle(3, 3, 8), {});
+  const worse = getHigherIsWorseColorStyle(3.1, 3, 8);
   assert.match(worse.backgroundColor, /^rgba\(225, 45, 35,/);
-  assert.equal(worse.color, '#FFFFFF');
+  const worst = getHigherIsWorseColorStyle(8, 3, 8);
+  assert.equal(worst.color, '#FFFFFF');
 });
 
 test('FD dataset aggregation across lanes and regions', () => {

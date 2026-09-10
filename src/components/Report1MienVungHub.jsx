@@ -717,7 +717,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     const isHighlighted = highlightedSection === sectionId;
 
     const cellColorStyle = (pct) => isFd
-      ? getHigherIsWorseColorStyle(pct, tableMinPct, tableMaxPct)
+      ? getHigherIsWorseColorStyle(pct, 3, tableMaxPct)
       : getContinuousColorStyle(pct, target, tableMinPct);
 
     const prevWeekNum = weekPrev.length > 0 ? getWeekNumber(weekPrev[weekPrev.length - 1]) : '';
@@ -1042,7 +1042,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
           ) : (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
-              <span>Theo dõi tỷ lệ hoàn thành FD theo tuyến (Chưa thiết lập target cố định).</span>
+              <span>≤ 3% nền trung tính; &gt; 3% chuyển đỏ theo mức độ cao dần.</span>
             </div>
           )}
           <div>{isFd ? '* Tuyến mặc định ẩn, click ▶ để mở các tuyến phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
