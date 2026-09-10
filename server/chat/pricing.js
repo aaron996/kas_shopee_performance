@@ -14,16 +14,16 @@ export const MODEL_PRICING = {
     outputNanoUsdPerToken: 1200,
     reasoningNanoUsdPerToken: 1200
   },
-  'gpt-5-turbo': {
-    model: 'gpt-5-turbo',
-    displayName: 'GPT-5 Turbo',
+  'gpt-5.6-terra': {
+    model: 'gpt-5.6-terra',
+    displayName: 'GPT-5.6 Terra',
     // $2.00 per 1M tokens = 2,000 nano-USD / token
     inputNanoUsdPerToken: 2000,
     // $0.20 per 1M tokens = 200 nano-USD / token
     cachedInputNanoUsdPerToken: 200,
-    // $8.00 per 1M tokens = 8,000 nano-USD / token
-    outputNanoUsdPerToken: 8000,
-    reasoningNanoUsdPerToken: 8000
+    // $12.00 per 1M tokens = 12,000 nano-USD / token
+    outputNanoUsdPerToken: 12000,
+    reasoningNanoUsdPerToken: 12000
   },
   'o4-mini': {
     model: 'o4-mini',

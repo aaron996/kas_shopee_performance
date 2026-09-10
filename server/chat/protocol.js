@@ -7,7 +7,7 @@ export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_HISTORY_CHARS = 24000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model']);
+const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort']);
 
 function badRequest(message) {
   throw new ChatError('CHAT_BAD_REQUEST', message, 400);
@@ -77,12 +77,18 @@ export function parseRequestBody(rawBody, contentLength) {
   }
 
   const model = typeof body.model === 'string' ? body.model.trim() : null;
+  const reasoningEffort = typeof body.reasoningEffort === 'string' ? body.reasoningEffort.trim() : null;
 
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), model };
+  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), model, reasoningEffort };
 }
 
 export function requestPayloadHash(request) {
   return createHash('sha256')
-    .update(JSON.stringify({ question: request.question, history: request.history }))
+    .update(JSON.stringify({
+      question: request.question,
+      history: request.history,
+      model: request.model ?? null,
+      reasoningEffort: request.reasoningEffort ?? null
+    }))
     .digest('hex');
 }

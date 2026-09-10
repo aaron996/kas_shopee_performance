@@ -109,6 +109,34 @@ test('agent returns a no-tool clarification directly without a second model call
   assert.equal(result.usage.length, 1);
 });
 
+test('agent omits reasoning-only parameters for GPT-4.1', async () => {
+  const requests = [];
+  const openai = {
+    responses: {
+      async create(body) {
+        requests.push(body);
+        return {
+          status: 'completed', usage,
+          output: [{
+            type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: 'Bạn muốn xem KPI ODR hay OPR?' }]
+          }]
+        };
+      }
+    }
+  };
+
+  await runChatAgent({
+    config: { ...config, model: 'gpt-4.1', reasoningEffort: null },
+    request: { ...request, question: 'Vùng nào đang tệ nhất?' },
+    userClient: {}
+  }, { openai });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].reasoning, undefined);
+  assert.equal(requests[0].include, undefined);
+});
+
 test('agent retries one empty completed answer before returning text', async () => {
   let calls = 0;
   const emptyResponse = { status: 'completed', usage, output: [] };

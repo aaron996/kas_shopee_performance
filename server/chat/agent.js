@@ -77,12 +77,20 @@ function buildInput(request) {
   ];
 }
 
+function buildReasoningOptions(config, includeEncryptedReasoning = false) {
+  if (!config.reasoningEffort) return {};
+  return {
+    reasoning: { effort: config.reasoningEffort },
+    ...(includeEncryptedReasoning ? { include: ['reasoning.encrypted_content'] } : {})
+  };
+}
+
 function outputFailure(response) {
   if (response?.status === 'incomplete') {
-    return new ChatError('CHAT_MODEL_INCOMPLETE', 'Luna chưa hoàn tất câu trả lời. Vui lòng thử lại.', 502);
+    return new ChatError('CHAT_MODEL_INCOMPLETE', 'Mô hình AI chưa hoàn tất câu trả lời. Vui lòng thử lại.', 502);
   }
   if (response?.status === 'failed') {
-    return new ChatError('CHAT_MODEL_FAILED', 'Luna không thể tạo câu trả lời lúc này.', 502);
+    return new ChatError('CHAT_MODEL_FAILED', 'Mô hình AI không thể tạo câu trả lời lúc này.', 502);
   }
   return null;
 }
@@ -109,13 +117,13 @@ async function consumeFinalStream(stream, onText) {
     }
     if (event.type === 'response.completed') completedResponse = event.response;
     if (event.type === 'response.incomplete') {
-      throw outputFailure(event.response) ?? new ChatError('CHAT_MODEL_INCOMPLETE', 'Luna chưa hoàn tất câu trả lời.', 502);
+      throw outputFailure(event.response) ?? new ChatError('CHAT_MODEL_INCOMPLETE', 'Mô hình AI chưa hoàn tất câu trả lời.', 502);
     }
     if (event.type === 'response.failed') {
-      throw outputFailure(event.response) ?? new ChatError('CHAT_MODEL_FAILED', 'Luna không thể tạo câu trả lời.', 502);
+      throw outputFailure(event.response) ?? new ChatError('CHAT_MODEL_FAILED', 'Mô hình AI không thể tạo câu trả lời.', 502);
     }
     if (event.type === 'error') {
-      throw new ChatError('CHAT_MODEL_STREAM_FAILED', 'Luồng trả lời từ Luna bị gián đoạn.', 502);
+      throw new ChatError('CHAT_MODEL_STREAM_FAILED', 'Luồng trả lời từ mô hình AI bị gián đoạn.', 502);
     }
   }
   if (!completedResponse) throw new ChatError('CHAT_MODEL_STREAM_INCOMPLETE', 'Luồng trả lời kết thúc chưa hoàn chỉnh.', 502);
@@ -149,10 +157,9 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
         input,
         tools: CHAT_TOOLS,
         tool_choice: 'auto',
-        reasoning: { effort: config.reasoningEffort },
+        ...buildReasoningOptions(config, true),
         max_output_tokens: config.maxOutputTokens,
-        store: false,
-        include: ['reasoning.encrypted_content']
+        store: false
       }, { signal });
 
       const failure = outputFailure(response);
@@ -210,7 +217,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
         model: config.model,
         instructions: `${BASE_INSTRUCTIONS}\n\nĐây là lượt trả lời cuối. Không gọi thêm tool. Chỉ kết luận từ bằng chứng đã có; nếu chưa đủ, chỉ hỏi những thông tin thực sự không thể suy ra.${retryInstruction}`,
         input,
-        reasoning: { effort: config.reasoningEffort },
+        ...buildReasoningOptions(config),
         max_output_tokens: config.maxOutputTokens,
         store: false,
         stream: true
@@ -229,7 +236,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       if (finalText.trim()) break;
     }
     if (!finalText.trim()) {
-      throw new ChatError('CHAT_MODEL_EMPTY', 'Luna chưa tạo được nội dung trả lời sau khi thử lại.', 502);
+      throw new ChatError('CHAT_MODEL_EMPTY', 'Mô hình AI chưa tạo được nội dung trả lời sau khi thử lại.', 502);
     }
 
     return {
@@ -243,7 +250,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       ? error
       : new ChatError(
         signal?.aborted ? 'CHAT_TIMEOUT' : 'CHAT_MODEL_UNAVAILABLE',
-        signal?.aborted ? 'Chatbot xử lý quá thời gian cho phép.' : 'Không thể kết nối Luna lúc này.',
+        signal?.aborted ? 'Chatbot xử lý quá thời gian cho phép.' : 'Không thể kết nối mô hình AI lúc này.',
         signal?.aborted ? 504 : 502,
         { cause: error }
       );
@@ -257,4 +264,4 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
   }
 }
 
-export { BASE_INSTRUCTIONS, extractResponseText, usageRow };
+export { BASE_INSTRUCTIONS, buildReasoningOptions, extractResponseText, usageRow };
