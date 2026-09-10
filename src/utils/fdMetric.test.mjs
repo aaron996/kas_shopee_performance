@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPct, formatVol, groupDatesByWeek, getContinuousColorStyle, formatShortDate, getComparisonDateInfo } from './dataProcessor.js';
+import { formatPct, formatVol, groupDatesByWeek, getContinuousColorStyle, getHigherIsWorseColorStyle, getTrailingDateRange, formatShortDate, getComparisonDateInfo } from './dataProcessor.js';
 import { METRIC_GLOSSARY } from '../data/metricGlossary.js';
 
 test('metricGlossary defines fd with target = null and percentage format', () => {
@@ -39,9 +39,16 @@ test('FD completion rate calculation: zero and null handling', () => {
   assert.equal(formatPct(null), '–');
 });
 
-test('getContinuousColorStyle returns empty style when target is null (FD metric behavior)', () => {
+test('getContinuousColorStyle returns empty style when target is null', () => {
   const style = getContinuousColorStyle(5.6, null, 1.0);
   assert.deepEqual(style, {});
+});
+
+test('FD highlights higher completion ratios as worse', () => {
+  assert.deepEqual(getHigherIsWorseColorStyle(2, 2, 8), {});
+  const worse = getHigherIsWorseColorStyle(8, 2, 8);
+  assert.match(worse.backgroundColor, /^rgba\(225, 45, 35,/);
+  assert.equal(worse.color, '#FFFFFF');
 });
 
 test('FD dataset aggregation across lanes and regions', () => {
@@ -89,6 +96,17 @@ test('FD dates group into weekCurrent and weekPrev via groupDatesByWeek', () => 
   assert.ok(weekCurrent.includes('2026-09-01'));
   assert.ok(weekCurrent.includes('2026-09-02'));
   assert.ok(weekPrev.includes('2026-08-25'));
+});
+
+test('FD reporting window is the trailing D-22 through D-8 range', () => {
+  const fdDates = Array.from({ length: 25 }, (_, index) => {
+    const day = String(index + 1).padStart(2, '0');
+    return `2026-08-${day}`;
+  });
+  const range = getTrailingDateRange(fdDates, 15);
+  assert.equal(range.length, 15);
+  assert.equal(range[0], '2026-08-11');
+  assert.equal(range.at(-1), '2026-08-25');
 });
 
 test('FD empty state: detects absence of data and formats placeholder instead of 0 values', () => {

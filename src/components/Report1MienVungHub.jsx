@@ -6,7 +6,7 @@ import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Dow
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getContinuousColorStyle, getWeekNumber } from '../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber } from '../utils/dataProcessor';
 import { useToast } from './ui/Toast';
 
 function SparklineChart({ card, isGood }) {
@@ -370,7 +370,12 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
 
   const { weekPrev: pWPrev, weekCurrent: pWCur, d1Date: pD1 } = useMemo(() => groupDatesByWeek(pickDates), [pickDates]);
   const { weekPrev: dWPrev, weekCurrent: dWCur, d1Date: dD1 } = useMemo(() => groupDatesByWeek(deliDates), [deliDates]);
-  const { weekPrev: fWPrev, weekCurrent: fWCur, d1Date: fD1 } = useMemo(() => groupDatesByWeek(fdDates), [fdDates]);
+  const fdRangeDates = useMemo(() => getTrailingDateRange(fdDates, 15), [fdDates]);
+  const fD1 = fdRangeDates[fdRangeDates.length - 1] || '';
+  // Split the 15-day FD reporting window into two readable blocks. Unlike the
+  // operational metrics, it must not be clipped to calendar-week boundaries.
+  const fWPrev = fdRangeDates.slice(0, -7);
+  const fWCur = fdRangeDates.slice(-7);
 
   // Helper row value extractor for flexible column names (handling mau_deli vs mau_del)
   const getRowVal = (r, primaryCol, fallbackCol) => {
@@ -577,7 +582,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
       { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
       { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, compareNote: comparisonNote('So với D-8', deliComparison), history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
-      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, compareNote: comparisonNote('So với D-15', fdComparison), history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn thành' }
+      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, compareNote: comparisonNote('So với D-15', fdComparison), history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn' }
     ];
   }, [pD1, dD1, fD1, filteredPick, filteredDeli, filteredFd, pickDates, deliDates, fdDates]);
 
@@ -590,7 +595,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     const shortTitle = title.match(/\(([^)]+)\)\s*$/)?.[1] ?? title;
     const isFd = metricKey === 'fd';
     const rows = isFd ? filteredFd : (isDeli ? filteredDeli : filteredPick);
-    const dateList = isFd ? fdDates : (isDeli ? deliDates : pickDates);
+    const dateList = isFd ? fdRangeDates : (isDeli ? deliDates : pickDates);
     const weekPrev = isFd ? fWPrev : (isDeli ? dWPrev : pWPrev);
     const weekCur = isFd ? fWCur : (isDeli ? dWCur : pWCur);
     const d1Date = isFd ? fD1 : (isDeli ? dD1 : pD1);
@@ -615,6 +620,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     // Aggregate totals by date & entity
     const dateEntityMap = {}; // key: ${entityType}_${entityId}_${dateStr}
     let tableMinPct = target ?? 100;
+    let tableMaxPct = 0;
 
     rows.forEach(r => {
       const d = r.report_date;
@@ -690,6 +696,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       });
       const pct = tot > 0 ? (ont / tot) * 100 : null;
       if (pct !== null && pct < tableMinPct) tableMinPct = pct;
+      if (pct !== null && pct > tableMaxPct) tableMaxPct = pct;
       return { tot, ont, pct };
     };
 
@@ -701,12 +708,17 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
           if (item && item.tot > 0) {
             const p = (item.ont / item.tot) * 100;
             if (p < tableMinPct) tableMinPct = p;
+            if (p > tableMaxPct) tableMaxPct = p;
           }
         });
       });
     });
 
     const isHighlighted = highlightedSection === sectionId;
+
+    const cellColorStyle = (pct) => isFd
+      ? getHigherIsWorseColorStyle(pct, tableMinPct, tableMaxPct)
+      : getContinuousColorStyle(pct, target, tableMinPct);
 
     const prevWeekNum = weekPrev.length > 0 ? getWeekNumber(weekPrev[weekPrev.length - 1]) : '';
     const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
@@ -734,7 +746,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
             const latest = scroller?.querySelector('[data-latest-day]');
             const sticky = scroller?.querySelector('th.lbl-2');
             if (scroller && latest) scroller.scrollTo({ left: scroller.scrollLeft + latest.getBoundingClientRect().left - scroller.getBoundingClientRect().left - (sticky?.getBoundingClientRect().width || 0) - 8, behavior: 'instant' });
-          }}>Tới D-1</button>
+          }}>Tới {isFd ? 'D-8' : 'D-1'}</button>
         </div>
 
         <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px`, '--allrow-h': `${allRowHeight}px` }}>
@@ -746,18 +758,18 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                 <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Tuyến' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
-                    TUẦN W-1 {prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}
+                    {isFd ? 'FD: D-22 → D-15' : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
                 {weekCur.length > 0 && (
                   <th colSpan={weekCur.length + 1}>
-                    TUẦN HIỆN TẠI {curWeekNum ? `(Tuần ${curWeekNum})` : ''}
+                    {isFd ? 'FD: D-14 → D-8' : `TUẦN HIỆN TẠI ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
                 <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
-                  WTD (CỘNG DỒN)
+                  {isFd ? 'FD CỘNG DỒN D-14 → D-8' : 'WTD (CỘNG DỒN)'}
                 </th>
                 {/* Best 6W & Sameday */}
                 <th rowSpan="2" className="col-summary" style={{ borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
@@ -791,11 +803,11 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                 <td colSpan="1" className="lbl lbl-2 all-row-label mobile-only">TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
-                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                 })}
                 {weekCur.slice(0, -1).map(d => {
                   const s = calcStats('TQ_TQ', [d]);
-                  return <td key={d} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                  return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                 })}
                 {/* D-1 */}
                 {(() => {
@@ -803,9 +815,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                   const wtdS = calcStats('TQ_TQ', weekCur);
                   return (
                     <>
-                      <td className="sep" style={getContinuousColorStyle(d1S.pct, target, tableMinPct)}>{formatPct(d1S.pct)}</td>
+                      <td className="sep" style={cellColorStyle(d1S.pct)}>{formatPct(d1S.pct)}</td>
                       <td style={{ fontWeight: 'bold' }}>{formatVol(d1S.tot)}</td>
-                      <td className="sep" style={getContinuousColorStyle(wtdS.pct, target, tableMinPct)}>{formatPct(wtdS.pct)}</td>
+                      <td className="sep" style={cellColorStyle(wtdS.pct)}>{formatPct(wtdS.pct)}</td>
                       <td style={{ fontWeight: 'bold' }}>{formatVol(wtdS.tot)}</td>
                       <td>–</td>
                       <td>–</td>
@@ -871,20 +883,20 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                       <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
-                        return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                        return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                       })}
                       {weekCur.slice(0, -1).map(d => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
-                        return <td key={d} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                        return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                       })}
                       {(() => {
                         const d1S = calcStats(`MIEN_${mien}`, [d1Date]);
                         const wtdS = mienStats;
                         return (
                           <>
-                            <td className="sep" style={getContinuousColorStyle(d1S.pct, target, tableMinPct)}>{formatPct(d1S.pct)}</td>
+                            <td className="sep" style={cellColorStyle(d1S.pct)}>{formatPct(d1S.pct)}</td>
                             <td>{formatVol(d1S.tot)}</td>
-                            <td className="sep" style={getContinuousColorStyle(wtdS.pct, target, tableMinPct)}>{formatPct(wtdS.pct)}</td>
+                            <td className="sep" style={cellColorStyle(wtdS.pct)}>{formatPct(wtdS.pct)}</td>
                             <td>{formatVol(wtdS.tot)}</td>
                             <td>–</td>
                             <td>–</td>
@@ -949,16 +961,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                             </td>
                             {weekPrev.map((d, idx) => {
                               const s = calcStats(`REG_${reg}`, [d]);
-                              return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                              return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                             })}
                             {weekCur.slice(0, -1).map(d => {
                               const s = calcStats(`REG_${reg}`, [d]);
-                              return <td key={d} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                              return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                             })}
                             {/* D-1 & WTD */}
-                            <td className="sep" style={getContinuousColorStyle(regD1Pct, target, tableMinPct)}>{formatPct(regD1Pct)}</td>
+                            <td className="sep" style={cellColorStyle(regD1Pct)}>{formatPct(regD1Pct)}</td>
                             <td>{formatVol(d1RegData.tot)}</td>
-                            <td className="sep" style={getContinuousColorStyle(regWtd.pct, target, tableMinPct)}>{formatPct(regWtd.pct)}</td>
+                            <td className="sep" style={cellColorStyle(regWtd.pct)}>{formatPct(regWtd.pct)}</td>
                             <td>{formatVol(regWtd.tot)}</td>
 
                             {/* Best 6W Diff */}
@@ -989,15 +1001,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                                 <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{subItem}</td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
-                                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                                 })}
                                 {weekCur.slice(0, -1).map(d => {
                                   const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
-                                  return <td key={d} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
+                                  return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                                 })}
-                                <td className="sep" style={getContinuousColorStyle(subD1.pct, target, tableMinPct)}>{formatPct(subD1.pct)}</td>
+                                <td className="sep" style={cellColorStyle(subD1.pct)}>{formatPct(subD1.pct)}</td>
                                 <td>{formatVol(subD1.tot)}</td>
-                                <td className="sep" style={getContinuousColorStyle(subWtd.pct, target, tableMinPct)}>{formatPct(subWtd.pct)}</td>
+                                <td className="sep" style={cellColorStyle(subWtd.pct)}>{formatPct(subWtd.pct)}</td>
                                 <td>{formatVol(subWtd.tot)}</td>
                                 <td>–</td>
                                 <td>–</td>
@@ -1056,7 +1068,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
             <span className="sticky-title">KPI Nationwide:</span>
             {kpiCards.map(card => {
               const hasTarget = card.target != null;
-              const isGood = hasTarget ? card.d1.pct >= card.target : true;
+              const isGood = hasTarget ? card.d1.pct >= card.target : card.id !== 'fd';
               const isFdEmpty = card.id === 'fd' && (!card.d1 || card.d1.pct === null || card.d1.tot === 0);
               return (
                 <button key={card.id} className="sticky-kpi-item" onClick={() => scrollToRef(card.ref, card.id)}>
@@ -1114,7 +1126,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
               const diff = (hasD1 && hasD8) ? card.d1.pct - card.d8.pct : null;
               const lateVol = card.d1.tot - card.d1.ont;
               const hasTarget = card.target != null;
-              const isGood = hasTarget ? card.d1.pct >= card.target : true;
+              const isGood = hasTarget ? card.d1.pct >= card.target : !isFd;
 
               return (
                 <button type="button"
@@ -1162,7 +1174,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                           <AnimatedNumber
                             value={diff}
                             format={v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`}
-                            className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}
+                            className={`kpi-card-diff ${isFd ? (diff >= 0 ? 'down' : 'up') : (diff >= 0 ? 'up' : 'down')}`}
                           />
                         ) : (
                           <span className="kpi-card-diff">–</span>
