@@ -758,18 +758,18 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                 <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Tuyến' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
-                    {isFd ? 'FD: D-22 → D-15' : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
+                    {isFd ? `TUẦN W-2 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}` : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
                 {weekCur.length > 0 && (
                   <th colSpan={weekCur.length + 1}>
-                    {isFd ? 'FD: D-14 → D-8' : `TUẦN HIỆN TẠI ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}`}
+                    {isFd ? `TUẦN W-1 ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}` : `TUẦN HIỆN TẠI ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
                 <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
-                  {isFd ? 'FD CỘNG DỒN D-14 → D-8' : 'WTD (CỘNG DỒN)'}
+                  WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}
                 <th rowSpan="2" className="col-summary" style={{ borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
