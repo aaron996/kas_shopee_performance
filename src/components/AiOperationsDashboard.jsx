@@ -33,8 +33,20 @@ function maskEmailClient(email) {
   return `${local[0]}${'*'.repeat(Math.min(4, local.length - 2))}${local[local.length - 1]}@${domain}`;
 }
 
+const REASONING_LABELS = {
+  none: 'Tắt',
+  low: 'Thấp',
+  medium: 'Vừa',
+  high: 'Cao',
+  xhigh: 'Rất cao',
+  max: 'Tối đa'
+};
+
 export default function AiOperationsDashboard() {
   const [activeSubtab, setActiveSubtab] = useState('overview'); // 'overview' | 'quotas' | 'research'
+  const [devChatConfig, setDevChatConfig] = useState(null);
+  const [selectedDevModel, setSelectedDevModel] = useState('');
+  const [selectedDevReasoning, setSelectedDevReasoning] = useState('');
 
   // Common Date Filter
   const [dateRange, setDateRange] = useState('7d'); // 'today' | '7d' | 'month' | 'custom'
@@ -118,6 +130,73 @@ export default function AiOperationsDashboard() {
     }
     return res;
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDevChatConfig() {
+      try {
+        const config = await fetchWithAuth('/api/chat');
+        if (!active || !config?.allowedModels?.length) return;
+
+        const storedModel = window.localStorage.getItem('kas-chat-model');
+        const modelId = config.allowedModels.some(model => model.id === storedModel)
+          ? storedModel
+          : config.defaultModel;
+        const model = config.allowedModels.find(candidate => candidate.id === modelId);
+        const storedReasoning = window.localStorage.getItem(`kas-chat-reasoning-effort:${modelId}`);
+        const defaultReasoning = modelId === config.defaultModel
+          ? config.defaultReasoningEffort
+          : model?.defaultReasoningEffort;
+
+        setDevChatConfig(config);
+        setSelectedDevModel(modelId || '');
+        setSelectedDevReasoning(model?.reasoningEfforts?.includes(storedReasoning)
+          ? storedReasoning
+          : (defaultReasoning || ''));
+      } catch {
+        // The API deliberately returns no configuration to non-Dev Admins.
+      }
+    }
+
+    loadDevChatConfig();
+    return () => { active = false; };
+  }, [fetchWithAuth]);
+
+  const notifyChatConfigChange = () => window.dispatchEvent(new Event('kas-chat-config-change'));
+
+  const handleDevModelChange = event => {
+    const modelId = event.target.value;
+    const model = devChatConfig?.allowedModels?.find(candidate => candidate.id === modelId);
+    const storedReasoning = window.localStorage.getItem(`kas-chat-reasoning-effort:${modelId}`);
+    const reasoning = model?.reasoningEfforts?.includes(storedReasoning)
+      ? storedReasoning
+      : (model?.defaultReasoningEffort || '');
+
+    setSelectedDevModel(modelId);
+    setSelectedDevReasoning(reasoning);
+    window.localStorage.setItem('kas-chat-model', modelId);
+    if (reasoning) window.localStorage.setItem(`kas-chat-reasoning-effort:${modelId}`, reasoning);
+    notifyChatConfigChange();
+  };
+
+  const handleDevReasoningChange = event => {
+    const reasoning = event.target.value;
+    setSelectedDevReasoning(reasoning);
+    window.localStorage.setItem(`kas-chat-reasoning-effort:${selectedDevModel}`, reasoning);
+    notifyChatConfigChange();
+  };
+
+  const resetDevChatConfig = () => {
+    const modelId = devChatConfig?.defaultModel;
+    const model = devChatConfig?.allowedModels?.find(candidate => candidate.id === modelId);
+    const reasoning = devChatConfig?.defaultReasoningEffort || model?.defaultReasoningEffort || '';
+    setSelectedDevModel(modelId || '');
+    setSelectedDevReasoning(reasoning);
+    window.localStorage.removeItem('kas-chat-model');
+    if (modelId) window.localStorage.removeItem(`kas-chat-reasoning-effort:${modelId}`);
+    notifyChatConfigChange();
+  };
 
   // 1. Fetch Overview
   const fetchOverview = useCallback(async () => {
@@ -414,6 +493,39 @@ export default function AiOperationsDashboard() {
       {/* ======================= TAB 1: OVERVIEW ======================= */}
       {activeSubtab === 'overview' && (
         <div>
+          {devChatConfig?.allowedModels?.length > 0 && (
+            <section className="dev-chat-config" aria-labelledby="dev-chat-config-title">
+              <div className="dev-chat-config__heading">
+                <div>
+                  <h2 id="dev-chat-config-title">Cấu hình chatbot</h2>
+                  <p>Chỉ áp dụng cho phiên kiểm thử của Dev Admin trên trình duyệt này.</p>
+                </div>
+                <button type="button" className="dev-chat-config__reset" onClick={resetDevChatConfig}>Khôi phục mặc định</button>
+              </div>
+              <div className="dev-chat-config__controls">
+                <label>
+                  <span>Model</span>
+                  <select value={selectedDevModel} onChange={handleDevModelChange}>
+                    {devChatConfig.allowedModels.map(model => (
+                      <option key={model.id} value={model.id}>{model.label}{model.id === devChatConfig.defaultModel ? ' (mặc định)' : ''}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Reasoning</span>
+                  {(() => {
+                    const model = devChatConfig.allowedModels.find(candidate => candidate.id === selectedDevModel);
+                    if (!model?.reasoningEfforts?.length) return <output>Model này không hỗ trợ reasoning.</output>;
+                    return (
+                      <select value={selectedDevReasoning} onChange={handleDevReasoningChange}>
+                        {model.reasoningEfforts.map(effort => <option key={effort} value={effort}>{REASONING_LABELS[effort] || effort}</option>)}
+                      </select>
+                    );
+                  })()}
+                </label>
+              </div>
+            </section>
+          )}
           {isOverviewLoading && !overviewData ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải số liệu tổng quan chi phí AI...</div>
           ) : overviewError ? (

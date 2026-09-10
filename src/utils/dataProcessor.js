@@ -56,6 +56,33 @@ export function formatDateLabel(dateStr) {
   return `${day}/${month}\n${getWeekdayName(dateStr)}`;
 }
 
+export function formatShortDate(dateStr) {
+  if (typeof dateStr !== 'string' || !/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) return '';
+  const [, month, day] = dateStr.split('-');
+  return `${String(Number(day)).padStart(2, '0')}/${String(Number(month)).padStart(2, '0')}`;
+}
+
+// D-8/D-15 is a calendar-date comparison. Do not substitute an unrelated
+// date when the expected comparison date is absent from the data set.
+export function getComparisonDateInfo(d1Str, datesArr = [], offsetDays = 7) {
+  if (!d1Str || !Array.isArray(datesArr) || !datesArr.length) return null;
+  const parts = d1Str.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+
+  const comparisonDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  comparisonDate.setDate(comparisonDate.getDate() - offsetDays);
+  const padded = `${comparisonDate.getFullYear()}-${String(comparisonDate.getMonth() + 1).padStart(2, '0')}-${String(comparisonDate.getDate()).padStart(2, '0')}`;
+  const unpadded = `${comparisonDate.getFullYear()}-${comparisonDate.getMonth() + 1}-${comparisonDate.getDate()}`;
+  const comparisonDateStr = datesArr.includes(padded) ? padded : (datesArr.includes(unpadded) ? unpadded : null);
+  if (!comparisonDateStr) return null;
+
+  return {
+    d1: formatShortDate(d1Str),
+    dComp: formatShortDate(comparisonDateStr),
+    comparisonDateStr
+  };
+}
+
 export function getWeekNumber(dateStr) {
   if (!dateStr) return '';
   const p = dateStr.split('-');

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
+import { Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
@@ -10,15 +10,6 @@ const QUICK_QUESTIONS = [
   'ODR SPB toàn quốc hôm nay là bao nhiêu?',
   'Giải thích ngắn gọn chỉ số Ca 1.'
 ];
-
-const REASONING_LABELS = {
-  none: 'Tắt',
-  low: 'Thấp',
-  medium: 'Vừa',
-  high: 'Cao',
-  xhigh: 'Rất cao',
-  max: 'Tối đa'
-};
 
 const reasoningStorageKey = modelId => `kas-chat-reasoning-effort:${modelId}`;
 
@@ -108,15 +99,12 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
   const [defaultReasoningEffort, setDefaultReasoningEffort] = useState(null);
   const [selectedModel, setSelectedModel] = useState(() => window.localStorage.getItem('kas-chat-model') || null);
   const [selectedReasoningEffort, setSelectedReasoningEffort] = useState(null);
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [reasoningDropdownOpen, setReasoningDropdownOpen] = useState(false);
+  const [configVersion, setConfigVersion] = useState(0);
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
-  const modelDropdownRef = useRef(null);
-  const reasoningDropdownRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -196,28 +184,17 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
   }, [visibilityMenuOpen]);
 
   useEffect(() => {
-    if (!modelDropdownOpen && !reasoningDropdownOpen) return undefined;
-    const handleClickOutside = event => {
-      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target)) {
-        setModelDropdownOpen(false);
-      }
-      if (reasoningDropdownRef.current && !reasoningDropdownRef.current.contains(event.target)) {
-        setReasoningDropdownOpen(false);
-      }
+    const syncDevConfig = () => {
+      setSelectedModel(window.localStorage.getItem('kas-chat-model') || null);
+      setConfigVersion(version => version + 1);
     };
-    const handleEsc = event => {
-      if (event.key === 'Escape') {
-        setModelDropdownOpen(false);
-        setReasoningDropdownOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('keydown', handleEsc);
+    window.addEventListener('storage', syncDevConfig);
+    window.addEventListener('kas-chat-config-change', syncDevConfig);
     return () => {
-      window.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('keydown', handleEsc);
+      window.removeEventListener('storage', syncDevConfig);
+      window.removeEventListener('kas-chat-config-change', syncDevConfig);
     };
-  }, [modelDropdownOpen, reasoningDropdownOpen]);
+  }, []);
 
   useEffect(() => {
     if (!allowedModels?.length || !defaultModel) return;
@@ -233,40 +210,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
     const storedEffort = window.localStorage.getItem(reasoningStorageKey(modelId));
     const fallbackEffort = modelId === defaultModel ? defaultReasoningEffort : model?.defaultReasoningEffort;
     setSelectedReasoningEffort(efforts.includes(storedEffort) ? storedEffort : (fallbackEffort || null));
-  }, [allowedModels, defaultModel, defaultReasoningEffort, selectedModel]);
-
-  const handleSelectModel = modelId => {
-    const model = allowedModels?.find(candidate => candidate.id === modelId);
-    const efforts = model?.reasoningEfforts ?? [];
-    const storedEffort = window.localStorage.getItem(reasoningStorageKey(modelId));
-    const fallbackEffort = modelId === defaultModel ? defaultReasoningEffort : model?.defaultReasoningEffort;
-    setSelectedModel(modelId);
-    setSelectedReasoningEffort(efforts.includes(storedEffort) ? storedEffort : (fallbackEffort || null));
-    window.localStorage.setItem('kas-chat-model', modelId);
-    setModelDropdownOpen(false);
-    setReasoningDropdownOpen(false);
-  };
+  }, [allowedModels, configVersion, defaultModel, defaultReasoningEffort, selectedModel]);
 
   const selectedModelIsAllowed = selectedModel && allowedModels?.some(model => model.id === selectedModel);
   const activeModelId = (selectedModelIsAllowed ? selectedModel : defaultModel) || 'gpt-5.6-luna';
-  const activeModel = allowedModels?.find(model => model.id === activeModelId);
-  const activeModelLabel = activeModel?.label || activeModelId;
-  const activeReasoningEfforts = activeModel?.reasoningEfforts ?? [];
-  const activeReasoningLabel = selectedReasoningEffort
-    ? (REASONING_LABELS[selectedReasoningEffort] || selectedReasoningEffort)
-    : 'Không dùng';
-  const isNonDefaultModel = defaultModel && activeModelId !== defaultModel;
-  const expectedReasoningEffort = activeModelId === defaultModel
-    ? defaultReasoningEffort
-    : activeModel?.defaultReasoningEffort;
-  const isNonDefaultReasoning = activeReasoningEfforts.length > 0
-    && selectedReasoningEffort !== expectedReasoningEffort;
-
-  const handleSelectReasoning = reasoningEffort => {
-    setSelectedReasoningEffort(reasoningEffort);
-    window.localStorage.setItem(reasoningStorageKey(activeModelId), reasoningEffort);
-    setReasoningDropdownOpen(false);
-  };
 
   const setMascotVisibility = hidden => {
     window.localStorage.setItem('kas-mascot-hidden', String(hidden));
@@ -400,78 +347,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          {isDevAdmin && allowedModels && (
-            <div className="chat-model-selector" ref={modelDropdownRef}>
-              <button
-                type="button"
-                className={`chat-model-trigger${isNonDefaultModel ? ' chat-model-trigger--custom' : ''}`}
-                onClick={() => {
-                  setModelDropdownOpen(prev => !prev);
-                  setReasoningDropdownOpen(false);
-                }}
-                disabled={isStreaming}
-                title="Chọn AI model"
-                aria-haspopup="listbox"
-                aria-expanded={modelDropdownOpen}
-              >
-                <span className="chat-model-trigger-label">{activeModelLabel}</span>
-                <ChevronDown size={13} />
-              </button>
-              {modelDropdownOpen && (
-                <ul className="chat-model-dropdown" role="listbox" aria-label="Chọn AI model">
-                  {allowedModels.map(model => (
-                    <li key={model.id} role="option" aria-selected={model.id === activeModelId}>
-                      <button
-                        type="button"
-                        className={`chat-model-option${model.id === activeModelId ? ' chat-model-option--active' : ''}`}
-                        onClick={() => handleSelectModel(model.id)}
-                      >
-                        <span>{model.label}</span>
-                        {model.id === defaultModel && <span className="chat-model-default-badge">mặc định</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {isDevAdmin && allowedModels && (
-            <div className="chat-model-selector" ref={reasoningDropdownRef}>
-              <button
-                type="button"
-                className={`chat-model-trigger chat-reasoning-trigger${isNonDefaultReasoning ? ' chat-model-trigger--custom' : ''}`}
-                onClick={() => {
-                  if (activeReasoningEfforts.length > 0) {
-                    setReasoningDropdownOpen(prev => !prev);
-                    setModelDropdownOpen(false);
-                  }
-                }}
-                disabled={isStreaming || activeReasoningEfforts.length === 0}
-                title={activeReasoningEfforts.length > 0 ? 'Chọn mức reasoning' : `${activeModelLabel} không hỗ trợ reasoning`}
-                aria-haspopup="listbox"
-                aria-expanded={reasoningDropdownOpen}
-              >
-                <span className="chat-model-trigger-label">R: {activeReasoningLabel}</span>
-                {activeReasoningEfforts.length > 0 && <ChevronDown size={13} />}
-              </button>
-              {reasoningDropdownOpen && (
-                <ul className="chat-model-dropdown chat-reasoning-dropdown" role="listbox" aria-label="Chọn mức reasoning">
-                  {activeReasoningEfforts.map(reasoningEffort => (
-                    <li key={reasoningEffort} role="option" aria-selected={reasoningEffort === selectedReasoningEffort}>
-                      <button
-                        type="button"
-                        className={`chat-model-option${reasoningEffort === selectedReasoningEffort ? ' chat-model-option--active' : ''}`}
-                        onClick={() => handleSelectReasoning(reasoningEffort)}
-                      >
-                        <span>{REASONING_LABELS[reasoningEffort] || reasoningEffort}</span>
-                        <span className="chat-reasoning-value">{reasoningEffort}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
           <button type="button" className="chat-icon-button" onClick={closePanel} title="Đóng trợ lý" aria-label="Đóng trợ lý">
             <X size={18} />
           </button>
