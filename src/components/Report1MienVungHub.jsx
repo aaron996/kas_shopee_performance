@@ -22,11 +22,11 @@ function SparklineChart({ card, isGood }) {
   const actualMax = Math.max(...h);
   const diff = actualMax - actualMin;
   const padding = Math.max(diff * 0.4, 5);
-  
-  const min = Math.min(actualMin - padding, card.target - 2);
-  const max = Math.max(actualMax + padding, card.target + 2);
+
+  const min = card.target != null ? Math.min(actualMin - padding, card.target - 2) : actualMin - padding;
+  const max = card.target != null ? Math.max(actualMax + padding, card.target + 2) : actualMax + padding;
   const range = max - min || 1;
-  
+
   const coords = h.map((val, idx) => {
     const x = (idx / (h.length - 1)) * 100;
     const y = 100 - ((val - min) / range) * 100;
@@ -42,14 +42,14 @@ function SparklineChart({ card, isGood }) {
   }
 
   const areaD = `${pathD} L 100,100 L 0,100 Z`;
-  const targetY = 100 - ((card.target - min) / range) * 100;
+  const targetY = card.target != null ? 100 - ((card.target - min) / range) * 100 : null;
   const lastPt = coords[coords.length - 1];
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const pctX = (mouseX / rect.width) * 100;
-    
+
     let closestIdx = 0;
     let minDist = Infinity;
     coords.forEach((pt, idx) => {
@@ -103,12 +103,12 @@ function SparklineChart({ card, isGood }) {
           </linearGradient>
         </defs>
 
-        {targetY >= 0 && targetY <= 100 && (
+        {targetY !== null && targetY >= 0 && targetY <= 100 && (
           <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" style={{ transition: 'y1 0.6s ease, y2 0.6s ease' }} />
         )}
         <path d={areaD} fill={`url(#spark-grad-${card.id})`} style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), fill 0.6s ease' }} />
         <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.6s ease' }} />
-        
+
         <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} style={{ transition: 'cx 0.6s ease, cy 0.6s ease, fill 0.6s ease' }} />
 
         {activePt && (
@@ -123,7 +123,7 @@ function SparklineChart({ card, isGood }) {
 }
 
 
-export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData, onOpenSummary }) {
+export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData, onOpenSummary }) {
   const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState({});
@@ -138,6 +138,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
+  const refFd = useRef(null);
   const tableBodyRef = useRef(null);
   const previousRowPositions = useRef(new Map());
 
@@ -223,7 +224,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [density, pickRows, deliRows, clientFilter]);
+  }, [density, pickRows, deliRows, fdRows, clientFilter]);
 
   useEffect(() => {
     const el = allRowRef.current;
@@ -233,7 +234,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [density, pickRows, deliRows, clientFilter]);
+  }, [density, pickRows, deliRows, fdRows, clientFilter]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -358,12 +359,18 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     return clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
   }, [deliRows, clientFilter]);
 
+  const filteredFd = useMemo(() => {
+    return clientFilter === 'ALL' ? fdRows : fdRows.filter(r => r.client_name === clientFilter);
+  }, [fdRows, clientFilter]);
+
   // Extract date list
   const pickDates = useMemo(() => [...new Set(filteredPick.map(r => r.report_date))].sort(), [filteredPick]);
   const deliDates = useMemo(() => [...new Set(filteredDeli.map(r => r.report_date))].sort(), [filteredDeli]);
+  const fdDates = useMemo(() => [...new Set(filteredFd.map(r => r.report_date))].sort(), [filteredFd]);
 
   const { weekPrev: pWPrev, weekCurrent: pWCur, d1Date: pD1 } = useMemo(() => groupDatesByWeek(pickDates), [pickDates]);
   const { weekPrev: dWPrev, weekCurrent: dWCur, d1Date: dD1 } = useMemo(() => groupDatesByWeek(deliDates), [deliDates]);
+  const { weekPrev: fWPrev, weekCurrent: fWCur, d1Date: fD1 } = useMemo(() => groupDatesByWeek(fdDates), [fdDates]);
 
   // "so với D-8" comparison badge shown in the hero header (mockup: dd/mm vs dd/mm)
   const compareDates = useMemo(() => {
@@ -458,8 +465,8 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   // Export Matrix Data to CSV
   const handleExportCSV = (context) => {
-    if (!filteredPick.length && !filteredDeli.length) return;
-    const headers = ['Nghiệp vụ', 'Vùng', 'Hub', 'Report Date', 'Total Vol', 'Ontime Vol', '% Ontime'];
+    if (!filteredPick.length && !filteredDeli.length && !filteredFd.length) return;
+    const headers = ['Nghiệp vụ', 'Vùng', 'Hub / Tuyến', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
 
     filteredPick.forEach(r => {
@@ -476,11 +483,18 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       csvRows.push(['Deli', r.region, r.hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
+    filteredFd.forEach(r => {
+      const tot = getRowVal(r, 'mau_fd');
+      const ont = getRowVal(r, 'fd_hoan_thanh');
+      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
+      csvRows.push(['FD', r.region, r.externallane || '', r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+    });
+
     const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, context)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GHN_Shopee_Performance_${clientFilter}_${pD1 || dD1 || 'all-data'}.csv`;
+    link.download = `GHN_Shopee_Performance_${clientFilter}_${pD1 || dD1 || fD1 || 'all-data'}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
     showToast('Đã tạo CSV theo Client, vùng và loại Hub đang chọn; phạm vi và nguồn có trong file.', { tone: 'success' });
@@ -488,43 +502,44 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
   // KPI Cards Data Calculation
   const kpiCards = useMemo(() => {
-    if (!pD1 && !dD1) return [];
+    if (!pD1 && !dD1 && !fD1) return [];
 
     const getAgg = (rows, dateStr, isDeli, metricKey) => {
       let tot = 0, ont = 0;
-      if (!dateStr) return { tot, ont, pct: 0 };
+      if (!dateStr || !rows.length) return { tot, ont, pct: null };
       rows.filter(r => r.report_date === dateStr).forEach(r => {
-        const t = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
-        const o = isDeli 
-          ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
-          : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+        let t = 0, o = 0;
+        if (metricKey === 'fd') {
+          t = getRowVal(r, 'mau_fd');
+          o = getRowVal(r, 'fd_hoan_thanh');
+        } else if (isDeli) {
+          t = getRowVal(r, 'mau_deli', 'mau_del');
+          o = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
+        } else {
+          t = getRowVal(r, 'mau_pu');
+          o = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+        }
         tot += t;
         ont += o;
       });
-      return { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : 0 };
+      return { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null };
     };
 
     const getD8 = (d1Str, datesArr) => {
-      if (!d1Str) return null;
+      if (!d1Str || !datesArr.length) return null;
       const p = d1Str.split('-');
       const d8Obj = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
       d8Obj.setDate(d8Obj.getDate() - 7);
-      
+
       const toDateStr = (dt) => {
         const y = dt.getFullYear();
         const m = String(dt.getMonth() + 1).padStart(2, '0');
         const d = String(dt.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
       };
-      
+
       let d8Str = toDateStr(d8Obj);
-      
-      // If the dates array has unpadded dates like '2026-8-7', the above padded string might not match!
-      // But wait, the dates in datesArr are exactly what's mapped from report_date.
-      // Assuming datesArr contains padded dates (or unpadded), we should find a match.
-      // To be safe, just try both or assume datesArr format matches what they gave.
       if (!datesArr.includes(d8Str)) {
-        // Try unpadded?
         const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
         if (datesArr.includes(unpadded)) d8Str = unpadded;
       }
@@ -533,16 +548,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
     const pickD8 = getD8(pD1, pickDates);
     const deliD8 = getD8(dD1, deliDates);
+    const fdD8 = getD8(fD1, fdDates);
 
     const p1stD1 = getAgg(filteredPick, pD1, false, '1st');
     const poprD1 = getAgg(filteredPick, pD1, false, 'OPR');
     const d1stD1 = getAgg(filteredDeli, dD1, true, '1st');
     const dodrD1 = getAgg(filteredDeli, dD1, true, 'ODR');
+    const fdD1 = getAgg(filteredFd, fD1, false, 'fd');
 
     const p1stD8 = getAgg(filteredPick, pickD8, false, '1st');
     const poprD8 = getAgg(filteredPick, pickD8, false, 'OPR');
     const d1stD8 = getAgg(filteredDeli, deliD8, true, '1st');
     const dodrD8 = getAgg(filteredDeli, deliD8, true, 'ODR');
+    const fdD8Val = getAgg(filteredFd, fdD8, false, 'fd');
 
     const getHistory = (rows, datesArr, d1Str, isDeli, metricKey) => {
       if (!d1Str || !datesArr.length) return { vals: [], dates: [] };
@@ -550,9 +568,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       const endIdx = d1Idx !== -1 ? d1Idx : datesArr.length - 1;
       const startIdx = Math.max(0, endIdx - 13);
       const histDates = datesArr.slice(startIdx, endIdx + 1);
+      const validPoints = [];
+      histDates.forEach(dStr => {
+        const pct = getAgg(rows, dStr, isDeli, metricKey).pct;
+        if (pct !== null && pct !== undefined && !isNaN(pct)) {
+          validPoints.push({ val: pct, date: dStr });
+        }
+      });
       return {
-        vals: histDates.map(dStr => getAgg(rows, dStr, isDeli, metricKey).pct),
-        dates: histDates
+        vals: validPoints.map(p => p.val),
+        dates: validPoints.map(p => p.date)
       };
     };
 
@@ -560,14 +585,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     const poprHist = getHistory(filteredPick, pickDates, pD1, false, 'OPR');
     const d1stHist = getHistory(filteredDeli, deliDates, dD1, true, '1st');
     const dodrHist = getHistory(filteredDeli, deliDates, dD1, true, 'ODR');
+    const fdHist = getHistory(filteredFd, fdDates, fD1, false, 'fd');
 
     return [
       { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist.vals, historyDates: p1stHist.dates, ref: refP1st },
       { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
       { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr }
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
+      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn thành' }
     ];
-  }, [pD1, dD1, filteredPick, filteredDeli, pickDates, deliDates]);
+  }, [pD1, dD1, fD1, filteredPick, filteredDeli, filteredFd, pickDates, deliDates, fdDates]);
 
   // Render individual matrix table component
   const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null, sectionId = null) => {
@@ -576,30 +603,55 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
     // over three lines, so only the parenthesised short name is shown there —
     // derived here rather than passed in, to keep one source of truth.
     const shortTitle = title.match(/\(([^)]+)\)\s*$/)?.[1] ?? title;
-    const rows = isDeli ? filteredDeli : filteredPick;
-    const dateList = isDeli ? deliDates : pickDates;
-    const weekPrev = isDeli ? dWPrev : pWPrev;
-    const weekCur = isDeli ? dWCur : pWCur;
-    const d1Date = isDeli ? dD1 : pD1;
-    const target = TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0));
+    const isFd = metricKey === 'fd';
+    const rows = isFd ? filteredFd : (isDeli ? filteredDeli : filteredPick);
+    const dateList = isFd ? fdDates : (isDeli ? deliDates : pickDates);
+    const weekPrev = isFd ? fWPrev : (isDeli ? dWPrev : pWPrev);
+    const weekCur = isFd ? fWCur : (isDeli ? dWCur : pWCur);
+    const d1Date = isFd ? fD1 : (isDeli ? dD1 : pD1);
+    const target = isFd ? null : (TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0)));
+
+    if (!rows.length || !d1Date) {
+      return (
+        <div className={`metric-block metric-block-sticky ${highlightedSection === sectionId ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
+          <div className="metric-header">
+            <div className="metric-title">
+              <span className="metric-title-text">{title}</span>
+              <span className="metric-title-short">{shortTitle}</span>
+            </div>
+          </div>
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Chưa có dữ liệu cho chỉ số này trong phạm vi đang chọn.
+          </div>
+        </div>
+      );
+    }
 
     // Aggregate totals by date & entity
     const dateEntityMap = {}; // key: ${entityType}_${entityId}_${dateStr}
-    let tableMinPct = target;
+    let tableMinPct = target ?? 100;
 
     rows.forEach(r => {
       const d = r.report_date;
       const reg = r.region;
-      const hub = r.hub;
+      const subEntity = isFd ? (r.externallane || 'Khác') : r.hub;
       const mien = Object.keys(MIEN_REGIONS).find(m => MIEN_REGIONS[m].includes(reg)) || 'Miền Khác';
 
-      const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
-      const ont = isDeli 
-        ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
-        : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+      let tot = 0;
+      let ont = 0;
+      if (isFd) {
+        tot = getRowVal(r, 'mau_fd');
+        ont = getRowVal(r, 'fd_hoan_thanh');
+      } else if (isDeli) {
+        tot = getRowVal(r, 'mau_deli', 'mau_del');
+        ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
+      } else {
+        tot = getRowVal(r, 'mau_pu');
+        ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+      }
 
-      // Hub level
-      const hKey = `HUB_${reg}_${hub}_${d}`;
+      // Hub / Lane level
+      const hKey = `HUB_${reg}_${subEntity}_${d}`;
       if (!dateEntityMap[hKey]) dateEntityMap[hKey] = { tot: 0, ont: 0 };
       dateEntityMap[hKey].tot += tot;
       dateEntityMap[hKey].ont += ont;
@@ -611,14 +663,21 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
       dateEntityMap[rKey].ont += ont;
 
       if (d === d1Date) {
-        const bVolKey = metricKey === '1st' ? 'best_l6w_vol_1st' : (isDeli ? 'best_l6w_vol_odr' : 'best_l6w_vol_opr');
-        const bOntKey = metricKey === '1st' ? 'best_l6w_ontime_1st' : (isDeli ? 'best_l6w_ontime_odr' : 'best_l6w_ontime_opr');
-        const sOntKey = metricKey === '1st' ? 'sameday_lm_ontime_1st' : (isDeli ? 'sameday_lm_ontime_odr' : 'sameday_lm_ontime_opr');
+        if (isFd) {
+          dateEntityMap[rKey].bestVol += getRowVal(r, 'best_l6w_vol_fd');
+          dateEntityMap[rKey].bestOnt += getRowVal(r, 'best_l6w_fd_hoan_thanh');
+          dateEntityMap[rKey].sameVol += getRowVal(r, 'sameday_lm_vol_fd');
+          dateEntityMap[rKey].sameOnt += getRowVal(r, 'sameday_lm_fd_hoan_thanh');
+        } else {
+          const bVolKey = metricKey === '1st' ? 'best_l6w_vol_1st' : (isDeli ? 'best_l6w_vol_odr' : 'best_l6w_vol_opr');
+          const bOntKey = metricKey === '1st' ? 'best_l6w_ontime_1st' : (isDeli ? 'best_l6w_ontime_odr' : 'best_l6w_ontime_opr');
+          const sOntKey = metricKey === '1st' ? 'sameday_lm_ontime_1st' : (isDeli ? 'sameday_lm_ontime_odr' : 'sameday_lm_ontime_opr');
 
-        dateEntityMap[rKey].bestVol += getRowVal(r, bVolKey);
-        dateEntityMap[rKey].bestOnt += getRowVal(r, bOntKey);
-        dateEntityMap[rKey].sameVol += getRowVal(r, 'sameday_lm_vol');
-        dateEntityMap[rKey].sameOnt += getRowVal(r, sOntKey);
+          dateEntityMap[rKey].bestVol += getRowVal(r, bVolKey);
+          dateEntityMap[rKey].bestOnt += getRowVal(r, bOntKey);
+          dateEntityMap[rKey].sameVol += getRowVal(r, 'sameday_lm_vol');
+          dateEntityMap[rKey].sameOnt += getRowVal(r, sOntKey);
+        }
       }
 
       // Mền level
@@ -675,9 +734,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           <div className="metric-title">
             <span className="metric-title-text">{title}</span>
             <span className="metric-title-short">{shortTitle}</span>
-            <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>
+            {target != null && <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>}
           </div>
-          <button 
+          <button
             onClick={() => handleCopyImage(sectionRef, title)}
             className="btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid var(--border-strong)', background: 'var(--surface-hover)', borderRadius: '6px' }}
@@ -699,7 +758,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
               {/* Row 1: Week Titles */}
               <tr>
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
-                <th rowSpan="2" className="lbl lbl-2">Vùng / Hub</th>
+                <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Tuyến' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
                     TUẦN W-1 {prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}
@@ -776,32 +835,41 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                 if (filteredMienRegions.length === 0) return null;
 
                 const mienStats = calcStats(`MIEN_${mien}`, weekCur);
-                
+
                 // Sort regions in this Miền by D-1 volume descending
                 const sortedRegions = [...filteredMienRegions].sort((a, b) => {
                   const volA = dateEntityMap[`REG_${a}_${d1Date}`]?.tot || 0;
                   const volB = dateEntityMap[`REG_${b}_${d1Date}`]?.tot || 0;
                   return volB - volA;
                 });
-                
+
                 // Calculate total rowSpan for the Miền column
-                // 1 (Miền total row) + number of regions + number of expanded top 10 hubs in this Miền
+                // 1 (Miền total row) + number of regions + number of expanded sub-entities in this Miền
                 let totalRowSpan = 1 + sortedRegions.length;
                 sortedRegions.forEach(reg => {
                   if (expandedRegions[reg]) {
-                    const hubMap = {};
+                    const subMap = {};
                     rows.filter(r => r.region === reg).forEach(r => {
-                      if (!hubMap[r.hub]) hubMap[r.hub] = 0;
+                      const entityKey = isFd ? (r.externallane || 'Khác') : r.hub;
+                      if (!subMap[entityKey]) subMap[entityKey] = 0;
                       if (r.report_date === d1Date) {
-                        const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
-                        const ont = isDeli 
-                          ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
-                          : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
-                        hubMap[r.hub] += (tot - ont);
+                        let tot = 0;
+                        let ont = 0;
+                        if (isFd) {
+                          tot = getRowVal(r, 'mau_fd');
+                          ont = getRowVal(r, 'fd_hoan_thanh');
+                        } else if (isDeli) {
+                          tot = getRowVal(r, 'mau_deli', 'mau_del');
+                          ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
+                        } else {
+                          tot = getRowVal(r, 'mau_pu');
+                          ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+                        }
+                        subMap[entityKey] += (tot - ont);
                       }
                     });
-                    const top10Hubs = Object.keys(hubMap).sort((a, b) => hubMap[b] - hubMap[a]).slice(0, 10);
-                    totalRowSpan += top10Hubs.length;
+                    const topSubItems = Object.keys(subMap).sort((a, b) => subMap[b] - subMap[a]).slice(0, 10);
+                    totalRowSpan += topSubItems.length;
                   }
                 });
 
@@ -854,21 +922,30 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
                       const regWtd = calcStats(`REG_${reg}`, weekCur);
 
-                      // Get Top 10 Hubs for this region sorted by absolute late volume on D-1
-                      const hubMap = {};
+                      // Get Top Sub-entities (Hubs or Lanes) for this region sorted by absolute uncompleted/late volume on D-1
+                      const subMap = {};
                       rows.filter(r => r.region === reg).forEach(r => {
-                        if (!hubMap[r.hub]) hubMap[r.hub] = 0;
+                        const entityKey = isFd ? (r.externallane || 'Khác') : r.hub;
+                        if (!subMap[entityKey]) subMap[entityKey] = 0;
                         if (r.report_date === d1Date) {
-                          const tot = isDeli ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_pu');
-                          const ont = isDeli 
-                            ? (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'))
-                            : (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
-                          hubMap[r.hub] += (tot - ont);
+                          let tot = 0;
+                          let ont = 0;
+                          if (isFd) {
+                            tot = getRowVal(r, 'mau_fd');
+                            ont = getRowVal(r, 'fd_hoan_thanh');
+                          } else if (isDeli) {
+                            tot = getRowVal(r, 'mau_deli', 'mau_del');
+                            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
+                          } else {
+                            tot = getRowVal(r, 'mau_pu');
+                            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+                          }
+                          subMap[entityKey] += (tot - ont);
                         }
                       });
 
-                      const top10Hubs = Object.keys(hubMap)
-                        .sort((a, b) => hubMap[b] - hubMap[a])
+                      const top10SubItems = Object.keys(subMap)
+                        .sort((a, b) => subMap[b] - subMap[a])
                         .slice(0, 10);
 
                       return (
@@ -879,7 +956,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                                 className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
                                 onClick={() => toggleRegion(reg)}
                                 aria-expanded={isExpanded}
-                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} hub của vùng ${reg}`}
+                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} ${isFd ? 'tuyến' : 'hub'} của vùng ${reg}`}
                               >
                                 <ChevronRight size={14} aria-hidden="true" />
                               </button>
@@ -898,7 +975,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                             <td>{formatVol(d1RegData.tot)}</td>
                             <td className="sep" style={getContinuousColorStyle(regWtd.pct, target, tableMinPct)}>{formatPct(regWtd.pct)}</td>
                             <td>{formatVol(regWtd.tot)}</td>
-                            
+
                             {/* Best 6W Diff */}
                             <td>
                               {diffBest !== null ? (
@@ -918,25 +995,25 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
                             </td>
                           </tr>
 
-                          {/* Render Top 10 Hub Sub-rows if expanded */}
-                          {isExpanded && top10Hubs.map(hub => {
-                            const hubD1 = calcStats(`HUB_${reg}_${hub}`, [d1Date]);
-                            const hubWtd = calcStats(`HUB_${reg}_${hub}`, weekCur);
+                          {/* Render Top Hub / Lane Sub-rows if expanded */}
+                          {isExpanded && top10SubItems.map(subItem => {
+                            const subD1 = calcStats(`HUB_${reg}_${subItem}`, [d1Date]);
+                            const subWtd = calcStats(`HUB_${reg}_${subItem}`, weekCur);
                             return (
-                              <tr key={hub} className="sub-row" data-motion-id={`hub:${reg}:${hub}`} data-hub-row="true">
-                                <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{hub}</td>
+                              <tr key={subItem} className="sub-row" data-motion-id={`sub:${reg}:${subItem}`} data-hub-row="true">
+                                <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{subItem}</td>
                                 {weekPrev.map((d, idx) => {
-                                  const s = calcStats(`HUB_${reg}_${hub}`, [d]);
+                                  const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
                                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
                                 })}
                                 {weekCur.slice(0, -1).map(d => {
-                                  const s = calcStats(`HUB_${reg}_${hub}`, [d]);
+                                  const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
                                   return <td key={d} style={getContinuousColorStyle(s.pct, target, tableMinPct)}>{formatPct(s.pct)}</td>;
                                 })}
-                                <td className="sep" style={getContinuousColorStyle(hubD1.pct, target, tableMinPct)}>{formatPct(hubD1.pct)}</td>
-                                <td>{formatVol(hubD1.tot)}</td>
-                                <td className="sep" style={getContinuousColorStyle(hubWtd.pct, target, tableMinPct)}>{formatPct(hubWtd.pct)}</td>
-                                <td>{formatVol(hubWtd.tot)}</td>
+                                <td className="sep" style={getContinuousColorStyle(subD1.pct, target, tableMinPct)}>{formatPct(subD1.pct)}</td>
+                                <td>{formatVol(subD1.tot)}</td>
+                                <td className="sep" style={getContinuousColorStyle(subWtd.pct, target, tableMinPct)}>{formatPct(subWtd.pct)}</td>
+                                <td>{formatVol(subWtd.tot)}</td>
                                 <td>–</td>
                                 <td>–</td>
                               </tr>
@@ -953,24 +1030,31 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
         </div>
 
         <div className="table-legend">
-          <div className="legend-items">
-            <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu (Thang liên tục):</span>
-            <div className="legend-item">
-              <div className="legend-box legend-box-good"></div>
-              <span>≥ {target.toFixed(0)}% (Đạt target)</span>
+          {target != null ? (
+            <div className="legend-items">
+              <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu (Thang liên tục):</span>
+              <div className="legend-item">
+                <div className="legend-box legend-box-good"></div>
+                <span>≥ {target.toFixed(0)}% (Đạt target)</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-box" style={{ background: '#E8362C' }}></div>
+                <span>Thấp nhất thực tế ({tableMinPct.toFixed(1)}%)</span>
+              </div>
             </div>
-            <div className="legend-item">
-              <div className="legend-box" style={{ background: '#E8362C' }}></div>
-              <span>Thấp nhất thực tế ({tableMinPct.toFixed(1)}%)</span>
+          ) : (
+            <div className="legend-items">
+              <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
+              <span>Theo dõi tỷ lệ hoàn thành FD theo tuyến (Chưa thiết lập target cố định).</span>
             </div>
-          </div>
-          <div>* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.</div>
+          )}
+          <div>{isFd ? '* Tuyến mặc định ẩn, click ▶ để mở các tuyến phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
         </div>
       </div>
     );
   };
 
-  if (!pD1 && !dD1) return (
+  if (!pD1 && !dD1 && !fD1) return (
     <StatusNotice>
       <strong>Chưa có dữ liệu vận hành</strong>
       <p>Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.</p>
@@ -986,11 +1070,15 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           <div className="sticky-kpi-bar-inner">
             <span className="sticky-title">KPI Nationwide:</span>
             {kpiCards.map(card => {
-              const isGood = card.d1.pct >= card.target;
+              const hasTarget = card.target != null;
+              const isGood = hasTarget ? card.d1.pct >= card.target : true;
+              const isFdEmpty = card.id === 'fd' && (!card.d1 || card.d1.pct === null || card.d1.tot === 0);
               return (
                 <button key={card.id} className="sticky-kpi-item" onClick={() => scrollToRef(card.ref, card.id)}>
                   <span className="name">{card.title}</span>
-                  <span className={`pct ${isGood ? 'good' : 'bad'}`}>{card.d1.pct.toFixed(1)}%</span>
+                  <span className={`pct ${hasTarget ? (isGood ? 'good' : 'bad') : ''}`}>
+                    {isFdEmpty ? '–' : formatPct(card.d1.pct)}
+                  </span>
                 </button>
               );
             })}
@@ -1000,7 +1088,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
 
       {/* Floating Exit Fullscreen Button */}
       {isFullscreen && (
-        <button 
+        <button
           onClick={() => setIsFullscreen(false)}
           style={{
             position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 9999,
@@ -1039,51 +1127,90 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           </div>
           <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
             {kpiCards.map((card, idx) => {
-              const diff = card.d1.pct - card.d8.pct;
-              const diffStr = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
+              const isFd = card.id === 'fd';
+              const isFdEmpty = isFd && (!card.d1 || card.d1.pct === null || card.d1.tot === 0);
+              const hasD8 = card.d8 && card.d8.pct !== null;
+              const hasD1 = card.d1 && card.d1.pct !== null;
+              const diff = (hasD1 && hasD8) ? card.d1.pct - card.d8.pct : null;
               const lateVol = card.d1.tot - card.d1.ont;
-              const isGood = card.d1.pct >= card.target;
-              
+              const hasTarget = card.target != null;
+              const isGood = hasTarget ? card.d1.pct >= card.target : true;
+
               return (
                 <button type="button"
-                  key={card.id} 
-                  className="kpi-card" 
+                  key={card.id}
+                  className={`kpi-card ${isFdEmpty ? 'kpi-card-empty' : ''}`}
                   style={{ '--card-index': idx }}
                   onClick={() => scrollToRef(card.ref, card.id)}
                 >
                   <div className="kpi-card-title">
-                    <span>{card.title}</span>
-                    <span className={`kpi-card-target ${isGood ? 'good' : 'bad'}`}>≥{card.target}%</span>
+                    <span>
+                      {card.title}
+                      {isFd && !isFdEmpty && fD1 && pD1 && fD1 !== pD1 && (
+                        <span style={{ fontSize: '0.68rem', fontWeight: 500, marginLeft: '6px', color: 'var(--text-muted)' }}>
+                          ({formatDateLabel(fD1).replace('\n', ' ')})
+                        </span>
+                      )}
+                    </span>
+                    {hasTarget && (
+                      <span className={`kpi-card-target ${isGood ? 'good' : 'bad'}`}>≥{card.target}%</span>
+                    )}
                   </div>
-                  <div className="kpi-card-main">
-                    <AnimatedNumber 
-                      value={card.d1.pct} 
-                      format={v => `${v.toFixed(1)}%`} 
-                      className={`kpi-card-pct ${isGood ? 'good' : ''}`} 
-                    />
-                    <AnimatedNumber 
-                      value={diff} 
-                      format={v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`} 
-                      className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`} 
-                    />
-                  </div>
-                  
-                  {/* Visual sparkline */}
-                  <div className="kpi-card-chart">
-                    <SparklineChart card={card} isGood={isGood} />
-                  </div>
+                  {isFdEmpty ? (
+                    <div className="kpi-card-empty-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+                      <div className="kpi-card-main">
+                        <span className="kpi-card-pct" style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          Chưa có dữ liệu FD
+                        </span>
+                      </div>
+                      <div className="kpi-card-chart" style={{ opacity: 0.3 }}>
+                        <div style={{ height: '2px', background: 'var(--border-subtle)', width: '100%', marginTop: '18px' }} />
+                      </div>
+                      <div className="kpi-card-stats">
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>–</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="kpi-card-main">
+                        <AnimatedNumber
+                          value={card.d1.pct}
+                          format={v => formatPct(v)}
+                          className={`kpi-card-pct ${hasTarget && isGood ? 'good' : ''}`}
+                        />
+                        {diff !== null ? (
+                          <AnimatedNumber
+                            value={diff}
+                            format={v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`}
+                            className={`kpi-card-diff ${diff >= 0 ? 'up' : 'down'}`}
+                          />
+                        ) : (
+                          <span className="kpi-card-diff">–</span>
+                        )}
+                      </div>
 
-                  <div className="kpi-card-stats">
-                    <AnimatedNumber value={card.d1.tot} format={v => `${formatVol(Math.round(v))} đơn`} />
-                    <AnimatedNumber value={lateVol} format={v => `${formatVol(Math.round(v))} trễ`} className="late" />
-                  </div>
+                      {/* Visual sparkline */}
+                      <div className="kpi-card-chart">
+                        <SparklineChart card={card} isGood={isGood} />
+                      </div>
+
+                      <div className="kpi-card-stats">
+                        <AnimatedNumber value={card.d1.tot} format={v => `${formatVol(Math.round(v))} đơn`} />
+                        <AnimatedNumber
+                          value={card.subStatLabel ? card.d1.ont : lateVol}
+                          format={v => `${formatVol(Math.round(v))} ${card.subStatLabel || 'trễ'}`}
+                          className={card.subStatLabel ? '' : 'late'}
+                        />
+                      </div>
+                    </>
+                  )}
                 </button>
               );
             })}
           </div>
 
           {/* Pager dots for the mobile carousel (hidden on desktop, where all
-              four cards are visible at once). */}
+              cards are visible at once). */}
           {kpiCards.length > 1 && (
             <div className="kpi-carousel-dots">
               {kpiCards.map((card, idx) => (
@@ -1147,15 +1274,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, clientFilter, e
           <button className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
             1.4 - ODR
           </button>
+          <button className={`kpi-table-tab ${activeTableTab === 'fd' ? 'active' : ''}`} onClick={() => setActiveTableTab('fd')}>
+            1.5 - FD
+          </button>
         </div>
         <div className="kpi-table-content">
           {activeTableTab === 'p1st' && renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
           {activeTableTab === 'popr' && renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
           {activeTableTab === 'd1st' && renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
           {activeTableTab === 'dodr' && renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
+          {activeTableTab === 'fd' && renderMetricTable('Mục 1.5: Tỷ lệ hoàn thành FD (FD)', 'fd', false, refFd, 'fd')}
         </div>
       </div>
-      
+
       {showHomeBtn && (
         <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">
           <ArrowUp size={24} />

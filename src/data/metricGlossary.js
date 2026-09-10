@@ -54,10 +54,18 @@ export const METRIC_GLOSSARY = Object.freeze({
     formula: 'sum(stage_hours * mau) / sum(mau), loại NULL riêng cho từng chặng',
     target: null,
     description: 'Leadtime trung bình có trọng số theo mẫu cho Pre-pickup, First mile, Middle mile, Last mile và E2E.'
+  },
+  fd: {
+    key: 'fd',
+    label: 'FD',
+    dataset: 'fd',
+    unit: 'percent',
+    formula: 'fd_hoan_thanh / mau_fd * 100',
+    target: null,
+    description: 'Tỷ lệ hoàn thành FD trên tổng mẫu FD.'
   }
 });
 
 export function getMetricDefinition(metric) {
   return METRIC_GLOSSARY[metric] ?? null;
 }
-

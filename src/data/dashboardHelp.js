@@ -1,8 +1,8 @@
 export const DASHBOARD_HELP = Object.freeze({
   metrics: {
-    title: 'Báo cáo 4 chỉ số',
+    title: 'Báo cáo OPS metric',
     route: 'report1',
-    description: 'Xem 1st Pickup, OPR, 1st Delivery và ODR theo miền, vùng và hub.'
+    description: 'Xem 1st Pickup, OPR, 1st Delivery, ODR và FD theo miền, vùng và tuyến/hub.'
   },
   ca1: {
     title: 'Báo cáo % Ca 1',

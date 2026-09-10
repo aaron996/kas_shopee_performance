@@ -55,7 +55,7 @@ async function fetchAllRows(table) {
 
 export async function fetchSupabaseSheetSync() {
   try {
-    const [pickData, deliData, ca1Data, leadtimeData] = await Promise.all([
+    const [pickData, deliData, ca1Data, leadtimeData, fdData] = await Promise.all([
       fetchAllRows('kas_pick_data'),
       fetchAllRows('kas_deli_data'),
       fetchAllRows('kas_ca1_data').catch(err => {
@@ -64,6 +64,10 @@ export async function fetchSupabaseSheetSync() {
       }),
       fetchAllRows('kas_leadtime_data').catch(err => {
         console.warn('Could not fetch kas_leadtime_data:', err?.message);
+        return [];
+      }),
+      fetchAllRows('kas_fd_data').catch(err => {
+        console.warn('Could not fetch kas_fd_data:', err?.message);
         return [];
       })
     ]);
@@ -76,7 +80,8 @@ export async function fetchSupabaseSheetSync() {
       pickData[0]?.synced_at,
       deliData[0]?.synced_at,
       ca1Data[0]?.synced_at,
-      leadtimeData[0]?.synced_at
+      leadtimeData[0]?.synced_at,
+      fdData[0]?.synced_at
     ]
       .filter(Boolean)
       .sort()
@@ -88,6 +93,7 @@ export async function fetchSupabaseSheetSync() {
       deliData,
       ca1Data: ca1Data.length ? ca1Data : null,
       leadtimeData: leadtimeData.length ? leadtimeData : null,
+      fdData: fdData.length ? fdData : null,
       updatedAt
     };
   } catch (err) {

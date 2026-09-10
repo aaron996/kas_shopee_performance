@@ -4,7 +4,7 @@ import { Maximize2, Minimize2, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 
 export default function Header({
-  setActiveTab, activeTab, d1DateFormatted, syncStatus, lastSyncedAt,
+  setActiveTab, activeTab, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, currentUser, onLogout, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
   onRetryData, canExport, exportContext
@@ -35,11 +35,12 @@ export default function Header({
     return date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }, [lastSyncedAt]);
 
+  const hasDistinctFdDate = Boolean(fdD1DateFormatted && d1DateFormatted && fdD1DateFormatted !== d1DateFormatted);
   const isLoading = syncStatus?.kind === 'loading';
   const isHealthy = syncStatus?.kind === 'live' || syncStatus?.kind === 'default';
   const freshnessTitle = syncStatus?.kind === 'error'
     ? 'Chưa tải được dữ liệu mới — bấm để thử lại'
-    : `Dữ liệu tới D-1${lastSyncedLabel ? `, đồng bộ gần nhất ${lastSyncedLabel}` : ''}. Bấm để tải lại.`;
+    : `Dữ liệu ${hasDistinctFdDate ? `OPS tới ${d1DateFormatted}, FD tới ${fdD1DateFormatted}` : `tới D-1${d1DateFormatted ? ` (${d1DateFormatted})` : ''}`}${lastSyncedLabel ? `, đồng bộ gần nhất ${lastSyncedLabel}` : ''}. Bấm để tải lại.`;
 
   const syncIcon = isLoading
     ? <RefreshCw size={15} className="is-spinning" />
@@ -52,7 +53,7 @@ export default function Header({
       <div className="mobile-header-row">
         <div className="mobile-header-title">
           <strong>BCĐH Shopee</strong>
-          <span>Dữ liệu tới {d1DateFormatted || 'đang cập nhật'}</span>
+          <span>Dữ liệu tới {d1DateFormatted || 'đang cập nhật'}{hasDistinctFdDate ? ` (FD: ${fdD1DateFormatted})` : ''}</span>
         </div>
         <div className="mobile-header-actions">
           <button className="mobile-icon-btn" onClick={onRetryData} disabled={isLoading} title={freshnessTitle} aria-label={freshnessTitle}>{syncIcon}</button>
@@ -74,7 +75,14 @@ export default function Header({
         <div className="header-actions">
           <button type="button" className={`freshness-chip ${syncStatus?.kind === 'error' ? 'is-error' : ''}`} onClick={onRetryData} disabled={isLoading} title={freshnessTitle}>
             {syncIcon}
-            <span>Dữ liệu tới <strong>{d1DateFormatted || '...'}</strong></span>
+            <span>
+              Dữ liệu tới <strong>{d1DateFormatted || '...'}</strong>
+              {hasDistinctFdDate && (
+                <small className="freshness-sub" style={{ marginLeft: '4px', opacity: 0.85 }}>
+                  (FD: {fdD1DateFormatted})
+                </small>
+              )}
+            </span>
             {lastSyncedLabel && <span className="freshness-sub">· đồng bộ {lastSyncedLabel}</span>}
           </button>
           <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-pressed={density === 'compact'}>

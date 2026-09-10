@@ -33,7 +33,7 @@ export default function CommandPalette({
 
   const items = useMemo(() => {
     const tabItems = [
-      { type: 'tab', id: 'report1', label: '1. 4 chỉ số nationwide', icon: Layers },
+      { type: 'tab', id: 'report1', label: '1. OPS metric', icon: Layers },
       { type: 'tab', id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
       { type: 'tab', id: 'report3', label: '3. Leadtime từng chặng', icon: Clock }
     ];

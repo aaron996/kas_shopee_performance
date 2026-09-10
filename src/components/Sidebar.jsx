@@ -18,7 +18,7 @@ export default function Sidebar({
   };
 
   const tabs = [
-    { id: 'report1', label: '1. 4 chỉ số nationwide', icon: Layers },
+    { id: 'report1', label: '1. OPS metric', icon: Layers },
     { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
     { id: 'report3', label: '3. Leadtime từng chặng', icon: Clock },
     { id: 'report-insight', label: '4. Insight', icon: Sparkles }
@@ -29,9 +29,9 @@ export default function Sidebar({
     <aside id="app-sidebar" className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
         <button type="button" className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
-          <img 
-            src="/ghn-logo.png" 
-            alt="GHN" 
+          <img
+            src="/ghn-logo.png"
+            alt="GHN"
             className="sidebar-logo"
           />
           <div className="sidebar-brand-text">
@@ -39,9 +39,9 @@ export default function Sidebar({
             <div className="brand-subtitle">Performance System</div>
           </div>
         </button>
-        
+
         {/* Sidebar Toggle Button at Top Right */}
-        <button 
+        <button
           type="button"
           className="sidebar-toggle-btn top-toggle"
           onClick={onToggleCollapse}
@@ -88,12 +88,12 @@ export default function Sidebar({
 
       {/* Footer Settings & Profile */}
       <div className="sidebar-footer">
-        
+
         {/* Theme Toggle */}
-        <button 
+        <button
           type="button"
-          className="sidebar-footer-btn" 
-          onClick={() => setIsDarkMode(!isDarkMode)} 
+          className="sidebar-footer-btn"
+          onClick={() => setIsDarkMode(!isDarkMode)}
           title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
           aria-pressed={isDarkMode}
         >

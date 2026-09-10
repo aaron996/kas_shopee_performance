@@ -1,5 +1,5 @@
 // Utility Data Processor & Aggregator for GHN KAS Ontime Reports
-import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
+import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset.js';
 
 // Format helpers
 export function getHubType(row) {
@@ -74,7 +74,7 @@ export function groupDatesByWeek(dates) {
     const p = dStr.split('-');
     return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
   };
-  
+
   const sorted = [...dates].sort((a, b) => parseToLocal(a) - parseToLocal(b));
   if (sorted.length === 0) return { weekPrev: [], weekCurrent: [], d1Date: '' };
 
@@ -111,16 +111,16 @@ export function groupDatesByWeek(dates) {
 
 // Color calculations with Dark Mode & Theme inherited background support
 export function getContinuousColorStyle(val, target, minVal) {
-  if (val === null || val === undefined || isNaN(val)) {
+  if (val === null || val === undefined || isNaN(val) || target === null || target === undefined || isNaN(target)) {
     return {};
   }
   if (val >= target) {
     return {}; // Inherits row background dynamically in both Light & Dark Mode
   }
-  
+
   const effectiveMin = Math.min(minVal, target - 10);
   const ratio = Math.min(1, Math.max(0, (target - val) / (target - effectiveMin)));
-  
+
   // Translucent Red overlay (rgba) scales smoothly over light & dark backgrounds
   const alpha = 0.25 + ratio * 0.75;
   const textColor = ratio >= 0.35 ? '#FFFFFF' : 'inherit';
@@ -169,7 +169,7 @@ export function generateExecutiveSummary(pickRows, deliRows, clientFilter = 'SPB
   if (dates.length < 2) return 'Cần ít nhất dữ liệu của 2 ngày để so sánh.';
 
   const d1Date = dates[dates.length - 1];
-  
+
   const parseToLocal = (dStr) => {
     const p = dStr.split('-');
     return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));

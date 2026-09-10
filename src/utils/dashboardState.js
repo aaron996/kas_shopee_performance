@@ -25,6 +25,21 @@ export function dataCoverage(rows, dateKey = 'report_date') {
   return dates.length ? `${dates[0]} → ${dates.at(-1)} (${dates.length} ngày có dữ liệu)` : 'Chưa có dữ liệu';
 }
 
+export function formatCompositeCoverage({ opsRows = [], fdRows = [], ca1Rows = [], activeTab = 'report1', dateKey = 'report_date' } = {}) {
+  if (activeTab === 'report5') {
+    return dataCoverage(ca1Rows || [], 'ngay');
+  }
+  const opsCov = dataCoverage(opsRows || [], dateKey);
+  const fdCov = dataCoverage(fdRows || [], dateKey);
+  const hasOps = Array.isArray(opsRows) && opsRows.length > 0;
+  const hasFd = Array.isArray(fdRows) && fdRows.length > 0;
+
+  if (!hasFd) return opsCov;
+  if (!hasOps) return `FD: ${fdCov}`;
+  if (opsCov === fdCov) return opsCov;
+  return `OPS: ${opsCov} | FD: ${fdCov}`;
+}
+
 export function csvCell(value) {
   let text = String(value ?? '');
   if (/^[=+@\-\t\r]/.test(text)) text = `'${text}`;

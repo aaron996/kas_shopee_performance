@@ -16,7 +16,7 @@ import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS } from './data/defaultDataset';
-import { readDashboardView, saveDashboardView, dataCoverage } from './utils/dashboardState';
+import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
@@ -168,7 +168,7 @@ export default function App() {
     sessionStorage.setItem('ghn_client_choice', 'true');
     setHasPickedClient(true);
   };
-  
+
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -222,7 +222,8 @@ export default function App() {
   const [deliRows, setDeliRows] = useState([]);
   const [ca1Rows, setCa1Rows] = useState([]);
   const [leadtimeRows, setLeadtimeRows] = useState([]);
-  const [dataSources, setDataSources] = useState({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải' });
+  const [fdRows, setFdRows] = useState([]);
+  const [dataSources, setDataSources] = useState({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải', fd: 'Chưa tải' });
   // Sources stay explicit; operational reports start empty, never with mock rows.
   const [leadtimeSource, setLeadtimeSource] = useState('none');
   const [leadtimeSyncedAt, setLeadtimeSyncedAt] = useState(null);
@@ -245,7 +246,7 @@ export default function App() {
     // If we want a default fallback just in case:
     return Array.from(types).sort();
   }, [pickRows, deliRows, ca1Rows]);
-  
+
   // Initial state should be all hub types
   const hubTypeSelection = null;
   const selectedHubTypes = hubTypeSelection === null ? allHubTypes : hubTypeSelection;
@@ -327,7 +328,8 @@ export default function App() {
     setDeliRows([]);
     setCa1Rows([]);
     setLeadtimeRows([]);
-    setDataSources({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải' });
+    setFdRows([]);
+    setDataSources({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải', fd: 'Chưa tải' });
     setLeadtimeSource('none');
     setLeadtimeSyncedAt(null);
     setLastSyncedAt(null);
@@ -349,13 +351,19 @@ export default function App() {
     if (supaRes.success) {
       setPickRows(normalizeRows(supaRes.pickData));
       setDeliRows(normalizeRows(supaRes.deliData));
-      setDataSources(prev => ({ pick: 'Supabase', deli: 'Supabase', ca1: supaRes.ca1Data ? 'Supabase' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)` }));
+      setDataSources(prev => ({
+        pick: 'Supabase',
+        deli: 'Supabase',
+        ca1: supaRes.ca1Data ? 'Supabase' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)`,
+        fd: supaRes.fdData ? 'Supabase' : `${(prev.fd || 'Chưa tải').replace(' (chưa cập nhật)', '')} (chưa cập nhật)`
+      }));
       if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
       if (supaRes.leadtimeData) {
         setLeadtimeRows(supaRes.leadtimeData);
         setLeadtimeSource('supabase');
         setLeadtimeSyncedAt(supaRes.updatedAt || null);
       }
+      if (supaRes.fdData) setFdRows(normalizeRows(supaRes.fdData));
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       setLastSyncedAt(new Date());
@@ -474,19 +482,36 @@ export default function App() {
     return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao) && selectedHubTypes.includes(getHubType(r)));
   }, [ca1Rows, selectedRegions, selectedHubTypes]);
 
+  const filteredFdRows = React.useMemo(() => {
+    return fdRows.filter(r => selectedRegions.includes(r.region));
+  }, [fdRows, selectedRegions]);
+
   const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedDeli = filteredDeliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
+  const scopedFd = filteredFdRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const headerRows = activeTab === 'report5' ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...pickRows, ...deliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
   const allDates = [...new Set(headerRows.map(r => activeTab === 'report5' ? r.ngay : r.report_date))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(allDates);
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
-  const canExport = activeTab === 'report1' ? scopedPick.length + scopedDeli.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
+
+  const fdDates = [...new Set(scopedFd.map(r => r.report_date))].filter(Boolean).sort();
+  const { d1Date: fdD1Date } = groupDatesByWeek(fdDates);
+  const fdD1DateFormatted = fdD1Date ? `${fdD1Date.slice(8, 10)}/${fdD1Date.slice(5, 7)}/${fdD1Date.slice(0, 4)}` : '';
+
+  const canExport = activeTab === 'report1' ? scopedPick.length + scopedDeli.length + scopedFd.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
+  const compositeCoverage = formatCompositeCoverage({
+    opsRows: [...scopedPick, ...scopedDeli],
+    fdRows: scopedFd,
+    ca1Rows: filteredCa1Rows,
+    activeTab
+  });
   const exportContext = {
     'Phạm vi Client': activeTab === 'report5' ? 'Không phân tách Client (nguồn Ca 1)' : clientFilter,
     'Vùng đã chọn': selectedRegions.join(' | ') || 'Không chọn vùng',
     'Loại Hub đã chọn': selectedHubTypes.join(' | ') || 'Không chọn loại Hub',
-    'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}`,
-    'Khoảng dữ liệu': activeTab === 'report5' ? dataCoverage(filteredCa1Rows, 'ngay') : dataCoverage([...scopedPick, ...scopedDeli]),
+    'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}; FD: ${dataSources.fd || 'Chưa tải'}`,
+    'Khoảng dữ liệu': compositeCoverage,
+    ...(activeTab === 'report1' && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
   return (
     <div className="app-container">
@@ -534,6 +559,7 @@ export default function App() {
             setActiveTab={setActiveTab}
             activeTab={activeTab}
             d1DateFormatted={d1DateFormatted}
+            fdD1DateFormatted={activeTab === 'report1' ? fdD1DateFormatted : ''}
             syncStatus={syncStatus}
             lastSyncedAt={lastSyncedAt}
             onOpenSummary={() => setIsSummaryOpen(true)}
@@ -563,6 +589,7 @@ export default function App() {
                 <Report1MienVungHub
                   pickRows={filteredPickRows}
                   deliRows={filteredDeliRows}
+                  fdRows={filteredFdRows}
                   clientFilter={clientFilter}
                   expandAllHubs={expandAllHubs}
                   selectedRegions={selectedRegions}
@@ -615,16 +642,16 @@ export default function App() {
 
           {/* Mobile Bottom Navigation Bar */}
           <nav className="mobile-bottom-nav">
-            <button 
+            <button
               className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
               aria-current={activeTab === 'report1' ? 'page' : undefined}
               onClick={() => setActiveTab('report1')}
             >
               <Layers size={18} />
-              <span>1. 4 Chỉ Số</span>
+              <span>1. OPS metric</span>
             </button>
 
-            <button 
+            <button
               className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
               aria-current={activeTab === 'report5' ? 'page' : undefined}
               onClick={() => setActiveTab('report5')}
