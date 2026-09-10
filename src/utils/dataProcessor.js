@@ -177,14 +177,13 @@ export function getContinuousColorStyle(val, target, minVal) {
 }
 
 // FD is an exception: a larger completion ratio means more failed-delivery
-// orders, so the colour scale is intentionally inverted. The lowest observed
-// value stays neutral; higher values progressively receive a red overlay.
-export function getHigherIsWorseColorStyle(val, minVal, maxVal) {
-  if (val === null || val === undefined || isNaN(val) || minVal === null || minVal === undefined || maxVal === null || maxVal === undefined || isNaN(minVal) || isNaN(maxVal) || maxVal <= minVal) {
+// orders. Values at or below the fixed 3% operational threshold stay neutral;
+// values above it progressively receive a red overlay up to the table maximum.
+export function getHigherIsWorseColorStyle(val, threshold, maxVal) {
+  if (val === null || val === undefined || isNaN(val) || threshold === null || threshold === undefined || maxVal === null || maxVal === undefined || isNaN(threshold) || isNaN(maxVal) || val <= threshold || maxVal <= threshold) {
     return {};
   }
-  const ratio = Math.min(1, Math.max(0, (val - minVal) / (maxVal - minVal)));
-  if (ratio === 0) return {};
+  const ratio = Math.min(1, Math.max(0, (val - threshold) / (maxVal - threshold)));
   const alpha = 0.25 + ratio * 0.75;
   return {
     backgroundColor: `rgba(225, 45, 35, ${alpha.toFixed(2)})`,
