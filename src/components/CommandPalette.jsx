@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Layers, ArrowRightLeft, Clock, Sparkles, CornerDownLeft } from 'lucide-react';
+import { Search, Layers, ArrowRightLeft, Clock, Sparkles, MapPin, Filter, CornerDownLeft } from 'lucide-react';
+import { MIEN_REGIONS } from '../data/defaultDataset';
 
 // Command palette (Cmd/Ctrl+K) — nhảy nhanh tới tab / client / vùng mà không
 // phải rời tay khỏi bàn phím. App có ~40 vùng/hub và 3-4 tab; trước đây phải
@@ -7,13 +8,16 @@ import { Search, Layers, ArrowRightLeft, Clock, Sparkles, CornerDownLeft } from 
 //
 // Không tìm hub lẻ (chỉ vùng): hub-level jump cần Report1 tự mở đúng region
 // rồi cuộn tới đúng dòng, nhưng danh sách hub chỉ tồn tại BÊN TRONG dữ liệu đã
-// filter theo client — palette này không nhận props đó nên chỉ nói tới cấp
-// vùng, vốn đã đủ để thu hẹp 90% việc tìm.
+// filter theo client — palette này chỉ nói tới cấp vùng, vốn đã đủ để thu hẹp
+// 90% việc tìm.
 export default function CommandPalette({
   isOpen,
   onClose,
   activeTab,
   setActiveTab,
+  clientFilter,
+  setClientFilter,
+  onSelectRegion,
   hasInsightTab = false
 }) {
   const [query, setQuery] = useState('');
@@ -41,7 +45,24 @@ export default function CommandPalette({
       tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', icon: Sparkles });
     }
 
-    return tabItems;
+    const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
+      type: 'client',
+      id: code,
+      label: code === 'ALL' ? 'Client: Toàn bộ (SPB + SPE)' : `Client: ${code}`,
+      icon: Filter
+    }));
+
+    const regionItems = Object.entries(MIEN_REGIONS).flatMap(([mien, regions]) =>
+      regions.map(reg => ({
+        type: 'region',
+        id: reg,
+        label: reg,
+        group: mien,
+        icon: MapPin
+      }))
+    );
+
+    return [...tabItems, ...clientItems, ...regionItems];
   }, [hasInsightTab]);
 
   const filtered = useMemo(() => {
@@ -64,6 +85,8 @@ export default function CommandPalette({
   const runItem = (item) => {
     if (!item) return;
     if (item.type === 'tab') setActiveTab(item.id);
+    else if (item.type === 'client') setClientFilter(item.id);
+    else if (item.type === 'region') onSelectRegion?.(item.id);
     onClose();
   };
 
@@ -99,7 +122,7 @@ export default function CommandPalette({
             ref={inputRef}
             className="cmdk-input"
             type="text"
-            placeholder="Tìm và chuyển báo cáo..."
+            placeholder="Tìm tab, client (SPB/SPE), hoặc vùng..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
