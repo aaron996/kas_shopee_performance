@@ -708,7 +708,7 @@ export default function App() {
               onResetDefault={handleResetDefaultData}
             />
           )}
-          {currentUser && <ChatPanel isOpen={isChatOpen} onOpen={() => setIsChatOpen(true)} onClose={() => setIsChatOpen(false)} isDevAdmin={currentUser.isDevAdmin} />}
+          {currentUser && <ChatPanel isOpen={isChatOpen} onOpen={() => setIsChatOpen(true)} onClose={() => setIsChatOpen(false)} />}
         </div>
       </div>
     </div>
