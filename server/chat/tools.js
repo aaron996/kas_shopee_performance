@@ -2,6 +2,7 @@ import { getDashboardHelp } from '../../src/data/dashboardHelp.js';
 import { getMetricDefinition } from '../../src/data/metricGlossary.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { ChatError } from './errors.js';
+import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
@@ -106,7 +107,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_latest_metric_summary',
-    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Dùng khi người dùng nói hiện tại, hôm nay, mới nhất hoặc không nêu ngày; không hỏi lại ngày trong các trường hợp này.',
+    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
@@ -177,7 +178,8 @@ export const CHAT_TOOLS = Object.freeze([
       type: 'object', additionalProperties: false, required: ['topic'],
       properties: { topic: { type: 'string', enum: [...HELP_TOPICS] } }
     }
-  }
+  },
+  REQUEST_METRIC_QUERY_TOOL
 ]);
 
 export async function executeChatTool(call, context) {

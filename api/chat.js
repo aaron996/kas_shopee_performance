@@ -122,7 +122,8 @@ export function createChatHandler(dependencies = {}) {
         signal: controller.signal,
         onStatus: status => sendSse(res, 'status', status),
         onText: delta => sendSse(res, 'text_delta', { delta }),
-        onSource: source => sendSse(res, 'source', source)
+        onSource: source => sendSse(res, 'source', source),
+        onInteraction: interaction => sendSse(res, 'interaction', interaction)
       });
 
       try {

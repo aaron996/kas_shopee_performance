@@ -67,6 +67,30 @@ test('endpoint reserves quota before agent work and finalizes before message_end
   assert.ok(res.body.indexOf('event: message_end') > res.body.indexOf('event: text_delta'));
 });
 
+test('endpoint streams a structured interaction before completing the message', async () => {
+  const interaction = {
+    type: 'query_parameters', interactionId: 'choice_1', prompt: 'Chọn phạm vi và thời gian.',
+    query: { metric: 'opr', client: null, dateMode: null, dateFrom: null, dateTo: null },
+    fields: []
+  };
+  const handler = createChatHandler({
+    readConfig: () => config,
+    authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
+    reserve: async () => ({ remainingTurns: 9 }),
+    runAgent: async ({ onInteraction }) => {
+      onInteraction(interaction);
+      return { ...completedAgentResult, toolNames: ['request_metric_query'], interaction };
+    },
+    finalize: async () => {}
+  });
+  const res = new FakeResponse();
+  await handler(request({ question: 'Xem OPR' }), res);
+
+  assert.match(res.body, /event: interaction/);
+  assert.match(res.body, /"type":"query_parameters"/);
+  assert.ok(res.body.indexOf('event: message_end') > res.body.indexOf('event: interaction'));
+});
+
 test('GET exposes model and reasoning controls only to Dev Admin', async () => {
   const createHandler = email => createChatHandler({
     readConfig: () => config,
