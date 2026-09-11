@@ -1,4 +1,5 @@
-import { readChatConfig } from '../server/chat/config.js';
+import { readChatConfig, resolveModelSelection } from '../server/chat/config.js';
+import { getModelConfigOverview } from '../server/chat/model-config.js';
 import { authenticateRequest } from '../server/chat/auth.js';
 import { isDevAdminEmail } from '../src/utils/authPolicy.js';
 import { formatMicrousdToUsd } from '../server/chat/pricing.js';
@@ -305,10 +306,69 @@ export function createAiOpsHandler(dependencies = {}) {
           return;
         }
 
+        if (view === 'model-config') {
+          const rawUserId = url.searchParams.get('userId');
+          let validTargetUserId = null;
+          if (rawUserId !== null) {
+            const targetUserId = rawUserId.trim();
+            if (targetUserId) {
+              if (!UUID_REGEX.test(targetUserId)) {
+                sendJson(res, 400, {
+                  error: {
+                    code: 'AI_OPS_INVALID_USER_ID',
+                    message: 'Tham số userId phải là một UUID hợp lệ.'
+                  }
+                });
+                return;
+              }
+              validTargetUserId = targetUserId;
+            }
+          }
+          const overview = await getModelConfigOverview(serviceClient, config, validTargetUserId);
+          sendJson(res, 200, overview);
+          return;
+        }
+
+        if (view === 'model-users') {
+          const search = (url.searchParams.get('search') || '').trim();
+          if (typeof serviceClient.rpc !== 'function') {
+            sendJson(res, 503, {
+              error: {
+                code: 'AI_OPS_RPC_UNAVAILABLE',
+                message: 'Không thể kết nối dịch vụ tìm kiếm người dùng.'
+              }
+            });
+            return;
+          }
+
+          const { data, error } = await serviceClient.rpc('admin_search_ai_chat_users', {
+            p_search: search || null
+          });
+
+          if (error) {
+            sendJson(res, 500, {
+              error: {
+                code: error.code || 'AI_OPS_SEARCH_ERROR',
+                message: error.message || 'Lỗi tìm kiếm danh sách người dùng.'
+              }
+            });
+            return;
+          }
+
+          const users = (data || []).slice(0, 20).map(u => ({
+            userId: u.user_id,
+            email: (u.email || '').toLowerCase().trim()
+          }));
+
+          sendJson(res, 200, { users });
+          return;
+        }
+
         sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_VIEW', message: 'Tham số view không hợp lệ.' } });
       } catch (err) {
         console.error('AI Ops GET error:', err);
-        sendJson(res, 500, { error: { code: 'AI_OPS_ERROR', message: err.message || 'Lỗi xử lý dữ liệu AI Ops.' } });
+        const status = err.statusCode || err.status || 500;
+        sendJson(res, status, { error: { code: err.code || 'AI_OPS_ERROR', message: err.message || 'Lỗi xử lý dữ liệu AI Ops.' } });
       }
       return;
     }
@@ -400,6 +460,103 @@ export function createAiOpsHandler(dependencies = {}) {
 
           if (error) throw error;
           sendJson(res, 200, { success: true, purgedCount });
+          return;
+        }
+
+        if (action === 'set-model-config') {
+          const { scopeType, userId, userEmail, model, reasoningEffort, reason } = body;
+          const cleanScope = typeof scopeType === 'string' ? scopeType.trim().toLowerCase() : '';
+          const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+          const cleanModel = typeof model === 'string' ? model.trim() : '';
+          const cleanEmail = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : '';
+          const validUserId = (typeof userId === 'string' && UUID_REGEX.test(userId.trim())) ? userId.trim() : null;
+
+          if (cleanScope !== 'all' && cleanScope !== 'user') {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Phạm vi cấu hình phải là "all" hoặc "user".' } });
+            return;
+          }
+          if (!cleanReason) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Lý do thay đổi là bắt buộc để lưu audit trail.' } });
+            return;
+          }
+          if (!cleanModel) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Model không được để trống.' } });
+            return;
+          }
+          if (cleanScope === 'user' && !validUserId && !cleanEmail) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu thông tin người dùng (userId hoặc email).' } });
+            return;
+          }
+
+          let validatedSelection;
+          try {
+            validatedSelection = resolveModelSelection(cleanModel, reasoningEffort || null);
+          } catch (valErr) {
+            sendJson(res, 400, { error: { code: valErr.code || 'AI_OPS_INVALID_MODEL', message: valErr.message } });
+            return;
+          }
+
+          const { data, error } = await serviceClient.rpc('admin_set_ai_chat_model_config', {
+            p_scope_type: cleanScope,
+            p_user_id: validUserId,
+            p_user_email: cleanEmail || null,
+            p_model: validatedSelection.model,
+            p_reasoning_effort: validatedSelection.reasoningEffort,
+            p_reason: cleanReason,
+            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
+          });
+
+          if (error) {
+            const isNotFound = error.message?.includes('AI_CHAT_USER_NOT_FOUND');
+            const message = isNotFound
+              ? `Không tìm thấy tài khoản người dùng với email ${cleanEmail || ''}.`
+              : (error.message || 'Lỗi cập nhật cấu hình model.');
+            sendJson(res, 400, { error: { code: error.code || 'AI_OPS_ERROR', message } });
+            return;
+          }
+
+          sendJson(res, 200, { success: true, data });
+          return;
+        }
+
+        if (action === 'reset-model-config') {
+          const { scopeType, userId, userEmail, reason } = body;
+          const cleanScope = typeof scopeType === 'string' ? scopeType.trim().toLowerCase() : '';
+          const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+          const cleanEmail = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : '';
+          const validUserId = (typeof userId === 'string' && UUID_REGEX.test(userId.trim())) ? userId.trim() : null;
+
+          if (cleanScope !== 'all' && cleanScope !== 'user') {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Phạm vi cấu hình phải là "all" hoặc "user".' } });
+            return;
+          }
+          if (!cleanReason) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Lý do xóa cấu hình là bắt buộc để lưu audit trail.' } });
+            return;
+          }
+          if (cleanScope === 'user' && !validUserId && !cleanEmail) {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Thiếu thông tin người dùng (userId hoặc email).' } });
+            return;
+          }
+
+          const { data, error } = await serviceClient.rpc('admin_reset_ai_chat_model_config', {
+            p_scope_type: cleanScope,
+            p_user_id: validUserId,
+            p_user_email: cleanEmail || null,
+            p_reason: cleanReason,
+            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
+          });
+
+          if (error) {
+            const isNotFound = error.message?.includes('AI_CHAT_USER_NOT_FOUND');
+            const message = isNotFound
+              ? `Không tìm thấy thông tin cấu hình của user ${cleanEmail || ''} để đặt lại mặc định.`
+              : (error.message || 'Lỗi đặt lại cấu hình.');
+            sendJson(res, 400, { error: { code: error.code || 'AI_OPS_ERROR', message } });
+            return;
+          }
+
+          sendJson(res, 200, { success: true, data });
           return;
         }
 

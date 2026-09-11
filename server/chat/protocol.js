@@ -76,19 +76,15 @@ export function parseRequestBody(rawBody, contentLength) {
     badRequest('Lịch sử phải kết thúc bằng câu trả lời assistant trước câu hỏi mới.');
   }
 
-  const model = typeof body.model === 'string' ? body.model.trim() : null;
-  const reasoningEffort = typeof body.reasoningEffort === 'string' ? body.reasoningEffort.trim() : null;
-
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), model, reasoningEffort };
+  // Legacy keys (model, reasoningEffort) are accepted for rolling deploy safety but discarded here.
+  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase() };
 }
 
 export function requestPayloadHash(request) {
   return createHash('sha256')
     .update(JSON.stringify({
       question: request.question,
-      history: request.history,
-      model: request.model ?? null,
-      reasoningEffort: request.reasoningEffort ?? null
+      history: request.history
     }))
     .digest('hex');
 }
