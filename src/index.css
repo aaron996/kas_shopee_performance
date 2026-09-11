@@ -4937,6 +4937,49 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-message--assistant .chat-message-bubble { color: var(--text-primary); background: var(--surface-default); border: 1px solid var(--border-subtle); border-bottom-left-radius: 4px; box-shadow: var(--shadow-soft); }
 .chat-message-bubble--pending { min-width: 9rem; }
 
+.chat-query-card {
+  width: min(100%, 360px);
+  margin-top: 0.45rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: var(--text-primary);
+  background: var(--surface-default);
+}
+.chat-query-field { min-width: 0; margin: 0; padding: 0; border: 0; }
+.chat-query-field + .chat-query-field { margin-top: 0.75rem; }
+.chat-query-field legend { margin-bottom: 0.4rem; color: var(--text-secondary); font: 700 0.7rem/1.2 var(--font-sans); }
+.chat-query-options { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chat-query-options button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem;
+  min-height: 36px; padding: 0.4rem 0.65rem; border: 1px solid var(--border-strong);
+  border-radius: 8px; color: var(--text-primary); background: var(--surface-default);
+  font: 650 0.74rem/1.2 var(--font-sans); cursor: pointer;
+}
+.chat-query-options button:hover:not(:disabled) { border-color: var(--action-primary); background: var(--surface-info); }
+.chat-query-options button.is-selected { border-color: var(--action-primary); color: var(--text-on-brand); background: var(--action-primary); }
+.chat-query-options button:focus-visible, .chat-query-submit:focus-visible, .chat-query-dates input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chat-query-options button:disabled { cursor: not-allowed; opacity: 0.65; }
+.chat-query-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.chat-query-dates legend { grid-column: 1 / -1; }
+.chat-query-dates label { display: grid; gap: 0.25rem; color: var(--text-secondary); font-size: 0.68rem; }
+.chat-query-dates input {
+  width: 100%; min-height: 38px; padding: 0.35rem 0.45rem; border: 1px solid var(--border-strong);
+  border-radius: 8px; color: var(--text-primary); background: var(--surface-default); font: 0.72rem var(--font-sans);
+}
+.chat-query-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--border-subtle); }
+.chat-query-hint { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-secondary); font-size: 0.66rem; line-height: 1.3; }
+.chat-query-submit {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
+  min-height: 36px; padding: 0.4rem 0.7rem; border: 1px solid var(--action-primary);
+  border-radius: 8px; color: var(--text-on-brand); background: var(--action-primary);
+  font: 700 0.72rem/1.2 var(--font-sans); cursor: pointer; white-space: nowrap;
+}
+.chat-query-submit:hover:not(:disabled) { border-color: var(--action-primary-hover); background: var(--action-primary-hover); }
+.chat-query-submit:disabled { cursor: not-allowed; opacity: 0.45; }
+.chat-query-card--resolved, .chat-query-card--dismissed { display: flex; align-items: center; gap: 0.35rem; padding: 0.5rem 0.65rem; color: var(--text-secondary); font-size: 0.7rem; }
+.chat-query-card--resolved { color: var(--status-success-fg, var(--action-primary-hover)); }
+
 /* Chat Markdown Typography — bubble-native styling */
 .chat-markdown { display: flex; flex-direction: column; gap: 0.38rem; font-size: 0.84rem; line-height: 1.5; color: inherit; word-break: break-word; }
 .chat-markdown p { margin: 0; }
@@ -4986,6 +5029,9 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
   .chat-fab { right: 0.75rem; bottom: calc(64px + env(safe-area-inset-bottom) + 0.75rem); }
   .chat-panel { right: 0.65rem; bottom: calc(64px + env(safe-area-inset-bottom) + 4.75rem); width: calc(100vw - 1.3rem); height: min(660px, calc(100dvh - 152px)); }
   .chat-composer-actions > span { font-size: 0.62rem; }
+  .chat-query-options button, .chat-query-submit, .chat-query-dates input { min-height: 44px; }
+  .chat-query-footer { align-items: stretch; flex-direction: column; }
+  .chat-query-submit { width: 100%; }
 }
 
 @media (max-width: 768px) {

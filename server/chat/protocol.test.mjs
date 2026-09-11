@@ -23,6 +23,27 @@ test('parseRequestBody normalizes a valid conversation', () => {
   assert.equal(result.reasoningEffort, undefined);
 });
 
+test('parseRequestBody accepts a complete structured KPI query', () => {
+  const result = parseRequestBody({
+    requestId,
+    question: 'Xem OPR, SPE, dữ liệu mới nhất.',
+    history: [],
+    query: { metric: 'opr', client: 'SPE', dateMode: 'latest', dateFrom: null, dateTo: null }
+  });
+  assert.deepEqual(result.query, { metric: 'opr', client: 'SPE', dateMode: 'latest', dateFrom: null, dateTo: null });
+});
+
+test('parseRequestBody rejects incomplete or invalid structured KPI queries', () => {
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], query: { metric: 'opr', client: 'SPE' } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], query: { metric: 'opr', client: 'SPE', dateMode: 'custom', dateFrom: '2026-09-08', dateTo: '2026-09-01' } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+});
+
 test('parseRequestBody rejects unknown fields and unfinished history', () => {
   assert.throws(
     () => parseRequestBody({ requestId, question: 'x', history: [], filterState: {} }),

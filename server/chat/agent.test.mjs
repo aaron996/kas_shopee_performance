@@ -75,11 +75,36 @@ test('agent replays reasoning/tool output then streams a grounded final answer',
   assert.deepEqual(result.toolNames, ['get_metric_summary']);
 });
 
-test('agent tells Luna to infer safe scope and use latest DB data instead of asking for a date', () => {
-  assert.match(BASE_INSTRUCTIONS, /PHẢI dùng get_latest_metric_summary/);
+test('agent requires explicit KPI, client and time while retaining safe scope inference', () => {
+  assert.match(BASE_INSTRUCTIONS, /request_metric_query/);
+  assert.match(BASE_INSTRUCTIONS, /Không được tự mặc định latest/);
   assert.match(BASE_INSTRUCTIONS, /"vùng\/miền" = grain region/);
   assert.match(BASE_INSTRUCTIONS, /"tệ nhất\/thấp nhất" = sort worst/);
-  assert.match(BASE_INSTRUCTIONS, /không hỏi lại khoảng ngày/);
+});
+
+test('agent emits a structured interaction and does not query the database when parameters are missing', async () => {
+  const planner = {
+    status: 'completed', usage,
+    output: [{
+      type: 'function_call', call_id: 'interaction_1', name: 'request_metric_query',
+      arguments: '{"metric":"opr","client":null,"date_mode":null,"date_from":null,"date_to":null}'
+    }]
+  };
+  let toolCalls = 0;
+  const interactions = [];
+  const result = await runChatAgent({
+    config, request: { ...request, question: 'Xem OPR' }, userClient: {},
+    onInteraction: interaction => interactions.push(interaction)
+  }, {
+    openai: { responses: { create: async () => planner } },
+    executeTool: async () => { toolCalls += 1; }
+  });
+
+  assert.equal(toolCalls, 0);
+  assert.equal(interactions.length, 1);
+  assert.deepEqual(interactions[0].fields.map(field => field.id), ['client', 'dateMode']);
+  assert.equal(interactions[0].query.metric, 'opr');
+  assert.deepEqual(result.toolNames, ['request_metric_query']);
 });
 
 test('agent returns a no-tool clarification directly without a second model call', async () => {

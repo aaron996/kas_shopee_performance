@@ -7,10 +7,38 @@ export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_HISTORY_CHARS = 24000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort']);
+const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort', 'query']);
+const QUERY_KEYS = new Set(['metric', 'client', 'dateMode', 'dateFrom', 'dateTo']);
+const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
+const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+const DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function badRequest(message) {
   throw new ChatError('CHAT_BAD_REQUEST', message, 400);
+}
+
+function parseQuery(rawQuery) {
+  if (rawQuery === undefined || rawQuery === null) return null;
+  if (typeof rawQuery !== 'object' || Array.isArray(rawQuery)) badRequest('query không hợp lệ.');
+  if (Object.keys(rawQuery).some(key => !QUERY_KEYS.has(key))) badRequest('query có field không được hỗ trợ.');
+
+  const { metric, client, dateMode, dateFrom = null, dateTo = null } = rawQuery;
+  if (!METRICS.has(metric)) badRequest('query.metric không được hỗ trợ.');
+  if (!CLIENTS.has(client)) badRequest('query.client không được hỗ trợ.');
+  if (!DATE_MODES.has(dateMode)) badRequest('query.dateMode không được hỗ trợ.');
+
+  if (dateMode === 'custom') {
+    if (![dateFrom, dateTo].every(value => typeof value === 'string' && DATE_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)))) {
+      badRequest('Khoảng ngày custom phải có dateFrom và dateTo dạng YYYY-MM-DD.');
+    }
+    const days = (Date.parse(`${dateTo}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) / 86400000;
+    if (days < 0 || days > 90) badRequest('Khoảng ngày phải theo thứ tự và không vượt quá 90 ngày.');
+  } else if (dateFrom !== null || dateTo !== null) {
+    badRequest('dateFrom/dateTo chỉ được dùng với dateMode custom.');
+  }
+
+  return { metric, client, dateMode, dateFrom, dateTo };
 }
 
 export function parseRequestBody(rawBody, contentLength) {
@@ -76,15 +104,18 @@ export function parseRequestBody(rawBody, contentLength) {
     badRequest('Lịch sử phải kết thúc bằng câu trả lời assistant trước câu hỏi mới.');
   }
 
+  const query = parseQuery(body.query);
+
   // Legacy keys (model, reasoningEffort) are accepted for rolling deploy safety but discarded here.
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase() };
+  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), query };
 }
 
 export function requestPayloadHash(request) {
   return createHash('sha256')
     .update(JSON.stringify({
       question: request.question,
-      history: request.history
+      history: request.history,
+      query: request.query ?? null
     }))
     .digest('hex');
 }

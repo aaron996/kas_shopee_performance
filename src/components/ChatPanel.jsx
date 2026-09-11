@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
+import ChatQueryCard from './chat/ChatQueryCard';
 
 const QUICK_QUESTIONS = [
   'Dữ liệu mới nhất của SPB có tới ngày nào?',
@@ -59,6 +60,7 @@ async function readSse(response, onEvent) {
 }
 
 function statusText(status) {
+  if (status?.phase === 'awaiting_input') return 'Chờ bạn chọn…';
   if (status?.phase === 'querying_database') return 'Đang tra cứu dữ liệu vận hành…';
   if (status?.phase === 'answering') return 'Đang tổng hợp câu trả lời…';
   return 'Đang hiểu câu hỏi…';
@@ -203,7 +205,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
     window.requestAnimationFrame(() => (mascotHidden ? revealRef.current : launcherRef.current)?.focus());
   };
 
-  const submitQuestion = async question => {
+  const submitQuestion = async (question, query = null, displayQuestion = question) => {
     const normalizedQuestion = question.trim();
     if (!normalizedQuestion || abortRef.current) return;
 
@@ -215,7 +217,12 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
     setFocused(false);
     setAnnouncement('');
     setStatus({ phase: 'planning' });
-    setPending({ question: normalizedQuestion, answer: '', sources: [] });
+    setMessages(current => current.map(message => (
+      message.interaction && !message.interaction.selection
+        ? { ...message, interaction: { ...message.interaction, dismissed: true } }
+        : message
+    )));
+    setPending({ question: displayQuestion, answer: '', sources: [], interaction: null });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -223,6 +230,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       if (!session?.access_token) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi thử lại.');
 
       const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
+      if (query) requestBody.query = query;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -246,6 +254,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       let completed = false;
       let answer = '';
       let sources = [];
+      let interaction = null;
       await readSse(response, (eventName, payload) => {
         if (eventName === 'message_start' && payload.quota) setQuota(payload.quota);
         if (eventName === 'status') setStatus(payload);
@@ -257,13 +266,21 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
           sources = [...sources, payload];
           setPending(current => current ? { ...current, sources } : current);
         }
+        if (eventName === 'interaction') {
+          interaction = payload;
+          setPending(current => current ? { ...current, interaction } : current);
+        }
         if (eventName === 'error') throw new Error(toChatError(payload, 'Chatbot gặp lỗi khi xử lý câu hỏi.'));
         if (eventName === 'message_end') completed = true;
       });
 
       if (!completed) throw new Error('Luồng chat kết thúc trước khi có câu trả lời hoàn chỉnh.');
-      if (!answer.trim()) throw new Error('Chatbot chưa tạo được nội dung trả lời. Vui lòng thử lại.');
-      setMessages(current => [...current, { role: 'user', content: normalizedQuestion }, { role: 'assistant', content: answer, sources }]);
+      if (!answer.trim() && !interaction) throw new Error('Chatbot chưa tạo được nội dung trả lời. Vui lòng thử lại.');
+      const assistantContent = answer.trim() || interaction.prompt;
+      setMessages(current => [...current,
+        { role: 'user', content: displayQuestion },
+        { role: 'assistant', content: assistantContent, sources, interaction }
+      ]);
       setPending(null);
       setStatus(null);
       setAnnouncement('Đã trả lời xong.');
@@ -283,6 +300,16 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const handleSubmit = event => {
     event.preventDefault();
     submitQuestion(draft);
+  };
+
+  const handleInteractionSubmit = (messageIndex, query, message) => {
+    if (abortRef.current) return;
+    setMessages(current => current.map((item, index) => (
+      index === messageIndex && item.interaction
+        ? { ...item, interaction: { ...item.interaction, selection: message.summary } }
+        : item
+    )));
+    submitQuestion(message.question, query, message.summary);
   };
 
   return (
@@ -342,6 +369,13 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
                 message.content.split('\n').map((line, lineIndex) => <p key={lineIndex}>{line || '\u00a0'}</p>)
               )}
             </div>
+            {message.role === 'assistant' && message.interaction && (
+              <ChatQueryCard
+                interaction={message.interaction}
+                disabled={isStreaming || Boolean(quota && !quota.isUnlimited && quota.remainingTurns <= 0)}
+                onSubmit={(query, selectionMessage) => handleInteractionSubmit(index, query, selectionMessage)}
+              />
+            )}
             {message.role === 'assistant' && <SourceList sources={message.sources} />}
           </article>
         ))}
@@ -353,8 +387,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
               <div className="chat-message-bubble chat-message-bubble--pending">
                 {pending.answer
                   ? <ChatMessageMarkdown content={pending.answer} />
-                  : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
+                  : pending.interaction
+                    ? <p>{pending.interaction.prompt}</p>
+                    : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
               </div>
+              {pending.interaction && <ChatQueryCard interaction={pending.interaction} disabled onSubmit={() => {}} />}
               <SourceList sources={pending.sources} />
             </article>
           </>
