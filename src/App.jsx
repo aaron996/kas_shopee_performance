@@ -232,7 +232,7 @@ export default function App() {
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
-  const [selectedRegions, setSelectedRegions] = useState(allRegions);
+  const [selectedRegions, setSelectedRegions] = useState(() => initialView.regions === null ? allRegions : initialView.regions.filter(r => allRegions.includes(r)));
 
   const allHubTypes = React.useMemo(() => {
     const types = new Set();
@@ -248,8 +248,9 @@ export default function App() {
   }, [pickRows, deliRows, ca1Rows]);
 
   // Initial state should be all hub types
-  const hubTypeSelection = null;
+  const [hubTypeSelection, setHubTypeSelection] = useState(initialView.hubTypes);
   const selectedHubTypes = hubTypeSelection === null ? allHubTypes : hubTypeSelection;
+  const setSelectedHubTypes = values => setHubTypeSelection(values.length === allHubTypes.length && allHubTypes.length > 0 ? null : values);
   // null follows all available types; an explicit subset (including []) survives sync.
   const [density, setDensity] = useState(initialView.density);
   useEffect(() => {
@@ -513,6 +514,7 @@ export default function App() {
     'Khoảng dữ liệu': compositeCoverage,
     ...(activeTab === 'report1' && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
+  const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
   return (
     <div className="app-container">
       {/* Authentication Protection Modal */}
@@ -536,6 +538,9 @@ export default function App() {
         onClose={() => setIsPaletteOpen(false)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        clientFilter={clientFilter}
+        setClientFilter={setClientFilter}
+        onSelectRegion={handleJumpToRegion}
         hasInsightTab
       />
 
@@ -558,6 +563,14 @@ export default function App() {
           <Header
             setActiveTab={setActiveTab}
             activeTab={activeTab}
+            clientFilter={clientFilter}
+            setClientFilter={setClientFilter}
+            selectedRegions={selectedRegions}
+            setSelectedRegions={setSelectedRegions}
+            allHubTypes={allHubTypes}
+            selectedHubTypes={selectedHubTypes}
+            setSelectedHubTypes={setSelectedHubTypes}
+            onResetFilters={resetFilters}
             d1DateFormatted={d1DateFormatted}
             fdD1DateFormatted={activeTab === 'report1' ? fdD1DateFormatted : ''}
             syncStatus={syncStatus}
