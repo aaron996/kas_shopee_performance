@@ -4,6 +4,7 @@ export class ChatError extends Error {
     this.name = 'ChatError';
     this.code = code;
     this.status = status;
+    this.statusCode = status;
   }
 }
 

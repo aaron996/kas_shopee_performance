@@ -1,13 +1,11 @@
-import { readChatConfig, ALLOWED_MODELS, resolveModelSelection } from '../server/chat/config.js';
+import { readChatConfig } from '../server/chat/config.js';
+import { resolveEffectiveChatConfig } from '../server/chat/model-config.js';
 import { authenticateRequest } from '../server/chat/auth.js';
 import { runChatAgent } from '../server/chat/agent.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { MAX_BODY_BYTES, parseRequestBody, requestPayloadHash } from '../server/chat/protocol.js';
 import { finalizeChatRequest, getUserQuotaInfo, recordQuotaRejection, reserveChatRequest } from '../server/chat/quota.js';
 import { sendJson, sendSse, startSse } from '../server/chat/sse.js';
-import { isDevAdminEmail } from '../src/utils/authPolicy.js';
-
-const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map(m => m.id));
 
 async function readBody(req) {
   if (req.body !== undefined) return req.body;
@@ -25,6 +23,7 @@ async function readBody(req) {
 
 export function createChatHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readChatConfig;
+  const resolveEffectiveConfig = dependencies.resolveEffectiveConfig ?? resolveEffectiveChatConfig;
   const authenticate = dependencies.authenticate ?? authenticateRequest;
   const reserve = dependencies.reserve ?? reserveChatRequest;
   const runAgent = dependencies.runAgent ?? runChatAgent;
@@ -38,13 +37,7 @@ export function createChatHandler(dependencies = {}) {
         const config = getConfig();
         const { user, serviceClient } = await authenticate(req.headers.authorization, config);
         const quotaInfo = await getQuota(serviceClient, user.id);
-        const responsePayload = { quota: quotaInfo };
-        if (isDevAdminEmail(user.email)) {
-          responsePayload.allowedModels = config.allowedModels;
-          responsePayload.defaultModel = config.model;
-          responsePayload.defaultReasoningEffort = config.reasoningEffort;
-        }
-        sendJson(res, 200, responsePayload);
+        sendJson(res, 200, { quota: quotaInfo });
       } catch (error) {
         const failure = toPublicError(error);
         sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });
@@ -81,17 +74,8 @@ export function createChatHandler(dependencies = {}) {
       serviceClient = privilegedClient;
       currentUser = user;
 
-      // Model/reasoning override: only Dev Admin can change execution settings.
-      // Ordinary users always keep the server defaults, even if they forge fields.
-      if (isDevAdminEmail(user.email) && (request.model || request.reasoningEffort)) {
-        const selectedModel = request.model || config.model;
-        if (!ALLOWED_MODEL_IDS.has(selectedModel)) {
-          throw new ChatError('CHAT_MODEL_NOT_ALLOWED', `Model "${selectedModel}" không nằm trong danh sách hỗ trợ.`, 400);
-        }
-        const requestedEffort = request.reasoningEffort
-          || (selectedModel === config.model ? config.reasoningEffort : undefined);
-        effectiveConfig = { ...config, ...resolveModelSelection(selectedModel, requestedEffort) };
-      }
+      // Resolve effective model/reasoning from backend (User override -> All -> env)
+      effectiveConfig = await resolveEffectiveConfig(serviceClient, config, user);
 
       const reservation = await reserve(
         serviceClient,

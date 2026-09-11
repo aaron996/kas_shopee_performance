@@ -12,8 +12,6 @@ const QUICK_QUESTIONS = [
   'Giải thích ngắn gọn chỉ số Ca 1.'
 ];
 
-const reasoningStorageKey = modelId => `kas-chat-reasoning-effort:${modelId}`;
-
 function createRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
@@ -84,7 +82,7 @@ function SourceList({ sources }) {
   );
 }
 
-export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
+export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
@@ -96,17 +94,27 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
-  const [allowedModels, setAllowedModels] = useState(null);
-  const [defaultModel, setDefaultModel] = useState(null);
-  const [defaultReasoningEffort, setDefaultReasoningEffort] = useState(null);
-  const [selectedModel, setSelectedModel] = useState(() => window.localStorage.getItem('kas-chat-model') || null);
-  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState(null);
-  const [configVersion, setConfigVersion] = useState(0);
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
+
+  // Clean up legacy localStorage keys once
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem('kas-chat-model');
+      window.localStorage.removeItem('kas-chat-config-change');
+      for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+        const key = window.localStorage.key(i);
+        if (key && key.startsWith('kas-chat-reasoning-effort:')) {
+          window.localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Safe cleanup without throwing
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -121,11 +129,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
         if (res.ok && !isCancelled) {
           const body = await res.json();
           if (body?.quota) setQuota(body.quota);
-          if (body?.allowedModels) {
-            setAllowedModels(body.allowedModels);
-            setDefaultModel(body.defaultModel);
-            setDefaultReasoningEffort(body.defaultReasoningEffort ?? null);
-          }
         }
       } catch {
         // Non-blocking quota check
@@ -184,39 +187,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
       window.removeEventListener('keydown', closeMenu);
     };
   }, [visibilityMenuOpen]);
-
-  useEffect(() => {
-    const syncDevConfig = () => {
-      setSelectedModel(window.localStorage.getItem('kas-chat-model') || null);
-      setConfigVersion(version => version + 1);
-    };
-    window.addEventListener('storage', syncDevConfig);
-    window.addEventListener('kas-chat-config-change', syncDevConfig);
-    return () => {
-      window.removeEventListener('storage', syncDevConfig);
-      window.removeEventListener('kas-chat-config-change', syncDevConfig);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!allowedModels?.length || !defaultModel) return;
-    const selectedIsAllowed = selectedModel && allowedModels.some(model => model.id === selectedModel);
-    if (selectedModel && !selectedIsAllowed) {
-      setSelectedModel(null);
-      window.localStorage.removeItem('kas-chat-model');
-    }
-
-    const modelId = selectedIsAllowed ? selectedModel : defaultModel;
-    const model = allowedModels.find(candidate => candidate.id === modelId);
-    const efforts = model?.reasoningEfforts ?? [];
-    const storedEffort = window.localStorage.getItem(reasoningStorageKey(modelId));
-    const fallbackEffort = modelId === defaultModel ? defaultReasoningEffort : model?.defaultReasoningEffort;
-    setSelectedReasoningEffort(efforts.includes(storedEffort) ? storedEffort : (fallbackEffort || null));
-  }, [allowedModels, configVersion, defaultModel, defaultReasoningEffort, selectedModel]);
-
-  const selectedModelIsAllowed = selectedModel && allowedModels?.some(model => model.id === selectedModel);
-  const activeModelId = (selectedModelIsAllowed ? selectedModel : defaultModel) || 'gpt-5.6-luna';
-
   const setMascotVisibility = hidden => {
     window.localStorage.setItem('kas-mascot-hidden', String(hidden));
     setMascotHidden(hidden);
@@ -261,10 +231,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, isDevAdmin }) {
 
       const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
       if (query) requestBody.query = query;
-      if (isDevAdmin) {
-        requestBody.model = activeModelId;
-        if (selectedReasoningEffort) requestBody.reasoningEffort = selectedReasoningEffort;
-      }
 
       const response = await fetch('/api/chat', {
         method: 'POST',

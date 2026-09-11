@@ -19,8 +19,8 @@ test('parseRequestBody normalizes a valid conversation', () => {
   assert.equal(result.requestId, requestId);
   assert.equal(result.question, 'KPI ODR tuần này?');
   assert.equal(result.history[0].content, 'Xin chào');
-  assert.equal(result.model, 'gpt-5.6-terra');
-  assert.equal(result.reasoningEffort, 'high');
+  assert.equal(result.model, undefined);
+  assert.equal(result.reasoningEffort, undefined);
 });
 
 test('parseRequestBody accepts a complete structured KPI query', () => {
@@ -55,10 +55,10 @@ test('parseRequestBody rejects unknown fields and unfinished history', () => {
   );
 });
 
-test('requestPayloadHash is stable and excludes requestId', () => {
+test('requestPayloadHash is stable and excludes requestId, model, and reasoningEffort', () => {
   const first = requestPayloadHash({ requestId, question: 'x', history: [], model: 'gpt-5.6-terra', reasoningEffort: 'high' });
-  const second = requestPayloadHash({ requestId: '6ba7b810-9dad-41d1-80b4-00c04fd430c8', question: 'x', history: [], model: 'gpt-5.6-terra', reasoningEffort: 'high' });
+  const second = requestPayloadHash({ requestId: '6ba7b810-9dad-41d1-80b4-00c04fd430c8', question: 'x', history: [], model: 'gpt-5.6-luna', reasoningEffort: 'low' });
   assert.equal(first, second);
   assert.equal(first.length, 64);
-  assert.notEqual(first, requestPayloadHash({ question: 'x', history: [], model: 'gpt-5.6-terra', reasoningEffort: 'low' }));
+  assert.notEqual(first, requestPayloadHash({ question: 'different question', history: [] }));
 });

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { calculateModelCost, formatMicrousdToUsd, MODEL_PRICING } from './pricing.js';
 import { readChatConfig } from './config.js';
 import { computeQuestionFingerprint, finalizeChatRequest, normalizeQuestionText, reserveChatRequest } from './quota.js';
@@ -185,6 +188,7 @@ test('api/chat returns structured 429 on quota exceeded with reset time', async 
   let rejectionLogged = false;
   const handler = createChatHandler({
     readConfig: () => ({ model: 'gpt-5.6-luna', turnTimeoutMs: 5000 }),
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
     authenticate: async () => ({
       user: { id: 'u-123', email: 'nhanvien@ghn.vn' },
       serviceClient: {},
@@ -551,5 +555,330 @@ test('api/ai-ops reset-override supports email resolution and null userId', asyn
   assert.equal(rpcCall.params.p_user_id, null);
   assert.equal(rpcCall.params.p_user_email, 'bachpt@ghn.vn');
   assert.equal(rpcCall.params.p_changed_by, 'vinhlt@ghn.vn');
+});
+
+test('api/ai-ops GET view=model-config returns allowed models and config overview for Dev Admin', async () => {
+  const serviceClient = {
+    from: (table) => ({
+      select: () => ({
+        order: () => ({
+          limit: () => Promise.resolve({ data: [], error: null }),
+          then: (res) => res({ data: [
+            { scope_type: 'all', scope_key: 'all', model: 'gpt-5.6-terra', reasoning_effort: 'high', updated_by: 'vinhlt@ghn.vn', updated_at: '2026-09-11T00:00:00Z' }
+          ], error: null })
+        })
+      })
+    })
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({
+      model: 'gpt-5.6-luna',
+      reasoningEffort: 'low',
+      allowedModels: [
+        { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', reasoningEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], defaultReasoningEffort: 'low' },
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', reasoningEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], defaultReasoningEffort: 'low' },
+        { id: 'gpt-4.1', label: 'GPT-4.1', reasoningEfforts: [], defaultReasoningEffort: null }
+      ]
+    }),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'GET';
+  req.url = '/api/ai-ops?view=model-config';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const json = JSON.parse(res.body);
+  assert.equal(json.effectiveConfig.model, 'gpt-5.6-terra');
+  assert.equal(json.effectiveConfig.reasoningEffort, 'high');
+  assert.equal(json.effectiveSource, 'all');
+  assert.equal(json.allowedModels.length, 3);
+});
+
+test('api/ai-ops GET view=model-users searches users and protects privacy', async () => {
+  const serviceClient = {
+    rpc: async (name, params) => {
+      assert.equal(name, 'admin_search_ai_chat_users');
+      assert.equal(params.p_search, 'vinh');
+      return {
+        data: [{ user_id: '550e8400-e29b-41d4-a716-446655440000', email: 'vinhlt@ghn.vn' }],
+        error: null
+      };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'GET';
+  req.url = '/api/ai-ops?view=model-users&search=vinh';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const json = JSON.parse(res.body);
+  assert.equal(json.users.length, 1);
+  assert.equal(json.users[0].email, 'vinhlt@ghn.vn');
+  assert.equal(json.users[0].userId, '550e8400-e29b-41d4-a716-446655440000');
+});
+
+test('api/ai-ops POST action=set-model-config validates inputs and records config', async () => {
+  let rpcCall = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      rpcCall = { name, params };
+      return { data: { success: true, scopeType: 'all', model: 'gpt-5.6-terra' }, error: null };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  // 1. Missing reason -> 400
+  const reqNoReason = new EventEmitter();
+  reqNoReason.method = 'POST';
+  reqNoReason.url = '/api/ai-ops';
+  reqNoReason.headers = { authorization: 'Bearer admin-jwt' };
+  reqNoReason.body = { action: 'set-model-config', scopeType: 'all', model: 'gpt-5.6-terra', reason: '' };
+  const resNoReason = new FakeResponse();
+  await handler(reqNoReason, resNoReason);
+  assert.equal(resNoReason.statusCode, 400);
+
+  // 2. Incompatible GPT-4.1 with reasoning -> 400
+  const reqIncompatible = new EventEmitter();
+  reqIncompatible.method = 'POST';
+  reqIncompatible.url = '/api/ai-ops';
+  reqIncompatible.headers = { authorization: 'Bearer admin-jwt' };
+  reqIncompatible.body = { action: 'set-model-config', scopeType: 'all', model: 'gpt-4.1', reasoningEffort: 'high', reason: 'Audit reason' };
+  const resIncompatible = new FakeResponse();
+  await handler(reqIncompatible, resIncompatible);
+  assert.equal(resIncompatible.statusCode, 400);
+
+  // 3. Valid set config -> 200
+  const reqValid = new EventEmitter();
+  reqValid.method = 'POST';
+  reqValid.url = '/api/ai-ops';
+  reqValid.headers = { authorization: 'Bearer admin-jwt' };
+  reqValid.body = {
+    action: 'set-model-config',
+    scopeType: 'all',
+    model: 'gpt-5.6-terra',
+    reasoningEffort: 'high',
+    reason: 'Phục vụ đối soát leadtime'
+  };
+  const resValid = new FakeResponse();
+  await handler(reqValid, resValid);
+
+  assert.equal(resValid.statusCode, 200);
+  assert.equal(rpcCall.name, 'admin_set_ai_chat_model_config');
+  assert.equal(rpcCall.params.p_scope_type, 'all');
+  assert.equal(rpcCall.params.p_model, 'gpt-5.6-terra');
+  assert.equal(rpcCall.params.p_reasoning_effort, 'high');
+  assert.equal(rpcCall.params.p_reason, 'Phục vụ đối soát leadtime');
+  assert.equal(rpcCall.params.p_changed_by, 'vinhlt@ghn.vn');
+});
+
+test('api/ai-ops POST action=reset-model-config invokes admin_reset_ai_chat_model_config RPC', async () => {
+  let rpcCall = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      rpcCall = { name, params };
+      return { data: { success: true }, error: null };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'POST';
+  req.url = '/api/ai-ops';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  req.body = {
+    action: 'reset-model-config',
+    scopeType: 'user',
+    userId: '550e8400-e29b-41d4-a716-446655440000',
+    reason: 'Bỏ override riêng để kế thừa All'
+  };
+
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(rpcCall.name, 'admin_reset_ai_chat_model_config');
+  assert.equal(rpcCall.params.p_scope_type, 'user');
+  assert.equal(rpcCall.params.p_user_id, '550e8400-e29b-41d4-a716-446655440000');
+  assert.equal(rpcCall.params.p_reason, 'Bỏ override riêng để kế thừa All');
+  assert.equal(rpcCall.params.p_changed_by, 'vinhlt@ghn.vn');
+});
+
+test('api/ai-ops rejects non-Dev Admin with 403 on model config views and actions', async () => {
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'regular-user', email: 'regular@ghn.vn' },
+      serviceClient: {}
+    })
+  });
+
+  // GET model-config
+  const reqGet = new EventEmitter();
+  reqGet.method = 'GET';
+  reqGet.url = '/api/ai-ops?view=model-config';
+  reqGet.headers = { authorization: 'Bearer user-jwt' };
+  const resGet = new FakeResponse();
+  await handler(reqGet, resGet);
+  assert.equal(resGet.statusCode, 403);
+
+  // POST set-model-config
+  const reqPost = new EventEmitter();
+  reqPost.method = 'POST';
+  reqPost.url = '/api/ai-ops';
+  reqPost.headers = { authorization: 'Bearer user-jwt' };
+  reqPost.body = { action: 'set-model-config', scopeType: 'all', model: 'gpt-5.6-terra', reason: 'hacked' };
+  const resPost = new FakeResponse();
+  await handler(reqPost, resPost);
+  assert.equal(resPost.statusCode, 403);
+});
+
+test('migration 20260911_create_ai_chat_model_config.sql enforces strict security definer checks and grants', () => {
+  const migrationPath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../supabase/migrations/20260911_create_ai_chat_model_config.sql'
+  );
+  assert.ok(fs.existsSync(migrationPath), 'Migration file must exist');
+  const content = fs.readFileSync(migrationPath, 'utf8');
+
+  // Must NOT use vulnerable current_user in ('postgres', 'supabase_admin')
+  assert.equal(
+    content.includes("current_user in ('postgres', 'supabase_admin')"),
+    false,
+    'Must not rely on current_user in security definer functions'
+  );
+  assert.equal(
+    /current_user\s*=\s*'postgres'/i.test(content),
+    false,
+    'Must not check current_user = postgres'
+  );
+
+  // Must NOT grant execution on admin RPCs to authenticated
+  assert.equal(
+    /grant\s+execute\s+on\s+function\s+public\.admin_\w+\s+to\s+authenticated/i.test(content),
+    false,
+    'Must not grant execution on admin RPCs to authenticated role'
+  );
+
+  // Must explicitly revoke from public, anon, authenticated
+  assert.match(
+    content,
+    /revoke\s+execute\s+on\s+function\s+public\.admin_search_ai_chat_users\(text\)\s+from\s+public,\s*anon,\s*authenticated;/i
+  );
+  assert.match(
+    content,
+    /revoke\s+execute\s+on\s+function\s+public\.admin_set_ai_chat_model_config\(text,\s*uuid,\s*text,\s*text,\s*text,\s*text,\s*text\)\s+from\s+public,\s*anon,\s*authenticated;/i
+  );
+  assert.match(
+    content,
+    /revoke\s+execute\s+on\s+function\s+public\.admin_reset_ai_chat_model_config\(text,\s*uuid,\s*text,\s*text,\s*text\)\s+from\s+public,\s*anon,\s*authenticated;/i
+  );
+
+  // Must grant execute only to service_role
+  assert.match(
+    content,
+    /grant\s+execute\s+on\s+function\s+public\.admin_search_ai_chat_users\(text\)\s+to\s+service_role;/i
+  );
+  assert.match(
+    content,
+    /grant\s+execute\s+on\s+function\s+public\.admin_set_ai_chat_model_config\(text,\s*uuid,\s*text,\s*text,\s*text,\s*text,\s*text\)\s+to\s+service_role;/i
+  );
+  assert.match(
+    content,
+    /grant\s+execute\s+on\s+function\s+public\.admin_reset_ai_chat_model_config\(text,\s*uuid,\s*text,\s*text,\s*text\)\s+to\s+service_role;/i
+  );
+});
+
+test('api/ai-ops GET view=model-config with invalid userId returns 400 and does not fallback to All', async () => {
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient: {}
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'GET';
+  req.url = '/api/ai-ops?view=model-config&userId=not-a-valid-uuid-123';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 400);
+  const body = JSON.parse(res.body);
+  assert.equal(body.error.code, 'AI_OPS_INVALID_USER_ID');
+});
+
+test('api/ai-ops GET view=model-users returns safe 500 when RPC fails and never calls auth.users PostgREST', async () => {
+  let fromCalledWith = null;
+  const serviceClient = {
+    rpc: async (name, params) => {
+      assert.equal(name, 'admin_search_ai_chat_users');
+      return { data: null, error: new Error('RPC execute error') };
+    },
+    from: (table) => {
+      fromCalledWith = table;
+      return {
+        select: () => ({
+          ilike: () => ({ limit: () => Promise.resolve({ data: [], error: null }) })
+        })
+      };
+    }
+  };
+
+  const handler = createAiOpsHandler({
+    readConfig: () => ({}),
+    authenticate: async () => ({
+      user: { id: 'admin-id', email: 'vinhlt@ghn.vn' },
+      serviceClient
+    })
+  });
+
+  const req = new EventEmitter();
+  req.method = 'GET';
+  req.url = '/api/ai-ops?view=model-users&search=test';
+  req.headers = { authorization: 'Bearer admin-jwt' };
+  const res = new FakeResponse();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(fromCalledWith, null, 'Must never fall back to querying auth.users via PostgREST');
+  const body = JSON.parse(res.body);
+  assert.match(body.error.message, /RPC execute error|Không thể tìm kiếm/i);
 });
 

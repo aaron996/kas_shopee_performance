@@ -104,11 +104,10 @@ export function parseRequestBody(rawBody, contentLength) {
     badRequest('Lịch sử phải kết thúc bằng câu trả lời assistant trước câu hỏi mới.');
   }
 
-  const model = typeof body.model === 'string' ? body.model.trim() : null;
-  const reasoningEffort = typeof body.reasoningEffort === 'string' ? body.reasoningEffort.trim() : null;
   const query = parseQuery(body.query);
 
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), model, reasoningEffort, query };
+  // Legacy keys (model, reasoningEffort) are accepted for rolling deploy safety but discarded here.
+  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), query };
 }
 
 export function requestPayloadHash(request) {
@@ -116,8 +115,6 @@ export function requestPayloadHash(request) {
     .update(JSON.stringify({
       question: request.question,
       history: request.history,
-      model: request.model ?? null,
-      reasoningEffort: request.reasoningEffort ?? null,
       query: request.query ?? null
     }))
     .digest('hex');

@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { createChatHandler } from '../../api/chat.js';
 import { ChatError } from './errors.js';
 import { ALLOWED_MODELS } from './config.js';
+import { requestPayloadHash } from './protocol.js';
 
 const requestId = '550e8400-e29b-41d4-a716-446655440000';
 const config = {
@@ -47,6 +48,7 @@ test('endpoint reserves quota before agent work and finalizes before message_end
   const order = [];
   const handler = createChatHandler({
     readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
     authenticate: async () => { order.push('auth'); return { user: { id: 'u1' }, userClient: {}, serviceClient: {} }; },
     reserve: async () => { order.push('reserve'); },
     runAgent: async ({ onStatus, onText, onSource }) => {
@@ -75,6 +77,7 @@ test('endpoint streams a structured interaction before completing the message', 
   };
   const handler = createChatHandler({
     readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
     authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
     reserve: async () => ({ remainingTurns: 9 }),
     runAgent: async ({ onInteraction }) => {
@@ -91,7 +94,7 @@ test('endpoint streams a structured interaction before completing the message', 
   assert.ok(res.body.indexOf('event: message_end') > res.body.indexOf('event: interaction'));
 });
 
-test('GET exposes model and reasoning controls only to Dev Admin', async () => {
+test('GET /api/chat returns only quota info and does not expose model controls', async () => {
   const createHandler = email => createChatHandler({
     readConfig: () => config,
     authenticate: async () => ({ user: { id: 'u1', email }, userClient: {}, serviceClient: {} }),
@@ -101,22 +104,25 @@ test('GET exposes model and reasoning controls only to Dev Admin', async () => {
   const adminResponse = new FakeResponse();
   await createHandler('vinhlt@ghn.vn')(request({}, 'GET'), adminResponse);
   const adminPayload = JSON.parse(adminResponse.body);
-  assert.equal(adminPayload.defaultModel, 'gpt-5.6-luna');
-  assert.equal(adminPayload.defaultReasoningEffort, 'low');
-  assert.ok(adminPayload.allowedModels.some(model => model.id === 'gpt-5.6-terra'));
+  assert.equal(adminPayload.quota.remainingTurns, 10);
+  assert.equal(adminPayload.allowedModels, undefined);
+  assert.equal(adminPayload.defaultModel, undefined);
+  assert.equal(adminPayload.defaultReasoningEffort, undefined);
 
   const userResponse = new FakeResponse();
   await createHandler('user@ghn.vn')(request({}, 'GET'), userResponse);
   const userPayload = JSON.parse(userResponse.body);
+  assert.equal(userPayload.quota.remainingTurns, 10);
   assert.equal(userPayload.allowedModels, undefined);
   assert.equal(userPayload.defaultModel, undefined);
   assert.equal(userPayload.defaultReasoningEffort, undefined);
 });
 
-test('Dev Admin can run Terra with an allowed reasoning effort end to end', async () => {
+test('backend resolves effective model from backend configuration and delivers via SSE message_start', async () => {
   const seenConfigs = [];
   const handler = createChatHandler({
     readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-terra', reasoningEffort: 'max', source: 'user' }),
     authenticate: async () => ({
       user: { id: 'admin', email: 'vinhlt@ghn.vn' },
       userClient: {},
@@ -130,7 +136,7 @@ test('Dev Admin can run Terra with an allowed reasoning effort end to end', asyn
     finalize: async () => {}
   });
   const res = new FakeResponse();
-  await handler(request({ model: 'gpt-5.6-terra', reasoningEffort: 'max' }), res);
+  await handler(request(), res);
 
   assert.equal(seenConfigs.length, 2);
   for (const effectiveConfig of seenConfigs) {
@@ -141,7 +147,58 @@ test('Dev Admin can run Terra with an allowed reasoning effort end to end', asyn
   assert.match(res.body, /"reasoningEffort":"max"/);
 });
 
-test('every advertised model/reasoning combination reaches the agent unchanged', async () => {
+test('both ordinary users and Dev Admin cannot override model or reasoning via client request body', async () => {
+  let seenConfigUser;
+  let seenConfigAdmin;
+
+  // 1. Regular user sends forged model & reasoningEffort
+  const userHandler = createChatHandler({
+    readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
+    authenticate: async () => ({
+      user: { id: 'user-1', email: 'user@ghn.vn' },
+      userClient: {},
+      serviceClient: {}
+    }),
+    reserve: async (_client, selectedConfig) => { seenConfigUser = selectedConfig; },
+    runAgent: async () => completedAgentResult,
+    finalize: async () => {}
+  });
+  const userRes = new FakeResponse();
+  await userHandler(request({ model: 'gpt-5.6-terra', reasoningEffort: 'max' }), userRes);
+
+  assert.equal(seenConfigUser.model, 'gpt-5.6-luna');
+  assert.equal(seenConfigUser.reasoningEffort, 'low');
+  assert.match(userRes.body, /"model":"gpt-5.6-luna"/);
+  assert.match(userRes.body, /"reasoningEffort":"low"/);
+
+  // 2. Dev Admin sends forged model & reasoningEffort in chat body -> also discarded
+  const adminHandler = createChatHandler({
+    readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'all' }),
+    authenticate: async () => ({
+      user: { id: 'admin-1', email: 'vinhlt@ghn.vn' },
+      userClient: {},
+      serviceClient: {}
+    }),
+    reserve: async (_client, selectedConfig) => { seenConfigAdmin = selectedConfig; },
+    runAgent: async () => completedAgentResult,
+    finalize: async () => {}
+  });
+  const adminRes = new FakeResponse();
+  await adminHandler(request({ model: 'gpt-4.1', reasoningEffort: 'high' }), adminRes);
+
+  assert.equal(seenConfigAdmin.model, 'gpt-5.6-luna');
+  assert.equal(seenConfigAdmin.reasoningEffort, 'low');
+  assert.match(adminRes.body, /"model":"gpt-5.6-luna"/);
+
+  // 3. Request payload hash is invariant to forged model/reasoning in body
+  const cleanReq = { requestId, question: 'ODR SPB tháng 8?', history: [] };
+  const forgedReq = { requestId, question: 'ODR SPB tháng 8?', history: [], model: 'gpt-4.1', reasoningEffort: 'high' };
+  assert.equal(requestPayloadHash(cleanReq), requestPayloadHash(forgedReq));
+});
+
+test('every advertised model/reasoning combination reaches the agent unchanged when resolved by backend', async () => {
   const combinations = ALLOWED_MODELS.flatMap(model => {
     if (model.reasoningEfforts.length === 0) return [{ model: model.id, reasoningEffort: null }];
     return model.reasoningEfforts.map(reasoningEffort => ({ model: model.id, reasoningEffort }));
@@ -151,6 +208,7 @@ test('every advertised model/reasoning combination reaches the agent unchanged',
     let agentConfig;
     const handler = createChatHandler({
       readConfig: () => config,
+      resolveEffectiveConfig: async () => ({ model: combination.model, reasoningEffort: combination.reasoningEffort, source: 'all' }),
       authenticate: async () => ({
         user: { id: 'admin', email: 'vinhlt@ghn.vn' },
         userClient: {},
@@ -163,60 +221,38 @@ test('every advertised model/reasoning combination reaches the agent unchanged',
       },
       finalize: async () => {}
     });
-    const body = { model: combination.model };
-    if (combination.reasoningEffort) body.reasoningEffort = combination.reasoningEffort;
-    await handler(request(body), new FakeResponse());
+    await handler(request(), new FakeResponse());
 
     assert.equal(agentConfig.model, combination.model);
     assert.equal(agentConfig.reasoningEffort, combination.reasoningEffort);
   }
 });
 
-test('ordinary users cannot override model or reasoning even with a forged body', async () => {
-  let effectiveConfig;
+test('endpoint fails closed (503) when backend configuration resolution fails', async () => {
   const handler = createChatHandler({
     readConfig: () => config,
-    authenticate: async () => ({
-      user: { id: 'user', email: 'user@ghn.vn' },
-      userClient: {},
-      serviceClient: {}
-    }),
-    reserve: async (_client, selectedConfig) => { effectiveConfig = selectedConfig; },
-    runAgent: async () => completedAgentResult,
-    finalize: async () => {}
-  });
-  const res = new FakeResponse();
-  await handler(request({ model: 'gpt-5.6-terra', reasoningEffort: 'max' }), res);
-
-  assert.equal(effectiveConfig.model, 'gpt-5.6-luna');
-  assert.equal(effectiveConfig.reasoningEffort, 'low');
-  assert.match(res.body, /"model":"gpt-5.6-luna"/);
-  assert.match(res.body, /"reasoningEffort":"low"/);
-});
-
-test('Dev Admin receives a safe 400 for an incompatible model/reasoning pair', async () => {
-  let reserveCalled = false;
-  const handler = createChatHandler({
-    readConfig: () => config,
+    resolveEffectiveConfig: async () => {
+      throw new ChatError('CHAT_CONFIG_UNAVAILABLE', 'Không thể kết nối cơ sở dữ liệu.', 503);
+    },
     authenticate: async () => ({
       user: { id: 'admin', email: 'vinhlt@ghn.vn' },
       userClient: {},
       serviceClient: {}
     }),
-    reserve: async () => { reserveCalled = true; }
+    reserve: async () => { assert.fail('reserve should not be called on 503 failure'); }
   });
   const res = new FakeResponse();
-  await handler(request({ model: 'gpt-4.1', reasoningEffort: 'high' }), res);
+  await handler(request(), res);
 
-  assert.equal(reserveCalled, false);
-  assert.equal(res.statusCode, 400);
-  assert.equal(JSON.parse(res.body).error.code, 'CHAT_REASONING_NOT_SUPPORTED');
+  assert.equal(res.statusCode, 503);
+  assert.equal(JSON.parse(res.body).error.code, 'CHAT_CONFIG_UNAVAILABLE');
 });
 
-test('quota rejection records the Dev Admin effective model and reasoning selection', async () => {
+test('quota rejection records the effective resolved model and reasoning selection', async () => {
   let rejectionConfig;
   const handler = createChatHandler({
     readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-terra', reasoningEffort: 'high', source: 'user' }),
     authenticate: async () => ({
       user: { id: 'admin', email: 'vinhlt@ghn.vn' },
       userClient: {},
@@ -226,7 +262,7 @@ test('quota rejection records the Dev Admin effective model and reasoning select
     recordQuotaRejection: async (_client, selectedConfig) => { rejectionConfig = selectedConfig; }
   });
   const res = new FakeResponse();
-  await handler(request({ model: 'gpt-5.6-terra', reasoningEffort: 'high' }), res);
+  await handler(request(), res);
 
   assert.equal(rejectionConfig.model, 'gpt-5.6-terra');
   assert.equal(rejectionConfig.reasoningEffort, 'high');
@@ -236,6 +272,7 @@ test('quota failure returns JSON and never calls the agent', async () => {
   let agentCalled = false;
   const handler = createChatHandler({
     readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
     authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
     reserve: async () => { throw new ChatError('CHAT_QUOTA_EXCEEDED', 'Hết lượt.', 429); },
     runAgent: async () => { agentCalled = true; }
