@@ -27,15 +27,21 @@ import { useToast } from './components/ui/Toast';
 import { Layers, ArrowRightLeft, Clock, Activity, Sparkles } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
+const ACCESS_LOG_ID_KEY_PREFIX = 'ghn_access_log_id:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
+const ACCESS_HEARTBEAT_INTERVAL_MS = 60 * 1000; // độ chi tiết của thời lượng truy cập ~60s
 const accessLogRequests = new Set();
 
+// Ghi 1 dòng access_logs mỗi phiên (session), trả về id của dòng đó để
+// heartbeat phía dưới cập nhật `left_at` — dùng suy ra thời lượng truy cập.
 async function recordAccess(email) {
   const normalizedEmail = email.trim().toLowerCase();
   const loggedKey = `${ACCESS_LOGGED_KEY_PREFIX}${normalizedEmail}`;
+  const idKey = `${ACCESS_LOG_ID_KEY_PREFIX}${normalizedEmail}`;
 
   if (sessionStorage.getItem(loggedKey) || accessLogRequests.has(normalizedEmail)) {
-    return;
+    const storedId = sessionStorage.getItem(idKey);
+    return storedId ? Number(storedId) : null;
   }
 
   accessLogRequests.add(normalizedEmail);
@@ -47,21 +53,42 @@ async function recordAccess(email) {
         await new Promise(resolve => window.setTimeout(resolve, delay));
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('access_logs')
-        .insert([{ email: normalizedEmail }]);
+        .insert([{ email: normalizedEmail }])
+        .select('id')
+        .single();
 
       if (!error) {
         sessionStorage.setItem(loggedKey, 'true');
-        return;
+        if (data?.id != null) {
+          sessionStorage.setItem(idKey, String(data.id));
+        }
+        return data?.id ?? null;
       }
 
       lastError = error;
     }
 
     console.error('Failed to record access after retries:', lastError);
+    return null;
   } finally {
     accessLogRequests.delete(normalizedEmail);
+  }
+}
+
+// Cập nhật mốc thời gian rời trang của dòng access_logs tương ứng.
+// Gọi định kỳ (heartbeat) + lúc rời trang, để left_at - accessed_at
+// xấp xỉ thời lượng truy cập của phiên đó.
+async function touchAccessLog(logId) {
+  if (logId == null) return;
+  try {
+    await supabase
+      .from('access_logs')
+      .update({ left_at: new Date().toISOString() })
+      .eq('id', logId);
+  } catch (err) {
+    console.error('Failed to update access log duration:', err);
   }
 }
 
@@ -427,7 +454,18 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    recordAccess(currentUser.email);
+    let accessLogId = null;
+    let heartbeatTimer = null;
+
+    recordAccess(currentUser.email).then((logId) => {
+      accessLogId = logId;
+      if (accessLogId == null) return;
+      touchAccessLog(accessLogId);
+      heartbeatTimer = window.setInterval(() => touchAccessLog(accessLogId), ACCESS_HEARTBEAT_INTERVAL_MS);
+    });
+
+    const handlePageHide = () => touchAccessLog(accessLogId);
+    window.addEventListener('pagehide', handlePageHide);
 
     const room = supabase.channel('online-users', {
       config: {
@@ -460,6 +498,9 @@ export default function App() {
     });
 
     return () => {
+      if (heartbeatTimer) window.clearInterval(heartbeatTimer);
+      window.removeEventListener('pagehide', handlePageHide);
+      touchAccessLog(accessLogId);
       supabase.removeChannel(room);
     };
   }, [currentUser]);
