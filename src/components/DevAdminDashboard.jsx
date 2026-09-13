@@ -38,7 +38,7 @@ export default function DevAdminDashboard({ onlineUsers }) {
         const from = page * PAGE_SIZE;
         const { data, error } = await supabase
           .from('access_logs')
-          .select('email, accessed_at')
+          .select('email, accessed_at, left_at')
           .order('accessed_at', { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
@@ -58,32 +58,66 @@ export default function DevAdminDashboard({ onlineUsers }) {
     const users = new Map();
     accessLogs.forEach((log) => {
       const timestamp = new Date(log.accessed_at).getTime();
+      // left_at được ghi qua heartbeat ~60s/lần khi tab còn mở, nên độ dài
+      // phiên chỉ là ước lượng (sai số trong khoảng độ dài heartbeat), không
+      // phải thời lượng chính xác tới giây.
+      const durationMs = log.left_at ? new Date(log.left_at).getTime() - timestamp : null;
       const previous = users.get(log.email);
       if (!previous) {
-        users.set(log.email, { email: log.email, visits: 1, firstSeen: timestamp, lastSeen: timestamp });
+        users.set(log.email, {
+          email: log.email,
+          visits: 1,
+          firstSeen: timestamp,
+          lastSeen: timestamp,
+          durationSumMs: durationMs > 0 ? durationMs : 0,
+          durationSamples: durationMs > 0 ? 1 : 0,
+        });
         return;
       }
       previous.visits += 1;
       previous.firstSeen = Math.min(previous.firstSeen, timestamp);
       previous.lastSeen = Math.max(previous.lastSeen, timestamp);
+      if (durationMs > 0) {
+        previous.durationSumMs += durationMs;
+        previous.durationSamples += 1;
+      }
     });
-    return [...users.values()].sort((a, b) => b.lastSeen - a.lastSeen);
+    return [...users.values()]
+      .map((user) => ({
+        ...user,
+        avgDurationMs: user.durationSamples ? user.durationSumMs / user.durationSamples : null,
+      }))
+      .sort((a, b) => b.lastSeen - a.lastSeen);
   }, [accessLogs]);
 
   const formatDateTime = (value) => new Intl.DateTimeFormat('vi-VN', {
     dateStyle: 'short', timeStyle: 'medium'
   }).format(new Date(value));
 
+  const formatDuration = (ms) => {
+    if (!ms || ms <= 0) return 'Chưa đủ dữ liệu';
+    const totalMinutes = Math.round(ms / 60000);
+    if (totalMinutes < 1) return '< 1 phút';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours}g ${minutes}p` : `${minutes} phút`;
+  };
+
   const exportUsers = () => downloadCsv(
     'GHN_danh-sach-nguoi-da-truy-cap.csv',
-    ['Email', 'Số lượt truy cập', 'Lần đầu truy cập', 'Lần gần nhất'],
-    userSummary.map((user) => [user.email, user.visits, formatDateTime(user.firstSeen), formatDateTime(user.lastSeen)])
+    ['Email', 'Số lượt truy cập', 'Lần đầu truy cập', 'Lần gần nhất', 'Thời lượng TB/phiên'],
+    userSummary.map((user) => [user.email, user.visits, formatDateTime(user.firstSeen), formatDateTime(user.lastSeen), formatDuration(user.avgDurationMs)])
   );
 
   const exportAccessLogs = () => downloadCsv(
     'GHN_lich-su-truy-cap.csv',
-    ['Email', 'Thời điểm truy cập'],
-    accessLogs.map((log) => [log.email, formatDateTime(log.accessed_at)])
+    ['Email', 'Thời điểm truy cập', 'Thời điểm rời trang', 'Thời lượng'],
+    accessLogs.map((log) => [
+      log.email,
+      formatDateTime(log.accessed_at),
+      log.left_at ? formatDateTime(log.left_at) : '',
+      log.left_at ? formatDuration(new Date(log.left_at).getTime() - new Date(log.accessed_at).getTime()) : '',
+    ])
   );
 
   // Process logs for chart (last 7 days)
@@ -206,7 +240,7 @@ export default function DevAdminDashboard({ onlineUsers }) {
             <div key={user.email} className="dev-admin-user-row">
               <div style={{ minWidth: 0 }}>
                 <strong className="truncate">{user.email}</strong>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Lần đầu: {formatDateTime(user.firstSeen)} · Gần nhất: {formatDateTime(user.lastSeen)}</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Lần đầu: {formatDateTime(user.firstSeen)} · Gần nhất: {formatDateTime(user.lastSeen)} · TB: {formatDuration(user.avgDurationMs)}/phiên</div>
               </div>
               <span className="data-status data-status--default">{user.visits.toLocaleString('vi-VN')} lượt</span>
             </div>
