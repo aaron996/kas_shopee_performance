@@ -17,8 +17,8 @@ giờ mang theo cookie Google của người xem — nó luôn là request vô d
 ## Hướng giải quyết
 
 Một Google Apps Script gắn thẳng vào file Sheet nguồn, chạy dưới quyền của
-người sở hữu/đang mở file (không phải "public"), tự đẩy dữ liệu 4 tab
-(Pick / Deli / Ca1 / Leadtime) vào 4 bảng quan hệ bình thường trên Supabase theo lịch —
+người sở hữu/đang mở file (không phải "public"), tự đẩy dữ liệu 5 tab
+(Pick / Deli / Ca1 / Leadtime / FD) vào 5 bảng quan hệ bình thường trên Supabase theo lịch —
 mỗi dòng sheet là 1 dòng SQL, không phải 1 blob JSON — để dữ liệu này còn
 dùng SQL query/join cho các việc khác ngoài app này. App đọc dữ liệu từ
 Supabase (project đã dùng sẵn cho auth) thay vì đọc trực tiếp Google Sheet.
@@ -28,16 +28,16 @@ Google Sheet (Apps Script, quyền owner)
         │  UrlFetchApp.fetch() mỗi 15' — không phụ thuộc share settings
         │  POST /rest/v1/rpc/sync_kas_<tab>_data  (full-refresh atomic)
         ▼
-Supabase tables: kas_pick_data / kas_deli_data / kas_ca1_data / kas_leadtime_data
+Supabase tables: kas_pick_data / kas_deli_data / kas_ca1_data / kas_leadtime_data / kas_fd_data
         (service_role ghi qua RPC, authenticated đọc)
         │  supabase-js (anon key + user session)
         ▼
-App (src/utils/supabaseSheetSync.js) → App.jsx state (pickRows/deliRows/ca1Rows/leadtimeRows)
+App (src/utils/supabaseSheetSync.js) → App.jsx state (pickRows/deliRows/ca1Rows/leadtimeRows/fdRows)
 ```
 
 Mỗi tab có 1 hàm SQL full-refresh riêng: `sync_kas_pick_data(payload jsonb)`,
 `sync_kas_deli_data(payload jsonb)`, `sync_kas_ca1_data(payload jsonb)`,
-`sync_kas_leadtime_data(payload jsonb)` —
+`sync_kas_leadtime_data(payload jsonb)`, `sync_kas_fd_data(payload jsonb)` —
 mỗi lần gọi sẽ **xoá hết + insert lại** dữ liệu bảng đó trong 1 transaction.
 Không upsert theo key vì kiểm tra thực tế cho thấy data sheet không có cột
 nào là unique key tự nhiên (vd `report_date+hub+client_name` hay
