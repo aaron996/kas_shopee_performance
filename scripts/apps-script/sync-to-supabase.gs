@@ -1,14 +1,14 @@
 /**
- * Đồng bộ 4 tab (Pick / Deli / Ca1 / Leadtime) của Google Sheet nguồn vào 4 bảng
- * Supabase dạng quan hệ bình thường (kas_pick_data / kas_deli_data /
- * kas_ca1_data / kas_leadtime_data, mỗi tab 1 bảng, mỗi dòng sheet 1 dòng SQL),
- * thay cho cách app đọc trực tiếp link CSV public ("Anyone with link can view") —
- * cách đó đã bị chặn khi GHN tắt share ra ngoài domain.
+ * Đồng bộ 5 tab (Pick / Deli / Ca1 / Leadtime / FD) của Google Sheet nguồn vào 5
+ * bảng Supabase dạng quan hệ bình thường (kas_pick_data / kas_deli_data /
+ * kas_ca1_data / kas_leadtime_data / kas_fd_data, mỗi tab 1 bảng, mỗi dòng sheet
+ * 1 dòng SQL), thay cho cách app đọc trực tiếp link CSV public ("Anyone with
+ * link can view") — cách đó đã bị chặn khi GHN tắt share ra ngoài domain.
  *
  * Mỗi lần chạy gọi 1 hàm SQL (sync_kas_pick_data / sync_kas_deli_data /
- * sync_kas_ca1_data / sync_kas_leadtime_data) làm full-refresh atomic (xoá hết rồi insert lại trong
- * 1 transaction) — không upsert theo key vì data thật không có cột nào là
- * unique key tự nhiên.
+ * sync_kas_ca1_data / sync_kas_leadtime_data / sync_kas_fd_data) làm full-refresh
+ * atomic (xoá hết rồi insert lại trong 1 transaction) — không upsert theo key vì
+ * data thật không có cột nào là unique key tự nhiên.
  *
  * Vì script này chạy NGAY TRONG chính file Sheet (Extensions > Apps Script),
  * dưới quyền của người sở hữu/đang mở file, nó đọc được dữ liệu bất kể sheet
@@ -36,6 +36,12 @@
  *    cần đăng nhập gì thêm). Muốn đổi lại chạy nhiều lần/ngày thì tự thêm
  *    trigger như cũ, guard giờ chạy ở dưới vẫn sẽ chặn các lần chạy quá sớm.
  *
+ * Muốn chạy tay lại RIÊNG 1 tab (vd chỉ test/fix lại tab FD sau khi đổi cột
+ * trên Sheet, không muốn đẩy lại cả 4 tab kia): chọn hàm tương ứng ở dropdown
+ * trên cùng của Apps Script editor rồi bấm Run — syncPickOnly / syncDeliOnly /
+ * syncCa1Only / syncLeadtimeOnly / syncFdOnly. Các hàm này chạy ngay, không
+ * bị chặn bởi guard giờ MIN_RUN_HOUR:MIN_RUN_MINUTE (khác với syncAllTabs).
+ *
  * Muốn đổi Spreadsheet ID / gid các tab thì sửa các hằng số ngay dưới đây.
  */
 
@@ -55,7 +61,8 @@ const TAB_GIDS = {
   pick: 1312031199,
   deli: 940798880,
   ca1: 1405399014,
-  leadtime: 396308004
+  leadtime: 396308004,
+  fd: 1207390624
 };
 
 // Mỗi tab ứng với 1 hàm RPC full-refresh riêng trong Supabase
@@ -63,7 +70,8 @@ const TAB_RPC_FUNCTIONS = {
   pick: 'sync_kas_pick_data',
   deli: 'sync_kas_deli_data',
   ca1: 'sync_kas_ca1_data',
-  leadtime: 'sync_kas_leadtime_data'
+  leadtime: 'sync_kas_leadtime_data',
+  fd: 'sync_kas_fd_data'
 };
 
 /**
@@ -132,6 +140,37 @@ function syncAllTabs() {
   if (errors.length > 0) {
     throw new Error('Sync lỗi ở (các) tab: ' + errors.join(' | '));
   }
+}
+
+/**
+ * Chạy tay 1 tab riêng lẻ, KHÔNG qua guard giờ chạy (isBeforeRunWindow_) —
+ * dùng khi cần test/fix lại đúng 1 tab (vd sau khi đổi cột trên Sheet hoặc
+ * sửa RPC function) mà không muốn đẩy lại toàn bộ 4 tab còn lại. Chọn đúng
+ * tên hàm tương ứng ở dropdown trên cùng của Apps Script editor rồi bấm Run.
+ *
+ * Lưu ý: đây là chạy thủ công một lần, không tạo trigger lịch riêng — lịch tự
+ * động hàng ngày vẫn chỉ có 1 trigger duy nhất gọi syncAllTabs (xem
+ * createDailyTrigger). Muốn đổi giờ chạy tự động thì sửa MIN_RUN_HOUR/
+ * MIN_RUN_MINUTE ở đầu file, không phải sửa các hàm dưới đây.
+ */
+function syncPickOnly() {
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'pick', TAB_GIDS.pick, TAB_RPC_FUNCTIONS.pick);
+}
+
+function syncDeliOnly() {
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'deli', TAB_GIDS.deli, TAB_RPC_FUNCTIONS.deli);
+}
+
+function syncCa1Only() {
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'ca1', TAB_GIDS.ca1, TAB_RPC_FUNCTIONS.ca1);
+}
+
+function syncLeadtimeOnly() {
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'leadtime', TAB_GIDS.leadtime, TAB_RPC_FUNCTIONS.leadtime);
+}
+
+function syncFdOnly() {
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'fd', TAB_GIDS.fd, TAB_RPC_FUNCTIONS.fd);
 }
 
 function syncOneTab(ss, tabKey, gid, rpcFunctionName) {

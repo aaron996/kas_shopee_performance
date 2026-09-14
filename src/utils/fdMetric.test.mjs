@@ -53,12 +53,12 @@ test('FD keeps values at or below 3% neutral and highlights higher values as wor
   assert.equal(worst.color, '#FFFFFF');
 });
 
-test('FD dataset aggregation across lanes and regions', () => {
+test('FD dataset aggregation across delivery warehouses and regions', () => {
   const sampleFdRows = [
-    { report_date: '2026-09-02', region: 'BMT', externallane: 'Intra city', client_name: 'SPE', mau_fd: 236, fd_hoan_thanh: 18 },
-    { report_date: '2026-09-02', region: 'BMT', externallane: 'Intra region', client_name: 'SPE', mau_fd: 120, fd_hoan_thanh: 12 },
-    { report_date: '2026-09-02', region: 'HCM', externallane: 'Intra city', client_name: 'SPB', mau_fd: 5000, fd_hoan_thanh: 400 },
-    { report_date: '2026-09-01', region: 'BMT', externallane: 'Intra city', client_name: 'SPE', mau_fd: 200, fd_hoan_thanh: 20 },
+    { report_date: '2026-09-02', region: 'BMT', deliverywh: 'Kho A', client_name: 'SPE', mau_fd: 236, fd_hoan_thanh: 18 },
+    { report_date: '2026-09-02', region: 'BMT', deliverywh: 'Kho B', client_name: 'SPE', mau_fd: 120, fd_hoan_thanh: 12 },
+    { report_date: '2026-09-02', region: 'HCM', deliverywh: 'Kho A', client_name: 'SPB', mau_fd: 5000, fd_hoan_thanh: 400 },
+    { report_date: '2026-09-01', region: 'BMT', deliverywh: 'Kho A', client_name: 'SPE', mau_fd: 200, fd_hoan_thanh: 20 },
   ];
 
   // Aggregation for nationwide D-1 (2026-09-02) ALL clients
@@ -81,13 +81,13 @@ test('FD dataset aggregation across lanes and regions', () => {
 
   // Sub-entity grouping for BMT on D-1
   const bmtRows = d1AllRows.filter(r => r.region === 'BMT');
-  const bmtLanes = {};
+  const bmtWarehouses = {};
   bmtRows.forEach(r => {
-    const lane = r.externallane;
-    bmtLanes[lane] = (bmtLanes[lane] || 0) + (r.mau_fd - r.fd_hoan_thanh);
+    const wh = r.deliverywh;
+    bmtWarehouses[wh] = (bmtWarehouses[wh] || 0) + (r.mau_fd - r.fd_hoan_thanh);
   });
-  assert.equal(bmtLanes['Intra city'], 218);
-  assert.equal(bmtLanes['Intra region'], 108);
+  assert.equal(bmtWarehouses['Kho A'], 218);
+  assert.equal(bmtWarehouses['Kho B'], 108);
 });
 
 test('FD dates group into weekCurrent and weekPrev via groupDatesByWeek', () => {

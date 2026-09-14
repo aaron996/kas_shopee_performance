@@ -452,7 +452,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
   // Export Matrix Data to CSV
   const handleExportCSV = (context) => {
     if (!filteredPick.length && !filteredDeli.length && !filteredFd.length) return;
-    const headers = ['Nghiệp vụ', 'Vùng', 'Hub / Tuyến', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
+    const headers = ['Nghiệp vụ', 'Vùng', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
 
     filteredPick.forEach(r => {
@@ -473,7 +473,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       const tot = getRowVal(r, 'mau_fd');
       const ont = getRowVal(r, 'fd_hoan_thanh');
       const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push(['FD', r.region, r.externallane || '', r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+      csvRows.push(['FD', r.region, r.deliverywh || '', r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
     const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, context)], { type: 'text/csv;charset=utf-8;' });
@@ -625,7 +625,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     rows.forEach(r => {
       const d = r.report_date;
       const reg = r.region;
-      const subEntity = isFd ? (r.externallane || 'Khác') : r.hub;
+      const subEntity = isFd ? (r.deliverywh || 'Khác') : r.hub;
       const mien = Object.keys(MIEN_REGIONS).find(m => MIEN_REGIONS[m].includes(reg)) || 'Miền Khác';
 
       let tot = 0;
@@ -755,7 +755,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
               {/* Row 1: Week Titles */}
               <tr>
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
-                <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Tuyến' : 'Vùng / Hub'}</th>
+                <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Kho giao' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
                     {isFd ? `TUẦN W-2 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}` : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
@@ -847,7 +847,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                   if (expandedRegions[reg]) {
                     const subMap = {};
                     rows.filter(r => r.region === reg).forEach(r => {
-                      const entityKey = isFd ? (r.externallane || 'Khác') : r.hub;
+                      const entityKey = isFd ? (r.deliverywh || 'Khác') : r.hub;
                       if (!subMap[entityKey]) subMap[entityKey] = 0;
                       if (r.report_date === d1Date) {
                         let tot = 0;
@@ -922,7 +922,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                       // Get Top Sub-entities (Hubs or Lanes) for this region sorted by absolute uncompleted/late volume on D-1
                       const subMap = {};
                       rows.filter(r => r.region === reg).forEach(r => {
-                        const entityKey = isFd ? (r.externallane || 'Khác') : r.hub;
+                        const entityKey = isFd ? (r.deliverywh || 'Khác') : r.hub;
                         if (!subMap[entityKey]) subMap[entityKey] = 0;
                         if (r.report_date === d1Date) {
                           let tot = 0;
@@ -953,7 +953,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                                 className={`toggle-btn hub-disclosure ${isExpanded ? 'is-expanded' : ''}`}
                                 onClick={() => toggleRegion(reg)}
                                 aria-expanded={isExpanded}
-                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} ${isFd ? 'tuyến' : 'hub'} của vùng ${reg}`}
+                                aria-label={`${isExpanded ? 'Thu gọn' : 'Mở rộng'} ${isFd ? 'kho giao' : 'hub'} của vùng ${reg}`}
                               >
                                 <ChevronRight size={14} aria-hidden="true" />
                               </button>
@@ -1045,7 +1045,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
               <span>≤ 3% nền trung tính; &gt; 3% chuyển đỏ theo mức độ cao dần.</span>
             </div>
           )}
-          <div>{isFd ? '* Tuyến mặc định ẩn, click ▶ để mở các tuyến phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
+          <div>{isFd ? '* Kho giao mặc định ẩn, click ▶ để mở các kho giao phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
         </div>
       </div>
     );
