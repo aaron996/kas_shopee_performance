@@ -236,7 +236,7 @@ export default function App() {
 
   const allHubTypes = React.useMemo(() => {
     const types = new Set();
-    [...pickRows, ...deliRows, ...ca1Rows].forEach(r => {
+    [...pickRows, ...deliRows, ...ca1Rows, ...fdRows].forEach(r => {
       const type = getHubType(r);
       if (type) {
         types.add(type);
@@ -245,7 +245,7 @@ export default function App() {
     // Add 'Unknown' if we want it as a fallback, but let's just use what's in data.
     // If we want a default fallback just in case:
     return Array.from(types).sort();
-  }, [pickRows, deliRows, ca1Rows]);
+  }, [pickRows, deliRows, ca1Rows, fdRows]);
 
   // Initial state should be all hub types
   const [hubTypeSelection, setHubTypeSelection] = useState(initialView.hubTypes);
@@ -484,8 +484,8 @@ export default function App() {
   }, [ca1Rows, selectedRegions, selectedHubTypes]);
 
   const filteredFdRows = React.useMemo(() => {
-    return fdRows.filter(r => selectedRegions.includes(r.region));
-  }, [fdRows, selectedRegions]);
+    return fdRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+  }, [fdRows, selectedRegions, selectedHubTypes]);
 
   const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedDeli = filteredDeliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
