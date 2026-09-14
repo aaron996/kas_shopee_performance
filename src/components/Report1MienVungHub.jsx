@@ -216,7 +216,16 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the offset is remeasured and applied
+  // before the browser paints — otherwise the sticky "Miền"/TOÀN QUỐC rows
+  // render for one frame at the previous (or default) offset whenever the
+  // header/all-row height changes, which is visible as a row briefly jumping
+  // or overlapping its neighbor while scrolling. Re-measuring on
+  // `expandedRegions` too: expanding/collapsing a hub group doesn't change
+  // thead/all-row height itself, but ResizeObserver won't fire for that, so
+  // without this the cached offset can go stale relative to the now-taller
+  // table body.
+  useLayoutEffect(() => {
     const el = theadRef.current;
     if (!el) return;
     const measure = () => setTheadHeight(el.getBoundingClientRect().height);
@@ -224,9 +233,9 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [density, pickRows, deliRows, fdRows, clientFilter]);
+  }, [density, pickRows, deliRows, fdRows, clientFilter, expandedRegions]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = allRowRef.current;
     if (!el) return;
     const measure = () => setAllRowHeight(el.getBoundingClientRect().height);
@@ -234,7 +243,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [density, pickRows, deliRows, fdRows, clientFilter]);
+  }, [density, pickRows, deliRows, fdRows, clientFilter, expandedRegions]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
