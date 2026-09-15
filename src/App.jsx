@@ -16,7 +16,7 @@ import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS } from './data/defaultDataset';
-import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage } from './utils/dashboardState';
+import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage, getVietnamBusinessDay } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
@@ -413,15 +413,40 @@ export default function App() {
     }
   }, [currentUser, showToast]);
 
-  const [hasFetchedLive, setHasFetchedLive] = useState(false);
+  const autoRefreshBusinessDayRef = React.useRef(null);
 
-  // Auto-sync live data on page mount if authenticated
+  // Load once when the user opens the dashboard, then load once again when the
+  // Vietnam reporting day rolls over. The visibility/focus hooks cover a tab
+  // left open overnight; the interval is a quiet fallback for an active tab.
   useEffect(() => {
-    if (currentUser?.email && !hasFetchedLive && !isSyncing) {
-      handleSyncLiveSheet();
-      setHasFetchedLive(true);
+    if (!currentUser?.email) {
+      autoRefreshBusinessDayRef.current = null;
+      return undefined;
     }
-  }, [currentUser?.email, handleSyncLiveSheet, hasFetchedLive, isSyncing]);
+
+    const refreshForNewBusinessDay = () => {
+      const businessDay = getVietnamBusinessDay();
+      if (syncRequestRef.current || autoRefreshBusinessDayRef.current === businessDay) return;
+
+      autoRefreshBusinessDayRef.current = businessDay;
+      handleSyncLiveSheet();
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshForNewBusinessDay();
+    };
+
+    refreshForNewBusinessDay();
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshForNewBusinessDay);
+    const intervalId = window.setInterval(refreshForNewBusinessDay, 5 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshForNewBusinessDay);
+      window.clearInterval(intervalId);
+    };
+  }, [currentUser?.email, handleSyncLiveSheet]);
 
   // Real-time Presence & Access Logging
   useEffect(() => {

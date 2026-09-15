@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readDashboardView, saveDashboardView, dataCoverage, appendCsvContext, csvCell, VIEW_KEY } from './dashboardState.js';
+import { readDashboardView, saveDashboardView, dataCoverage, appendCsvContext, csvCell, getVietnamBusinessDay, VIEW_KEY } from './dashboardState.js';
 
 const storage = (value) => ({ getItem: () => value, setItem(key, next) { assert.equal(key, VIEW_KEY); value = next; } });
 test('refresh restores real client, report, explicit empty filters and density', () => {
@@ -26,6 +26,10 @@ test('all hub types remains a sentinel; intentionally empty is preserved', () =>
 test('coverage is actual distinct days, not a promised reporting window', () => {
   assert.equal(dataCoverage([]), 'Chưa có dữ liệu');
   assert.equal(dataCoverage([{ ngay: '2026-09-03' }, { ngay: '2026-09-01' }, { ngay: '2026-09-03' }], 'ngay'), '2026-09-01 → 2026-09-03 (2 ngày có dữ liệu)');
+});
+test('business day uses Vietnam time across a UTC day boundary', () => {
+  assert.equal(getVietnamBusinessDay(new Date('2026-09-14T16:59:00Z')), '2026-09-14');
+  assert.equal(getVietnamBusinessDay(new Date('2026-09-14T17:00:00Z')), '2026-09-15');
 });
 test('CSV escapes quotes, newlines and spreadsheet formula prefixes', () => {
   assert.equal(csvCell('Hub "A",\nB'), '"Hub ""A"",\nB"');
