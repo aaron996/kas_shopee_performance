@@ -6,6 +6,24 @@
 --   1. public.sync_kas_cod_suspicion_data(payload jsonb, snapshot_meta jsonb) - atomic full refresh TRUNCATE+INSERT
 
 -- =====================================================================
+-- 0. Disable legacy QC role management without deleting saved role data
+-- =====================================================================
+-- An earlier manual rollout may already have created these admin RPCs and
+-- the user_module_roles table. The feature is temporarily disabled: remove
+-- the callable admin surface and revoke client access, but preserve rows so
+-- role management can be restored later without reconstructing assignments.
+drop function if exists public.admin_list_users_qc_roles(text);
+drop function if exists public.admin_set_user_qc_role(uuid, text, boolean);
+
+do $$
+begin
+  if to_regclass('public.user_module_roles') is not null then
+    execute 'revoke all on table public.user_module_roles from public, anon, authenticated';
+  end if;
+end
+$$;
+
+-- =====================================================================
 -- 1. Table: kas_cod_suspicion_data
 -- =====================================================================
 create table if not exists public.kas_cod_suspicion_data (
