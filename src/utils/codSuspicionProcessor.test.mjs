@@ -22,7 +22,11 @@ test('KAS-221 migration exposes read-only data to authenticated users and fails 
 
   assert.doesNotMatch(migration, /current_user\s+in\s*\('postgres',\s*'supabase_admin'\)/i);
   assert.doesNotMatch(migration, /auth\.role\(\)/i);
-  assert.doesNotMatch(migration, /user_module_roles|admin_(list|set)_user_qc_role/i);
+  assert.doesNotMatch(migration, /create\s+table[\s\S]*?user_module_roles/i);
+  assert.doesNotMatch(migration, /create\s+(or\s+replace\s+)?function[\s\S]*?admin_(list|set)_user_qc_role/i);
+  assert.match(migration, /drop function if exists public\.admin_list_users_qc_roles\(text\)/i);
+  assert.match(migration, /drop function if exists public\.admin_set_user_qc_role\(uuid, text, boolean\)/i);
+  assert.match(migration, /revoke all on table public\.user_module_roles from public, anon, authenticated/i);
   assert.match(migration, /create policy "authenticated_can_read_kas_cod_suspicion_data"[\s\S]*?to authenticated[\s\S]*?using \(true\)/i);
   assert.match(migration, /revoke all on table public\.kas_cod_suspicion_data from anon, authenticated/i);
   assert.match(migration, /grant select on table public\.kas_cod_suspicion_data to authenticated/i);
