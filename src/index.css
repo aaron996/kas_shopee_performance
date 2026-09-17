@@ -2348,6 +2348,18 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   --master-table-sticky-top: calc(var(--app-header-height, 52px) + 8px);
 }
 
+/* `border-collapse: collapse` and sticky <td>s don't mix reliably across
+   browsers: a collapsed border is painted on the table's grid, not the cell,
+   so a sticky cell's border can be clipped or duplicated right at the
+   frozen edge while scrolling. `separate` + zero spacing keeps the same
+   look (each cell only draws its own bottom/right border, so edges don't
+   double up) but paints borders per-cell, which sticky positioning handles
+   correctly. */
+.report1-master-table table.mtx-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .has-sticky-kpi .report1-master-table {
   --master-table-sticky-top: calc(var(--app-header-height, 52px) + 56px);
 }
@@ -2378,13 +2390,12 @@ table.mtx-table tbody tr:hover td.lbl-2 {
 }
 
 /* TOÀN QUỐC (nationwide total) row: pin it right under the sticky thead
-   instead of letting it scroll away and disappear behind the header. */
-.report1-master-table table.mtx-table tbody tr.all-row-sticky {
-  position: sticky;
-  top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));
-  z-index: 40;
-}
-
+   instead of letting it scroll away and disappear behind the header. Sticky
+   is applied to the <td>s only, not the <tr> itself — sticky positioning on
+   a <tr> is computed independently of its cells, and having both pinned to
+   the same offset gave the browser two separate references that could drift
+   apart by a frame during fast scrolling (visible as the row briefly
+   splitting/overlapping the row below it). */
 .report1-master-table table.mtx-table tbody tr.all-row-sticky td {
   position: sticky;
   top: calc(var(--master-table-sticky-top) + var(--thead-h, 72px));

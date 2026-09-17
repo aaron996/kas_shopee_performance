@@ -1,6 +1,20 @@
 export const VIEW_KEY = 'ghn_dashboard_view_v1';
 export const REPORTS = ['report1', 'report5', 'report3', 'report-insight', 'cod-suspicion'];
 
+// OPS data is published on Vietnam's operating day. Keep this independent of
+// the viewer's device timezone so a tab left open overnight refreshes once the
+// reporting day changes in Vietnam, even for users travelling elsewhere.
+export function getVietnamBusinessDay(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 export function readDashboardView(storage, search = '') {
   let saved = {};
   try { saved = JSON.parse(storage.getItem(VIEW_KEY)) || {}; } catch { /* private mode / invalid JSON */ }
