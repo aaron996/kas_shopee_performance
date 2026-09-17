@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   STRONG_SIGNALS,
   STRONG_SIGNAL_MAP,
+  ALERT_LEVELS,
   formatCurrencyVND,
   formatDateVN,
   formatDateTimeVN,
@@ -11,7 +12,8 @@ import {
   groupOrdersByDriver,
   sortDrivers,
   filterDriverGroups,
-  computeSuspicionKPIs
+  computeSuspicionKPIs,
+  getAlertLevel
 } from './codSuspicionProcessor.js';
 
 const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_suspicion_module.sql', import.meta.url);
@@ -97,6 +99,12 @@ test('formatDateTimeVN formats timestamp correctly', () => {
   assert.equal(formatDateTimeVN('invalid'), 'Đang cập nhật');
   const str = formatDateTimeVN('2026-09-15T08:30:00Z');
   assert.ok(str.length > 5);
+});
+
+test('getAlertLevel maps the KAS-221 reviewed queue to high, medium, and low labels', () => {
+  assert.equal(getAlertLevel(18), ALERT_LEVELS.HIGH);
+  assert.equal(getAlertLevel(15), ALERT_LEVELS.MEDIUM);
+  assert.equal(getAlertLevel(10), ALERT_LEVELS.LOW);
 });
 
 test('normalizeSuspicionOrder handles both SQL aliases and Supabase schema columns', () => {
@@ -237,6 +245,10 @@ test('filterDriverGroups filters by suspicion type, warehouse and search query',
   assert.equal(binhThanhOnly[0].driverId, 'D1');
   assert.equal(binhThanhOnly[0].orders.length, 1);
   assert.equal(binhThanhOnly[0].orders[0].orderCode, 'O2');
+
+  const highAlertOnly = filterDriverGroups(drivers, { alertLevel: 'HIGH' });
+  assert.equal(highAlertOnly.length, 2);
+  assert.equal(highAlertOnly[0].orders[0].orderCode, 'O2');
 
   // Filter by search query on driver name
   const searchA = filterDriverGroups(drivers, { searchQuery: 'Văn A' });

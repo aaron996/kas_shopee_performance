@@ -49,6 +49,23 @@ export const STRONG_SIGNAL_MAP = Object.fromEntries(
   STRONG_SIGNALS.map(s => [s.key, s])
 );
 
+export const ALERT_LEVELS = {
+  HIGH: { value: 'HIGH', label: 'Cao', color: '#dc2626', background: 'rgba(220, 38, 38, 0.10)' },
+  MEDIUM: { value: 'MEDIUM', label: 'Vừa', color: '#d97706', background: 'rgba(217, 119, 6, 0.10)' },
+  LOW: { value: 'LOW', label: 'Thấp', color: '#2563eb', background: 'rgba(37, 99, 235, 0.10)' }
+};
+
+/**
+ * KAS-221 only returns screened records from 10 points. Keep the existing
+ * high-risk cut-off (18) and split the remaining reviewed queue at 15.
+ */
+export function getAlertLevel(totalScore) {
+  const score = Number(totalScore) || 0;
+  if (score >= 18) return ALERT_LEVELS.HIGH;
+  if (score >= 15) return ALERT_LEVELS.MEDIUM;
+  return ALERT_LEVELS.LOW;
+}
+
 /**
  * Format currency VND using vi-VN locale
  */
@@ -218,6 +235,7 @@ export function sortDrivers(drivers = []) {
 export function filterDriverGroups(driverGroups = [], {
   suspicionType = 'ALL',
   warehouse = 'ALL',
+  alertLevel = 'ALL',
   searchQuery = ''
 } = {}) {
   const cleanSearch = searchQuery.trim().toLowerCase();
@@ -230,6 +248,9 @@ export function filterDriverGroups(driverGroups = [], {
           return false;
         }
         if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
+          return false;
+        }
+        if (alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
         }
         return true;

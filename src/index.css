@@ -4784,6 +4784,58 @@ body.dark-mode .kpi-table-tab.active {
   color: white;
 }
 .nav-btn-sleek:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.header-cod-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cod-accordion-chevron {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cod-accordion-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.cod-driver-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  border-top: 0 solid transparent;
+  background: var(--card-bg, #ffffff);
+  opacity: 0;
+  transition: grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease, border-color 180ms ease;
+}
+
+.cod-driver-details.is-expanded {
+  grid-template-rows: 1fr;
+  border-top-width: 1px;
+  border-top-color: var(--border);
+  opacity: 1;
+}
+
+.cod-driver-details-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 1.25rem;
+  transform: translateY(-0.35rem);
+  transition: padding 260ms cubic-bezier(0.16, 1, 0.3, 1), transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cod-driver-details.is-expanded .cod-driver-details-inner {
+  padding-block: 1.25rem;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cod-accordion-chevron,
+  .cod-driver-details,
+  .cod-driver-details-inner {
+    transition: none;
+  }
+}
 button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .dropdown-toggle-sleek, .filter-label-text { white-space: nowrap; }
 
