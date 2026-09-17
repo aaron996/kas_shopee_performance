@@ -13,10 +13,9 @@ export default function Header({
   onRetryData, canExport, exportContext
 }) {
   // Vùng/Loại Hub chỉ áp cho dữ liệu grain hub (Report 1/2). Tab Leadtime
-  // (grain tỉnh-tỉnh) và tab Insight (nationwide, nối cả 2 grain) đều không
-  // bị 2 bộ lọc này tác động — ẩn đi thay vì để sáng cho người dùng tưởng đã
-  // lọc (cùng lý do đã áp cho tab Leadtime, xem audit B9).
-  const hideRegionHubFilters = activeTab === 'report3' || activeTab === 'report-insight';
+  // (grain tỉnh-tỉnh), tab Insight (nationwide, nối cả 2 grain), và tab Đơn nghi vấn COD
+  // đều không bị 2 bộ lọc này tác động — ẩn đi để tránh hiểu nhầm.
+  const hideRegionHubFilters = activeTab === 'report3' || activeTab === 'report-insight' || activeTab === 'cod-suspicion';
   const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
   const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -134,7 +133,7 @@ export default function Header({
             <kbd className="cmdk-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
 
-          {activeTab !== 'report5' && (
+          {activeTab !== 'report5' && activeTab !== 'cod-suspicion' && (
             <div className="hdr-field">
               <Filter size={14} className="filter-icon" />
               <span className="hdr-field-label">Client:</span>
