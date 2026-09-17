@@ -1,5 +1,5 @@
 export const VIEW_KEY = 'ghn_dashboard_view_v1';
-export const REPORTS = ['report1', 'report5', 'report3', 'report-insight'];
+export const REPORTS = ['report1', 'report5', 'report3', 'report-insight', 'cod-suspicion'];
 
 export function readDashboardView(storage, search = '') {
   let saved = {};

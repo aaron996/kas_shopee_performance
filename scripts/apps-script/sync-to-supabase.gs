@@ -173,6 +173,17 @@ function syncFdOnly() {
   syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'fd', TAB_GIDS.fd, TAB_RPC_FUNCTIONS.fd);
 }
 
+/**
+ * Đồng bộ riêng tab Đơn nghi vấn COD (KAS-221) nếu dữ liệu được đổ về Google Sheet
+ */
+function syncCodSuspicionOnly(gid = null) {
+  const targetGid = gid || TAB_GIDS.codSuspicion;
+  if (!targetGid) {
+    throw new Error('Chưa cấu hình gid cho tab Đơn nghi vấn COD (TAB_GIDS.codSuspicion)');
+  }
+  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'codSuspicion', targetGid, 'sync_kas_cod_suspicion_data');
+}
+
 function syncOneTab(ss, tabKey, gid, rpcFunctionName) {
   const sheet = ss.getSheets().find((s) => s.getSheetId() === gid);
   if (!sheet) {

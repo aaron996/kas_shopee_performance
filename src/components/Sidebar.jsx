@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, ShieldCheck, Sparkles } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, ShieldCheck, Sparkles, ShieldAlert } from 'lucide-react';
 import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 
@@ -7,6 +7,7 @@ export default function Sidebar({
   activeTab,
   setActiveTab,
   currentUser,
+  hasQcRole,
   onLogout,
   isDarkMode,
   setIsDarkMode,
@@ -21,7 +22,8 @@ export default function Sidebar({
     { id: 'report1', label: '1. OPS metric', icon: Layers },
     { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
     { id: 'report3', label: '3. Leadtime từng chặng', icon: Clock },
-    { id: 'report-insight', label: '4. Insight', icon: Sparkles }
+    { id: 'report-insight', label: '4. Insight', icon: Sparkles },
+    ...(hasQcRole ? [{ id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert }] : [])
   ];
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 

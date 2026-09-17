@@ -7,6 +7,7 @@ import Report5LaneCa1 from './components/Report5LaneCa1';
 const ReportLeadtime = lazy(() => import('./components/ReportLeadtime'));
 // Lazy: kéo theo leadtimeCalc (build index cho tab 3) — chỉ cần tải khi mở tab Insight.
 const ReportInsight = lazy(() => import('./components/ReportInsight'));
+const CodSuspicionReport = lazy(() => import('./components/CodSuspicionReport'));
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
@@ -20,11 +21,12 @@ import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCove
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
+import { checkUserQcRole } from './utils/codSuspicionClient';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 import LoadingScreen from './components/LoadingScreen';
 import { useToast } from './components/ui/Toast';
-import { Layers, ArrowRightLeft, Clock, Activity, Sparkles } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, Activity, Sparkles, ShieldAlert } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -96,6 +98,25 @@ export default function App() {
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [hasQcRole, setHasQcRole] = useState(false);
+
+  // Server-side QC role verification
+  useEffect(() => {
+    let isCancelled = false;
+    if (!currentUser) {
+      setHasQcRole(false);
+      return;
+    }
+    checkUserQcRole(currentUser).then((allowed) => {
+      if (!isCancelled) {
+        setHasQcRole(allowed);
+        if (!allowed && activeTab === 'cod-suspicion') {
+          setActiveTab('report1');
+        }
+      }
+    });
+    return () => { isCancelled = true; };
+  }, [currentUser, activeTab]);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
   // When this app is loaded inside an <iframe>, the host page can pass the
@@ -542,6 +563,7 @@ export default function App() {
         setClientFilter={setClientFilter}
         onSelectRegion={handleJumpToRegion}
         hasInsightTab
+        hasQcRole={hasQcRole}
       />
 
       {/* Main Layout wrapper for Sidebar + Content */}
@@ -550,6 +572,7 @@ export default function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           currentUser={currentUser}
+          hasQcRole={hasQcRole}
           onLogout={handleLogout}
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
@@ -650,6 +673,12 @@ export default function App() {
               {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
                 <DevAdminDashboard onlineUsers={onlineUsers} />
               )}
+
+              {activeTab === 'cod-suspicion' && hasQcRole && (
+                <Suspense fallback={<LoadingScreen text="Đang mở tab Đơn nghi vấn COD..." option={4} />}>
+                  <CodSuspicionReport />
+                </Suspense>
+              )}
             </div>
           </main>
 
@@ -690,6 +719,17 @@ export default function App() {
               <Sparkles size={18} />
               <span>4. Insight</span>
             </button>
+
+            {hasQcRole && (
+              <button
+                className={`mobile-nav-item ${activeTab === 'cod-suspicion' ? 'active' : ''}`}
+                aria-current={activeTab === 'cod-suspicion' ? 'page' : undefined}
+                onClick={() => setActiveTab('cod-suspicion')}
+              >
+                <ShieldAlert size={18} />
+                <span>5. Nghi vấn COD</span>
+              </button>
+            )}
 
             <button
               className="mobile-nav-item"
