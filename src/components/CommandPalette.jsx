@@ -18,8 +18,7 @@ export default function CommandPalette({
   clientFilter,
   setClientFilter,
   onSelectRegion,
-  hasInsightTab = false,
-  hasQcRole = false
+  hasInsightTab = false
 }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -45,9 +44,7 @@ export default function CommandPalette({
     if (hasInsightTab) {
       tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', icon: Sparkles });
     }
-    if (hasQcRole) {
-      tabItems.push({ type: 'tab', id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert });
-    }
+    tabItems.push({ type: 'tab', id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert });
 
     const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
       type: 'client',

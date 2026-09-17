@@ -7,7 +7,6 @@ export default function Sidebar({
   activeTab,
   setActiveTab,
   currentUser,
-  hasQcRole,
   onLogout,
   isDarkMode,
   setIsDarkMode,
@@ -23,7 +22,7 @@ export default function Sidebar({
     { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
     { id: 'report3', label: '3. Leadtime từng chặng', icon: Clock },
     { id: 'report-insight', label: '4. Insight', icon: Sparkles },
-    ...(hasQcRole ? [{ id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert }] : [])
+    { id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert }
   ];
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 

@@ -11,10 +11,7 @@ import {
   BadgeDollarSign,
   Filter,
   CheckCircle2,
-  HelpCircle,
-  Warehouse,
-  ExternalLink,
-  ChevronsUpDown
+  Warehouse
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,9 +20,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Cell,
-  PieChart,
-  Pie
+  Cell
 } from 'recharts';
 import {
   STRONG_SIGNALS,
@@ -69,7 +64,7 @@ export default function CodSuspicionReport() {
         setRawData(res.rows || []);
         setMetadata(res.metadata);
       } else {
-        setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng kiểm tra quyền hạn role QC hoặc thử lại.');
+        setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
       }
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
@@ -204,7 +199,7 @@ export default function CodSuspicionReport() {
                   color: '#3b82f6'
                 }}
               >
-                ROLE: QC & DEV ADMIN
+                DÀNH CHO NGƯỜI DÙNG ĐÃ ĐĂNG NHẬP
               </span>
             </div>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>

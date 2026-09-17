@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot, ShieldCheck } from 'lucide-react';
+import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import AiOperationsDashboard from './AiOperationsDashboard';
-import QcRoleManager from './QcRoleManager';
 
 const PAGE_SIZE = 1000;
 
@@ -21,7 +20,7 @@ function downloadCsv(filename, headers, rows) {
 }
 
 export default function DevAdminDashboard({ onlineUsers }) {
-  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'access' | 'qc-roles'
+  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'access'
   const [accessLogs, setAccessLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -157,30 +156,10 @@ export default function DevAdminDashboard({ onlineUsers }) {
           <Activity size={18} /> LƯU LƯỢNG HỆ THỐNG
         </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('qc-roles')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.25rem',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            background: adminTab === 'qc-roles' ? 'var(--ghn-blue)' : 'var(--card-bg)',
-            color: adminTab === 'qc-roles' ? 'white' : 'var(--text-main)',
-            fontWeight: adminTab === 'qc-roles' ? 700 : 500,
-            cursor: 'pointer'
-          }}
-        >
-          <ShieldCheck size={18} /> PHÂN QUYỀN QC (KAS-221)
-        </button>
       </div>
 
       {adminTab === 'ai-ops' ? (
         <AiOperationsDashboard />
-      ) : adminTab === 'qc-roles' ? (
-        <QcRoleManager />
       ) : (
         <>
       {/* Top KPIs */}

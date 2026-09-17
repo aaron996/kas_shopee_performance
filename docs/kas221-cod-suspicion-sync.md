@@ -2,6 +2,12 @@
 
 Tài liệu hướng dẫn vận hành và cấu hình pipeline đồng bộ dữ liệu từ query StarRocks KAS-221 vào Supabase project `iyjsihwgnzcytbojvoom`.
 
+> **Điều kiện kích hoạt:** SQL `01_score_model_hcm_v20_PENDING_VERIFY.sql`, DOCX
+> KAS-221 và output sample không được version trong repository này. Trước khi bật
+> source job production, người vận hành phải đối chiếu alias, ngưỡng qualify và
+> nhãn tín hiệu với các artifact nguồn được chủ sở hữu cung cấp. Nội dung dưới đây
+> là contract triển khai, không thay thế evidence chạy query thật.
+
 ---
 
 ## 1. Nguyên tắc kiến trúc & Boundary dữ liệu
@@ -17,7 +23,7 @@ Supabase RPC (SECURITY DEFINER, TRUNCATE + INSERT trong 1 transaction)
         │
         ▼
 Supabase Tables:
-  - public.kas_cod_suspicion_data (Grain: 1 dòng / đơn, RLS: QC & Dev Admin)
+  - public.kas_cod_suspicion_data (Grain: 1 dòng / đơn, RLS: authenticated read-only)
   - public.kas_cod_suspicion_metadata (Thời điểm snapshot & số lượng)
         │
         ▼ (Supabase JS Client + User Session RLS)
@@ -26,14 +32,18 @@ App React/Vite (src/components/CodSuspicionReport.jsx)
 
 - **App client (trình duyệt)** tuyệt đối không kết nối trực tiếp đến StarRocks.
 - Dữ liệu đồng bộ vào Supabase theo cơ chế **atomic full-refresh** tương tự như OPS KPI metric: `TRUNCATE` và `INSERT` trong cùng transaction qua RPC `sync_kas_cod_suspicion_data`.
-- **Chỉ người có role QC hoặc Dev Admin (`vinhlt@ghn.vn`)** mới có thể đọc bảng qua Supabase RLS.
+- **Mọi user đã đăng nhập app** có thể đọc hai bảng KAS-221 qua Supabase RLS.
+  `anon` không có quyền; thao tác ghi/full-refresh vẫn chỉ dành cho `service_role`.
 - Khi không có đơn nghi vấn nào (batch 0 dòng), RPC vẫn cập nhật `kas_cod_suspicion_metadata` với timestamp mới nhất, giúp UI hiển thị chính xác "Cập nhật lúc ... (0 đơn nghi vấn)" mà không bị crash hay hiển thị sai lệch.
 
 ---
 
 ## 2. Lưu ý về Grain và Ngưỡng trong Query StarRocks
 
-File query gốc `01_score_model_hcm_v20_PENDING_VERIFY.sql` ở dòng 699 có mệnh đề:
+Nếu source query hiện hành vẫn có mệnh đề chỉ chọn một dòng đại diện theo tài xế,
+pipeline owner phải thay bằng output ở grain một dòng/đơn cho mọi tài xế qualify.
+Mẫu dưới đây minh họa cách chuyển grain; không được áp dụng nguyên văn nếu chưa
+đối chiếu SQL nguồn đang được phê duyệt:
 ```sql
 SELECT *
 FROM output_full
@@ -125,7 +135,23 @@ Payload body:
 
 ---
 
-## 4. Cấu hình n8n Workflow
+## 4. Cấu hình nguồn và lịch đồng bộ
+
+### 4.1. Nếu dùng Google Sheet giống OPS KPI metric
+
+Apps Script trong `scripts/apps-script/sync-to-supabase.gs` đã tham gia KAS-221
+vào `syncAllTabs` (lịch hiện hữu) khi có Script Property sau:
+
+| Script Property | Giá trị | Ý nghĩa |
+|---|---|---|
+| `COD_SUSPICION_GID` | GID số của tab output KAS-221 | Tab chứa output 1 dòng / đơn từ job StarRocks |
+
+Đặt property trong Apps Script Project Settings. Không hardcode GID vào repository.
+Sau khi property tồn tại, `syncAllTabs` đẩy tab này cùng lịch OPS KPI và gửi
+`batch_id`/`notes` vào RPC. Nếu property chưa có, script chỉ log việc bỏ qua KAS-221;
+không được hiểu là pipeline đã được kích hoạt.
+
+### 4.2. Nếu dùng n8n chạy StarRocks trực tiếp
 
 Workflow n8n chạy server-side gồm 4 node chính:
 
@@ -151,6 +177,10 @@ Workflow n8n chạy server-side gồm 4 node chính:
    - Body Parameters: `{{$json}}`
 5. **Error Trigger / Telegram Alert Node:**
    - Bắt lỗi khi StarRocks timeout hoặc Supabase trả lỗi `>= 400`, gửi cảnh báo vào kênh vận hành KAS.
+
+Chỉ chọn một nguồn chạy định kỳ: Apps Script **hoặc** n8n. Không kích hoạt cả hai
+để tránh hai snapshot cạnh tranh nhau. Khi n8n là nguồn được chọn, không cần đặt
+`COD_SUSPICION_GID`.
 
 ---
 
@@ -201,4 +231,4 @@ Kết quả trả về mong đợi:
   "total_orders": 1
 }
 ```
-Sau đó đăng nhập app bằng tài khoản có role QC (`vinhlt@ghn.vn`) để kiểm tra dữ liệu hiển thị trên giao diện `Đơn nghi vấn COD`.
+Sau đó đăng nhập app bằng một tài khoản GHN hợp lệ để kiểm tra dữ liệu hiển thị trên giao diện `Đơn nghi vấn COD`.

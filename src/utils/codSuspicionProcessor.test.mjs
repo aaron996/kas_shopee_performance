@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   STRONG_SIGNALS,
   STRONG_SIGNAL_MAP,
@@ -12,6 +13,34 @@ import {
   filterDriverGroups,
   computeSuspicionKPIs
 } from './codSuspicionProcessor.js';
+
+const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_suspicion_module.sql', import.meta.url);
+const appsScriptUrl = new URL('../../scripts/apps-script/sync-to-supabase.gs', import.meta.url);
+
+test('KAS-221 migration exposes read-only data to authenticated users and fails closed on bad sync payloads', async () => {
+  const migration = await readFile(migrationUrl, 'utf8');
+
+  assert.doesNotMatch(migration, /current_user\s+in\s*\('postgres',\s*'supabase_admin'\)/i);
+  assert.doesNotMatch(migration, /auth\.role\(\)/i);
+  assert.doesNotMatch(migration, /user_module_roles|admin_(list|set)_user_qc_role/i);
+  assert.match(migration, /create policy "authenticated_can_read_kas_cod_suspicion_data"[\s\S]*?to authenticated[\s\S]*?using \(true\)/i);
+  assert.match(migration, /revoke all on table public\.kas_cod_suspicion_data from anon, authenticated/i);
+  assert.match(migration, /grant select on table public\.kas_cod_suspicion_data to authenticated/i);
+  assert.match(migration, /if payload is null or jsonb_typeof\(payload\) <> 'array' then/i);
+  assert.match(migration, /raise exception 'KAS_SYNC_PAYLOAD_ARRAY_REQUIRED'/);
+  assert.match(migration, /raise exception 'KAS_SYNC_REQUIRED_FIELDS_MISSING'/);
+  assert.match(migration, /truncate table public\.kas_cod_suspicion_metadata;/i);
+  assert.doesNotMatch(migration, /delete from public\.kas_cod_suspicion_metadata;/i);
+});
+
+test('KAS-221 Apps Script joins the daily sync only after an explicit source GID is configured', async () => {
+  const appsScript = await readFile(appsScriptUrl, 'utf8');
+
+  assert.match(appsScript, /COD_SUSPICION_GID_PROPERTY\s*=\s*'COD_SUSPICION_GID'/);
+  assert.match(appsScript, /const codSuspicionGid = getCodSuspicionGid_\(\)/);
+  assert.match(appsScript, /syncCodSuspicionOnly\(codSuspicionGid\)/);
+  assert.match(appsScript, /snapshot_meta: snapshotMeta/);
+});
 
 test('STRONG_SIGNALS contains exactly 5 signals matching DOCX without technical codes', () => {
   assert.equal(STRONG_SIGNALS.length, 5);

@@ -74,6 +74,11 @@ const TAB_RPC_FUNCTIONS = {
   fd: 'sync_kas_fd_data'
 };
 
+// KAS-221 is optional because its source tab is provisioned separately from the
+// five OPS KPI tabs. Set this as an Apps Script property (not in source code)
+// once the StarRocks output sheet/tab has been created.
+const COD_SUSPICION_GID_PROPERTY = 'COD_SUSPICION_GID';
+
 /**
  * Tạo trigger chạy `syncAllTabs` 1 lần/ngày, ghim gần đúng
  * MIN_RUN_HOUR:MIN_RUN_MINUTE (chính xác hơn UI Trigger vốn chỉ chọn được cả
@@ -137,6 +142,17 @@ function syncAllTabs() {
     }
   });
 
+  const codSuspicionGid = getCodSuspicionGid_();
+  if (codSuspicionGid) {
+    try {
+      syncCodSuspicionOnly(codSuspicionGid);
+    } catch (err) {
+      errors.push('codSuspicion: ' + err.message);
+    }
+  } else {
+    Logger.log('Bỏ qua KAS-221 COD: chưa đặt Script Property ' + COD_SUSPICION_GID_PROPERTY);
+  }
+
   if (errors.length > 0) {
     throw new Error('Sync lỗi ở (các) tab: ' + errors.join(' | '));
   }
@@ -176,15 +192,28 @@ function syncFdOnly() {
 /**
  * Đồng bộ riêng tab Đơn nghi vấn COD (KAS-221) nếu dữ liệu được đổ về Google Sheet
  */
-function syncCodSuspicionOnly(gid = null) {
-  const targetGid = gid || TAB_GIDS.codSuspicion;
-  if (!targetGid) {
-    throw new Error('Chưa cấu hình gid cho tab Đơn nghi vấn COD (TAB_GIDS.codSuspicion)');
-  }
-  syncOneTab(SpreadsheetApp.getActiveSpreadsheet(), 'codSuspicion', targetGid, 'sync_kas_cod_suspicion_data');
+function getCodSuspicionGid_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(COD_SUSPICION_GID_PROPERTY);
+  if (!raw || !/^\d+$/.test(raw.trim())) return null;
+  return Number(raw);
 }
 
-function syncOneTab(ss, tabKey, gid, rpcFunctionName) {
+function syncCodSuspicionOnly(gid = null) {
+  const targetGid = gid || getCodSuspicionGid_();
+  if (!targetGid) {
+    throw new Error('Chưa cấu hình Script Property ' + COD_SUSPICION_GID_PROPERTY + ' cho tab Đơn nghi vấn COD');
+  }
+  const batchId = 'KAS221_' + Utilities.formatDate(new Date(), SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyyMMdd_HHmmss');
+  syncOneTab(
+    SpreadsheetApp.getActiveSpreadsheet(),
+    'codSuspicion',
+    targetGid,
+    'sync_kas_cod_suspicion_data',
+    { batch_id: batchId, notes: 'Đồng bộ Apps Script KAS-221 theo lịch' }
+  );
+}
+
+function syncOneTab(ss, tabKey, gid, rpcFunctionName, snapshotMeta = null) {
   const sheet = ss.getSheets().find((s) => s.getSheetId() === gid);
   if (!sheet) {
     throw new Error('Không tìm thấy tab với gid ' + gid);
@@ -228,7 +257,7 @@ function syncOneTab(ss, tabKey, gid, rpcFunctionName) {
       apikey: serviceKey,
       Authorization: 'Bearer ' + serviceKey
     },
-    payload: JSON.stringify({ payload: rows }),
+    payload: JSON.stringify(snapshotMeta ? { payload: rows, snapshot_meta: snapshotMeta } : { payload: rows }),
     muteHttpExceptions: true
   });
 
@@ -237,5 +266,5 @@ function syncOneTab(ss, tabKey, gid, rpcFunctionName) {
     throw new Error('Supabase trả lỗi HTTP ' + code + ': ' + res.getContentText());
   }
 
-  Logger.log(tabKey + ': đã đẩy ' + rows.length + ' dòng lên Supabase (bảng kas_' + tabKey + '_data).');
+  Logger.log(tabKey + ': đã đẩy ' + rows.length + ' dòng lên Supabase qua RPC ' + rpcFunctionName + '.');
 }
