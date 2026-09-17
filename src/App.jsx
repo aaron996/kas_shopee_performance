@@ -96,6 +96,8 @@ export default function App() {
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
+  const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', alertLevel: 'ALL' });
+  const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
@@ -614,6 +616,9 @@ export default function App() {
             onRetryData={handleSyncLiveSheet}
             canExport={canExport}
             exportContext={exportContext}
+            codSuspicionFilters={codSuspicionFilters}
+            setCodSuspicionFilters={setCodSuspicionFilters}
+            codSuspicionWarehouses={codSuspicionWarehouses}
           />
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
@@ -679,7 +684,7 @@ export default function App() {
 
               {activeTab === 'cod-suspicion' && currentUser && (
                 <Suspense fallback={<LoadingScreen text="Đang mở tab Đơn nghi vấn COD..." option={4} />}>
-                  <CodSuspicionReport />
+                  <CodSuspicionReport filters={codSuspicionFilters} onAvailableWarehouses={setCodSuspicionWarehouses} />
                 </Suspense>
               )}
             </div>

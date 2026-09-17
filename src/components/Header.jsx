@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, CheckSquare, Download, Filter, Layers, LogOut, MapPin, MessageSquareText, RefreshCw, Rows3, Search, ShieldCheck, Square } from 'lucide-react';
+import { AlertTriangle, Check, CheckSquare, Download, Filter, Layers, LogOut, MapPin, MessageSquareText, RefreshCw, Rows3, Search, ShieldCheck, Square, Warehouse } from 'lucide-react';
 import { Maximize2, Minimize2, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
@@ -10,7 +10,7 @@ export default function Header({
   onResetFilters, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, currentUser, onLogout, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
-  onRetryData, canExport, exportContext
+  onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses
 }) {
   // Vùng/Loại Hub chỉ áp cho dữ liệu grain hub (Report 1/2). Tab Leadtime
   // (grain tỉnh-tỉnh), tab Insight (nationwide, nối cả 2 grain), và tab Đơn nghi vấn COD
@@ -187,6 +187,38 @@ export default function Header({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'cod-suspicion' && (
+            <div className="header-cod-filters" aria-label="Bộ lọc đơn nghi vấn COD">
+              <div className="hdr-field">
+                <Filter size={14} className="filter-icon" />
+                <span className="hdr-field-label">Loại:</span>
+                <select className="filter-select-sleek" aria-label="Lọc theo loại nghi ngờ" value={codSuspicionFilters.suspicionType} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, suspicionType: e.target.value }))}>
+                  <option value="ALL">Tất cả loại nghi ngờ</option>
+                  <option value="Gối đầu COD">Gối đầu COD</option>
+                  <option value="Rút ruột">Rút ruột</option>
+                </select>
+              </div>
+              <div className="hdr-field">
+                <Warehouse size={14} className="filter-icon" />
+                <span className="hdr-field-label">Kho:</span>
+                <select className="filter-select-sleek" aria-label="Lọc theo kho giao" value={codSuspicionFilters.warehouse} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, warehouse: e.target.value }))}>
+                  <option value="ALL">Tất cả các kho ({codSuspicionWarehouses.length})</option>
+                  {codSuspicionWarehouses.map((warehouse) => <option key={warehouse} value={warehouse}>{warehouse}</option>)}
+                </select>
+              </div>
+              <div className="hdr-field">
+                <AlertTriangle size={14} className="filter-icon" />
+                <span className="hdr-field-label">Cảnh báo:</span>
+                <select className="filter-select-sleek" aria-label="Lọc theo mức độ cảnh báo" value={codSuspicionFilters.alertLevel} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, alertLevel: e.target.value }))}>
+                  <option value="ALL">Tất cả mức độ</option>
+                  <option value="HIGH">Cao</option>
+                  <option value="MEDIUM">Vừa</option>
+                  <option value="LOW">Thấp</option>
+                </select>
+              </div>
             </div>
           )}
 

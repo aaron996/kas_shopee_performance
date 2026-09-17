@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ShieldAlert,
-  Search,
   RefreshCw,
   ChevronDown,
-  ChevronUp,
   AlertTriangle,
   UserCheck,
   Package,
   BadgeDollarSign,
-  Filter,
-  CheckCircle2,
-  Warehouse
+  CheckCircle2
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,15 +19,14 @@ import {
   Cell
 } from 'recharts';
 import {
-  STRONG_SIGNALS,
   formatCurrencyVND,
   formatDateVN,
-  formatDateTimeVN,
   normalizeSuspicionOrder,
   groupOrdersByDriver,
   sortDrivers,
   filterDriverGroups,
-  computeSuspicionKPIs
+  computeSuspicionKPIs,
+  getAlertLevel
 } from '../utils/codSuspicionProcessor';
 import { fetchCodSuspicionData } from '../utils/codSuspicionClient';
 
@@ -40,16 +35,12 @@ const TYPE_COLORS = {
   'Rút ruột': '#8b5cf6'
 };
 
-export default function CodSuspicionReport() {
+export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
   const [rawData, setRawData] = useState([]);
-  const [metadata, setMetadata] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Filters
-  const [suspicionTypeFilter, setSuspicionTypeFilter] = useState('ALL');
-  const [warehouseFilter, setWarehouseFilter] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL' } = filters || {};
 
   // Accordion expanded state: Set of driverId
   const [expandedDrivers, setExpandedDrivers] = useState(new Set());
@@ -62,7 +53,6 @@ export default function CodSuspicionReport() {
       const res = await fetchCodSuspicionData();
       if (res.success) {
         setRawData(res.rows || []);
-        setMetadata(res.metadata);
       } else {
         setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
       }
@@ -100,14 +90,18 @@ export default function CodSuspicionReport() {
     return Array.from(set).sort();
   }, [normalizedOrders]);
 
+  useEffect(() => {
+    onAvailableWarehouses?.(availableWarehouses);
+  }, [availableWarehouses, onAvailableWarehouses]);
+
   // Filtered driver groups
   const filteredDrivers = useMemo(() => {
     return filterDriverGroups(allDriverGroups, {
-      suspicionType: suspicionTypeFilter,
-      warehouse: warehouseFilter,
-      searchQuery
+      suspicionType,
+      warehouse,
+      alertLevel
     });
-  }, [allDriverGroups, suspicionTypeFilter, warehouseFilter, searchQuery]);
+  }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
   // Compute KPIs & Triage Chart stats
   const kpis = useMemo(() => {
@@ -189,43 +183,11 @@ export default function CodSuspicionReport() {
               <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)' }}>
                 ĐƠN NGHI VẤN COD
               </h1>
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '6px',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  color: '#3b82f6'
-                }}
-              >
-                DÀNH CHO NGƯỜI DÙNG ĐÃ ĐĂNG NHẬP
-              </span>
             </div>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Danh sách tài xế và đơn hàng cần rà soát gọi xác minh khách hàng hoặc đối chiếu hiện trường. Dữ liệu chỉ đọc.
+              Danh sách tài xế và đơn hàng cần rà soát liên quan đến nghi ngờ hành vi ôm COD
             </p>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Thời điểm đồng bộ:</div>
-            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {formatDateTimeVN(metadata?.synced_at)}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="nav-btn-sleek"
-            onClick={loadData}
-            disabled={isLoading}
-            title="Tải lại dữ liệu từ Supabase"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1rem' }}
-          >
-            <RefreshCw size={15} className={isLoading ? 'is-spinning' : ''} />
-            <span>{isLoading ? 'Đang tải...' : 'Làm mới'}</span>
-          </button>
         </div>
       </div>
 
@@ -541,75 +503,8 @@ export default function CodSuspicionReport() {
         </div>
       </div>
 
-      {/* 5. Filter & Search Bar */}
-      <div
-        style={{
-          background: 'var(--card-bg, #ffffff)',
-          padding: '1rem 1.25rem',
-          borderRadius: '12px',
-          border: '1px solid var(--border, #e2e8f0)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          marginBottom: '1.5rem'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
-          {/* Filter: Loại nghi ngờ */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Filter size={15} color="var(--text-muted)" />
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Loại:</span>
-            <select
-              className="filter-select-sleek"
-              value={suspicionTypeFilter}
-              onChange={(e) => setSuspicionTypeFilter(e.target.value)}
-              style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
-              aria-label="Lọc theo loại nghi ngờ"
-            >
-              <option value="ALL">Tất cả loại nghi ngờ</option>
-              <option value="Gối đầu COD">Gối đầu COD</option>
-              <option value="Rút ruột">Rút ruột</option>
-            </select>
-          </div>
-
-          {/* Filter: Kho giao */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Warehouse size={15} color="var(--text-muted)" />
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Kho:</span>
-            <select
-              className="filter-select-sleek"
-              value={warehouseFilter}
-              onChange={(e) => setWarehouseFilter(e.target.value)}
-              style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', maxWidth: '220px' }}
-              aria-label="Lọc theo kho giao"
-            >
-              <option value="ALL">Tất cả các kho ({availableWarehouses.length})</option>
-              {availableWarehouses.map(wh => (
-                <option key={wh} value={wh}>{wh}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Search Input */}
-          <div style={{ position: 'relative', flex: 1, minWidth: '200px', maxWidth: '360px' }}>
-            <Search
-              size={15}
-              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-            />
-            <input
-              type="text"
-              className="filter-input-sleek"
-              placeholder="Tìm tài xế, mã tài xế, mã đơn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', paddingLeft: '32px', fontSize: '0.85rem' }}
-              aria-label="Tìm kiếm tài xế hoặc mã đơn"
-            />
-          </div>
-        </div>
-
+      {/* 5. Driver list controls. Filters live in the app header on this tab. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
         {/* Actions: Expand / Collapse All */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button
@@ -667,7 +562,7 @@ export default function CodSuspicionReport() {
               Không có tài xế nào trong danh sách nghi vấn
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-              {searchQuery || suspicionTypeFilter !== 'ALL' || warehouseFilter !== 'ALL'
+              {suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL'
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : 'Hệ thống không ghi nhận tài xế nào đạt ngưỡng nghi vấn KAS-221 trong kỳ kiểm tra.'}
             </div>
@@ -676,6 +571,7 @@ export default function CodSuspicionReport() {
           filteredDrivers.map((driver, idx) => {
             const isExpanded = expandedDrivers.has(driver.driverId);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
+            const driverAlertLevel = getAlertLevel(driver.maxScore);
 
             return (
               <div
@@ -776,16 +672,10 @@ export default function CodSuspicionReport() {
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Điểm cao nhất:</div>
-                      <div
-                        style={{
-                          fontSize: '1.05rem',
-                          fontWeight: 800,
-                          color: driver.maxScore >= 18 ? '#ef4444' : 'var(--ghn-orange)'
-                        }}
-                      >
-                        {driver.maxScore} đ
-                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mức độ cảnh báo:</div>
+                      <span style={{ display: 'inline-flex', marginTop: '0.2rem', padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 800, color: driverAlertLevel.color, background: driverAlertLevel.background }}>
+                        {driverAlertLevel.label}
+                      </span>
                     </div>
 
                     <div style={{ textAlign: 'right', minWidth: '110px' }}>
@@ -806,20 +696,14 @@ export default function CodSuspicionReport() {
                         color: 'var(--text-muted)'
                       }}
                     >
-                      {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                      <ChevronDown size={20} className={`cod-accordion-chevron ${isExpanded ? 'is-expanded' : ''}`} />
                     </div>
                   </div>
                 </button>
 
                 {/* Expanded Details: Order Table */}
-                {isExpanded && (
-                  <div
-                    style={{
-                      borderTop: '1px solid var(--border)',
-                      padding: '1.25rem',
-                      background: 'var(--card-bg, #ffffff)'
-                    }}
-                  >
+                <div className={`cod-driver-details ${isExpanded ? 'is-expanded' : ''}`} aria-hidden={!isExpanded}>
+                  <div className="cod-driver-details-inner">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
@@ -848,19 +732,12 @@ export default function CodSuspicionReport() {
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Tổng TG (ngày)</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Lý do fail ca 1</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm đơn</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Tín hiệu bất thường</th>
+                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
                           </tr>
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
-                            // Collect active strong signals for this order
-                            const activeSignals = [];
-                            if (order.signalReasonConflict) activeSignals.push(STRONG_SIGNALS[0]);
-                            if (order.signalFakeCall) activeSignals.push(STRONG_SIGNALS[1]);
-                            if (order.signalGpsFar) activeSignals.push(STRONG_SIGNALS[2]);
-                            if (order.signalGpsDuplicate) activeSignals.push(STRONG_SIGNALS[3]);
-                            if (order.signalGpsMocked) activeSignals.push(STRONG_SIGNALS[4]);
+                            const orderAlertLevel = getAlertLevel(order.totalScore);
 
                             return (
                               <tr
@@ -932,47 +809,19 @@ export default function CodSuspicionReport() {
                                   {order.firstFailNote}
                                 </td>
 
-                                {/* Điểm tổng nghi vấn */}
+                                {/* Mức độ cảnh báo */}
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <span
                                     style={{
                                       fontWeight: 800,
                                       padding: '0.2rem 0.5rem',
                                       borderRadius: '6px',
-                                      background: order.totalScore >= 18 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(242, 101, 34, 0.1)',
-                                      color: order.totalScore >= 18 ? '#ef4444' : 'var(--ghn-orange)'
+                                      background: orderAlertLevel.background,
+                                      color: orderAlertLevel.color
                                     }}
                                   >
-                                    {order.totalScore} đ
+                                    {orderAlertLevel.label}
                                   </span>
-                                </td>
-
-                                {/* Cờ tín hiệu bất thường (DOCX official labels) */}
-                                <td style={{ padding: '0.65rem 0.75rem' }}>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                    {activeSignals.length === 0 ? (
-                                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Không có cờ mạnh</span>
-                                    ) : (
-                                      activeSignals.map(sig => (
-                                        <span
-                                          key={sig.key}
-                                          title={sig.description}
-                                          style={{
-                                            fontSize: '0.72rem',
-                                            fontWeight: 600,
-                                            padding: '0.15rem 0.5rem',
-                                            borderRadius: '4px',
-                                            background: 'rgba(239, 68, 68, 0.08)',
-                                            color: '#ef4444',
-                                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                                            cursor: 'help'
-                                          }}
-                                        >
-                                          {sig.label}
-                                        </span>
-                                      ))
-                                    )}
-                                  </div>
                                 </td>
                               </tr>
                             );
@@ -981,7 +830,7 @@ export default function CodSuspicionReport() {
                       </table>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })
