@@ -4,9 +4,6 @@ import {
   RefreshCw,
   ChevronDown,
   AlertTriangle,
-  UserCheck,
-  Package,
-  BadgeDollarSign,
   CheckCircle2
 } from 'lucide-react';
 import {
@@ -15,8 +12,7 @@ import {
   Bar,
   XAxis,
   YAxis,
-  Tooltip,
-  Cell
+  Tooltip
 } from 'recharts';
 import {
   formatCurrencyVND,
@@ -26,7 +22,8 @@ import {
   sortDrivers,
   filterDriverGroups,
   computeSuspicionKPIs,
-  getAlertLevel
+  getAlertLevel,
+  aggregateOrdersByEndDeliveryDate
 } from '../utils/codSuspicionProcessor';
 import { fetchCodSuspicionData } from '../utils/codSuspicionClient';
 
@@ -44,6 +41,17 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
 
   // Accordion expanded state: Set of driverId
   const [expandedDrivers, setExpandedDrivers] = useState(new Set());
+
+  // Mobile responsive detection (breakpoint 768px)
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch data
   const loadData = useCallback(async () => {
@@ -108,7 +116,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
     return computeSuspicionKPIs(filteredDrivers);
   }, [filteredDrivers]);
 
-  // Expand / Collapse all handlers
+  // Accordion toggle handler for individual driver
   const handleToggleExpandDriver = (driverId) => {
     setExpandedDrivers(prev => {
       const next = new Set(prev);
@@ -121,72 +129,126 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
     });
   };
 
-  const handleExpandAll = () => {
-    setExpandedDrivers(new Set(filteredDrivers.map(d => d.driverId)));
-  };
-
-  const handleCollapseAll = () => {
-    setExpandedDrivers(new Set());
-  };
-
-  // Chart data: Distribution by type
-  const typeChartData = useMemo(() => {
-    return [
-      {
-        name: 'Gối đầu COD',
-        orders: kpis.typeCounts['Gối đầu COD'].orders,
-        drivers: kpis.typeCounts['Gối đầu COD'].drivers,
-        fill: TYPE_COLORS['Gối đầu COD']
-      },
-      {
-        name: 'Rút ruột',
-        orders: kpis.typeCounts['Rút ruột'].orders,
-        drivers: kpis.typeCounts['Rút ruột'].drivers,
-        fill: TYPE_COLORS['Rút ruột']
-      }
-    ].filter(item => item.orders > 0 || item.drivers > 0);
-  }, [kpis]);
+  // Chart data: Daily case distribution by endDeliveryDate (chronological, deduped orderCode)
+  const dailyCaseChartData = useMemo(() => {
+    return aggregateOrdersByEndDeliveryDate(filteredDrivers);
+  }, [filteredDrivers]);
 
   return (
-    <div className="report-container cod-suspicion-page" style={{ padding: '1.5rem', maxWidth: '1600px', margin: '0 auto' }}>
+    <div className="report-container cod-suspicion-page">
       
-      {/* 1. Header Banner */}
-      <div
-        className="cod-header-banner"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          background: 'var(--card-bg, #ffffff)',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '12px',
-          border: '1px solid var(--border, #e2e8f0)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          marginBottom: '1.5rem'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div
-            style={{
-              padding: '0.85rem',
-              background: 'rgba(242, 101, 34, 0.12)',
-              color: 'var(--ghn-orange, #f26522)',
-              borderRadius: '10px'
-            }}
-          >
-            <ShieldAlert size={28} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)' }}>
+      {/* 1. Header Banner & KPIs: Snapshot Ledger (A3) */}
+      <div className="cod-snapshot-ledger">
+        {/* Top Ledger Header */}
+        <div className="cod-ledger-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div
+              style={{
+                padding: '0.6rem',
+                background: 'var(--ghn-orange-light, #fef0eb)',
+                color: 'var(--ghn-orange, #f15a22)',
+                borderRadius: 'var(--radius-control, 10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <ShieldAlert size={24} />
+            </div>
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: isMobile ? '1.15rem' : '1.25rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                  color: 'var(--text-main, #0f172a)',
+                  letterSpacing: '-0.01em'
+                }}
+              >
                 ĐƠN NGHI VẤN COD
               </h1>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted, #64748b)' }}>
+                Danh sách tài xế và đơn hàng cần rà soát liên quan đến nghi ngờ hành vi ôm COD
+              </p>
             </div>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Danh sách tài xế và đơn hàng cần rà soát liên quan đến nghi ngờ hành vi ôm COD
-            </p>
+          </div>
+
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)' }}>
+            Quy chuẩn sàng lọc KAS-221
+          </div>
+        </div>
+
+        {/* Bottom Ledger Metrics: 3 Columns with Dividers */}
+        <div className="cod-ledger-metrics">
+          {/* Metric 1 */}
+          <div className="cod-ledger-metric-item">
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              TÀI XẾ CẦN XÁC MINH
+            </div>
+            <div
+              className="cod-ledger-metric-val"
+              style={{
+                fontSize: '2rem',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
+                color: 'var(--text-main, #0f172a)',
+                lineHeight: 1.2,
+                marginTop: '0.25rem'
+              }}
+            >
+              {kpis.totalDrivers.toLocaleString('vi-VN')}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+              Đối tượng trực tiếp cần phân công nhân sự rà soát
+            </div>
+          </div>
+
+          {/* Metric 2 */}
+          <div className="cod-ledger-metric-item">
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              TỔNG ĐƠN NGHI VẤN
+            </div>
+            <div
+              className="cod-ledger-metric-val"
+              style={{
+                fontSize: '2rem',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
+                color: 'var(--text-main, #0f172a)',
+                lineHeight: 1.2,
+                marginTop: '0.25rem'
+              }}
+            >
+              {kpis.totalOrders.toLocaleString('vi-VN')}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+              Toàn bộ đơn phát sinh tín hiệu sau bộ lọc
+            </div>
+          </div>
+
+          {/* Metric 3 */}
+          <div className="cod-ledger-metric-item">
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              TỔNG TIỀN COD LIÊN QUAN
+            </div>
+            <div
+              className="cod-ledger-metric-val"
+              style={{
+                fontSize: '1.8rem',
+                fontWeight: 700,
+                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
+                color: 'var(--text-main, #0f172a)',
+                lineHeight: 1.2,
+                marginTop: '0.25rem'
+              }}
+            >
+              {formatCurrencyVND(kpis.totalCod)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+              Tiền thu hộ cần đối chiếu xác thực kho & khách
+            </div>
           </div>
         </div>
       </div>
@@ -198,7 +260,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
             padding: '1rem 1.25rem',
             background: 'rgba(239, 68, 68, 0.1)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '10px',
+            borderRadius: 'var(--radius-control, 10px)',
             color: '#ef4444',
             display: 'flex',
             alignItems: 'center',
@@ -221,281 +283,200 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
         </div>
       )}
 
-      {/* 3. Top KPI Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1.25rem',
-          marginBottom: '1.5rem'
-        }}
-      >
-        {/* KPI 1: Số tài xế */}
-        <div
-          className="kpi-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border, #e2e8f0)',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}
-        >
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: '12px',
-              background: 'rgba(242, 101, 34, 0.1)',
-              color: 'var(--ghn-orange, #f26522)'
-            }}
-          >
-            <UserCheck size={26} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              TÀI XẾ CẦN XÁC MINH
+      {/* 3. Paired Investigation Charts (B1) */}
+      <div className="cod-charts-grid">
+        {/* Chart 1: Số case nghi ngờ theo ngày */}
+        <div className="cod-chart-card">
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                  color: 'var(--text-main, #0f172a)'
+                }}
+              >
+                SỐ CASE NGHI NGỜ THEO NGÀY
+              </h2>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontFamily: 'var(--font-mono, monospace)' }}>
+                Đơn vị: Case
+              </span>
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.2 }}>
-              {kpis.totalDrivers.toLocaleString('vi-VN')}
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+              Theo Ngày kết thúc giao · mỗi mã đơn được tính một lần
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Theo bộ tiêu chí sàng lọc KAS-221
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 2: Số đơn */}
-        <div
-          className="kpi-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border, #e2e8f0)',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}
-        >
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: '12px',
-              background: 'rgba(59, 130, 246, 0.1)',
-              color: '#3b82f6'
-            }}
-          >
-            <Package size={26} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              TỔNG ĐƠN NGHI VẤN
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.2 }}>
-              {kpis.totalOrders.toLocaleString('vi-VN')}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Toàn bộ đơn liên quan của các tài xế
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 3: Tổng COD */}
-        <div
-          className="kpi-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border, #e2e8f0)',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}
-        >
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: '12px',
-              background: 'rgba(16, 185, 129, 0.1)',
-              color: '#10b981'
-            }}
-          >
-            <BadgeDollarSign size={26} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              TỔNG TIỀN COD LIÊN QUAN
-            </div>
-            <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#10b981', lineHeight: 1.2 }}>
-              {formatCurrencyVND(kpis.totalCod)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Tiền thu hộ cần đối chiếu kho & khách
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Triage Charts Section */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '1.5rem'
-        }}
-      >
-        {/* Chart 1: Phân bổ theo loại nghi ngờ */}
-        <div
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border, #e2e8f0)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-          }}
-        >
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-            PHÂN BỔ THEO LOẠI NGHI NGỜ
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            So sánh số đơn và số tài xế giữa "Gối đầu COD" và "Rút ruột"
           </div>
 
-          {typeChartData.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>
-              Không có dữ liệu loại nghi ngờ
-            </div>
-          ) : (
-            <div style={{ height: '220px', display: 'flex', alignItems: 'center' }}>
-              <div style={{ flex: 1, height: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={typeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                    <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
-                    <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div
-                              style={{
-                                background: 'var(--card-bg, #1e293b)',
-                                border: '1px solid var(--border, #334155)',
-                                padding: '0.6rem 0.9rem',
-                                borderRadius: '8px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                                fontSize: '0.8rem',
-                                color: 'var(--text-main)'
-                              }}
-                            >
-                              <div style={{ fontWeight: 700, marginBottom: '0.3rem' }}>{data.name}</div>
-                              <div>Số đơn nghi vấn: <strong>{data.orders}</strong> đơn</div>
-                              <div>Số tài xế liên quan: <strong>{data.drivers}</strong> tài xế</div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="orders" name="Số đơn" radius={[4, 4, 0, 0]}>
-                      {typeChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Legend & Summary */}
-              <div style={{ width: '160px', paddingLeft: '1rem', borderLeft: '1px solid var(--border)' }}>
-                {typeChartData.map(item => (
-                  <div key={item.name} style={{ marginBottom: '0.85rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600 }}>
-                      <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: item.fill }} />
-                      <span style={{ color: 'var(--text-main)' }}>{item.name}</span>
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '14px', marginTop: '0.1rem' }}>
-                      {item.orders} đơn · {item.drivers} tài xế
-                    </div>
-                  </div>
-                ))}
+          {dailyCaseChartData.length === 0 ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                color: 'var(--text-muted, #64748b)',
+                padding: '2.5rem 1rem'
+              }}
+            >
+              <AlertTriangle size={24} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                Không có đơn có "Ngày kết thúc giao" hợp lệ trong phạm vi lọc.
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Chart 2: Top kho giao */}
-        <div
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border, #e2e8f0)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-          }}
-        >
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-            TOP KHO GIAO CÓ ĐƠN NGHI VẤN
-          </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            Xếp hạng theo số đơn nghi vấn (mẫu số: số tài xế liên quan)
-          </div>
-
-          {kpis.topWarehouses.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>
-              Không có dữ liệu kho giao
-            </div>
           ) : (
-            <div style={{ height: '220px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={kpis.topWarehouses.slice(0, 5)}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 30, bottom: 5 }}
-                >
-                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
+            <div style={{ flex: 1, minHeight: isMobile ? '200px' : '230px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height={isMobile ? 220 : 250}>
+                <BarChart data={dailyCaseChartData} margin={{ top: 15, right: isMobile ? 8 : 15, left: isMobile ? -24 : -15, bottom: 5 }}>
+                  <XAxis
+                    dataKey="dateLabel"
+                    stroke="var(--text-muted, #64748b)"
+                    fontSize={isMobile ? 10 : 11}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={isMobile ? 12 : 8}
+                  />
                   <YAxis
-                    type="category"
-                    dataKey="warehouse"
-                    stroke="var(--text-muted)"
-                    fontSize={11}
-                    width={130}
-                    tickFormatter={(val) => val.replace(/^Kho\s+/i, '')}
+                    stroke="var(--text-muted, #64748b)"
+                    fontSize={isMobile ? 10 : 11}
+                    allowDecimals={false}
+                    domain={[0, 'auto']}
                   />
                   <Tooltip
+                    cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
                           <div
                             style={{
-                              background: 'var(--card-bg, #1e293b)',
-                              border: '1px solid var(--border, #334155)',
-                              padding: '0.6rem 0.9rem',
-                              borderRadius: '8px',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                              background: 'var(--color-slate-950, #0f172a)',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                              padding: '0.6rem 0.85rem',
+                              borderRadius: 'var(--radius-control, 10px)',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
                               fontSize: '0.8rem',
-                              color: 'var(--text-main)'
+                              color: 'var(--color-white, #ffffff)'
                             }}
                           >
-                            <div style={{ fontWeight: 700, marginBottom: '0.3rem' }}>{data.warehouse}</div>
-                            <div>Số đơn nghi vấn: <strong>{data.orderCount}</strong> đơn</div>
-                            <div>Số tài xế liên quan: <strong>{data.driverCount}</strong> tài xế</div>
-                            <div>Tổng COD: <strong>{formatCurrencyVND(data.totalCod)}</strong></div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-slate-300, #cbd5e1)', marginBottom: '0.25rem' }}>
+                              Ngày {data.fullDateLabel}
+                            </div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--action-primary, #0ea5c4)' }}>
+                              {data.cases} case nghi vấn
+                            </div>
                           </div>
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="orderCount" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="cases"
+                    name="Số case nghi vấn"
+                    fill="var(--action-primary, #0ea5c4)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={isMobile ? 32 : 48}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Chart 2: Top kho giao có đơn nghi vấn */}
+        <div className="cod-chart-card">
+          <div style={{ marginBottom: '1rem' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                color: 'var(--text-main, #0f172a)'
+              }}
+            >
+              TOP KHO GIAO CÓ ĐƠN NGHI VẤN
+            </h2>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+              Xếp hạng theo số đơn nghi vấn (mẫu số: số tài xế liên quan)
+            </div>
+          </div>
+
+          {kpis.topWarehouses.length === 0 ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                color: 'var(--text-muted, #64748b)',
+                padding: '2.5rem 1rem'
+              }}
+            >
+              <AlertTriangle size={24} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                Không có dữ liệu kho giao trong phạm vi lọc.
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minHeight: isMobile ? '200px' : '230px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height={isMobile ? 220 : 250}>
+                <BarChart
+                  data={kpis.topWarehouses.slice(0, 5)}
+                  layout="vertical"
+                  margin={{ top: 10, right: isMobile ? 15 : 25, left: isMobile ? -10 : 10, bottom: 5 }}
+                >
+                  <XAxis type="number" stroke="var(--text-muted, #64748b)" fontSize={isMobile ? 10 : 11} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="warehouse"
+                    stroke="var(--text-muted, #64748b)"
+                    fontSize={isMobile ? 10 : 11}
+                    width={isMobile ? 85 : 120}
+                    tickFormatter={(val) => val.replace(/^Kho\s+/i, '').slice(0, isMobile ? 11 : 20)}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div
+                            style={{
+                              background: 'var(--color-slate-950, #0f172a)',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                              padding: '0.6rem 0.85rem',
+                              borderRadius: 'var(--radius-control, 10px)',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+                              fontSize: '0.8rem',
+                              color: 'var(--color-white, #ffffff)'
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--color-slate-50, #f8fafc)' }}>{data.warehouse}</div>
+                            <div style={{ color: 'var(--color-slate-300, #cbd5e1)' }}>Số đơn nghi vấn: <strong style={{ color: 'var(--color-white, #ffffff)' }}>{data.orderCount}</strong> đơn</div>
+                            <div style={{ color: 'var(--color-slate-300, #cbd5e1)' }}>Số tài xế liên quan: <strong style={{ color: 'var(--color-white, #ffffff)' }}>{data.driverCount}</strong> tài xế</div>
+                            <div style={{ color: 'var(--action-primary, #0ea5c4)', marginTop: '0.2rem', fontWeight: 600 }}>
+                              Tổng COD: {formatCurrencyVND(data.totalCod)}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar
+                    dataKey="orderCount"
+                    name="Số đơn nghi vấn"
+                    fill="var(--action-primary-hover, #0b84a0)"
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={isMobile ? 18 : 24}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -503,30 +484,33 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
         </div>
       </div>
 
-      {/* 5. Driver list controls. Filters live in the app header on this tab. */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
-        {/* Actions: Expand / Collapse All */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            type="button"
-            className="nav-btn-sleek"
-            onClick={handleExpandAll}
-            disabled={filteredDrivers.length === 0}
-            title="Mở rộng xem tất cả đơn của các tài xế"
-            style={{ fontSize: '0.82rem', padding: '0.4rem 0.8rem' }}
+      {/* 4. Driver Accordion Header (Controls "Mở rộng tất cả / Thu gọn" removed) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '0.92rem',
+              fontWeight: 700,
+              fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+              color: 'var(--text-main, #0f172a)'
+            }}
           >
-            Mở rộng tất cả
-          </button>
-          <button
-            type="button"
-            className="nav-btn-sleek"
-            onClick={handleCollapseAll}
-            disabled={filteredDrivers.length === 0 || expandedDrivers.size === 0}
-            title="Thu gọn danh sách đơn"
-            style={{ fontSize: '0.82rem', padding: '0.4rem 0.8rem' }}
+            DANH SÁCH TÀI XẾ CẦN XÁC MINH
+          </h2>
+          <span
+            style={{
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              fontFamily: 'var(--font-mono, monospace)',
+              color: 'var(--action-primary, #0ea5c4)',
+              background: 'rgba(14, 165, 196, 0.1)',
+              padding: '0.15rem 0.5rem',
+              borderRadius: 'var(--radius-pill, 999px)'
+            }}
           >
-            Thu gọn
-          </button>
+            {filteredDrivers.length} tài xế
+          </span>
         </div>
       </div>
 
@@ -593,7 +577,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                   aria-expanded={isExpanded}
                   style={{
                     width: '100%',
-                    padding: '1.1rem 1.4rem',
+                    padding: isMobile ? '0.85rem 1rem' : '1.1rem 1.4rem',
                     background: isExpanded ? 'var(--surface-hover, rgba(0,0,0,0.02))' : 'transparent',
                     border: 'none',
                     textAlign: 'left',
@@ -602,11 +586,11 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '1rem',
+                    gap: isMobile ? '0.6rem' : '1rem',
                     color: 'var(--text-main)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: '260px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: isMobile ? '100%' : '260px' }}>
                     <div
                       style={{
                         width: '32px',
@@ -663,24 +647,36 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                   </div>
 
                   {/* Badges and Metrics on Driver Bar */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Số đơn nghi vấn:</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: isMobile ? '0.75rem' : '1.25rem',
+                      flexWrap: 'wrap',
+                      width: isMobile ? '100%' : 'auto',
+                      justifyContent: isMobile ? 'space-between' : 'flex-end',
+                      marginTop: isMobile ? '0.25rem' : '0',
+                      paddingTop: isMobile ? '0.6rem' : '0',
+                      borderTop: isMobile ? '1px solid var(--border-subtle, #e2e8f0)' : 'none'
+                    }}
+                  >
+                    <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Số đơn:</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)' }}>
                         {driver.orderCount} đơn
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mức độ cảnh báo:</div>
-                      <span style={{ display: 'inline-flex', marginTop: '0.2rem', padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 800, color: driverAlertLevel.color, background: driverAlertLevel.background }}>
+                    <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Mức độ:</div>
+                      <span style={{ display: 'inline-flex', marginTop: '0.15rem', padding: '0.18rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, color: driverAlertLevel.color, background: driverAlertLevel.background }}>
                         {driverAlertLevel.label}
                       </span>
                     </div>
 
-                    <div style={{ textAlign: 'right', minWidth: '110px' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tổng COD:</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981' }}>
+                    <div style={{ textAlign: isMobile ? 'left' : 'right', minWidth: isMobile ? 'auto' : '110px' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tổng COD:</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#10b981' }}>
                         {formatCurrencyVND(driver.totalCod)}
                       </div>
                     </div>
@@ -704,19 +700,26 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                 {/* Expanded Details: Order Table */}
                 <div className={`cod-driver-details ${isExpanded ? 'is-expanded' : ''}`} aria-hidden={!isExpanded}>
                   <div className="cod-driver-details-inner">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         Sắp theo điểm nghi vấn giảm dần
                       </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
+                    {isMobile && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--action-primary, #0ea5c4)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 500 }}>
+                        <span>← Cuộn ngang để xem đầy đủ chi tiết đơn →</span>
+                      </div>
+                    )}
+
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table
                         style={{
                           width: '100%',
+                          minWidth: '680px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'

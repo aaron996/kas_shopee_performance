@@ -348,3 +348,133 @@ export function computeSuspicionKPIs(driverGroups = []) {
     topWarehouses
   };
 }
+
+/**
+ * Validate that year, month, and day form a genuine Gregorian calendar date (UTC).
+ * Guards against non-existent dates such as Feb 31, Apr 31, and Feb 29 in non-leap years.
+ */
+function isValidCalendarDate(year, month, day) {
+  if (
+    Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day) ||
+    year < 1900 || year > 2100 ||
+    month < 1 || month > 12 ||
+    day < 1 || day > 31
+  ) {
+    return false;
+  }
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    utcDate.getUTCFullYear() === year &&
+    utcDate.getUTCMonth() === month - 1 &&
+    utcDate.getUTCDate() === day
+  );
+}
+
+/**
+ * Safely parse date string into standard 'YYYY-MM-DD'
+ * Returns null if invalid, missing, or calendar non-existent
+ */
+export function normalizeDateKey(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  // Handle ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+  const isoPrefix = trimmed.split('T')[0];
+  if (isoPrefix.includes('-')) {
+    const parts = isoPrefix.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts;
+      if (y.length === 4) {
+        const year = Number(y);
+        const month = Number(m);
+        const day = Number(d);
+        if (isValidCalendarDate(year, month, day)) {
+          return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+    }
+  }
+
+  // Handle slash format: DD/MM/YYYY or YYYY/MM/DD
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        // DD/MM/YYYY
+        const [d, m, y] = parts;
+        const year = Number(y);
+        const month = Number(m);
+        const day = Number(d);
+        if (isValidCalendarDate(year, month, day)) {
+          return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      } else if (parts[0].length === 4) {
+        // YYYY/MM/DD
+        const [y, m, d] = parts;
+        const year = Number(y);
+        const month = Number(m);
+        const day = Number(d);
+        if (isValidCalendarDate(year, month, day)) {
+          return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Aggregate orders by end_delivery_date (endDeliveryDate) for daily column chart:
+ * - Chronological order ascending
+ * - Deduplicate by orderCode
+ * - Ignore empty or invalid dates safely
+ * - Return empty array if no valid dates
+ */
+export function aggregateOrdersByEndDeliveryDate(input = []) {
+  if (!Array.isArray(input)) return [];
+
+  // Flatten orders from driver groups or direct order array
+  const allOrders = [];
+  input.forEach(item => {
+    if (item && Array.isArray(item.orders)) {
+      allOrders.push(...item.orders);
+    } else if (item && (item.orderCode || item.endDeliveryDate)) {
+      allOrders.push(item);
+    }
+  });
+
+  // Deduplicate orders by orderCode to avoid double counting
+  const uniqueOrdersByCode = new Map();
+  allOrders.forEach(order => {
+    const code = String(order.orderCode || order.id || '').trim();
+    if (code && !uniqueOrdersByCode.has(code)) {
+      uniqueOrdersByCode.set(code, order);
+    }
+  });
+
+  // Group count by normalized date
+  const dateMap = new Map();
+  uniqueOrdersByCode.forEach(order => {
+    const dateKey = normalizeDateKey(order.endDeliveryDate);
+    if (!dateKey) return;
+
+    const currentCount = dateMap.get(dateKey) || 0;
+    dateMap.set(dateKey, currentCount + 1);
+  });
+
+  // Sort chronological ascending (earliest to latest)
+  const sortedDateKeys = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
+
+  return sortedDateKeys.map(dateKey => {
+    const [year, month, day] = dateKey.split('-');
+    return {
+      date: dateKey,
+      dateLabel: `${day}/${month}`,
+      fullDateLabel: `${day}/${month}/${year}`,
+      cases: dateMap.get(dateKey)
+    };
+  });
+}
+

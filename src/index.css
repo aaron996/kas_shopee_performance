@@ -4836,6 +4836,131 @@ body.dark-mode .kpi-table-tab.active {
     transition: none;
   }
 }
+
+/* --- COD Suspicion Tab Redesign: Responsive Classes --- */
+.cod-suspicion-page {
+  padding: 1.5rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.cod-snapshot-ledger {
+  background: var(--card-bg, #ffffff);
+  border-radius: var(--radius-surface, 22px);
+  border: 1px solid var(--border, #dce9f7);
+  box-shadow: var(--shadow-soft, 0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04));
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.cod-ledger-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #dce9f7);
+}
+
+.cod-ledger-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  padding-top: 1rem;
+}
+
+.cod-ledger-metric-item {
+  position: relative;
+}
+
+.cod-ledger-metric-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -0.75rem;
+  top: 10%;
+  height: 80%;
+  width: 1px;
+  background: var(--border, #dce9f7);
+}
+
+.cod-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.cod-chart-card {
+  background: var(--card-bg, #ffffff);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-surface, 22px);
+  border: 1px solid var(--border, #dce9f7);
+  box-shadow: var(--shadow-soft, 0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04));
+  display: flex;
+  flex-direction: column;
+  min-height: 340px;
+}
+
+@media (max-width: 900px) {
+  .cod-charts-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .cod-suspicion-page {
+    padding: 0.85rem !important;
+  }
+
+  .cod-snapshot-ledger {
+    padding: 1rem;
+    border-radius: var(--radius-surface);
+    margin-bottom: 1rem;
+  }
+
+  .cod-ledger-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .cod-ledger-metrics {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    padding-top: 0.85rem;
+  }
+
+  .cod-ledger-metric-item {
+    padding-bottom: 0.85rem;
+  }
+
+  .cod-ledger-metric-item:not(:last-child)::after {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 1px;
+  }
+
+  .cod-ledger-metric-val {
+    font-size: 1.65rem !important;
+  }
+
+  .cod-chart-card {
+    padding: 1rem;
+    border-radius: var(--radius-surface);
+    min-height: 300px;
+  }
+
+  .cod-charts-grid {
+    margin-bottom: 1rem;
+  }
+}
+
 button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .dropdown-toggle-sleek, .filter-label-text { white-space: nowrap; }
 
