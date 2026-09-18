@@ -1,6 +1,7 @@
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { toPublicSource } from './context.js';
 import { ChatError } from './errors.js';
+import { resolveEffectiveScope } from './scope.js';
 
 export const METRIC_DATASETS = Object.freeze({
   p1st: 'pick',
@@ -83,6 +84,8 @@ export function isSafeMetricResult(result) {
 export function formatDeterministicKpiResponse({
   metric,
   client,
+  regions,
+  hubTypes,
   dateFrom,
   dateTo,
   dataAsOf,
@@ -111,14 +114,29 @@ export function formatDeterministicKpiResponse({
     resultText = 'Chưa có dữ liệu (mẫu = 0).';
   }
 
+  let scopeLabel = row?.entity || 'Toàn quốc';
+  if (Array.isArray(regions) && regions.length > 0) {
+    scopeLabel = regions.join(', ');
+  }
+
   const lines = [
-    `Kết quả tra cứu KPI vận hành (${row?.entity || 'Toàn quốc'}):`,
+    `Kết quả tra cứu KPI vận hành (${scopeLabel}):`,
     '',
     `- **Chỉ số**: ${metricLabel}`,
-    `- **Khách hàng**: ${clientLabel}`,
+    `- **Khách hàng**: ${clientLabel}`
+  ];
+
+  if (Array.isArray(regions)) {
+    lines.push(`- **Vùng**: ${regions.length > 0 ? regions.join(', ') : 'Không chọn vùng nào'}`);
+  }
+  if (Array.isArray(hubTypes)) {
+    lines.push(`- **Loại hub**: ${hubTypes.length > 0 ? hubTypes.join(', ') : 'Không chọn loại hub nào'}`);
+  }
+
+  lines.push(
     `- **Thời gian**: ${timeRange}`,
     `- **Kết quả**: ${resultText}`
-  ];
+  );
 
   if (dataAsOf) {
     lines.push(`- **Dữ liệu tính đến (dataAsOf)**: ${formatDateVi(dataAsOf)}`);
@@ -138,6 +156,23 @@ export async function executeFastPath({ request, userClient, signal, onStatus, o
   const query = request.query;
   if (!isFastPathEligible(request)) return null;
 
+  const effectiveScope = resolveEffectiveScope({
+    question: request.question,
+    query: request.query,
+    screenContext: request.screenContext
+  });
+
+  const client = effectiveScope.client || query.client;
+  let rpcRegions = [];
+  if (Array.isArray(effectiveScope.regions)) {
+    rpcRegions = effectiveScope.regions.length === 0 ? ['__NO_MATCH__'] : effectiveScope.regions;
+  }
+
+  let rpcHubTypes = [];
+  if (Array.isArray(effectiveScope.hubTypes)) {
+    rpcHubTypes = effectiveScope.hubTypes.length === 0 ? ['__NO_MATCH__'] : effectiveScope.hubTypes;
+  }
+
   onStatus?.({ phase: 'querying_database', round: 1, count: 1 });
 
   let dateFrom = query.dateFrom;
@@ -151,7 +186,7 @@ export async function executeFastPath({ request, userClient, signal, onStatus, o
     toolNames.push('get_data_coverage');
     const coverage = await rpcCaller(userClient, DASHBOARD_RPCS.coverage, {
       p_dataset: METRIC_DATASETS[query.metric],
-      p_client: query.client
+      p_client: client
     });
     dataAsOf = coverage.data?.dataAsOf;
     if (!dataAsOf) {
@@ -172,12 +207,12 @@ export async function executeFastPath({ request, userClient, signal, onStatus, o
   toolNames.push('get_metric_summary');
   const metricResult = await rpcCaller(userClient, DASHBOARD_RPCS.metric, {
     p_metric: query.metric,
-    p_client: query.client,
+    p_client: client,
     p_date_from: dateFrom,
     p_date_to: dateTo,
     p_grain: 'nationwide',
-    p_regions: [],
-    p_hub_types: [],
+    p_regions: rpcRegions,
+    p_hub_types: rpcHubTypes,
     p_limit: 1,
     p_sort: 'worst'
   });
@@ -198,7 +233,9 @@ export async function executeFastPath({ request, userClient, signal, onStatus, o
 
   const text = formatDeterministicKpiResponse({
     metric: query.metric,
-    client: query.client,
+    client,
+    regions: effectiveScope.regions,
+    hubTypes: effectiveScope.hubTypes,
     dateFrom,
     dateTo,
     dataAsOf: metricDataAsOf,

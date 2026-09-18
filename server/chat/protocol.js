@@ -7,12 +7,14 @@ export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_HISTORY_CHARS = 24000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort', 'query']);
+const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort', 'query', 'screenContext']);
 const QUERY_KEYS = new Set(['metric', 'client', 'dateMode', 'dateFrom', 'dateTo']);
+const SCREEN_CONTEXT_KEYS = new Set(['activeTab', 'client', 'regions', 'hubTypes', 'section']);
 const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
 const DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const ALLOWED_TABS = Object.freeze(new Set(['report1', 'report5', 'report3', 'report-insight']));
 
 function badRequest(message) {
   throw new ChatError('CHAT_BAD_REQUEST', message, 400);
@@ -39,6 +41,60 @@ function parseQuery(rawQuery) {
   }
 
   return { metric, client, dateMode, dateFrom, dateTo };
+}
+
+export function parseScreenContext(rawContext) {
+  if (rawContext === undefined || rawContext === null) return null;
+  if (typeof rawContext !== 'object' || Array.isArray(rawContext)) badRequest('screenContext không hợp lệ.');
+  for (const key of Object.keys(rawContext)) {
+    if (!SCREEN_CONTEXT_KEYS.has(key)) badRequest(`screenContext có field không được hỗ trợ: ${key}.`);
+  }
+
+  const { activeTab = null, client = null, regions = null, hubTypes = null, section = null } = rawContext;
+
+  if (activeTab !== null) {
+    if (typeof activeTab !== 'string' || !ALLOWED_TABS.has(activeTab)) {
+      badRequest('screenContext.activeTab không được hỗ trợ.');
+    }
+  }
+
+  if (client !== null) {
+    if (typeof client !== 'string' || !CLIENTS.has(client)) {
+      badRequest('screenContext.client không được hỗ trợ.');
+    }
+  }
+
+  let normalizedRegions = null;
+  if (regions !== null) {
+    if (!Array.isArray(regions) || regions.length > 20 || regions.some(r => typeof r !== 'string' || !r.trim() || r.length > 80 || /<[^>]+>/.test(r))) {
+      badRequest('screenContext.regions không hợp lệ.');
+    }
+    normalizedRegions = [...new Set(regions.map(r => r.trim()))];
+  }
+
+  let normalizedHubTypes = null;
+  if (hubTypes !== null) {
+    if (!Array.isArray(hubTypes) || hubTypes.length > 20 || hubTypes.some(h => typeof h !== 'string' || !h.trim() || h.length > 80 || /<[^>]+>/.test(h))) {
+      badRequest('screenContext.hubTypes không hợp lệ.');
+    }
+    normalizedHubTypes = [...new Set(hubTypes.map(h => h.trim()))];
+  }
+
+  let normalizedSection = null;
+  if (section !== null) {
+    if (typeof section !== 'string' || !section.trim() || section.length > 50 || /<[^>]+>/.test(section)) {
+      badRequest('screenContext.section không hợp lệ.');
+    }
+    normalizedSection = section.trim();
+  }
+
+  return {
+    activeTab,
+    client,
+    regions: normalizedRegions,
+    hubTypes: normalizedHubTypes,
+    section: normalizedSection
+  };
 }
 
 export function parseRequestBody(rawBody, contentLength) {
@@ -105,9 +161,16 @@ export function parseRequestBody(rawBody, contentLength) {
   }
 
   const query = parseQuery(body.query);
+  const screenContext = parseScreenContext(body.screenContext);
 
   // Legacy keys (model, reasoningEffort) are accepted for rolling deploy safety but discarded here.
-  return { question, history: normalizedHistory, requestId: body.requestId.toLowerCase(), query };
+  return {
+    question,
+    history: normalizedHistory,
+    requestId: body.requestId.toLowerCase(),
+    query,
+    screenContext
+  };
 }
 
 export function requestPayloadHash(request) {
@@ -115,7 +178,8 @@ export function requestPayloadHash(request) {
     .update(JSON.stringify({
       question: request.question,
       history: request.history,
-      query: request.query ?? null
+      query: request.query ?? null,
+      screenContext: request.screenContext ?? null
     }))
     .digest('hex');
 }

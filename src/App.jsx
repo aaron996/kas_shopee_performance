@@ -767,7 +767,19 @@ export default function App() {
               onResetDefault={handleResetDefaultData}
             />
           )}
-          {currentUser && <ChatPanel isOpen={isChatOpen} onOpen={() => setIsChatOpen(true)} onClose={() => setIsChatOpen(false)} />}
+          {currentUser && (
+            <ChatPanel
+              isOpen={isChatOpen}
+              onOpen={() => setIsChatOpen(true)}
+              onClose={() => setIsChatOpen(false)}
+              screenContext={{
+                activeTab,
+                client: clientFilter,
+                regions: selectedRegions,
+                hubTypes: hubTypeSelection
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -85,8 +85,8 @@ export function createChatHandler(dependencies = {}) {
         requestPayloadHash(request),
         {
           email: user.email,
-          clientFilter: req.headers['x-client-filter'],
-          activeTab: req.headers['x-active-tab']
+          clientFilter: req.headers['x-client-filter'] || request.screenContext?.client || null,
+          activeTab: req.headers['x-active-tab'] || request.screenContext?.activeTab || null
         }
       );
       reserved = true;

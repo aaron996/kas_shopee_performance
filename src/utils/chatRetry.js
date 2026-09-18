@@ -42,7 +42,16 @@ export function formatDataScope(source) {
         ? 'Theo kho/hub'
         : null;
 
-  const scopeDesc = [client, grain].filter(Boolean).join(' · ');
+  const parts = [client, grain];
+  if (Array.isArray(source.scope?.regions) && source.scope.regions.length > 0) {
+    parts.push(`Vùng: ${source.scope.regions.join(', ')}`);
+  }
+  const hubTypes = source.scope?.hubTypes || source.scope?.hub_types;
+  if (Array.isArray(hubTypes) && hubTypes.length > 0) {
+    parts.push(`Loại hub: ${hubTypes.join(', ')}`);
+  }
+
+  const scopeDesc = parts.filter(Boolean).join(' · ');
 
   let dateRangeText = null;
   if (source.scope?.dateFrom && source.scope?.dateTo) {

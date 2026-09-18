@@ -241,3 +241,88 @@ test('fast path: returns null to fallback to agent when metric RPC shape is unsa
 
   assert.equal(result, null);
 });
+
+test('fast path: applies valid screenContext regions and hubTypes to RPC call without calling OpenAI', async () => {
+  const rpcCalls = [];
+  const callRpc = async (_client, rpcName, params) => {
+    rpcCalls.push({ rpcName, params });
+    return {
+      evidenceId: 'db_sc_1',
+      data: {
+        dataAsOf: '2026-09-08',
+        syncedAt: '2026-09-08T10:00:00Z',
+        scope: { client: 'SPB', grain: 'nationwide', dateFrom: '2026-09-08', dateTo: '2026-09-08' },
+        rows: [{ entity: 'HCM', value: 98.2, volume: 1000, ontime: 982 }]
+      }
+    };
+  };
+
+  let emittedText = '';
+  const request = {
+    question: 'Xem ODR, SPB, 01/09/2026–07/09/2026.',
+    query: { metric: 'odr', client: 'SPB', dateMode: 'custom', dateFrom: '2026-09-01', dateTo: '2026-09-07' },
+    screenContext: {
+      activeTab: 'report1',
+      client: 'SPE', // query has SPB, so SPB should win!
+      regions: ['HCM'],
+      hubTypes: ['SOC']
+    }
+  };
+
+  const result = await executeFastPath({
+    request,
+    userClient: {},
+    onStatus: () => {},
+    onText: text => { emittedText = text; },
+    onSource: () => {}
+  }, { callRpc });
+
+  assert.ok(result);
+  assert.equal(result.actualMicrousd, 0); // Fast path costs 0 microusd (no OpenAI)
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(rpcCalls[0].rpcName, 'get_ai_chat_metric');
+  assert.equal(rpcCalls[0].params.p_client, 'SPB'); // Explicit query wins over screenContext SPE
+  assert.deepEqual(rpcCalls[0].params.p_regions, ['HCM']);
+  assert.deepEqual(rpcCalls[0].params.p_hub_types, ['SOC']);
+  assert.match(emittedText, /Vùng/);
+  assert.match(emittedText, /HCM/);
+});
+
+test('fast path: empty filter in screenContext maps to non-matching filter in RPC', async () => {
+  const rpcCalls = [];
+  const callRpc = async (_client, rpcName, params) => {
+    rpcCalls.push({ rpcName, params });
+    return {
+      evidenceId: 'db_sc_2',
+      data: {
+        dataAsOf: '2026-09-08',
+        syncedAt: '2026-09-08T10:00:00Z',
+        scope: { client: 'SPB', grain: 'nationwide', dateFrom: '2026-09-08', dateTo: '2026-09-08' },
+        rows: []
+      }
+    };
+  };
+
+  const request = {
+    question: 'Xem ODR, SPB, 01/09/2026–07/09/2026.',
+    query: { metric: 'odr', client: 'SPB', dateMode: 'custom', dateFrom: '2026-09-01', dateTo: '2026-09-07' },
+    screenContext: {
+      activeTab: 'report1',
+      client: 'SPB',
+      regions: [],
+      hubTypes: []
+    }
+  };
+
+  const result = await executeFastPath({
+    request,
+    userClient: {},
+    onStatus: () => {},
+    onText: () => {},
+    onSource: () => {}
+  }, { callRpc });
+
+  assert.ok(result);
+  assert.deepEqual(rpcCalls[0].params.p_regions, ['__NO_MATCH__']);
+  assert.deepEqual(rpcCalls[0].params.p_hub_types, ['__NO_MATCH__']);
+});

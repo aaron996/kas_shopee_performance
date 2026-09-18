@@ -25,6 +25,7 @@ export async function callDashboardRpc(userClient, rpcName, params) {
     evidenceId: `db_${stableHash({ rpcName, params, data })}`,
     queriedAt: new Date().toISOString(),
     latencyMs: Date.now() - startedAt,
+    params,
     data
   };
 }
