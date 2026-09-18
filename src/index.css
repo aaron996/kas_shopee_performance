@@ -301,7 +301,7 @@ button:active:not(:disabled),
   color: white;
   border: none;
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   justify-content: center;
   font-size: 0.85rem;
@@ -324,7 +324,7 @@ button:active:not(:disabled),
   gap: 0.35rem;
   background: rgba(0,0,0,0.2);
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 
@@ -341,7 +341,7 @@ button:active:not(:disabled),
   min-width: 0;
   flex: 1;
   padding: 0.2rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: #f8fafc;
 }
 
@@ -365,7 +365,7 @@ button:active:not(:disabled),
   background: rgba(74, 222, 128, 0.2);
   color: #4ADE80;
   padding: 0.1rem 0.3rem;
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
   font-weight: 700;
   width: fit-content;
 }
@@ -378,7 +378,7 @@ button:active:not(:disabled),
   flex: 0 0 32px;
   min-height: 32px;
   padding: 0.4rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 
 .app-sidebar.collapsed .logout-btn {
@@ -430,7 +430,7 @@ button:active:not(:disabled),
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -941,7 +941,7 @@ body.dark-mode .freshness-chip.is-error {
   min-height: 28px;
   padding: 0.2rem 0.55rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
   background: var(--surface-hover);
   font-size: 0.72rem;
@@ -1483,7 +1483,7 @@ table.mtx-table thead th.sep {
   font-size: 0.75rem;
   padding: 0.1rem 0.3rem;
   margin-right: 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
 }
 
 .toggle-btn:hover {
@@ -1638,7 +1638,7 @@ table.mtx-table thead th.sep {
   font-size: 0.85rem;
   padding: 0.85rem;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-hover);
   color: var(--text-main);
   resize: vertical;
@@ -1678,7 +1678,7 @@ table.mtx-table thead th.sep {
 
 .kpi-card {
   background: white;
-  border-radius: 18px;
+  border-radius: var(--radius-surface);
   border: 1px solid var(--border-subtle);
   padding: 1rem;
   cursor: pointer;
@@ -1806,7 +1806,7 @@ table.mtx-table th.col-summary {
   height: 52px;
   background: #ffffff;
   padding: 4px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   object-fit: contain;
 }
@@ -1817,7 +1817,7 @@ table.mtx-table th.col-summary {
   gap: 0.4rem;
   background: rgba(255,255,255,0.15);
   padding: 0.35rem 0.75rem;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   font-size: 0.8rem;
   border: 1px solid rgba(255,255,255,0.25);
 }
@@ -1827,7 +1827,7 @@ table.mtx-table th.col-summary {
   color: white;
   font-size: 0.65rem;
   padding: 0.05rem 0.35rem;
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
   font-weight: bold;
   margin-left: 0.2rem;
 }
@@ -2148,7 +2148,7 @@ table.mtx-table th.col-summary {
     min-height: 44px;
     flex: 1 1 0;
     padding: 0.25rem 0.3rem;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
@@ -2179,7 +2179,7 @@ table.mtx-table th.col-summary {
 
 .metric-block.section-pulse-glow {
   animation: sectionGlowPulse 1.6s ease-in-out forwards;
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
   transition: all 0.3s ease;
 }
 
@@ -2317,7 +2317,7 @@ table.mtx-table tbody tr:hover td.lbl-2 {
   gap: 0.4rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 0.25rem 0.75rem;
   color: #fff;
   font-size: 0.8rem;
@@ -2706,7 +2706,7 @@ body.dark-mode .legend-box-good {
   gap: 0.4rem;
   background: #ffffff;
   border: 1px solid #fda4af;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
   cursor: pointer;
@@ -2742,7 +2742,7 @@ body.dark-mode .legend-box-good {
   background: #ffe4e6;
   color: #9f1239;
   padding: 0.1rem 0.4rem;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 
@@ -2879,7 +2879,7 @@ table.mtx-table th.col-summary,
   padding: 1rem 1.25rem;
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 18px;
+  border-radius: var(--radius-surface);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
   animation: slideDownFadeIn 0.18s ease-out both;
 }
@@ -2897,7 +2897,7 @@ table.mtx-table th.col-summary,
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   color: var(--ghn-blue, #0ea5c4);
   background: #e6f6fa;
 }
@@ -2907,7 +2907,7 @@ table.mtx-table th.col-summary,
   height: 30px;
   color: var(--text-muted, #64748b);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 
 .export-menu-close:hover { background: var(--surface-hover, #f1f5f9); }
@@ -2934,7 +2934,7 @@ table.mtx-table th.col-summary,
   color: var(--text-main, #0f172a);
   background: var(--bg-main, #f8fafc);
   border: 1px solid var(--border-strong, #cbd5e1);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   font: inherit;
 }
 
@@ -2990,7 +2990,7 @@ body.dark-mode .export-menu-icon, body.dark-mode .export-text-button:hover:not(:
   font-size: 0.85rem;
   background: #fff;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   color: #334155;
   font-weight: 500;
@@ -3014,7 +3014,7 @@ body.dark-mode .export-menu-icon, body.dark-mode .export-text-button:hover:not(:
   margin-top: 4px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: var(--radius-surface);
   box-shadow: 0 10px 25px rgba(0,0,0,0.1);
   width: 240px;
   z-index: 2000;
@@ -3428,7 +3428,7 @@ body.dark-mode .chk-icon {
 .risk-chip-sleek {
   background: var(--surface-subtle);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
   padding: 4px 10px;
   display: inline-flex;
   align-items: center;
@@ -3523,7 +3523,7 @@ body.dark-mode .chk-icon {
 .dev-chat-config__reset {
   min-height: 34px;
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
   color: var(--text-primary);
   font: inherit;
@@ -3620,7 +3620,7 @@ body.dark-mode .chk-icon {
     border: 1px solid var(--border-strong);
     background: var(--surface);
     color: var(--text-main);
-    border-radius: 9px;
+    border-radius: var(--radius-control);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3636,7 +3636,7 @@ body.dark-mode .chk-icon {
     display: block;
     margin: 0.5rem 0.75rem 0;
     padding: 0.55rem 0.65rem;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     background: var(--amber-bg);
     color: var(--amber-text);
     font-size: 0.76rem;
@@ -4895,7 +4895,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 100;
   min-width: 160px; padding: 0.3rem 0; margin: 0; list-style: none;
   background: var(--surface-default); border: 1px solid var(--border-subtle);
-  border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-control); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 .chat-model-dropdown li { margin: 0; }
 .chat-model-option {
@@ -4907,7 +4907,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-model-option--active { font-weight: 700; color: var(--action-primary); }
 .chat-model-default-badge {
   font-size: 0.62rem; font-weight: 600; padding: 1px 5px;
-  border-radius: 3px; background: var(--surface-subtle); color: var(--text-muted);
+  border-radius: var(--radius-pill); background: var(--surface-subtle); color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 0.02em;
 }
 .chat-reasoning-dropdown { min-width: 172px; }
@@ -4942,7 +4942,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
   margin-top: 0.45rem;
   padding: 0.75rem;
   border: 1px solid var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-surface);
   color: var(--text-primary);
   background: var(--surface-default);
 }
@@ -4953,7 +4953,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-query-options button {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem;
   min-height: 36px; padding: 0.4rem 0.65rem; border: 1px solid var(--border-strong);
-  border-radius: 8px; color: var(--text-primary); background: var(--surface-default);
+  border-radius: var(--radius-control); color: var(--text-primary); background: var(--surface-default);
   font: 650 0.74rem/1.2 var(--font-sans); cursor: pointer;
 }
 .chat-query-options button:hover:not(:disabled) { border-color: var(--action-primary); background: var(--surface-info); }
@@ -4965,14 +4965,14 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-query-dates label { display: grid; gap: 0.25rem; color: var(--text-secondary); font-size: 0.68rem; }
 .chat-query-dates input {
   width: 100%; min-height: 38px; padding: 0.35rem 0.45rem; border: 1px solid var(--border-strong);
-  border-radius: 8px; color: var(--text-primary); background: var(--surface-default); font: 0.72rem var(--font-sans);
+  border-radius: var(--radius-control); color: var(--text-primary); background: var(--surface-default); font: 0.72rem var(--font-sans);
 }
 .chat-query-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--border-subtle); }
 .chat-query-hint { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-secondary); font-size: 0.66rem; line-height: 1.3; }
 .chat-query-submit {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
   min-height: 36px; padding: 0.4rem 0.7rem; border: 1px solid var(--action-primary);
-  border-radius: 8px; color: var(--text-on-brand); background: var(--action-primary);
+  border-radius: var(--radius-control); color: var(--text-on-brand); background: var(--action-primary);
   font: 700 0.72rem/1.2 var(--font-sans); cursor: pointer; white-space: nowrap;
 }
 .chat-query-submit:hover:not(:disabled) { border-color: var(--action-primary-hover); background: var(--action-primary-hover); }
@@ -4992,7 +4992,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-md-list li { margin: 0.15rem 0; line-height: 1.45; }
 .chat-md-list li::marker { color: var(--action-primary); }
 .chat-md-inline-code { font-family: var(--font-mono); font-size: 0.76rem; padding: 0.1rem 0.32rem; border-radius: 4px; background: var(--surface-subtle); border: 1px solid var(--border-subtle); color: var(--action-primary-deep, var(--text-primary)); }
-.chat-md-code-block { margin: 0.35rem 0; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--surface-subtle); overflow: hidden; }
+.chat-md-code-block { margin: 0.35rem 0; border-radius: var(--radius-control); border: 1px solid var(--border-subtle); background: var(--surface-subtle); overflow: hidden; }
 .chat-md-code-header { padding: 0.2rem 0.6rem; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); background: var(--surface-canvas); border-bottom: 1px solid var(--border-subtle); }
 .chat-md-code-block pre { margin: 0; padding: 0.5rem 0.65rem; overflow-x: auto; font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.45; color: var(--text-primary); }
 .chat-md-code-block pre code { font-family: inherit; font-size: inherit; background: transparent; padding: 0; border: none; }

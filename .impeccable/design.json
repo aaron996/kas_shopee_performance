@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-17T00:00:00+07:00",
+  "title": "Design System: GHN KAS Operations",
+  "extensions": {
+    "colorMeta": {
+      "orange-500": { "role": "secondary", "displayName": "GHN Orange", "canonical": "#f15a22", "tonalRamp": ["#4f1708", "#76240d", "#a53412", "#c94516", "#f15a22", "#fb8b61", "#fec1ab", "#fff1ea"] },
+      "cyan-700": { "role": "primary", "displayName": "Operational Cyan", "canonical": "#0ea5c4", "tonalRamp": ["#08303d", "#0a4b5d", "#0b657b", "#0b84a0", "#0ea5c4", "#4dc7dc", "#a8e7f0", "#e7fbfd"] },
+      "canvas": { "role": "neutral", "displayName": "Pastel Canvas", "canonical": "#eaf2fb", "tonalRamp": ["#102338", "#203d5b", "#466f96", "#81a8c9", "#b7d1e6", "#eaf2fb", "#f2f7fd", "#ffffff"] },
+      "surface": { "role": "neutral", "displayName": "White Work Surface", "canonical": "#ffffff", "tonalRamp": ["#1e293b", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc", "#ffffff"] },
+      "slate-800": { "role": "neutral", "displayName": "Primary Slate", "canonical": "#1e293b", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f8fafc"] }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Operational Body", "purpose": "Dense, legible operational content and controls." },
+      "heading": { "displayName": "Section Heading", "purpose": "Compact hierarchy for report and dialog titles." },
+      "mono": { "displayName": "Metric Annotation", "purpose": "Codes, compact figures, and source identifiers." }
+    },
+    "shadows": [
+      { "name": "soft-surface", "value": "0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04)", "purpose": "Resting white data surfaces on the pastel canvas." },
+      { "name": "raised-interaction", "value": "0 14px 34px -14px rgba(20, 60, 100, 0.22), 0 2px 8px rgba(20, 60, 100, 0.06)", "purpose": "Deliberate hover and picked states." },
+      { "name": "overlay", "value": "0 24px 48px rgba(20, 60, 100, 0.22)", "purpose": "Modal and overlay surfaces." }
+    ],
+    "motion": [
+      { "name": "standard", "value": "cubic-bezier(0.2, 0, 0, 1)", "purpose": "Default state changes." },
+      { "name": "snappy", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Compact press feedback." },
+      { "name": "fast", "value": "180ms", "purpose": "Short interaction transitions." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "560px" },
+      { "name": "tablet", "value": "768px" },
+      { "name": "desktop-wide", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "action-primary",
+      "description": "Use for the strongest local action only.",
+      "html": "<button class=\"ds-action-primary\">Xuất CSV</button>",
+      "css": ".ds-action-primary { min-height: 32px; padding: .4rem 1rem; border: 0; border-radius: var(--radius-pill); background: var(--action-primary); color: var(--text-on-brand); font: 600 .82rem var(--font-sans); cursor: pointer; box-shadow: var(--shadow-raised); transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-snappy); } .ds-action-primary:hover { background: var(--action-primary-hover); } .ds-action-primary:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); } .ds-action-primary:active { transform: scale(.96); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "A compact operational field with visible focus and control geometry.",
+      "html": "<input class=\"ds-input\" aria-label=\"Tìm kiếm\" placeholder=\"Tìm kiếm\" />",
+      "css": ".ds-input { min-height: 34px; padding: .34rem .55rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface-default); color: var(--text-primary); font: .82rem var(--font-sans); } .ds-input:hover { border-color: var(--action-primary); } .ds-input:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); }"
+    },
+    {
+      "name": "Scope Chip",
+      "kind": "chip",
+      "refersTo": "action-secondary",
+      "description": "A compact capsule for filter scope or short metadata.",
+      "html": "<button class=\"ds-chip\">3 vùng</button>",
+      "css": ".ds-chip { min-height: 28px; padding: .25rem .75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface-default); color: var(--text-primary); font: 600 .82rem var(--font-sans); cursor: pointer; } .ds-chip:hover { border-color: var(--action-primary); color: var(--action-primary-hover); } .ds-chip:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); }"
+    },
+    {
+      "name": "Data Surface",
+      "kind": "card",
+      "refersTo": "data-surface",
+      "description": "A peer-level report, filter, or data container.",
+      "html": "<section class=\"ds-surface\"><strong>Phạm vi dữ liệu</strong><span>Đã đồng bộ gần nhất</span></section>",
+      "css": ".ds-surface { display: grid; gap: .35rem; padding: 1.1rem 1.35rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-surface); background: var(--surface-default); color: var(--text-primary); font: .88rem var(--font-sans); box-shadow: var(--shadow-soft); } .ds-surface span { color: var(--text-secondary); font-size: .82rem; }"
+    },
+    {
+      "name": "Status Notice",
+      "kind": "custom",
+      "refersTo": "input-field",
+      "description": "A compact semantic notice that does not rely on color alone.",
+      "html": "<div class=\"ds-notice\"><strong>Chú ý:</strong> Dữ liệu đang theo phạm vi đã chọn.</div>",
+      "css": ".ds-notice { padding: .85rem 1rem; border: 1px solid currentColor; border-radius: var(--radius-control); background: var(--status-warning-bg); color: var(--status-warning-fg); font: .83rem/1.45 var(--font-sans); }"
+    },
+    {
+      "name": "Sidebar Edge",
+      "kind": "nav",
+      "refersTo": "data-surface",
+      "description": "The fixed navigation shell; its partial radius is an attachment exception, not a card radius.",
+      "html": "<nav class=\"ds-sidebar\"><strong>GHN KAS</strong><button>Dashboard</button></nav>",
+      "css": ".ds-sidebar { display: grid; gap: .65rem; width: 190px; padding: 1rem; border-radius: 0 24px 24px 0; background: var(--action-primary-deep); color: var(--text-on-brand); font: .85rem var(--font-sans); } .ds-sidebar button { padding: .5rem; border: 0; border-radius: var(--radius-control); background: rgba(255,255,255,.1); color: inherit; text-align: left; cursor: pointer; } .ds-sidebar button:hover { background: rgba(255,255,255,.2); } .ds-sidebar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Operations Desk",
+    "overview": "GHN KAS is an operations workspace, not a marketing surface. It should make scope, freshness, risk, and the next drill-down legible at a glance. The visual language is airy and pastel-blue, while the density and wording remain practical enough for repeated daily analysis.",
+    "keyCharacteristics": ["Operational hierarchy before decoration.", "One shared shape scale for repeated UI roles.", "Color never carries status or data meaning without labels, values, or structure."],
+    "rules": [
+      { "name": "The One-Action Accent Rule", "body": "Cyan identifies the principal interactive path on a local surface. Orange does not replace semantic warning/error treatment and is not a second primary button color.", "section": "colors" },
+      { "name": "The Role, Not the File Rule", "body": "A new card inherits surface, and a new form field inherits control, regardless of which CSS file or report module owns it. Do not introduce literal radii for a repeated UI role.", "section": "shapes" },
+      { "name": "The Legacy Radius Rule", "body": "Existing literal 18px, 20px, 24px, 8px, and similar values are migration candidates, not additions to the design scale.", "section": "shapes" }
+    ],
+    "dos": ["Do use var(--radius-surface) for a new card, modal, filter bar, report panel, or peer data container.", "Do use var(--radius-control) for a field or compact rectangular control.", "Do use var(--radius-pill) only when the component is intentionally capsule-shaped."],
+    "donts": ["Don't add a literal border-radius to a repeated component role when a radius token exists.", "Don't make two peer white surfaces appear to have different curvature without a containment/attachment reason.", "Don't use a pill merely to make every control look alike."]
+  }
+}
