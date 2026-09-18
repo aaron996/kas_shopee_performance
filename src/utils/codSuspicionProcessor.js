@@ -350,8 +350,29 @@ export function computeSuspicionKPIs(driverGroups = []) {
 }
 
 /**
+ * Validate that year, month, and day form a genuine Gregorian calendar date (UTC).
+ * Guards against non-existent dates such as Feb 31, Apr 31, and Feb 29 in non-leap years.
+ */
+function isValidCalendarDate(year, month, day) {
+  if (
+    Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day) ||
+    year < 1900 || year > 2100 ||
+    month < 1 || month > 12 ||
+    day < 1 || day > 31
+  ) {
+    return false;
+  }
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    utcDate.getUTCFullYear() === year &&
+    utcDate.getUTCMonth() === month - 1 &&
+    utcDate.getUTCDate() === day
+  );
+}
+
+/**
  * Safely parse date string into standard 'YYYY-MM-DD'
- * Returns null if invalid or missing
+ * Returns null if invalid, missing, or calendar non-existent
  */
 export function normalizeDateKey(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return null;
@@ -368,8 +389,7 @@ export function normalizeDateKey(dateStr) {
         const year = Number(y);
         const month = Number(m);
         const day = Number(d);
-        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day) &&
-            year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        if (isValidCalendarDate(year, month, day)) {
           return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
       }
@@ -386,8 +406,7 @@ export function normalizeDateKey(dateStr) {
         const year = Number(y);
         const month = Number(m);
         const day = Number(d);
-        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day) &&
-            year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        if (isValidCalendarDate(year, month, day)) {
           return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
       } else if (parts[0].length === 4) {
@@ -396,8 +415,7 @@ export function normalizeDateKey(dateStr) {
         const year = Number(y);
         const month = Number(m);
         const day = Number(d);
-        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day) &&
-            year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        if (isValidCalendarDate(year, month, day)) {
           return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
       }

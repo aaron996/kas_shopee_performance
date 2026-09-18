@@ -145,7 +145,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
             <div
               style={{
                 padding: '0.6rem',
-                background: 'rgba(241, 90, 34, 0.1)',
+                background: 'var(--ghn-orange-light, #fef0eb)',
                 color: 'var(--ghn-orange, #f15a22)',
                 borderRadius: 'var(--radius-control, 10px)',
                 display: 'flex',
@@ -157,32 +157,18 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
               <ShieldAlert size={24} />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: isMobile ? '1.15rem' : '1.25rem',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
-                    color: 'var(--text-main, #0f172a)',
-                    letterSpacing: '-0.01em'
-                  }}
-                >
-                  ĐƠN NGHI VẤN COD
-                </h1>
-                <span
-                  style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    color: 'var(--action-primary, #0ea5c4)',
-                    background: 'rgba(14, 165, 196, 0.1)',
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: 'var(--radius-pill, 999px)'
-                  }}
-                >
-                  Bản ghi vận hành
-                </span>
-              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: isMobile ? '1.15rem' : '1.25rem',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                  color: 'var(--text-main, #0f172a)',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                ĐƠN NGHI VẤN COD
+              </h1>
               <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted, #64748b)' }}>
                 Danh sách tài xế và đơn hàng cần rà soát liên quan đến nghi ngờ hành vi ôm COD
               </p>
@@ -253,7 +239,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                 fontSize: '1.8rem',
                 fontWeight: 700,
                 fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
-                color: 'var(--action-primary-deep, #0c4a6e)',
+                color: 'var(--text-main, #0f172a)',
                 lineHeight: 1.2,
                 marginTop: '0.25rem'
               }}
@@ -319,7 +305,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
               </span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
-              Theo Ngày kết thúc giao (end_delivery_date), không đếm trùng mã đơn
+              Theo Ngày kết thúc giao · mỗi mã đơn được tính một lần
             </div>
           </div>
 
@@ -360,7 +346,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     domain={[0, 'auto']}
                   />
                   <Tooltip
-                    cursor={{ fill: 'rgba(14, 165, 196, 0.08)' }}
+                    cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
@@ -370,16 +356,16 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                               background: 'var(--color-slate-950, #0f172a)',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
                               padding: '0.6rem 0.85rem',
-                              borderRadius: '8px',
+                              borderRadius: 'var(--radius-control, 10px)',
                               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
                               fontSize: '0.8rem',
-                              color: '#ffffff'
+                              color: 'var(--color-white, #ffffff)'
                             }}
                           >
-                            <div style={{ fontWeight: 600, color: '#94a3b8', marginBottom: '0.25rem' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--color-slate-300, #cbd5e1)', marginBottom: '0.25rem' }}>
                               Ngày {data.fullDateLabel}
                             </div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--action-primary, #0ea5c4)' }}>
                               {data.cases} case nghi vấn
                             </div>
                           </div>
@@ -404,22 +390,17 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
         {/* Chart 2: Top kho giao có đơn nghi vấn */}
         <div className="cod-chart-card">
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: '0.92rem',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
-                  color: 'var(--text-main, #0f172a)'
-                }}
-              >
-                TOP KHO GIAO CÓ ĐƠN NGHI VẤN
-              </h2>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontFamily: 'var(--font-mono, monospace)' }}>
-                Top 5 kho
-              </span>
-            </div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                fontFamily: 'var(--font-heading, "Outfit", sans-serif)',
+                color: 'var(--text-main, #0f172a)'
+              }}
+            >
+              TOP KHO GIAO CÓ ĐƠN NGHI VẤN
+            </h2>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
               Xếp hạng theo số đơn nghi vấn (mẫu số: số tài xế liên quan)
             </div>
@@ -461,7 +442,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     tickFormatter={(val) => val.replace(/^Kho\s+/i, '').slice(0, isMobile ? 11 : 20)}
                   />
                   <Tooltip
-                    cursor={{ fill: 'rgba(12, 74, 110, 0.08)' }}
+                    cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
@@ -471,16 +452,16 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                               background: 'var(--color-slate-950, #0f172a)',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
                               padding: '0.6rem 0.85rem',
-                              borderRadius: '8px',
+                              borderRadius: 'var(--radius-control, 10px)',
                               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
                               fontSize: '0.8rem',
-                              color: '#ffffff'
+                              color: 'var(--color-white, #ffffff)'
                             }}
                           >
-                            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: '#f8fafc' }}>{data.warehouse}</div>
-                            <div style={{ color: '#cbd5e1' }}>Số đơn nghi vấn: <strong style={{ color: '#ffffff' }}>{data.orderCount}</strong> đơn</div>
-                            <div style={{ color: '#cbd5e1' }}>Số tài xế liên quan: <strong style={{ color: '#ffffff' }}>{data.driverCount}</strong> tài xế</div>
-                            <div style={{ color: '#38bdf8', marginTop: '0.2rem', fontWeight: 600 }}>
+                            <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: 'var(--color-slate-50, #f8fafc)' }}>{data.warehouse}</div>
+                            <div style={{ color: 'var(--color-slate-300, #cbd5e1)' }}>Số đơn nghi vấn: <strong style={{ color: 'var(--color-white, #ffffff)' }}>{data.orderCount}</strong> đơn</div>
+                            <div style={{ color: 'var(--color-slate-300, #cbd5e1)' }}>Số tài xế liên quan: <strong style={{ color: 'var(--color-white, #ffffff)' }}>{data.driverCount}</strong> tài xế</div>
+                            <div style={{ color: 'var(--action-primary, #0ea5c4)', marginTop: '0.2rem', fontWeight: 600 }}>
                               Tổng COD: {formatCurrencyVND(data.totalCod)}
                             </div>
                           </div>
@@ -492,7 +473,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                   <Bar
                     dataKey="orderCount"
                     name="Số đơn nghi vấn"
-                    fill="var(--action-primary-deep, #0c4a6e)"
+                    fill="var(--action-primary-hover, #0b84a0)"
                     radius={[0, 4, 4, 0]}
                     maxBarSize={isMobile ? 18 : 24}
                   />

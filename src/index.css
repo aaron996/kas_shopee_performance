@@ -4916,7 +4916,7 @@ body.dark-mode .kpi-table-tab.active {
 
   .cod-snapshot-ledger {
     padding: 1rem;
-    border-radius: 16px;
+    border-radius: var(--radius-surface);
     margin-bottom: 1rem;
   }
 
@@ -4952,7 +4952,7 @@ body.dark-mode .kpi-table-tab.active {
 
   .cod-chart-card {
     padding: 1rem;
-    border-radius: 16px;
+    border-radius: var(--radius-surface);
     min-height: 300px;
   }
 

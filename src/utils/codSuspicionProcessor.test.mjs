@@ -301,11 +301,32 @@ test('computeSuspicionKPIs calculates accurate aggregations for triage', () => {
   assert.equal(kpis.topWarehouses[1].orderCount, 1);
 });
 
-test('normalizeDateKey parses ISO and formatted date strings, rejecting invalid dates', () => {
+test('normalizeDateKey parses ISO and formatted date strings, rejecting invalid and non-existent dates', () => {
   assert.equal(normalizeDateKey('2026-09-15'), '2026-09-15');
   assert.equal(normalizeDateKey('2026-09-15T08:30:00Z'), '2026-09-15');
   assert.equal(normalizeDateKey('15/09/2026'), '2026-09-15');
   assert.equal(normalizeDateKey('2026/09/15'), '2026-09-15');
+
+  // Valid boundary dates
+  assert.equal(normalizeDateKey('2026-02-28'), '2026-02-28');
+  assert.equal(normalizeDateKey('28/02/2026'), '2026-02-28');
+  assert.equal(normalizeDateKey('2026-04-30'), '2026-04-30');
+  assert.equal(normalizeDateKey('30/04/2026'), '2026-04-30');
+  assert.equal(normalizeDateKey('2026-12-31'), '2026-12-31');
+  assert.equal(normalizeDateKey('31/12/2026'), '2026-12-31');
+
+  // Calendar non-existent dates (Feb 31, Apr 31)
+  assert.equal(normalizeDateKey('2026-02-31'), null);
+  assert.equal(normalizeDateKey('31/02/2026'), null);
+  assert.equal(normalizeDateKey('2026/02/31'), null);
+  assert.equal(normalizeDateKey('2026-04-31'), null);
+  assert.equal(normalizeDateKey('31/04/2026'), null);
+
+  // Non-leap year vs leap year February 29th
+  assert.equal(normalizeDateKey('2026-02-29'), null);
+  assert.equal(normalizeDateKey('29/02/2026'), null);
+  assert.equal(normalizeDateKey('2024-02-29'), '2024-02-29'); // Leap year
+  assert.equal(normalizeDateKey('29/02/2024'), '2024-02-29'); // Leap year
 
   // Invalid or empty dates
   assert.equal(normalizeDateKey(null), null);
