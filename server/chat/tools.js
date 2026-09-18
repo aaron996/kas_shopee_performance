@@ -3,6 +3,7 @@ import { getMetricDefinition } from '../../src/data/metricGlossary.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { ChatError } from './errors.js';
 import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
+import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
@@ -182,9 +183,17 @@ export const CHAT_TOOLS = Object.freeze([
   REQUEST_METRIC_QUERY_TOOL
 ]);
 
-export async function executeChatTool(call, context) {
-  const args = parseArguments(call.arguments);
+export async function executeChatTool(call, context = {}) {
+  const rawArgs = parseArguments(call.arguments);
   const { userClient } = context;
+
+  const effectiveScope = context.effectiveScope ?? resolveEffectiveScope({
+    question: context.question,
+    query: context.query,
+    screenContext: context.screenContext
+  });
+
+  const args = normalizeToolScope(call.name, rawArgs, effectiveScope);
 
   switch (call.name) {
     case 'get_data_coverage': {
@@ -201,8 +210,8 @@ export async function executeChatTool(call, context) {
         p_date_from: from,
         p_date_to: to,
         p_grain: enumValue(args.grain, GRAINS, 'grain'),
-        p_regions: textList(args.regions, 'regions'),
-        p_hub_types: textList(args.hub_types, 'hub_types'),
+        p_regions: textList(args.rpcRegions, 'regions'),
+        p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
         p_sort: enumValue(args.sort, SORTS, 'sort')
       });
@@ -225,8 +234,8 @@ export async function executeChatTool(call, context) {
         p_date_from: latestDate,
         p_date_to: latestDate,
         p_grain: enumValue(args.grain, GRAINS, 'grain'),
-        p_regions: textList(args.regions, 'regions'),
-        p_hub_types: textList(args.hub_types, 'hub_types'),
+        p_regions: textList(args.rpcRegions, 'regions'),
+        p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
         p_sort: enumValue(args.sort, SORTS, 'sort')
       });
@@ -237,7 +246,7 @@ export async function executeChatTool(call, context) {
         p_date_from: from,
         p_date_to: to,
         p_lane: optionalText(args.lane, 'lane'),
-        p_regions: textList(args.regions, 'regions'),
+        p_regions: textList(args.rpcRegions, 'regions'),
         p_limit: limit(args.limit)
       });
     }

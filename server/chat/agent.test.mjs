@@ -327,3 +327,96 @@ test('falls back to OpenAI agent when fast path returns null due to unsafe RPC r
   assert.equal(openaiCalled, true);
   assert.deepEqual(deltas, ['Fallback AI answer']);
 });
+
+test('open-ended agent tool call flow receives dashboard screenContext via executeChatTool', async () => {
+  const rpcCalls = [];
+  const mockUserClient = {
+    async rpc(name, params) {
+      rpcCalls.push({ name, params });
+      if (name === 'get_ai_chat_coverage') {
+        return { data: { dataAsOf: '2026-09-17', client: 'SPE', dataset: 'pick' }, error: null };
+      }
+      return {
+        data: {
+          dataAsOf: '2026-09-17',
+          rows: [{ entity: 'HCM - KA', value: 94.2 }]
+        },
+        error: null
+      };
+    }
+  };
+
+  const plannerResponse = {
+    status: 'completed',
+    usage,
+    output: [
+      {
+        type: 'function_call',
+        call_id: 'call_open_1',
+        name: 'get_latest_metric_summary',
+        // Model emits open-ended call lacking client, regions, hub_types
+        arguments: JSON.stringify({ metric: 'p1st' })
+      }
+    ]
+  };
+
+  const finalResponse = { status: 'completed', usage, output: [] };
+  const stream = {
+    async *[Symbol.asyncIterator]() {
+      yield { type: 'response.output_text.delta', delta: 'P1ST tại HCM - KA là 94.2%.' };
+      yield { type: 'response.completed', response: finalResponse };
+    }
+  };
+
+  let modelCallCount = 0;
+  const mockOpenAI = {
+    responses: {
+      async create(body) {
+        modelCallCount += 1;
+        if (body.stream) return stream;
+        return modelCallCount === 1 ? plannerResponse : { status: 'completed', usage, output: [] };
+      }
+    }
+  };
+
+  const deltas = [];
+  const sources = [];
+  const requestWithDashboardContext = {
+    requestId: '550e8400-e29b-41d4-a716-446655440004',
+    question: 'Tình hình P1ST hiện tại thế nào?',
+    history: [],
+    query: null,
+    screenContext: {
+      client: 'SPE',
+      regions: ['HCM - KA'],
+      hubTypes: ['LM']
+    }
+  };
+
+  await runChatAgent({
+    config,
+    request: requestWithDashboardContext,
+    userClient: mockUserClient,
+    onText: delta => deltas.push(delta),
+    onSource: src => sources.push(src)
+  }, {
+    openai: mockOpenAI
+  });
+
+  // Verify that executeChatTool resolved screenContext and injected into the DB RPCs
+  assert.equal(rpcCalls[0].name, 'get_ai_chat_coverage');
+  assert.equal(rpcCalls[0].params.p_client, 'SPE');
+
+  assert.equal(rpcCalls[1].name, 'get_ai_chat_metric');
+  assert.equal(rpcCalls[1].params.p_metric, 'p1st');
+  assert.equal(rpcCalls[1].params.p_client, 'SPE');
+  assert.deepEqual(rpcCalls[1].params.p_regions, ['HCM - KA']);
+  assert.deepEqual(rpcCalls[1].params.p_hub_types, ['LM']);
+  assert.equal(rpcCalls[1].params.p_date_from, '2026-09-17');
+  assert.equal(rpcCalls[1].params.p_date_to, '2026-09-17');
+
+  assert.deepEqual(deltas, ['P1ST tại HCM - KA là 94.2%.']);
+  assert.equal(sources.length, 1);
+  assert.deepEqual(sources[0].scope.regions, ['HCM - KA']);
+  assert.deepEqual(sources[0].scope.hubTypes, ['LM']);
+});

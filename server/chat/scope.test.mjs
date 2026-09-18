@@ -1,6 +1,6 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveEffectiveScope, detectExplicitClient, detectExplicitRegions } from './scope.js';
+import { resolveEffectiveScope, detectExplicitClient, detectExplicitRegions, normalizeToolScope } from './scope.js';
 
 test('detectExplicitClient detects client tokens in question', () => {
   assert.equal(detectExplicitClient('Cho tôi xem ODR của SPB hôm nay'), 'SPB');
@@ -84,4 +84,71 @@ test('resolveEffectiveScope: explicit question region overrides screenContext re
   assert.equal(scope.client, 'SPB');
   assert.deepEqual(scope.regions, ['HN']);
   assert.equal(scope.regionsSource, 'question');
+});
+
+test('normalizeToolScope: injects screenContext when tool call lacks scope in open-ended query', () => {
+  const effectiveScope = resolveEffectiveScope({
+    question: 'Tình hình P1ST thế nào?',
+    query: null,
+    screenContext: { client: 'SPE', regions: ['HCM - KA'], hubTypes: ['LM'] }
+  });
+
+  // Open-ended tool call with missing client, regions, hub_types, grain, limit, sort
+  const normalized = normalizeToolScope('get_latest_metric_summary', { metric: 'p1st' }, effectiveScope);
+
+  assert.equal(normalized.metric, 'p1st');
+  assert.equal(normalized.client, 'SPE');
+  assert.deepEqual(normalized.regions, ['HCM - KA']);
+  assert.deepEqual(normalized.rpcRegions, ['HCM - KA']);
+  assert.deepEqual(normalized.hub_types, ['LM']);
+  assert.deepEqual(normalized.rpcHubTypes, ['LM']);
+  assert.equal(normalized.grain, 'nationwide');
+  assert.equal(normalized.limit, 10);
+  assert.equal(normalized.sort, 'worst');
+});
+
+test('normalizeToolScope: explicit user/query always wins over screenContext', () => {
+  const effectiveScope = resolveEffectiveScope({
+    question: 'Xem P1ST của Shopee Bulky tại Hà Nội',
+    query: null,
+    screenContext: { client: 'SPE', regions: ['HCM'], hubTypes: ['SOC'] }
+  });
+
+  const normalized = normalizeToolScope('get_metric_summary', {
+    metric: 'p1st',
+    date_from: '2026-09-01',
+    date_to: '2026-09-07'
+  }, effectiveScope);
+
+  assert.equal(normalized.client, 'SPB'); // SPB won over SPE
+  assert.deepEqual(normalized.regions, ['HN']); // HN won over HCM
+  assert.deepEqual(normalized.rpcRegions, ['HN']);
+});
+
+test('normalizeToolScope: preserves intentional empty filter semantics by mapping to __NO_MATCH__', () => {
+  const effectiveScope = resolveEffectiveScope({
+    question: 'P1ST mới nhất',
+    query: null,
+    screenContext: { client: 'SPB', regions: [], hubTypes: [] }
+  });
+
+  const normalized = normalizeToolScope('get_latest_metric_summary', { metric: 'p1st' }, effectiveScope);
+
+  assert.deepEqual(normalized.regions, []);
+  assert.deepEqual(normalized.rpcRegions, ['__NO_MATCH__']);
+  assert.deepEqual(normalized.hub_types, []);
+  assert.deepEqual(normalized.rpcHubTypes, ['__NO_MATCH__']);
+});
+
+test('normalizeToolScope: explicit nationwide question maps rpcRegions to empty array', () => {
+  const effectiveScope = resolveEffectiveScope({
+    question: 'Xem KPI toàn quốc',
+    query: null,
+    screenContext: { client: 'SPB', regions: ['HCM'] }
+  });
+
+  const normalized = normalizeToolScope('get_latest_metric_summary', { metric: 'p1st' }, effectiveScope);
+
+  assert.deepEqual(normalized.regions, []);
+  assert.deepEqual(normalized.rpcRegions, []); // Empty array returns all regions in DB
 });

@@ -5,6 +5,7 @@ import { CHAT_TOOLS, executeChatTool } from './tools.js';
 import { calculateModelCost } from './pricing.js';
 import { createMetricQueryInteraction, REQUEST_METRIC_QUERY_TOOL_NAME } from './interactions.js';
 import { executeFastPath, isFastPathEligible } from './fast-path.js';
+import { resolveEffectiveScope } from './scope.js';
 
 const MAX_PLANNER_ROUNDS = 3;
 const MAX_CALLS_PER_ROUND = 4;
@@ -161,6 +162,11 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
   const sources = [];
   const input = buildInput(request);
   let evidenceBytes = 0;
+  const effectiveScope = resolveEffectiveScope({
+    question: request.question,
+    query: request.query,
+    screenContext: request.screenContext
+  });
 
   try {
     const fastPathRunner = dependencies.executeFastPath ?? executeFastPath;
@@ -233,7 +239,14 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       onStatus?.({ phase: 'querying_database', round, count: calls.length });
       const results = await runWithConcurrency(calls, TOOL_CONCURRENCY, async call => {
         toolNames.push(call.name);
-        const result = await toolExecutor(call, { userClient, signal, screenContext: request.screenContext });
+        const result = await toolExecutor(call, {
+          userClient,
+          signal,
+          screenContext: request.screenContext,
+          effectiveScope,
+          question: request.question,
+          query: request.query
+        });
         return { call, result };
       });
 
