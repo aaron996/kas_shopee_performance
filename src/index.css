@@ -5126,3 +5126,200 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
     width: auto;
   }
 }
+
+/* ==========================================================================
+   Under Development Overlay ("The Calm Operations Desk" - Option A)
+   ========================================================================== */
+.dev-overlay-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 460px;
+  max-height: calc(100vh - 120px);
+  overflow: hidden;
+  border-radius: var(--radius-surface, 22px);
+}
+
+.dev-overlay-content {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.dev-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(234, 242, 251, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: devOverlayFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@supports not (backdrop-filter: blur(8px)) {
+  .dev-overlay-backdrop {
+    background: rgba(234, 242, 251, 0.88);
+  }
+}
+
+.dev-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface-default, #ffffff);
+  border-radius: var(--radius-surface, 22px);
+  border: 1px solid var(--border-subtle, #dce9f7);
+  box-shadow: var(--shadow-overlay, 0 24px 48px rgba(20, 60, 100, 0.22));
+  padding: 2.25rem 2rem;
+  animation: devOverlayCardPop 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dev-overlay-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(14, 165, 196, 0.12);
+  color: var(--color-blue-800, #0b84a0);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.dev-overlay-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 0.75rem 0;
+}
+
+.dev-overlay-desc {
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 1.6rem 0;
+  max-width: 380px;
+}
+
+.dev-overlay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--action-primary, #0ea5c4);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 0.65rem 1.85rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(14, 165, 196, 0.32);
+  transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dev-overlay-btn:hover {
+  background: var(--action-primary-hover, #0b84a0);
+  box-shadow: 0 6px 18px rgba(14, 165, 196, 0.42);
+  transform: translateY(-1px);
+}
+
+.dev-overlay-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(14, 165, 196, 0.35));
+}
+
+.dev-overlay-btn:active {
+  transform: translateY(0);
+}
+
+@keyframes devOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes devOverlayCardPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Dark mode overrides */
+body.dark-mode .dev-overlay-backdrop {
+  background: rgba(15, 23, 42, 0.72);
+}
+
+@supports not (backdrop-filter: blur(8px)) {
+  body.dark-mode .dev-overlay-backdrop {
+    background: rgba(15, 23, 42, 0.9);
+  }
+}
+
+body.dark-mode .dev-overlay-card {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55);
+}
+
+body.dark-mode .dev-overlay-badge {
+  background: rgba(14, 165, 196, 0.22);
+  color: #38bdf8;
+}
+
+body.dark-mode .dev-overlay-title {
+  color: #f8fafc;
+}
+
+body.dark-mode .dev-overlay-desc {
+  color: #94a3b8;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .dev-overlay-wrapper {
+    max-height: calc(100dvh - 130px);
+    border-radius: 16px;
+  }
+
+  .dev-overlay-backdrop {
+    padding: 1rem 0.75rem;
+  }
+
+  .dev-overlay-card {
+    padding: 1.5rem 1.15rem;
+    max-width: 360px;
+    border-radius: 18px;
+  }
+
+  .dev-overlay-title {
+    font-size: 1.15rem;
+  }
+
+  .dev-overlay-desc {
+    font-size: 0.85rem;
+    margin-bottom: 1.35rem;
+  }
+
+  .dev-overlay-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+

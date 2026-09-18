@@ -19,6 +19,7 @@ import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS } from './data/defaultDataset';
 import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage, getVietnamBusinessDay } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
+import UnderDevelopmentOverlay from './components/ui/UnderDevelopmentOverlay';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
@@ -655,27 +656,37 @@ export default function App() {
               )}
 
               {activeTab === 'report3' && (
-                <Suspense fallback={<LoadingScreen text="Đang mở tab Leadtime..." option={4} />}>
-                  <ReportLeadtime
-                    leadtimeRows={leadtimeRows}
-                    clientFilter={clientFilter}
-                    density={density}
-                    dataSource={leadtimeSource}
-                    syncedAt={leadtimeSyncedAt}
-                  />
-                </Suspense>
+                <UnderDevelopmentOverlay
+                  description="Dữ liệu đo lường leadtime từng chặng đang được kết nối và kiểm thử độ chính xác theo mạng lưới vận hành mới."
+                  onBackToOverview={() => setActiveTab('report1')}
+                >
+                  <Suspense fallback={<LoadingScreen text="Đang mở tab Leadtime..." option={4} />}>
+                    <ReportLeadtime
+                      leadtimeRows={leadtimeRows}
+                      clientFilter={clientFilter}
+                      density={density}
+                      dataSource={leadtimeSource}
+                      syncedAt={leadtimeSyncedAt}
+                    />
+                  </Suspense>
+                </UnderDevelopmentOverlay>
               )}
 
               {activeTab === 'report-insight' && (
-                <Suspense fallback={<LoadingScreen text="Đang mở tab Insight..." option={4} />}>
-                  <ReportInsight
-                    pickRows={pickRows}
-                    deliRows={deliRows}
-                    leadtimeRows={leadtimeRows}
-                    clientFilter={clientFilter}
-                    onJumpToRegion={handleJumpToRegion}
-                  />
-                </Suspense>
+                <UnderDevelopmentOverlay
+                  description="Hệ thống phân tích nguyên nhân biến động KPI và xếp hạng rủi ro trạm đang được kiểm thử thuật toán đối soát."
+                  onBackToOverview={() => setActiveTab('report1')}
+                >
+                  <Suspense fallback={<LoadingScreen text="Đang mở tab Insight..." option={4} />}>
+                    <ReportInsight
+                      pickRows={pickRows}
+                      deliRows={deliRows}
+                      leadtimeRows={leadtimeRows}
+                      clientFilter={clientFilter}
+                      onJumpToRegion={handleJumpToRegion}
+                    />
+                  </Suspense>
+                </UnderDevelopmentOverlay>
               )}
 
               {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
