@@ -62,3 +62,85 @@ test('requestPayloadHash is stable and excludes requestId, model, and reasoningE
   assert.equal(first.length, 64);
   assert.notEqual(first, requestPayloadHash({ question: 'different question', history: [] }));
 });
+
+test('parseRequestBody accepts valid screenContext with whitelist fields', () => {
+  const result = parseRequestBody({
+    requestId,
+    question: 'ODR hôm nay?',
+    history: [],
+    screenContext: {
+      activeTab: 'report1',
+      client: 'SPB',
+      regions: ['HCM', 'HN'],
+      hubTypes: ['SOC'],
+      section: 'summary'
+    }
+  });
+  assert.deepEqual(result.screenContext, {
+    activeTab: 'report1',
+    client: 'SPB',
+    regions: ['HCM', 'HN'],
+    hubTypes: ['SOC'],
+    section: 'summary'
+  });
+});
+
+test('parseRequestBody preserves intentionally empty filter arrays in screenContext', () => {
+  const result = parseRequestBody({
+    requestId,
+    question: 'ODR hôm nay?',
+    history: [],
+    screenContext: {
+      activeTab: 'report5',
+      client: null,
+      regions: [],
+      hubTypes: []
+    }
+  });
+  assert.deepEqual(result.screenContext.regions, []);
+  assert.deepEqual(result.screenContext.hubTypes, []);
+  assert.equal(result.screenContext.client, null);
+});
+
+test('parseRequestBody rejects invalid screenContext fields, types, and script injection', () => {
+  // Unknown field
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], screenContext: { rawHtml: '<div>data</div>' } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+  // Invalid activeTab
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], screenContext: { activeTab: 'secret-tab' } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+  // Invalid client
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], screenContext: { client: 'INVALID' } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+  // HTML tags in regions
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], screenContext: { regions: ['<script>alert(1)</script>'] } }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+  // Non-object screenContext
+  assert.throws(
+    () => parseRequestBody({ requestId, question: 'x', history: [], screenContext: 'string_context' }),
+    error => error.code === 'CHAT_BAD_REQUEST'
+  );
+});
+
+test('requestPayloadHash changes when valid screenContext changes', () => {
+  const baseReq = { requestId, question: 'Xem ODR', history: [] };
+  const hash1 = requestPayloadHash({ ...baseReq, screenContext: { client: 'SPB', activeTab: 'report1' } });
+  const hash2 = requestPayloadHash({ ...baseReq, screenContext: { client: 'SPE', activeTab: 'report1' } });
+  const hash3 = requestPayloadHash({ ...baseReq, screenContext: { client: 'SPB', regions: ['HCM'] } });
+  const hashNull = requestPayloadHash({ ...baseReq, screenContext: null });
+
+  assert.notEqual(hash1, hash2);
+  assert.notEqual(hash1, hash3);
+  assert.notEqual(hash1, hashNull);
+  // Same content produces same hash
+  const hash1Repeat = requestPayloadHash({ ...baseReq, requestId: 'different-id', screenContext: { client: 'SPB', activeTab: 'report1' } });
+  assert.equal(hash1, hash1Repeat);
+});

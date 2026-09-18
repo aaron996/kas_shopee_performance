@@ -6,12 +6,7 @@ import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import { canRetry, formatDataScope } from '../utils/chatRetry';
-
-const QUICK_QUESTIONS = [
-  'Dữ liệu mới nhất của SPB có tới ngày nào?',
-  'ODR SPB toàn quốc hôm nay là bao nhiêu?',
-  'Giải thích ngắn gọn chỉ số Ca 1.'
-];
+import { getFallbackSuggestions } from '../utils/chatSuggestions';
 
 function createRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -124,7 +119,7 @@ function DataScopeBlock({ sources }) {
   );
 }
 
-export default function ChatPanel({ isOpen, onOpen, onClose }) {
+export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
@@ -136,11 +131,70 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
+  const [suggestionData, setSuggestionData] = useState(() => getFallbackSuggestions(screenContext?.activeTab || 'report1'));
+  const lastDynamicRef = useRef(null);
+  const clientCacheRef = useRef(new Map());
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
+
+  useEffect(() => {
+    if (messages.length > 0 || pending || failedRequest) return;
+
+    const activeTab = screenContext?.activeTab || 'report1';
+    const client = screenContext?.client || 'SPB';
+    const regionsKey = Array.isArray(screenContext?.regions) ? screenContext.regions.join(',') : 'all';
+    const hubTypesKey = Array.isArray(screenContext?.hubTypes) ? screenContext.hubTypes.join(',') : 'all';
+    const cacheKey = `${activeTab}:${client}:${regionsKey}:${hubTypesKey}`;
+
+    if (clientCacheRef.current.has(cacheKey)) {
+      setSuggestionData(clientCacheRef.current.get(cacheKey));
+      return;
+    }
+
+    let isCancelled = false;
+    async function loadSuggestions() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || isCancelled) {
+          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+          return;
+        }
+
+        const res = await fetch('/api/chat-suggestions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ screenContext })
+        });
+
+        if (res.ok && !isCancelled) {
+          const body = await res.json();
+          if (body.quotaExceeded) {
+            setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+          } else if (body.suggestions) {
+            const nextData = { placeholder: body.placeholder, suggestions: body.suggestions };
+            lastDynamicRef.current = nextData;
+            clientCacheRef.current.set(cacheKey, nextData);
+            setSuggestionData(nextData);
+          }
+        } else if (!isCancelled) {
+          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+        }
+      } catch {
+        if (!isCancelled) {
+          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+        }
+      }
+    }
+
+    loadSuggestions();
+    return () => { isCancelled = true; };
+  }, [screenContext, messages.length, pending, failedRequest]);
 
   // Clean up legacy localStorage keys once
   useEffect(() => {
@@ -273,6 +327,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
 
       const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
       if (query) requestBody.query = query;
+      if (screenContext) requestBody.screenContext = screenContext;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -408,9 +463,8 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
-            <p>Trợ lý không đọc màn hình hay bộ lọc hiện tại. Mỗi số liệu được truy vấn từ database và kèm evidence khi có.</p>
             <div className="chat-suggestions">
-              {QUICK_QUESTIONS.map(question => (
+              {suggestionData.suggestions.map(question => (
                 <button type="button" key={question} onClick={() => submitQuestion(question)}>{question}</button>
               ))}
             </div>
@@ -449,7 +503,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
                     : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
               </div>
               {pending.interaction && <ChatQueryCard interaction={pending.interaction} disabled onSubmit={() => {}} />}
-              <DataScopeBlock sources={pending.sources} />
             </article>
           </>
         )}
@@ -485,10 +538,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       </div>
 
       <form className="chat-composer" onSubmit={handleSubmit}>
-        <label className="sr-only" htmlFor="chat-question">Câu hỏi cho Trợ lý KAS</label>
         <textarea
           ref={inputRef}
           id="chat-question"
+          aria-label="Nhập câu hỏi cho trợ lý"
           value={draft}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -499,27 +552,13 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
               submitQuestion(draft);
             }
           }}
-          placeholder="Ví dụ: ODR SPB toàn quốc hôm nay?"
+          placeholder={suggestionData.placeholder}
           rows={2}
           disabled={isStreaming}
         />
         <div className="chat-composer-actions">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span>Enter để gửi · Shift + Enter xuống dòng</span>
-            {quota && !quota.isUnlimited && (
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: '4px',
-                  background: quota.remainingTurns <= 0 ? 'rgba(239, 68, 68, 0.15)' : quota.remainingTurns <= 2 ? 'rgba(245, 158, 11, 0.15)' : 'var(--surface-hover)',
-                  color: quota.remainingTurns <= 0 ? 'var(--status-danger-fg)' : quota.remainingTurns <= 2 ? '#d97706' : 'var(--text-muted)'
-                }}
-              >
-                Còn {quota.remainingTurns}/{quota.dailyLimit || 10} lượt hôm nay
-              </span>
-            )}
           </div>
           {isStreaming ? (
             <button type="button" className="chat-stop-button" onClick={stopStreaming}><Square size={13} /> Dừng</button>

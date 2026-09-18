@@ -17,11 +17,21 @@ export function serializeEvidence(result, usedBytes = 0) {
 
 export function toPublicSource(toolName, result) {
   const data = result?.data;
+  const baseScope = data?.scope ?? result?.scope ?? null;
+  const scope = baseScope ? { ...baseScope } : null;
+  if (scope && result?.params) {
+    if (result.params.p_regions?.length && !scope.regions) {
+      scope.regions = result.params.p_regions.filter(r => r !== '__NO_MATCH__');
+    }
+    if (result.params.p_hub_types?.length && !scope.hubTypes) {
+      scope.hubTypes = result.params.p_hub_types.filter(h => h !== '__NO_MATCH__');
+    }
+  }
   return {
     evidenceId: result?.evidenceId ?? null,
     tool: toolName,
     dataAsOf: data?.dataAsOf ?? data?.data_as_of ?? null,
     syncedAt: data?.syncedAt ?? data?.synced_at ?? null,
-    scope: data?.scope ?? null
+    scope
   };
 }
