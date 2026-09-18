@@ -4,6 +4,7 @@ import { ChatError } from './errors.js';
 import { CHAT_TOOLS, executeChatTool } from './tools.js';
 import { calculateModelCost } from './pricing.js';
 import { createMetricQueryInteraction, REQUEST_METRIC_QUERY_TOOL_NAME } from './interactions.js';
+import { executeFastPath, isFastPathEligible } from './fast-path.js';
 
 const MAX_PLANNER_ROUNDS = 3;
 const MAX_CALLS_PER_ROUND = 4;
@@ -156,6 +157,17 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
   let evidenceBytes = 0;
 
   try {
+    const fastPathRunner = dependencies.executeFastPath ?? executeFastPath;
+    if (isFastPathEligible(request)) {
+      const fastPathResult = await fastPathRunner(
+        { request, userClient, signal, onStatus, onText, onSource },
+        dependencies
+      );
+      if (fastPathResult) {
+        return fastPathResult;
+      }
+    }
+
     for (let round = 1; round <= MAX_PLANNER_ROUNDS; round += 1) {
       onStatus?.({ phase: 'planning', round });
       const startedAt = Date.now();

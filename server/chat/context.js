@@ -6,7 +6,11 @@ export function serializeEvidence(result, usedBytes = 0) {
   const serialized = JSON.stringify(result);
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (usedBytes + bytes > MAX_EVIDENCE_BYTES) {
-    throw new ChatError('CHAT_EVIDENCE_TOO_LARGE', 'Phạm vi dữ liệu quá lớn; hãy thu hẹp câu hỏi.', 422);
+    throw new ChatError(
+      'CHAT_EVIDENCE_TOO_LARGE',
+      'Phạm vi dữ liệu quá lớn; hãy thu hẹp khoảng thời gian, đối tượng client, vùng hoặc hub để tiếp tục.',
+      422
+    );
   }
   return { serialized, bytes };
 }

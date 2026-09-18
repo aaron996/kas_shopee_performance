@@ -5,6 +5,7 @@ import { createChatHandler } from '../../api/chat.js';
 import { ChatError } from './errors.js';
 import { ALLOWED_MODELS } from './config.js';
 import { requestPayloadHash } from './protocol.js';
+import { serializeEvidence } from './context.js';
 
 const requestId = '550e8400-e29b-41d4-a716-446655440000';
 const config = {
@@ -284,4 +285,60 @@ test('quota failure returns JSON and never calls the agent', async () => {
   assert.equal(res.statusCode, 429);
   assert.match(res.headers['Content-Type'], /application\/json/);
   assert.equal(JSON.parse(res.body).error.code, 'CHAT_QUOTA_EXCEEDED');
+});
+
+test('endpoint streams fast path result with message_start, status, source, text_delta, message_end', async () => {
+  const handler = createChatHandler({
+    readConfig: () => config,
+    resolveEffectiveConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low', source: 'env' }),
+    authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
+    reserve: async () => ({ remainingTurns: 9 }),
+    runAgent: async ({ onStatus, onText, onSource }) => {
+      onStatus({ phase: 'querying_database', round: 1, count: 1 });
+      onSource({ evidenceId: 'db_fp_1', tool: 'get_metric_summary', dataAsOf: '2026-09-08' });
+      onStatus({ phase: 'answering' });
+      onText('Kết quả tra cứu KPI ODR: 95.5%');
+      return {
+        usage: [],
+        toolNames: ['get_metric_summary'],
+        sources: [{ evidenceId: 'db_fp_1', tool: 'get_metric_summary', dataAsOf: '2026-09-08' }],
+        actualMicrousd: 0
+      };
+    },
+    finalize: async () => {}
+  });
+
+  const res = new FakeResponse();
+  const fastPathReq = request({
+    question: 'Xem ODR, SPB, dữ liệu mới nhất.',
+    query: { metric: 'odr', client: 'SPB', dateMode: 'latest', dateFrom: null, dateTo: null }
+  });
+
+  await handler(fastPathReq, res);
+
+  assert.match(res.headers['Content-Type'], /text\/event-stream/);
+  assert.match(res.body, /event: message_start/);
+  assert.match(res.body, /event: status/);
+  assert.match(res.body, /event: source/);
+  assert.match(res.body, /event: text_delta/);
+  assert.match(res.body, /event: message_end/);
+  assert.match(res.body, /"estimatedMicrousd":0/);
+  assert.ok(res.body.indexOf('event: message_start') < res.body.indexOf('event: source'));
+  assert.ok(res.body.indexOf('event: source') < res.body.indexOf('event: text_delta'));
+  assert.ok(res.body.indexOf('event: text_delta') < res.body.indexOf('event: message_end'));
+});
+
+test('serializeEvidence throws CHAT_EVIDENCE_TOO_LARGE with actionable instructions', () => {
+  const largeObject = { data: 'x'.repeat(25 * 1024) };
+  assert.throws(
+    () => serializeEvidence(largeObject, 0),
+    error => {
+      assert.equal(error.code, 'CHAT_EVIDENCE_TOO_LARGE');
+      assert.match(error.message, /thu hẹp/i);
+      assert.match(error.message, /thời gian/i);
+      assert.match(error.message, /client/i);
+      assert.match(error.message, /vùng|hub/i);
+      return true;
+    }
+  );
 });
