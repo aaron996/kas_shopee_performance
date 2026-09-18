@@ -60,6 +60,16 @@
   --font-mono: 'IBM Plex Mono', monospace;
   --font-heading: 'Outfit', 'IBM Plex Sans', sans-serif;
 
+  /* Type scale — use semantic roles rather than one-off font sizes. */
+  --type-caption: 0.75rem;
+  --type-meta: 0.8125rem;
+  --type-body: 0.875rem;
+  --type-section: 1rem;
+  --type-page-title: 1.5rem;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
   /* Legacy aliases retained during incremental migration. */
   --ghn-orange: var(--color-orange-500);
   --ghn-orange-dark: var(--color-orange-700);

@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LabelList,
   XAxis,
   YAxis,
   Tooltip
@@ -286,7 +287,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
       {/* 3. Paired Investigation Charts (B1) */}
       <div className="cod-charts-grid">
         {/* Chart 1: Số case nghi ngờ theo ngày */}
-        <div className="cod-chart-card">
+        <div className="cod-chart-card cod-chart-card--daily">
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2
@@ -336,6 +337,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     stroke="var(--text-muted, #64748b)"
                     fontSize={isMobile ? 10 : 11}
                     tickLine={false}
+                    axisLine={false}
                     interval="preserveStartEnd"
                     minTickGap={isMobile ? 12 : 8}
                   />
@@ -344,6 +346,8 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     fontSize={isMobile ? 10 : 11}
                     allowDecimals={false}
                     domain={[0, 'auto']}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <Tooltip
                     cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
@@ -388,7 +392,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
         </div>
 
         {/* Chart 2: Top kho giao có đơn nghi vấn */}
-        <div className="cod-chart-card">
+        <div className="cod-chart-card cod-chart-card--warehouses">
           <div style={{ marginBottom: '1rem' }}>
             <h2
               style={{
@@ -430,15 +434,16 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                 <BarChart
                   data={kpis.topWarehouses.slice(0, 5)}
                   layout="vertical"
-                  margin={{ top: 10, right: isMobile ? 15 : 25, left: isMobile ? -10 : 10, bottom: 5 }}
+                  margin={{ top: 10, right: isMobile ? 38 : 46, left: isMobile ? -10 : 10, bottom: 5 }}
                 >
-                  <XAxis type="number" stroke="var(--text-muted, #64748b)" fontSize={isMobile ? 10 : 11} allowDecimals={false} />
                   <YAxis
                     type="category"
                     dataKey="warehouse"
                     stroke="var(--text-muted, #64748b)"
                     fontSize={isMobile ? 10 : 11}
                     width={isMobile ? 85 : 120}
+                    tickLine={false}
+                    axisLine={false}
                     tickFormatter={(val) => val.replace(/^Kho\s+/i, '').slice(0, isMobile ? 11 : 20)}
                   />
                   <Tooltip
@@ -476,7 +481,15 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     fill="var(--action-primary-hover, #0b84a0)"
                     radius={[0, 4, 4, 0]}
                     maxBarSize={isMobile ? 18 : 24}
-                  />
+                  >
+                    <LabelList
+                      dataKey="orderCount"
+                      position="right"
+                      fill="var(--text-main, #0f172a)"
+                      fontSize={isMobile ? 10 : 11}
+                      fontWeight={700}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -515,7 +528,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
       </div>
 
       {/* 6. Driver Accordion List */}
-      <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {isLoading && filteredDrivers.length === 0 ? (
           <div
             style={{
@@ -590,7 +603,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                     color: 'var(--text-main)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: isMobile ? '100%' : '260px' }}>
+                  <div className="cod-driver-identity">
                     <div
                       style={{
                         width: '32px',
@@ -608,8 +621,14 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                       {idx + 1}
                     </div>
 
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <div className="cod-driver-primary">
+                      <div className="cod-driver-name-row">
+                        <span
+                          className="cod-driver-alert"
+                          style={{ color: driverAlertLevel.color, background: driverAlertLevel.background }}
+                        >
+                          {driverAlertLevel.label}
+                        </span>
                         <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>
                           {driver.driverName}
                         </strong>
@@ -640,43 +659,25 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                         </span>
                       </div>
 
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        Kho: {driver.warehouses.join(', ') || 'Chưa rõ kho'}
+                      <div className="cod-driver-meta">
+                        {driver.driverId} <span aria-hidden="true">·</span> {driver.warehouses.join(', ') || 'Chưa rõ kho'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Badges and Metrics on Driver Bar */}
                   <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: isMobile ? '0.75rem' : '1.25rem',
-                      flexWrap: 'wrap',
-                      width: isMobile ? '100%' : 'auto',
-                      justifyContent: isMobile ? 'space-between' : 'flex-end',
-                      marginTop: isMobile ? '0.25rem' : '0',
-                      paddingTop: isMobile ? '0.6rem' : '0',
-                      borderTop: isMobile ? '1px solid var(--border-subtle, #e2e8f0)' : 'none'
-                    }}
+                    className="cod-driver-summary-metrics"
                   >
-                    <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Số đơn:</div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    <div className="cod-driver-metric">
+                      <div className="cod-driver-metric-label">Số đơn</div>
+                      <div className="cod-driver-metric-value">
                         {driver.orderCount} đơn
                       </div>
                     </div>
 
-                    <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Mức độ:</div>
-                      <span style={{ display: 'inline-flex', marginTop: '0.15rem', padding: '0.18rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, color: driverAlertLevel.color, background: driverAlertLevel.background }}>
-                        {driverAlertLevel.label}
-                      </span>
-                    </div>
-
-                    <div style={{ textAlign: isMobile ? 'left' : 'right', minWidth: isMobile ? 'auto' : '110px' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tổng COD:</div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#10b981' }}>
+                    <div className="cod-driver-metric cod-driver-metric--cod">
+                      <div className="cod-driver-metric-label">Tổng COD</div>
+                      <div className="cod-driver-metric-value">
                         {formatCurrencyVND(driver.totalCod)}
                       </div>
                     </div>
