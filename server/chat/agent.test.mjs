@@ -191,3 +191,139 @@ test('agent retries one empty completed answer before returning text', async () 
   assert.deepEqual(deltas, ['Mình cần bạn cho biết KPI.']);
   assert.equal(result.usage.length, 3);
 });
+
+test('structured query valid goes to fast path and DOES NOT call OpenAI agent', async () => {
+  let openaiCalled = false;
+  const openai = {
+    responses: {
+      create: async () => {
+        openaiCalled = true;
+        throw new Error('OpenAI should NOT be called for valid fast path query');
+      }
+    }
+  };
+
+  const deltas = [];
+  const sources = [];
+  const fastPathRequest = {
+    requestId: '550e8400-e29b-41d4-a716-446655440001',
+    question: 'Xem ODR, SPB, 01/09/2026–07/09/2026.',
+    history: [],
+    query: {
+      metric: 'odr',
+      client: 'SPB',
+      dateMode: 'custom',
+      dateFrom: '2026-09-01',
+      dateTo: '2026-09-07'
+    }
+  };
+
+  const callRpc = async (_client, rpcName) => {
+    assert.equal(rpcName, 'get_ai_chat_metric');
+    return {
+      evidenceId: 'db_fast_test',
+      data: {
+        metric: 'odr',
+        dataAsOf: '2026-09-07',
+        scope: { client: 'SPB', dateFrom: '2026-09-01', dateTo: '2026-09-07', grain: 'nationwide' },
+        rows: [{ entity: 'Toàn quốc', value: 95.5, volume: 1000, ontime: 955 }]
+      }
+    };
+  };
+
+  const result = await runChatAgent({
+    config,
+    request: fastPathRequest,
+    userClient: {},
+    onText: delta => deltas.push(delta),
+    onSource: src => sources.push(src)
+  }, { openai, callRpc });
+
+  assert.equal(openaiCalled, false);
+  assert.equal(result.actualMicrousd, 0);
+  assert.deepEqual(result.toolNames, ['get_metric_summary']);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].evidenceId, 'db_fast_test');
+  assert.match(deltas.join(''), /95\.5%/);
+});
+
+test('query not eligible for fast path proceeds to OpenAI agent flow', async () => {
+  let openaiCalled = false;
+  const openai = {
+    responses: {
+      create: async () => {
+        openaiCalled = true;
+        return {
+          status: 'completed', usage,
+          output: [{
+            type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: 'Đây là câu trả lời từ AI.' }]
+          }]
+        };
+      }
+    }
+  };
+
+  const deltas = [];
+  const agentRequest = {
+    requestId: '550e8400-e29b-41d4-a716-446655440002',
+    question: 'Giải thích leadtime chặng Middle mile',
+    history: [],
+    query: null
+  };
+
+  await runChatAgent({
+    config,
+    request: agentRequest,
+    userClient: {},
+    onText: delta => deltas.push(delta)
+  }, { openai });
+
+  assert.equal(openaiCalled, true);
+  assert.deepEqual(deltas, ['Đây là câu trả lời từ AI.']);
+});
+
+test('falls back to OpenAI agent when fast path returns null due to unsafe RPC result', async () => {
+  let openaiCalled = false;
+  const openai = {
+    responses: {
+      create: async () => {
+        openaiCalled = true;
+        return {
+          status: 'completed', usage,
+          output: [{
+            type: 'message', role: 'assistant', status: 'completed',
+            content: [{ type: 'output_text', text: 'Fallback AI answer' }]
+          }]
+        };
+      }
+    }
+  };
+
+  const fastPathRequest = {
+    requestId: '550e8400-e29b-41d4-a716-446655440003',
+    question: 'Xem ODR, SPB, 01/09/2026–07/09/2026.',
+    history: [],
+    query: {
+      metric: 'odr',
+      client: 'SPB',
+      dateMode: 'custom',
+      dateFrom: '2026-09-01',
+      dateTo: '2026-09-07'
+    }
+  };
+
+  const deltas = [];
+  await runChatAgent({
+    config,
+    request: fastPathRequest,
+    userClient: {},
+    onText: delta => deltas.push(delta)
+  }, {
+    openai,
+    executeFastPath: async () => null // Simulates fallback due to unsafe shape
+  });
+
+  assert.equal(openaiCalled, true);
+  assert.deepEqual(deltas, ['Fallback AI answer']);
+});

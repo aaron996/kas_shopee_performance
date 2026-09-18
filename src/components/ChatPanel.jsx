@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, Eye, EyeOff, LoaderCircle, SendHorizontal, Square, X } from 'lucide-react';
+import { Database, Eye, EyeOff, LoaderCircle, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
+import { canRetry, formatDataScope } from '../utils/chatRetry';
 
 const QUICK_QUESTIONS = [
   'Dữ liệu mới nhất của SPB có tới ngày nào?',
@@ -66,18 +67,59 @@ function statusText(status) {
   return 'Đang hiểu câu hỏi…';
 }
 
-function SourceList({ sources }) {
+function DataScopeBlock({ sources }) {
   if (!sources?.length) return null;
-  const uniqueSources = Array.from(new Map(sources.map(source => [source.evidenceId || `${source.tool}-${source.dataAsOf}`, source])).values());
+  const uniqueSources = Array.from(
+    new Map(sources.map(source => [source.evidenceId || `${source.tool}-${source.dataAsOf}`, source])).values()
+  );
+
   return (
-    <div className="chat-sources" aria-label="Nguồn dữ liệu đã truy vấn">
-      <span className="chat-sources-label"><Database size={13} /> Nguồn DB</span>
-      {uniqueSources.map(source => (
-        <span className="chat-source-chip" key={source.evidenceId || `${source.tool}-${source.dataAsOf}`}>
-          {source.evidenceId || source.tool}
-          {source.dataAsOf && ` · tới ${source.dataAsOf}`}
-        </span>
-      ))}
+    <div className="chat-data-scope-container" aria-label="Phạm vi dữ liệu đã truy vấn">
+      {uniqueSources.map(source => {
+        const formatted = formatDataScope(source);
+        if (!formatted) return null;
+        const key = formatted.evidenceId || `${formatted.tool}-${source.dataAsOf}`;
+
+        return (
+          <div className="chat-data-scope" key={key}>
+            <div className="chat-data-scope-header">
+              <span className="chat-data-scope-title">
+                <Database size={13} aria-hidden="true" />
+                <span>Phạm vi dữ liệu</span>
+              </span>
+              {formatted.evidenceId && (
+                <span className="chat-source-chip" title="Mã bằng chứng dữ liệu">{formatted.evidenceId}</span>
+              )}
+            </div>
+            <div className="chat-data-scope-grid">
+              {formatted.scopeDesc && (
+                <div className="chat-data-scope-item">
+                  <span className="chat-data-scope-label">Đối tượng:</span>
+                  <span className="chat-data-scope-value">{formatted.scopeDesc}</span>
+                </div>
+              )}
+              {formatted.dateRangeText && (
+                <div className="chat-data-scope-item">
+                  <span className="chat-data-scope-label">Kỳ báo cáo:</span>
+                  <span className="chat-data-scope-value">{formatted.dateRangeText}</span>
+                </div>
+              )}
+              {formatted.dataAsOfText && (
+                <div className="chat-data-scope-item">
+                  <span className="chat-data-scope-label">Dữ liệu tới:</span>
+                  <span className="chat-data-scope-value">{formatted.dataAsOfText}</span>
+                </div>
+              )}
+              {formatted.syncedAtText && (
+                <div className="chat-data-scope-item">
+                  <span className="chat-data-scope-label">Đồng bộ lúc:</span>
+                  <span className="chat-data-scope-value">{formatted.syncedAtText}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -88,7 +130,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   const [pending, setPending] = useState(null);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
-  const [failedQuestion, setFailedQuestion] = useState(null);
+  const [failedRequest, setFailedRequest] = useState(null);
   const [quota, setQuota] = useState(null);
   const [focused, setFocused] = useState(false);
   const [announcement, setAnnouncement] = useState('');
@@ -167,13 +209,13 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (!messages.length && !pending && !error && !failedQuestion) {
+    if (!messages.length && !pending && !error && !failedRequest) {
       scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
-  }, [messages, pending, error, failedQuestion, status, isOpen]);
+  }, [messages, pending, error, failedRequest, status, isOpen]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -213,7 +255,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
     abortRef.current = controller;
     setDraft('');
     setError(null);
-    setFailedQuestion(null);
+    setFailedRequest(null);
     setFocused(false);
     setAnnouncement('');
     setStatus({ phase: 'planning' });
@@ -289,12 +331,27 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       setPending(null);
       setStatus(null);
       setFocused(false);
+      const isQuota = requestError?.message?.includes('hết 10 lượt')
+        || requestError?.code === 'CHAT_QUOTA_EXCEEDED'
+        || (quota && !quota.isUnlimited && quota.remainingTurns <= 0);
       setError(wasAborted ? null : requestError.message || 'Không thể gửi câu hỏi lúc này.');
-      setFailedQuestion(wasAborted ? null : normalizedQuestion);
+      setFailedRequest(wasAborted ? null : {
+        question: normalizedQuestion,
+        query,
+        displayQuestion,
+        isQuotaExceeded: Boolean(isQuota)
+      });
       setAnnouncement(wasAborted ? 'Đã dừng trả lời.' : 'Chưa thể trả lời. Vui lòng thử lại.');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
+  };
+
+  const retryStatus = canRetry(failedRequest, quota);
+  const handleRetry = () => {
+    if (!failedRequest || isStreaming || !retryStatus.allowed) return;
+    const { question, query, displayQuestion } = failedRequest;
+    submitQuestion(question, query, displayQuestion);
   };
 
   const handleSubmit = event => {
@@ -347,7 +404,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
       </header>
 
       <div className="chat-panel-body" ref={scrollRef}>
-        {!messages.length && !pending && !failedQuestion && !error && (
+        {!messages.length && !pending && !failedRequest && !error && (
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
@@ -376,7 +433,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
                 onSubmit={(query, selectionMessage) => handleInteractionSubmit(index, query, selectionMessage)}
               />
             )}
-            {message.role === 'assistant' && <SourceList sources={message.sources} />}
+            {message.role === 'assistant' && <DataScopeBlock sources={message.sources} />}
           </article>
         ))}
 
@@ -392,17 +449,39 @@ export default function ChatPanel({ isOpen, onOpen, onClose }) {
                     : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
               </div>
               {pending.interaction && <ChatQueryCard interaction={pending.interaction} disabled onSubmit={() => {}} />}
-              <SourceList sources={pending.sources} />
+              <DataScopeBlock sources={pending.sources} />
             </article>
           </>
         )}
 
-        {failedQuestion && !pending && (
+        {failedRequest && !pending && (
           <article className="chat-message chat-message--user">
-            <div className="chat-message-bubble"><p>{failedQuestion}</p></div>
+            <div className="chat-message-bubble"><p>{failedRequest.displayQuestion}</p></div>
           </article>
         )}
-        {error && <div className="chat-error" role="alert">{error}</div>}
+        {error && (
+          <div className="chat-error-card" role="alert">
+            <div className="chat-error-message">{error}</div>
+            {failedRequest && (
+              <div className="chat-error-actions">
+                <button
+                  type="button"
+                  className="chat-retry-button"
+                  onClick={handleRetry}
+                  disabled={!retryStatus.allowed || isStreaming}
+                  aria-label={retryStatus.allowed ? 'Thử lại câu hỏi vừa gửi' : `Không thể thử lại: ${retryStatus.reason}`}
+                  title={retryStatus.allowed ? 'Thử lại' : retryStatus.reason}
+                >
+                  <RotateCcw size={13} aria-hidden="true" />
+                  <span>Thử lại</span>
+                </button>
+                {!retryStatus.allowed && retryStatus.reason && (
+                  <span className="chat-retry-hint">{retryStatus.reason}</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <form className="chat-composer" onSubmit={handleSubmit}>
