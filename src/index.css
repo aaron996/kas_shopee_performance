@@ -4867,22 +4867,45 @@ body.dark-mode .kpi-table-tab.active {
 .cod-ledger-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1rem;
   padding-top: 1rem;
 }
 
 .cod-ledger-metric-item {
   position: relative;
+  min-width: 0;
+  padding: 0.65rem 0.9rem 0.7rem;
+  border-top: 2px solid var(--border-strong);
 }
 
-.cod-ledger-metric-item:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  right: -0.75rem;
-  top: 10%;
-  height: 80%;
-  width: 1px;
-  background: var(--border, #dce9f7);
+.cod-ledger-metric-item--drivers { border-top-color: var(--color-orange-500); }
+.cod-ledger-metric-item--orders { border-top-color: var(--action-primary); }
+.cod-ledger-metric-item--cod { border-top-color: var(--status-success-fg); }
+.cod-ledger-metric-label {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: var(--leading-tight);
+}
+.cod-ledger-metric-val {
+  margin-top: 0.35rem;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 2.7vw, 2.65rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cod-ledger-metric-item--cod .cod-ledger-metric-val { font-size: clamp(1.5rem, 2.05vw, 2.2rem); }
+.cod-ledger-metric-note {
+  margin-top: 0.45rem;
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  line-height: var(--leading-normal);
 }
 
 .cod-charts-grid {
@@ -4984,6 +5007,8 @@ body.dark-mode .kpi-table-tab.active {
 
   .cod-ledger-metric-item {
     padding-bottom: 0.85rem;
+    padding-inline: 0;
+    border-top: 0;
   }
 
   .cod-ledger-metric-item:not(:last-child)::after {
@@ -4996,7 +5021,7 @@ body.dark-mode .kpi-table-tab.active {
   }
 
   .cod-ledger-metric-val {
-    font-size: 1.65rem !important;
+    font-size: 2rem;
   }
 
   .cod-chart-card {

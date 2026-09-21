@@ -263,42 +263,59 @@ test('filterDriverGroups filters by suspicion type, warehouse and search query',
   assert.equal(searchO3[0].driverId, 'D2');
 });
 
-test('computeSuspicionKPIs calculates accurate aggregations for triage', () => {
+test('computeSuspicionKPIs sorts warehouse bars by order count with a stable name tie-breaker', () => {
   const drivers = [
     {
       driverId: 'D1',
       suspicionType: 'Gối đầu COD',
       orders: [
         { suspicionType: 'Gối đầu COD', warehouseName: 'Kho A', codAmount: 1000000 },
-        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho B', codAmount: 2000000 }
+        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho B', codAmount: 2000000 },
+        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho Z', codAmount: 100000 }
       ]
     },
     {
       driverId: 'D2',
       suspicionType: 'Rút ruột',
       orders: [
-        { suspicionType: 'Rút ruột', warehouseName: 'Kho A', codAmount: 3000000 }
+        { suspicionType: 'Rút ruột', warehouseName: 'Kho A', codAmount: 3000000 },
+        { suspicionType: 'Rút ruột', warehouseName: 'Kho C', codAmount: 4000000 },
+        { suspicionType: 'Rút ruột', warehouseName: 'Kho Z', codAmount: 200000 }
+      ]
+    },
+    {
+      driverId: 'D3',
+      suspicionType: 'Gối đầu COD',
+      orders: [
+        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho B', codAmount: 5000000 },
+        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho C', codAmount: 6000000 },
+        { suspicionType: 'Gối đầu COD', warehouseName: 'Kho Z', codAmount: 300000 }
       ]
     }
   ];
 
   const kpis = computeSuspicionKPIs(drivers);
-  assert.equal(kpis.totalDrivers, 2);
-  assert.equal(kpis.totalOrders, 3);
-  assert.equal(kpis.totalCod, 6000000);
+  assert.equal(kpis.totalDrivers, 3);
+  assert.equal(kpis.totalOrders, 9);
+  assert.equal(kpis.totalCod, 21600000);
 
-  assert.equal(kpis.typeCounts['Gối đầu COD'].drivers, 1);
-  assert.equal(kpis.typeCounts['Gối đầu COD'].orders, 2);
+  assert.equal(kpis.typeCounts['Gối đầu COD'].drivers, 2);
+  assert.equal(kpis.typeCounts['Gối đầu COD'].orders, 6);
   assert.equal(kpis.typeCounts['Rút ruột'].drivers, 1);
-  assert.equal(kpis.typeCounts['Rút ruột'].orders, 1);
+  assert.equal(kpis.typeCounts['Rút ruột'].orders, 3);
 
-  // Top warehouses: Kho A has 2 orders (from 2 drivers), Kho B has 1 order
-  assert.equal(kpis.topWarehouses.length, 2);
-  assert.equal(kpis.topWarehouses[0].warehouse, 'Kho A');
-  assert.equal(kpis.topWarehouses[0].orderCount, 2);
-  assert.equal(kpis.topWarehouses[0].driverCount, 2);
-  assert.equal(kpis.topWarehouses[1].warehouse, 'Kho B');
-  assert.equal(kpis.topWarehouses[1].orderCount, 1);
+  // Kho Z is highest. A/B/C tie at two orders and use the explicit name
+  // tie-breaker, so the chart cannot inherit arbitrary source-row order.
+  assert.equal(kpis.topWarehouses.length, 4);
+  assert.equal(kpis.topWarehouses[0].warehouse, 'Kho Z');
+  assert.equal(kpis.topWarehouses[0].orderCount, 3);
+  assert.equal(kpis.topWarehouses[0].driverCount, 3);
+  assert.equal(kpis.topWarehouses[1].warehouse, 'Kho A');
+  assert.equal(kpis.topWarehouses[1].orderCount, 2);
+  assert.equal(kpis.topWarehouses[2].warehouse, 'Kho B');
+  assert.equal(kpis.topWarehouses[2].orderCount, 2);
+  assert.equal(kpis.topWarehouses[3].warehouse, 'Kho C');
+  assert.equal(kpis.topWarehouses[3].orderCount, 2);
 });
 
 test('normalizeDateKey parses ISO and formatted date strings, rejecting invalid and non-existent dates', () => {
