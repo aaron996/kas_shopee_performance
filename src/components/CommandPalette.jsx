@@ -1,15 +1,28 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Layers, ArrowRightLeft, Clock, Sparkles, MapPin, Filter, CornerDownLeft, ShieldAlert } from 'lucide-react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRightLeft,
+  Clock,
+  CornerDownLeft,
+  Filter,
+  Layers,
+  LoaderCircle,
+  MapPin,
+  PackageSearch,
+  Search,
+  ShieldAlert,
+  Sparkles,
+  UserRound
+} from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
+import { fetchCodSuspicionData } from '../utils/codSuspicionClient';
+import {
+  buildCodSearchItems,
+  normalizeSearchText,
+  rankSearchItems
+} from '../utils/universalSearch';
 
-// Command palette (Cmd/Ctrl+K) — nhảy nhanh tới tab / client / vùng mà không
-// phải rời tay khỏi bàn phím. App có ~40 vùng/hub và 3-4 tab; trước đây phải
-// click Sidebar rồi mở dropdown Vùng rồi cuộn tìm — giờ gõ vài ký tự là ra.
-//
-// Không tìm hub lẻ (chỉ vùng): hub-level jump cần Report1 tự mở đúng region
-// rồi cuộn tới đúng dòng, nhưng danh sách hub chỉ tồn tại BÊN TRONG dữ liệu đã
-// filter theo client — palette này chỉ nói tới cấp vùng, vốn đã đủ để thu hẹp
-// 90% việc tìm.
+const MIN_DATA_QUERY_LENGTH = 2;
+
 export default function CommandPalette({
   isOpen,
   onClose,
@@ -18,47 +31,53 @@ export default function CommandPalette({
   clientFilter,
   setClientFilter,
   onSelectRegion,
+  onSelectCodResult,
+  canSearchCod = false,
   hasInsightTab = false
 }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [codItems, setCodItems] = useState({ driverItems: [], orderItems: [] });
+  const [codSearchStatus, setCodSearchStatus] = useState('idle');
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  const panelRef = useRef(null);
+  const codLoadStartedRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setActiveIndex(0);
-      // Đợi 1 frame để modal render xong rồi mới focus, tránh mất focus vì
-      // phần tử chưa gắn vào DOM.
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
+    if (!isOpen) return;
+    setQuery('');
+    setActiveIndex(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
   }, [isOpen]);
 
-  const items = useMemo(() => {
+  const navigationItems = useMemo(() => {
     const tabItems = [
-      { type: 'tab', id: 'report1', label: '1. OPS metric', icon: Layers },
-      { type: 'tab', id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
-      { type: 'tab', id: 'report3', label: '3. Leadtime từng chặng', icon: Clock }
+      { type: 'tab', id: 'report1', label: '1. OPS metric', section: 'Điều hướng', icon: Layers },
+      { type: 'tab', id: 'report5', label: '2. % Ca 1 theo lane', section: 'Điều hướng', icon: ArrowRightLeft },
+      { type: 'tab', id: 'report3', label: '3. Leadtime từng chặng', section: 'Điều hướng', icon: Clock }
     ];
     if (hasInsightTab) {
-      tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', icon: Sparkles });
+      tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', section: 'Điều hướng', icon: Sparkles });
     }
-    tabItems.push({ type: 'tab', id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert });
+    tabItems.push({ type: 'tab', id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', section: 'Điều hướng', icon: ShieldAlert });
 
     const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
       type: 'client',
       id: code,
       label: code === 'ALL' ? 'Client: Toàn bộ (SPB + SPE)' : `Client: ${code}`,
+      section: 'Điều hướng',
       icon: Filter
     }));
 
     const regionItems = Object.entries(MIEN_REGIONS).flatMap(([mien, regions]) =>
-      regions.map(reg => ({
+      regions.map(region => ({
         type: 'region',
-        id: reg,
-        label: reg,
+        id: region,
+        label: region,
         group: mien,
+        section: 'Điều hướng',
+        searchText: `${region} ${mien}`,
         icon: MapPin
       }))
     );
@@ -66,21 +85,55 @@ export default function CommandPalette({
     return [...tabItems, ...clientItems, ...regionItems];
   }, [hasInsightTab]);
 
+  const cleanQuery = normalizeSearchText(query);
+  const shouldSearchCod = canSearchCod && cleanQuery.length >= MIN_DATA_QUERY_LENGTH;
+
+  useEffect(() => {
+    if (!isOpen || !shouldSearchCod || codLoadStartedRef.current) return;
+
+    codLoadStartedRef.current = true;
+    setCodSearchStatus('loading');
+
+    fetchCodSuspicionData()
+      .then(result => {
+        if (!result.success) {
+          setCodSearchStatus('error');
+          return;
+        }
+        setCodItems(buildCodSearchItems(result.rows || []));
+        setCodSearchStatus('ready');
+      })
+      .catch(error => {
+        console.error('Universal COD search failed:', error);
+        setCodSearchStatus('error');
+      });
+  }, [isOpen, shouldSearchCod]);
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(it =>
-      it.label.toLowerCase().includes(q) || (it.group && it.group.toLowerCase().includes(q))
+    if (!cleanQuery) return navigationItems;
+
+    const navigationResults = rankSearchItems(navigationItems, cleanQuery, 10);
+    if (!shouldSearchCod || codSearchStatus !== 'ready') return navigationResults;
+
+    const dataResults = rankSearchItems(
+      [...codItems.driverItems, ...codItems.orderItems],
+      cleanQuery,
+      14
     );
-  }, [items, query]);
+    return [...navigationResults, ...dataResults];
+  }, [cleanQuery, codItems, codSearchStatus, navigationItems, shouldSearchCod]);
 
   useEffect(() => {
     setActiveIndex(0);
   }, [query]);
 
   useEffect(() => {
-    const el = listRef.current?.querySelector(`[data-idx="${activeIndex}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
+    setActiveIndex(index => Math.min(index, Math.max(filtered.length - 1, 0)));
+  }, [filtered.length]);
+
+  useEffect(() => {
+    const element = listRef.current?.querySelector(`[data-idx="${activeIndex}"]`);
+    element?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
   const runItem = (item) => {
@@ -88,79 +141,123 @@ export default function CommandPalette({
     if (item.type === 'tab') setActiveTab(item.id);
     else if (item.type === 'client') setClientFilter(item.id);
     else if (item.type === 'region') onSelectRegion?.(item.id);
+    else if (item.type === 'cod-driver' || item.type === 'cod-order') onSelectCodResult?.(item.target);
     onClose();
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex(i => Math.min(i + 1, filtered.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex(i => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
+  const handleSearchKeyDown = (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex(index => Math.min(index + 1, Math.max(filtered.length - 1, 0)));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex(index => Math.max(index - 1, 0));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
       runItem(filtered[activeIndex]);
-    } else if (e.key === 'Escape') {
+    } else if (event.key === 'Escape') {
       onClose();
+    }
+  };
+
+  const handleDialogKeyDown = (event) => {
+    if (event.key !== 'Tab') return;
+    const focusable = panelRef.current?.querySelectorAll('input, button:not([disabled])');
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   };
 
   if (!isOpen) return null;
 
+  const isCodLoading = shouldSearchCod && codSearchStatus === 'loading';
+  const showEmpty = filtered.length === 0 && !isCodLoading;
+  const activeDescendant = filtered[activeIndex] ? `cmdk-option-${activeIndex}` : undefined;
+
   return (
     <div className="cmdk-backdrop" role="presentation" onMouseDown={onClose}>
       <div
+        ref={panelRef}
         className="cmdk-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Tìm nhanh"
-        onMouseDown={(e) => e.stopPropagation()}
+        aria-label="Tìm kiếm toàn hệ thống"
+        onKeyDown={handleDialogKeyDown}
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="cmdk-input-row">
-          <Search size={16} className="cmdk-search-icon" />
+          <Search size={17} className="cmdk-search-icon" />
           <input
             ref={inputRef}
             className="cmdk-input"
-            type="text"
-            placeholder="Tìm tab, client (SPB/SPE), hoặc vùng..."
+            type="search"
+            placeholder="Tìm tab, vùng, tài xế, ID hoặc mã đơn..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            aria-label="Tìm nhanh"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            aria-label="Tìm kiếm toàn hệ thống"
+            aria-controls="cmdk-results"
+            aria-activedescendant={activeDescendant}
+            autoComplete="off"
           />
           <kbd className="cmdk-kbd">Esc</kbd>
         </div>
 
-        <div className="cmdk-list" ref={listRef} role="listbox">
-          {filtered.length === 0 && (
-            <div className="cmdk-empty">Không tìm thấy gì khớp "{query}".</div>
+        <div className="cmdk-list" id="cmdk-results" ref={listRef} role="listbox">
+          {showEmpty && (
+            <div className="cmdk-empty">Không tìm thấy kết quả phù hợp với “{query}”.</div>
           )}
-          {filtered.map((item, idx) => {
-            const Icon = item.icon;
-            const isActive = idx === activeIndex;
+
+          {filtered.map((item, index) => {
+            const Icon = item.type === 'cod-driver'
+              ? UserRound
+              : item.type === 'cod-order'
+                ? PackageSearch
+                : item.icon;
+            const isActive = index === activeIndex;
             const isCurrent =
               (item.type === 'tab' && item.id === activeTab) ||
               (item.type === 'client' && item.id === clientFilter);
+            const showSection = index === 0 || filtered[index - 1]?.section !== item.section;
+
             return (
-              <button
-                type="button"
-                key={`${item.type}-${item.id}`}
-                data-idx={idx}
-                role="option"
-                aria-selected={isActive}
-                className={`cmdk-item ${isActive ? 'active' : ''}`}
-                onMouseEnter={() => setActiveIndex(idx)}
-                onClick={() => runItem(item)}
-              >
-                <Icon size={15} className="cmdk-item-icon" />
-                <span className="cmdk-item-label">{item.label}</span>
-                {item.group && <span className="cmdk-item-group">{item.group}</span>}
-                {isCurrent && <span className="cmdk-item-current">hiện tại</span>}
-                {isActive && <CornerDownLeft size={13} className="cmdk-item-enter" />}
-              </button>
+              <Fragment key={`${item.type}-${item.id}`}>
+                {showSection && <div className="cmdk-section-label" aria-hidden="true">{item.section}</div>}
+                <button
+                  type="button"
+                  id={`cmdk-option-${index}`}
+                  data-idx={index}
+                  role="option"
+                  aria-selected={isActive}
+                  className={`cmdk-item ${isActive ? 'active' : ''} ${item.type.startsWith('cod-') ? 'cmdk-item--data' : ''}`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => runItem(item)}
+                >
+                  <span className="cmdk-item-icon-wrap" aria-hidden="true"><Icon size={16} className="cmdk-item-icon" /></span>
+                  <span className="cmdk-item-copy">
+                    <span className="cmdk-item-label">{item.label}</span>
+                    {item.description && <span className="cmdk-item-description">{item.description}</span>}
+                  </span>
+                  {item.group && <span className="cmdk-item-group">{item.group}</span>}
+                  {isCurrent && <span className="cmdk-item-current">hiện tại</span>}
+                  {isActive && <CornerDownLeft size={13} className="cmdk-item-enter" aria-hidden="true" />}
+                </button>
+              </Fragment>
             );
           })}
+
+          <div className="cmdk-status" aria-live="polite">
+            {isCodLoading && <><LoaderCircle size={14} className="is-spinning" /> Đang tìm trong dữ liệu COD được cấp quyền...</>}
+            {shouldSearchCod && codSearchStatus === 'error' && 'Không tải được dữ liệu COD. Điều hướng trong hệ thống vẫn hoạt động.'}
+            {!canSearchCod && cleanQuery.length >= MIN_DATA_QUERY_LENGTH && 'Local preview không truy vấn dữ liệu COD live.'}
+          </div>
         </div>
       </div>
     </div>

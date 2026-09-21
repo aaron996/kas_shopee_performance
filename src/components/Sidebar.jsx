@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, Clock, LogOut, UserCheck, ShieldCheck, Sparkles, ShieldAlert } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, LogOut, Search, UserCheck, ShieldCheck, Sparkles, ShieldAlert } from 'lucide-react';
 import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 
@@ -11,7 +11,8 @@ export default function Sidebar({
   isDarkMode,
   setIsDarkMode,
   isCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  onOpenPalette
 }) {
   const handleHomeClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -52,6 +53,20 @@ export default function Sidebar({
           aria-expanded={!isCollapsed}
         >
           <MorphIcon icon={isCollapsed ? ChevronRight : ChevronLeft} size={18} reducedMotion="user" />
+        </button>
+      </div>
+
+      <div className="sidebar-command-search-wrap">
+        <button
+          type="button"
+          className="sidebar-command-search"
+          onClick={onOpenPalette}
+          title="Tìm toàn hệ thống (Cmd/Ctrl+K)"
+          aria-label="Tìm toàn hệ thống"
+        >
+          <Search size={17} aria-hidden="true" />
+          <span>Tìm toàn hệ thống</span>
+          <kbd className="sidebar-command-kbd">Ctrl K</kbd>
         </button>
       </div>
 

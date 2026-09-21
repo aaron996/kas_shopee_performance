@@ -11,7 +11,8 @@ import {
   ImagePlus,
   X,
   MessageSquare,
-  LoaderCircle
+  LoaderCircle,
+  Search
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -70,7 +71,15 @@ function getResolutionLabel(resolution) {
   return resolution?.enforcement_status === 'disciplinary_action' ? 'Đã xử lý theo chế tài' : 'Đang xử lý';
 }
 
-export default function CodSuspicionReport({ filters, onAvailableWarehouses, canManageResolutions = false }) {
+export default function CodSuspicionReport({
+  filters,
+  onAvailableWarehouses,
+  canManageResolutions = false,
+  dataEnabled = true,
+  focusTarget = null,
+  onFocusTargetHandled,
+  onClearSearch
+}) {
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -81,8 +90,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   const [workflowDialog, setWorkflowDialog] = useState(null);
   const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
   const fileInputRef = useRef(null);
+  const driverCardRefs = useRef(new Map());
 
-  const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL' } = filters || {};
+  const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL', searchQuery = '' } = filters || {};
 
   // Accordion expanded state: Set of driverId
   const [expandedDrivers, setExpandedDrivers] = useState(new Set());
@@ -100,6 +110,14 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
 
   // Fetch data
   const loadData = useCallback(async ({ forceRefresh = false } = {}) => {
+    if (!dataEnabled) {
+      setRawData([]);
+      setResolutions(new Map());
+      setErrorMsg('');
+      setResolutionError('');
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -130,7 +148,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dataEnabled]);
 
   useEffect(() => {
     loadData();
@@ -171,9 +189,10 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     return filterDriverGroups(allDriverGroups, {
       suspicionType,
       warehouse,
-      alertLevel
+      alertLevel,
+      searchQuery
     });
-  }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
+  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery]);
 
   const resolutionCounts = useMemo(() => {
     const driverIdsByStatus = {
@@ -212,6 +231,43 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
       setActiveResolutionTab('pending');
     }
   }, [activeResolutionTab, canManageResolutions]);
+
+  useEffect(() => {
+    if (!focusTarget || isLoading) return;
+    const targetDriver = filteredDrivers.find(driver => (
+      driver.driverId === focusTarget.driverId &&
+      driver.suspicionType === focusTarget.suspicionType
+    ));
+    if (!targetDriver) return;
+
+    const nextTab = !targetDriver.resolution
+      ? 'pending'
+      : targetDriver.resolution.finding_outcome === 'non_violation'
+        ? 'non_violation'
+        : 'resolved';
+    if (nextTab !== 'non_violation' || canManageResolutions) {
+      setActiveResolutionTab(nextTab);
+    }
+  }, [canManageResolutions, filteredDrivers, focusTarget, isLoading]);
+
+  useEffect(() => {
+    if (!focusTarget || isLoading) return undefined;
+    const targetDriver = visibleDrivers.find(driver => (
+      driver.driverId === focusTarget.driverId &&
+      driver.suspicionType === focusTarget.suspicionType
+    ));
+    if (!targetDriver) return undefined;
+
+    const driverKey = getCodSuspicionDriverKey(targetDriver);
+    const accordionKey = `${activeResolutionTab}:${driverKey}`;
+    setExpandedDrivers(previous => new Set(previous).add(accordionKey));
+
+    const frameId = requestAnimationFrame(() => {
+      driverCardRefs.current.get(driverKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onFocusTargetHandled?.();
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [activeResolutionTab, focusTarget, isLoading, onFocusTargetHandled, visibleDrivers]);
 
   // Compute KPIs & Triage Chart stats
   const kpis = useMemo(() => {
@@ -730,6 +786,18 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
         </div>
       )}
 
+      {searchQuery && (
+        <div className="cod-search-context" role="status">
+          <span className="cod-search-context__icon" aria-hidden="true"><Search size={16} /></span>
+          <span className="cod-search-context__copy">
+            Đang hiển thị kết quả cho <strong>{searchQuery}</strong>
+          </span>
+          <button type="button" className="cod-search-context__clear" onClick={onClearSearch}>
+            <X size={15} aria-hidden="true" /> Xóa tìm kiếm
+          </button>
+        </div>
+      )}
+
       {/* 6. Driver Accordion List */}
       <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {isLoading && visibleDrivers.length === 0 ? (
@@ -759,14 +827,18 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           >
             <CheckCircle2 size={36} style={{ color: '#10b981', marginBottom: '0.75rem' }} />
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {activeResolutionTab === 'resolved'
+              {!dataEnabled
+                ? 'Local preview không tải dữ liệu COD live'
+                : activeResolutionTab === 'resolved'
                 ? 'Chưa có đơn nào đã cập nhật xử lý'
                 : activeResolutionTab === 'non_violation'
                   ? 'Chưa có đơn nào được kết luận không vi phạm'
                   : 'Không có đơn nào cần xác minh'}
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-              {suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL'
+              {!dataEnabled
+                ? 'Đăng nhập qua Supabase để tìm và mở hồ sơ tài xế hoặc mã đơn theo quyền được cấp.'
+                : suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL' || searchQuery
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : activeResolutionTab === 'resolved'
                   ? 'Bao gồm các trường hợp có vi phạm đang xử lý hoặc đã xử lý theo chế tài.'
@@ -777,14 +849,19 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           </div>
         ) : (
           visibleDrivers.map((driver, idx) => {
-            const accordionKey = `${activeResolutionTab}:${driver.driverId}`;
+            const driverKey = getCodSuspicionDriverKey(driver);
+            const accordionKey = `${activeResolutionTab}:${driverKey}`;
             const isExpanded = expandedDrivers.has(accordionKey);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
             const driverAlertLevel = getAlertLevel(driver.maxScore);
 
             return (
               <div
-                key={driver.driverId}
+                key={driverKey}
+                ref={(element) => {
+                  if (element) driverCardRefs.current.set(driverKey, element);
+                  else driverCardRefs.current.delete(driverKey);
+                }}
                 className="cod-driver-card"
                 style={{
                   background: 'var(--card-bg, #ffffff)',

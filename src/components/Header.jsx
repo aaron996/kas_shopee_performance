@@ -72,8 +72,6 @@ export default function Header({
   const supportsExport = activeTab === 'report1' || activeTab === 'report5';
   const exportCsv = () => window.dispatchEvent(new CustomEvent('export-csv', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
@@ -117,7 +115,7 @@ export default function Header({
         <div className="mobile-header-actions">
           <button className="mobile-icon-btn" onClick={onRetryData} disabled={isLoading} title={freshnessTitle} aria-label={freshnessTitle}>{syncIcon}</button>
           <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1"><MessageSquareText size={18} /></button>
-          <button className="mobile-icon-btn" onClick={onOpenPalette} title="Chuyển nhanh báo cáo" aria-label="Chuyển nhanh báo cáo"><Search size={18} /></button>
+          <button className="mobile-icon-btn" onClick={onOpenPalette} title="Tìm toàn hệ thống" aria-label="Tìm toàn hệ thống"><Search size={18} /></button>
           {supportsExport && <button className="mobile-icon-btn mobile-primary-action" onClick={exportCsv} disabled={!canExport} title={exportLabel} aria-label={exportLabel}><Download size={18} /></button>}
           <button className={`mobile-filter-trigger ${isMobileFiltersOpen ? 'active' : ''}`} onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)} aria-expanded={isMobileFiltersOpen}>
             <Filter size={18} /> <span>Bộ lọc</span>
@@ -127,12 +125,6 @@ export default function Header({
 
       <div className="filter-group-sleek">
         <div className="header-scope">
-          <button className="command-search-field" onClick={onOpenPalette} title="Chuyển nhanh báo cáo (Cmd/Ctrl+K)" aria-label="Chuyển nhanh báo cáo">
-            <Search size={16} />
-            <span>Tìm và chuyển báo cáo...</span>
-            <kbd className="cmdk-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
-          </button>
-
           {activeTab !== 'report5' && activeTab !== 'cod-suspicion' && (
             <div className="hdr-field">
               <Filter size={14} className="filter-icon" />
