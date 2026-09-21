@@ -26,6 +26,7 @@ const appsScriptUrl = new URL('../../scripts/apps-script/sync-to-supabase.gs', i
 const resolutionMigrationUrl = new URL('../../supabase/migrations/20260921035354_create_cod_suspicion_case_resolutions.sql', import.meta.url);
 const driverResolutionMigrationUrl = new URL('../../supabase/migrations/20260921060000_cod_suspicion_driver_workflow.sql', import.meta.url);
 const outcomeMigrationUrl = new URL('../../supabase/migrations/20260921063421_cod_suspicion_resolution_outcomes.sql', import.meta.url);
+const hideNonViolationMigrationUrl = new URL('../../supabase/migrations/20260921065436_hide_cod_non_violations_from_users.sql', import.meta.url);
 
 test('COD resolution migration persists only workflow metadata behind the two-account Dev allowlist', async () => {
   const migration = await readFile(resolutionMigrationUrl, 'utf8');
@@ -65,6 +66,15 @@ test('driver workflow distinguishes a violation stage from a non-violation concl
   assert.match(migration, /enforcement_status.*in_progress.*disciplinary_action/is);
   assert.match(migration, /finding_outcome = 'non_violation' and enforcement_status is null/i);
   assert.match(migration, /drop function if exists public\.upsert_cod_suspicion_driver_resolution/i);
+});
+
+test('non-violation cases are visible only to Dev Admin accounts', async () => {
+  const migration = await readFile(hideNonViolationMigrationUrl, 'utf8');
+  assert.match(migration, /authenticated_can_read_visible_cod_suspicion_data/i);
+  assert.match(migration, /finding_outcome = 'non_violation'/i);
+  assert.match(migration, /authenticated_can_read_violation_resolutions/i);
+  assert.match(migration, /cod_resolution_operators_can_read_all/i);
+  assert.match(migration, /is_cod_resolution_operator/i);
 });
 
 test('KAS-221 migration exposes read-only data to authenticated users and fails closed on bad sync payloads', async () => {
@@ -246,7 +256,7 @@ test('groupOrdersByDriver groups orders under drivers and computes driver max sc
   assert.equal(d2.totalCod, 3000000);
 });
 
-test('resolution tabs keep driver outcomes mutually exclusive', () => {
+test('resolved tab groups violation stages while non-violation remains separate', () => {
   const pendingDriver = {
     driverId: 'D1',
     driverName: 'Tài xế 1',
@@ -259,18 +269,15 @@ test('resolution tabs keep driver outcomes mutually exclusive', () => {
   const driverGroups = [pendingDriver, inProgressDriver, resolvedDriver, nonViolationDriver];
 
   const pending = filterDriverGroupsByResolutionStatus(driverGroups, 'pending');
-  const inProgress = filterDriverGroupsByResolutionStatus(driverGroups, 'in_progress');
   const resolved = filterDriverGroupsByResolutionStatus(driverGroups, 'resolved');
   const nonViolation = filterDriverGroupsByResolutionStatus(driverGroups, 'non_violation');
 
   assert.equal(pending.length, 1);
   assert.equal(pending[0].orders.length, 2);
   assert.equal(pending[0].driverId, 'D1');
-  assert.equal(inProgress.length, 1);
-  assert.equal(inProgress[0].driverId, 'D2');
-  assert.equal(resolved.length, 1);
+  assert.equal(resolved.length, 2);
   assert.equal(resolved[0].orders.length, 2);
-  assert.equal(resolved[0].driverId, 'D3');
+  assert.deepEqual(resolved.map(driver => driver.driverId), ['D2', 'D3']);
   assert.equal(nonViolation.length, 1);
   assert.equal(nonViolation[0].driverId, 'D4');
   assert.notEqual(

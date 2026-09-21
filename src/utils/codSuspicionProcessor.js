@@ -185,11 +185,8 @@ export function filterDriverGroupsByResolutionStatus(driverGroups = [], status =
   return driverGroups.filter(driver => {
     const resolution = driver.resolution;
     if (status === 'pending') return !resolution;
-    if (status === 'in_progress') {
-      return resolution?.finding_outcome === 'violation' && resolution?.enforcement_status === 'in_progress';
-    }
     if (status === 'resolved') {
-      return resolution?.finding_outcome === 'violation' && resolution?.enforcement_status === 'disciplinary_action';
+      return resolution?.finding_outcome === 'violation';
     }
     if (status === 'non_violation') return resolution?.finding_outcome === 'non_violation';
     return false;
