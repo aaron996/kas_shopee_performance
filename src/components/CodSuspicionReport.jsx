@@ -176,14 +176,26 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
   const resolutionCounts = useMemo(() => {
-    const counts = { pending: 0, resolved: 0, non_violation: 0 };
+    const driverIdsByStatus = {
+      pending: new Set(),
+      resolved: new Set(),
+      non_violation: new Set()
+    };
     filteredDrivers.forEach(driver => {
-      if (!driver.resolution) counts.pending += driver.orderCount;
-      else if (driver.resolution.finding_outcome === 'non_violation') counts.non_violation += driver.orderCount;
-      else counts.resolved += driver.orderCount;
+      const driverKey = driver.driverId || driver.driverName;
+      if (!driver.resolution) driverIdsByStatus.pending.add(driverKey);
+      else if (driver.resolution.finding_outcome === 'non_violation') driverIdsByStatus.non_violation.add(driverKey);
+      else driverIdsByStatus.resolved.add(driverKey);
     });
-    return counts;
+    return Object.fromEntries(
+      Object.entries(driverIdsByStatus).map(([status, driverIds]) => [status, driverIds.size])
+    );
   }, [filteredDrivers]);
+
+  const totalDriverCaseCount = useMemo(
+    () => new Set(filteredDrivers.map(driver => driver.driverId || driver.driverName)).size,
+    [filteredDrivers]
+  );
 
   const visibleDrivers = useMemo(
     () => filterDriverGroupsByResolutionStatus(filteredDrivers, activeResolutionTab),
@@ -668,7 +680,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
               borderRadius: 'var(--radius-pill, 999px)'
             }}
           >
-            {Object.values(resolutionCounts).reduce((sum, count) => sum + count, 0)} đơn
+            {totalDriverCaseCount} trường hợp
           </span>
         </div>
 
@@ -693,7 +705,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                   cursor: 'pointer'
                 }}
               >
-                {tab.label} <span aria-label={`${resolutionCounts[tab.id]} đơn`}>({resolutionCounts[tab.id]})</span>
+                {tab.label} <span aria-label={`${resolutionCounts[tab.id]} trường hợp`}>({resolutionCounts[tab.id]})</span>
               </button>
             );
           })}
