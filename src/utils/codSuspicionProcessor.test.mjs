@@ -25,6 +25,7 @@ const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_
 const appsScriptUrl = new URL('../../scripts/apps-script/sync-to-supabase.gs', import.meta.url);
 const resolutionMigrationUrl = new URL('../../supabase/migrations/20260921035354_create_cod_suspicion_case_resolutions.sql', import.meta.url);
 const driverResolutionMigrationUrl = new URL('../../supabase/migrations/20260921060000_cod_suspicion_driver_workflow.sql', import.meta.url);
+const outcomeMigrationUrl = new URL('../../supabase/migrations/20260921063421_cod_suspicion_resolution_outcomes.sql', import.meta.url);
 
 test('COD resolution migration persists only workflow metadata behind the two-account Dev allowlist', async () => {
   const migration = await readFile(resolutionMigrationUrl, 'utf8');
@@ -56,6 +57,14 @@ test('driver workflow resolves all of one driver type and protects evidence uplo
   assert.match(migration, /for insert to authenticated/i);
   assert.match(migration, /is_cod_resolution_operator/i);
   assert.match(migration, /undo_cod_suspicion_driver_resolution/i);
+});
+
+test('driver workflow distinguishes a violation stage from a non-violation conclusion', async () => {
+  const migration = await readFile(outcomeMigrationUrl, 'utf8');
+  assert.match(migration, /finding_outcome.*violation.*non_violation/is);
+  assert.match(migration, /enforcement_status.*in_progress.*disciplinary_action/is);
+  assert.match(migration, /finding_outcome = 'non_violation' and enforcement_status is null/i);
+  assert.match(migration, /drop function if exists public\.upsert_cod_suspicion_driver_resolution/i);
 });
 
 test('KAS-221 migration exposes read-only data to authenticated users and fails closed on bad sync payloads', async () => {
@@ -237,25 +246,33 @@ test('groupOrdersByDriver groups orders under drivers and computes driver max sc
   assert.equal(d2.totalCod, 3000000);
 });
 
-test('resolution tabs move the whole driver group together', () => {
+test('resolution tabs keep driver outcomes mutually exclusive', () => {
   const pendingDriver = {
     driverId: 'D1',
     driverName: 'Tài xế 1',
     orders: [{ orderCode: 'O1' }, { orderCode: 'O2' }],
     resolution: null
   };
-  const resolvedDriver = { ...pendingDriver, driverId: 'D2', resolution: { status: 'resolved' } };
-  const driverGroups = [pendingDriver, resolvedDriver];
+  const inProgressDriver = { ...pendingDriver, driverId: 'D2', resolution: { status: 'resolved', finding_outcome: 'violation', enforcement_status: 'in_progress' } };
+  const resolvedDriver = { ...pendingDriver, driverId: 'D3', resolution: { status: 'resolved', finding_outcome: 'violation', enforcement_status: 'disciplinary_action' } };
+  const nonViolationDriver = { ...pendingDriver, driverId: 'D4', resolution: { status: 'resolved', finding_outcome: 'non_violation', enforcement_status: null } };
+  const driverGroups = [pendingDriver, inProgressDriver, resolvedDriver, nonViolationDriver];
 
   const pending = filterDriverGroupsByResolutionStatus(driverGroups, 'pending');
+  const inProgress = filterDriverGroupsByResolutionStatus(driverGroups, 'in_progress');
   const resolved = filterDriverGroupsByResolutionStatus(driverGroups, 'resolved');
+  const nonViolation = filterDriverGroupsByResolutionStatus(driverGroups, 'non_violation');
 
   assert.equal(pending.length, 1);
   assert.equal(pending[0].orders.length, 2);
   assert.equal(pending[0].driverId, 'D1');
+  assert.equal(inProgress.length, 1);
+  assert.equal(inProgress[0].driverId, 'D2');
   assert.equal(resolved.length, 1);
   assert.equal(resolved[0].orders.length, 2);
-  assert.equal(resolved[0].driverId, 'D2');
+  assert.equal(resolved[0].driverId, 'D3');
+  assert.equal(nonViolation.length, 1);
+  assert.equal(nonViolation[0].driverId, 'D4');
   assert.notEqual(
     getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D1', suspicionType: 'Gối đầu COD' }),
     getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D2', suspicionType: 'Gối đầu COD' })

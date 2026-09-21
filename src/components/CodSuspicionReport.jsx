@@ -58,6 +58,18 @@ const CONTACT_CHANNELS = [
   ['other', 'Khác']
 ];
 
+const RESOLUTION_TABS = [
+  { id: 'pending', label: 'Cần xác minh' },
+  { id: 'in_progress', label: 'Đang xử lý' },
+  { id: 'resolved', label: 'Đã xử lý' },
+  { id: 'non_violation', label: 'Không vi phạm' }
+];
+
+function getResolutionLabel(resolution) {
+  if (resolution?.finding_outcome === 'non_violation') return 'Không vi phạm';
+  return resolution?.enforcement_status === 'disciplinary_action' ? 'Đã xử lý theo chế tài' : 'Đang xử lý';
+}
+
 export default function CodSuspicionReport({ filters, onAvailableWarehouses, canManageResolutions = false }) {
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
@@ -67,7 +79,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
   const [resolvingDriverKeys, setResolvingDriverKeys] = useState(() => new Set());
   const [workflowDialog, setWorkflowDialog] = useState(null);
-  const [workflowForm, setWorkflowForm] = useState({ contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
+  const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
   const fileInputRef = useRef(null);
 
   const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL' } = filters || {};
@@ -164,11 +176,14 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
   const resolutionCounts = useMemo(() => {
-    const total = filteredDrivers.reduce((sum, driver) => sum + driver.orderCount, 0);
-    const resolved = filteredDrivers.reduce(
-      (sum, driver) => sum + (driver.resolution?.status === 'resolved' ? driver.orderCount : 0), 0
-    );
-    return { pending: total - resolved, resolved };
+    const counts = { pending: 0, in_progress: 0, resolved: 0, non_violation: 0 };
+    filteredDrivers.forEach(driver => {
+      if (!driver.resolution) counts.pending += driver.orderCount;
+      else if (driver.resolution.finding_outcome === 'non_violation') counts.non_violation += driver.orderCount;
+      else if (driver.resolution.enforcement_status === 'disciplinary_action') counts.resolved += driver.orderCount;
+      else counts.in_progress += driver.orderCount;
+    });
+    return counts;
   }, [filteredDrivers]);
 
   const visibleDrivers = useMemo(
@@ -199,6 +214,8 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     const existing = driver.resolution || null;
     setWorkflowDialog(driver);
     setWorkflowForm({
+      findingOutcome: existing?.finding_outcome || 'violation',
+      enforcementStatus: existing?.enforcement_status || 'in_progress',
       contactChannel: existing?.contact_channel || 'telegram',
       note: existing?.note || '',
       attachments: Array.isArray(existing?.attachments) ? existing.attachments : [],
@@ -241,7 +258,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
       suspicionType: workflowDialog.suspicionType,
       contactChannel: workflowForm.contactChannel,
       note: workflowForm.note,
-      attachments
+      attachments,
+      findingOutcome: workflowForm.findingOutcome,
+      enforcementStatus: workflowForm.findingOutcome === 'violation' ? workflowForm.enforcementStatus : null
     });
     setResolvingDriverKeys(previous => { const next = new Set(previous); next.delete(driverKey); return next; });
 
@@ -639,15 +658,12 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
               borderRadius: 'var(--radius-pill, 999px)'
             }}
           >
-            {resolutionCounts.pending + resolutionCounts.resolved} đơn
+            {Object.values(resolutionCounts).reduce((sum, count) => sum + count, 0)} đơn
           </span>
         </div>
 
         <div role="tablist" aria-label="Trạng thái xử lý đơn nghi vấn" style={{ display: 'flex', gap: '0.45rem' }}>
-          {[
-            { id: 'pending', label: 'Cần xác minh', count: resolutionCounts.pending },
-            { id: 'resolved', label: 'Đã xử lý', count: resolutionCounts.resolved }
-          ].map(tab => {
+          {RESOLUTION_TABS.map(tab => {
             const selected = activeResolutionTab === tab.id;
             return (
               <button
@@ -667,7 +683,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                   cursor: 'pointer'
                 }}
               >
-                {tab.label} <span aria-label={`${tab.count} đơn`}>({tab.count})</span>
+                {tab.label} <span aria-label={`${resolutionCounts[tab.id]} đơn`}>({resolutionCounts[tab.id]})</span>
               </button>
             );
           })}
@@ -715,14 +731,24 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           >
             <CheckCircle2 size={36} style={{ color: '#10b981', marginBottom: '0.75rem' }} />
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {activeResolutionTab === 'resolved' ? 'Chưa có đơn nào đã xử lý' : 'Không có đơn nào cần xác minh'}
+              {activeResolutionTab === 'resolved'
+                ? 'Chưa có đơn nào đã xử lý theo chế tài'
+                : activeResolutionTab === 'in_progress'
+                  ? 'Chưa có đơn nào đang xử lý'
+                  : activeResolutionTab === 'non_violation'
+                    ? 'Chưa có đơn nào được kết luận không vi phạm'
+                    : 'Không có đơn nào cần xác minh'}
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
               {suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL'
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : activeResolutionTab === 'resolved'
-                  ? 'Các đơn sẽ xuất hiện ở đây sau khi Dev Admin xác nhận đã được các bên liên quan xử lý.'
-                  : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
+                  ? 'Chỉ các trường hợp có vi phạm và đã áp chế tài mới xuất hiện tại đây.'
+                  : activeResolutionTab === 'in_progress'
+                    ? 'Các trường hợp có vi phạm nhưng chưa hoàn tất chế tài sẽ xuất hiện tại đây.'
+                    : activeResolutionTab === 'non_violation'
+                      ? 'Các trường hợp đã được kết luận không vi phạm sẽ xuất hiện tại đây.'
+                      : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
             </div>
           </div>
         ) : (
@@ -869,8 +895,8 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                       </div>
                       {driver.resolution?.status === 'resolved' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span style={{ color: 'var(--success-fg, #0f6e56)', fontSize: '0.78rem', fontWeight: 700 }}>
-                            Đã xử lý qua {CONTACT_CHANNELS.find(([value]) => value === driver.resolution.contact_channel)?.[1] || 'kênh khác'}
+                          <span style={{ color: driver.resolution.finding_outcome === 'non_violation' ? 'var(--text-muted, #64748b)' : 'var(--success-fg, #0f6e56)', fontSize: '0.78rem', fontWeight: 700 }}>
+                            {getResolutionLabel(driver.resolution)} · {CONTACT_CHANNELS.find(([value]) => value === driver.resolution.contact_channel)?.[1] || 'kênh khác'}
                           </span>
                           {canManageResolutions && (
                             <>
@@ -1011,6 +1037,32 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
             </header>
 
             <p id="cod-workflow-description" className="cod-workflow-modal__intro">Xác nhận này sẽ áp dụng cho toàn bộ đơn nghi vấn đang hiển thị của tài xế. Dữ liệu nguồn KAS-221 không bị chỉnh sửa.</p>
+
+            <label className="cod-workflow-field">
+              <span>Kết quả xác minh <b aria-hidden="true">*</b></span>
+              <select
+                value={workflowForm.findingOutcome}
+                onChange={(event) => setWorkflowForm(previous => ({
+                  ...previous,
+                  findingOutcome: event.target.value,
+                  enforcementStatus: event.target.value === 'violation' ? (previous.enforcementStatus || 'in_progress') : null
+                }))}
+                required
+              >
+                <option value="violation">Có vi phạm</option>
+                <option value="non_violation">Không vi phạm</option>
+              </select>
+            </label>
+
+            {workflowForm.findingOutcome === 'violation' && (
+              <label className="cod-workflow-field">
+                <span>Tình trạng xử lý <b aria-hidden="true">*</b></span>
+                <select value={workflowForm.enforcementStatus || 'in_progress'} onChange={(event) => setWorkflowForm(previous => ({ ...previous, enforcementStatus: event.target.value }))} required>
+                  <option value="in_progress">Đang xử lý</option>
+                  <option value="disciplinary_action">Đã xử lý theo chế tài</option>
+                </select>
+              </label>
+            )}
 
             <label className="cod-workflow-field">
               <span>Kênh đã trao đổi <b aria-hidden="true">*</b></span>

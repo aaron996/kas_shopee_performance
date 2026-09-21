@@ -98,7 +98,7 @@ export async function fetchCodSuspicionCaseResolutions() {
     const { data, error } = await withTimeout(
       supabase
         .from('cod_suspicion_driver_resolutions')
-        .select('driver_id, suspicion_type, status, contact_channel, note, attachments, resolved_at, resolved_by, updated_at')
+        .select('driver_id, suspicion_type, status, contact_channel, note, attachments, finding_outcome, enforcement_status, resolved_at, resolved_by, updated_at')
         .eq('status', 'resolved'),
       'cod_suspicion_driver_resolutions'
     );
@@ -115,15 +115,17 @@ export async function fetchCodSuspicionCaseResolutions() {
  * The database verifies permission, source-case existence, resolver identity,
  * and timestamp. The browser only submits the stable source-case coordinates.
  */
-export async function saveCodSuspicionDriverResolution({ driverId, suspicionType, contactChannel, note, attachments }) {
+export async function saveCodSuspicionDriverResolution({ driverId, suspicionType, contactChannel, note, attachments, findingOutcome, enforcementStatus }) {
   try {
     const { data, error } = await withTimeout(
       supabase.rpc('upsert_cod_suspicion_driver_resolution', {
         p_driver_id: driverId,
-        p_suspicion_type: suspicionType
-        ,p_contact_channel: contactChannel,
+        p_suspicion_type: suspicionType,
+        p_contact_channel: contactChannel,
         p_note: note || '',
-        p_attachments: attachments || []
+        p_attachments: attachments || [],
+        p_finding_outcome: findingOutcome,
+        p_enforcement_status: enforcementStatus
       }),
       'upsert_cod_suspicion_driver_resolution'
     );

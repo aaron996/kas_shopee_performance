@@ -182,9 +182,18 @@ export function getCodSuspicionDriverKey({ driverId, suspicionType }) {
  * Split already-filtered driver groups by persisted driver workflow status.
  */
 export function filterDriverGroupsByResolutionStatus(driverGroups = [], status = 'pending') {
-  const resolved = status === 'resolved';
-
-  return driverGroups.filter(driver => Boolean(driver.resolution?.status === 'resolved') === resolved);
+  return driverGroups.filter(driver => {
+    const resolution = driver.resolution;
+    if (status === 'pending') return !resolution;
+    if (status === 'in_progress') {
+      return resolution?.finding_outcome === 'violation' && resolution?.enforcement_status === 'in_progress';
+    }
+    if (status === 'resolved') {
+      return resolution?.finding_outcome === 'violation' && resolution?.enforcement_status === 'disciplinary_action';
+    }
+    if (status === 'non_violation') return resolution?.finding_outcome === 'non_violation';
+    return false;
+  });
 }
 
 /**
