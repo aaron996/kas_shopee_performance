@@ -97,10 +97,10 @@ export async function fetchCodSuspicionCaseResolutions() {
   try {
     const { data, error } = await withTimeout(
       supabase
-        .from('cod_suspicion_case_resolutions')
-        .select('order_code, driver_id, suspicion_type, status, resolved_at, resolved_by')
+        .from('cod_suspicion_driver_resolutions')
+        .select('driver_id, suspicion_type, status, contact_channel, note, attachments, resolved_at, resolved_by, updated_at')
         .eq('status', 'resolved'),
-      'cod_suspicion_case_resolutions'
+      'cod_suspicion_driver_resolutions'
     );
 
     if (error) throw error;
@@ -115,15 +115,17 @@ export async function fetchCodSuspicionCaseResolutions() {
  * The database verifies permission, source-case existence, resolver identity,
  * and timestamp. The browser only submits the stable source-case coordinates.
  */
-export async function resolveCodSuspicionCase({ orderCode, driverId, suspicionType }) {
+export async function saveCodSuspicionDriverResolution({ driverId, suspicionType, contactChannel, note, attachments }) {
   try {
     const { data, error } = await withTimeout(
-      supabase.rpc('resolve_cod_suspicion_case', {
-        p_order_code: orderCode,
+      supabase.rpc('upsert_cod_suspicion_driver_resolution', {
         p_driver_id: driverId,
         p_suspicion_type: suspicionType
+        ,p_contact_channel: contactChannel,
+        p_note: note || '',
+        p_attachments: attachments || []
       }),
-      'resolve_cod_suspicion_case'
+      'upsert_cod_suspicion_driver_resolution'
     );
 
     if (error) throw error;
@@ -131,5 +133,58 @@ export async function resolveCodSuspicionCase({ orderCode, driverId, suspicionTy
   } catch (err) {
     console.error('Failed to resolve COD suspicion case:', err);
     return { success: false, error: err.message || 'UNKNOWN_ERROR', row: null };
+  }
+}
+
+export async function undoCodSuspicionDriverResolution({ driverId, suspicionType }) {
+  try {
+    const { error } = await withTimeout(
+      supabase.rpc('undo_cod_suspicion_driver_resolution', {
+        p_driver_id: driverId,
+        p_suspicion_type: suspicionType
+      }),
+      'undo_cod_suspicion_driver_resolution'
+    );
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to undo COD driver resolution:', err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR' };
+  }
+}
+
+export async function uploadCodResolutionEvidence(driverId, file) {
+  const safeDriverId = String(driverId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${safeDriverId}/${crypto.randomUUID()}.${extension}`;
+  try {
+    const { error } = await withTimeout(
+      supabase.storage.from('cod-resolution-evidence').upload(path, file, {
+        contentType: file.type,
+        upsert: false
+      }),
+      'cod-resolution-evidence-upload'
+    );
+    if (error) throw error;
+    return { success: true, path };
+  } catch (err) {
+    console.error('Failed to upload COD resolution evidence:', err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR', path: null };
+  }
+}
+
+export async function removeCodResolutionEvidence(paths) {
+  const validPaths = (paths || []).filter(Boolean);
+  if (validPaths.length === 0) return { success: true };
+  try {
+    const { error } = await withTimeout(
+      supabase.storage.from('cod-resolution-evidence').remove(validPaths),
+      'cod-resolution-evidence-delete'
+    );
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to delete COD resolution evidence:', err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR' };
   }
 }

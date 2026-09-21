@@ -168,27 +168,23 @@ export function getCodSuspicionCaseKey({ orderCode, driverId, suspicionType }) {
 }
 
 /**
- * Split already-filtered driver groups by persisted resolution status. A driver
- * with both states intentionally appears in both tabs with only matching orders.
+ * A processing decision covers every currently screened order of a driver for
+ * one suspicion type. It deliberately excludes orderCode.
+ */
+export function getCodSuspicionDriverKey({ driverId, suspicionType }) {
+  return JSON.stringify([
+    String(driverId || '').trim(),
+    String(suspicionType || '').trim()
+  ]);
+}
+
+/**
+ * Split already-filtered driver groups by persisted driver workflow status.
  */
 export function filterDriverGroupsByResolutionStatus(driverGroups = [], status = 'pending') {
   const resolved = status === 'resolved';
 
-  return driverGroups
-    .map(driver => {
-      const orders = driver.orders.filter(order => Boolean(order.resolution?.status === 'resolved') === resolved);
-      if (orders.length === 0) return null;
-
-      return {
-        ...driver,
-        orders,
-        orderCount: orders.length,
-        maxScore: Math.max(...orders.map(order => order.totalScore), 0),
-        totalCod: orders.reduce((sum, order) => sum + (order.codAmount || 0), 0),
-        warehouses: Array.from(new Set(orders.map(order => order.warehouseName))).sort()
-      };
-    })
-    .filter(Boolean);
+  return driverGroups.filter(driver => Boolean(driver.resolution?.status === 'resolved') === resolved);
 }
 
 /**
@@ -198,13 +194,14 @@ export function groupOrdersByDriver(orders = []) {
   const driverMap = new Map();
 
   orders.forEach((order) => {
-    const key = order.driverId || 'UNKNOWN';
+    const key = getCodSuspicionDriverKey(order);
     let group = driverMap.get(key);
     if (!group) {
       group = {
-        driverId: order.driverId,
-        driverName: order.driverName,
-        suspicionType: order.suspicionType,
+      driverId: order.driverId,
+      driverName: order.driverName,
+      suspicionType: order.suspicionType,
+      resolution: order.resolution || null,
         orders: [],
         maxScore: 0,
         totalCod: 0,

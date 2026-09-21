@@ -10,6 +10,7 @@ import {
   formatDateTimeVN,
   normalizeSuspicionOrder,
   getCodSuspicionCaseKey,
+  getCodSuspicionDriverKey,
   groupOrdersByDriver,
   sortDrivers,
   filterDriverGroups,
@@ -23,6 +24,7 @@ import {
 const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_suspicion_module.sql', import.meta.url);
 const appsScriptUrl = new URL('../../scripts/apps-script/sync-to-supabase.gs', import.meta.url);
 const resolutionMigrationUrl = new URL('../../supabase/migrations/20260921035354_create_cod_suspicion_case_resolutions.sql', import.meta.url);
+const driverResolutionMigrationUrl = new URL('../../supabase/migrations/20260921060000_cod_suspicion_driver_workflow.sql', import.meta.url);
 
 test('COD resolution migration persists only workflow metadata behind the two-account Dev allowlist', async () => {
   const migration = await readFile(resolutionMigrationUrl, 'utf8');
@@ -43,6 +45,17 @@ test('COD resolution migration persists only workflow metadata behind the two-ac
   assert.match(migration, /revoke all on function public\.resolve_cod_suspicion_case/i);
   assert.doesNotMatch(migration, /insert into public\.kas_cod_suspicion_data/i);
   assert.doesNotMatch(migration, /update public\.kas_cod_suspicion_data/i);
+});
+
+test('driver workflow resolves all of one driver type and protects evidence uploads', async () => {
+  const migration = await readFile(driverResolutionMigrationUrl, 'utf8');
+  assert.match(migration, /cod_suspicion_driver_resolutions/i);
+  assert.match(migration, /unique \(driver_id, suspicion_type\)/i);
+  assert.match(migration, /contact_channel text not null/i);
+  assert.match(migration, /cod-resolution-evidence/i);
+  assert.match(migration, /for insert to authenticated/i);
+  assert.match(migration, /is_cod_resolution_operator/i);
+  assert.match(migration, /undo_cod_suspicion_driver_resolution/i);
 });
 
 test('KAS-221 migration exposes read-only data to authenticated users and fails closed on bad sync payloads', async () => {
@@ -224,28 +237,32 @@ test('groupOrdersByDriver groups orders under drivers and computes driver max sc
   assert.equal(d2.totalCod, 3000000);
 });
 
-test('resolution tabs keep a mixed-status driver in both views with only matching orders', () => {
-  const driverGroups = [{
+test('resolution tabs move the whole driver group together', () => {
+  const pendingDriver = {
     driverId: 'D1',
     driverName: 'Tài xế 1',
-    orders: [
-      { orderCode: 'O-pending', totalScore: 15, codAmount: 100, warehouseName: 'Kho A', resolution: null },
-      { orderCode: 'O-resolved', totalScore: 20, codAmount: 200, warehouseName: 'Kho B', resolution: { status: 'resolved' } }
-    ]
-  }];
+    orders: [{ orderCode: 'O1' }, { orderCode: 'O2' }],
+    resolution: null
+  };
+  const resolvedDriver = { ...pendingDriver, driverId: 'D2', resolution: { status: 'resolved' } };
+  const driverGroups = [pendingDriver, resolvedDriver];
 
   const pending = filterDriverGroupsByResolutionStatus(driverGroups, 'pending');
   const resolved = filterDriverGroupsByResolutionStatus(driverGroups, 'resolved');
 
   assert.equal(pending.length, 1);
-  assert.equal(pending[0].orders.length, 1);
-  assert.equal(pending[0].orders[0].orderCode, 'O-pending');
+  assert.equal(pending[0].orders.length, 2);
+  assert.equal(pending[0].driverId, 'D1');
   assert.equal(resolved.length, 1);
-  assert.equal(resolved[0].orders.length, 1);
-  assert.equal(resolved[0].orders[0].orderCode, 'O-resolved');
+  assert.equal(resolved[0].orders.length, 2);
+  assert.equal(resolved[0].driverId, 'D2');
   assert.notEqual(
     getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D1', suspicionType: 'Gối đầu COD' }),
     getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D2', suspicionType: 'Gối đầu COD' })
+  );
+  assert.equal(
+    getCodSuspicionDriverKey({ driverId: 'D1', suspicionType: 'Gối đầu COD' }),
+    getCodSuspicionDriverKey({ driverId: 'D1', suspicionType: 'Gối đầu COD' })
   );
 });
 
