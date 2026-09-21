@@ -2,6 +2,11 @@ import { supabase } from './supabaseClient';
 
 const PAGE_SIZE = 1000;
 const REQUEST_TIMEOUT_MS = 15000;
+// COD data is a periodically synced snapshot. Keep it in memory briefly so
+// navigating away from and back to the tab does not re-download every row.
+// This intentionally does not persist across a page reload or browser session.
+const COD_SUSPICION_CACHE_TTL_MS = 5 * 60 * 1000;
+let codSuspicionCache = null;
 
 function withTimeout(promise, label) {
   let timeoutId;
@@ -12,9 +17,17 @@ function withTimeout(promise, label) {
 }
 
 /**
- * Fetch all suspicion records and latest metadata snapshot
+ * Fetch all suspicion records and latest metadata snapshot.
+ *
+ * `forceRefresh` is reserved for an explicit retry/refresh action. It bypasses
+ * the short-lived in-memory snapshot cache so operations can see a newly
+ * synced batch immediately.
  */
-export async function fetchCodSuspicionData() {
+export async function fetchCodSuspicionData({ forceRefresh = false } = {}) {
+  if (!forceRefresh && codSuspicionCache && codSuspicionCache.expiresAt > Date.now()) {
+    return codSuspicionCache.result;
+  }
+
   try {
     // 1. Fetch metadata snapshot
     let metadata = null;
@@ -51,7 +64,7 @@ export async function fetchCodSuspicionData() {
       from += PAGE_SIZE;
     }
 
-    return {
+    const result = {
       success: true,
       rows,
       metadata: metadata || {
@@ -60,6 +73,11 @@ export async function fetchCodSuspicionData() {
         total_orders: rows.length
       }
     };
+    codSuspicionCache = {
+      result,
+      expiresAt: Date.now() + COD_SUSPICION_CACHE_TTL_MS
+    };
+    return result;
   } catch (err) {
     console.error('Failed to fetch COD suspicion data:', err);
     return {
