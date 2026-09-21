@@ -70,3 +70,48 @@ export async function fetchCodSuspicionData() {
     };
   }
 }
+
+/**
+ * Read workflow metadata separately from KAS-221 source records. RLS limits
+ * this endpoint to the two currently authorized Dev Admin accounts.
+ */
+export async function fetchCodSuspicionCaseResolutions() {
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('cod_suspicion_case_resolutions')
+        .select('order_code, driver_id, suspicion_type, status, resolved_at, resolved_by')
+        .eq('status', 'resolved'),
+      'cod_suspicion_case_resolutions'
+    );
+
+    if (error) throw error;
+    return { success: true, rows: data || [] };
+  } catch (err) {
+    console.error('Failed to fetch COD resolution metadata:', err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR', rows: [] };
+  }
+}
+
+/**
+ * The database verifies permission, source-case existence, resolver identity,
+ * and timestamp. The browser only submits the stable source-case coordinates.
+ */
+export async function resolveCodSuspicionCase({ orderCode, driverId, suspicionType }) {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('resolve_cod_suspicion_case', {
+        p_order_code: orderCode,
+        p_driver_id: driverId,
+        p_suspicion_type: suspicionType
+      }),
+      'resolve_cod_suspicion_case'
+    );
+
+    if (error) throw error;
+    return { success: true, row: Array.isArray(data) ? data[0] : data };
+  } catch (err) {
+    console.error('Failed to resolve COD suspicion case:', err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR', row: null };
+  }
+}

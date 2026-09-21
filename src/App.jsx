@@ -12,7 +12,7 @@ import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal from './components/AuthModal';
-import { isAllowedEmail, isDevAdminEmail } from './utils/authPolicy';
+import { isAllowedEmail } from './utils/authPolicy';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
@@ -271,16 +271,24 @@ export default function App() {
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
-  // Listen for Supabase Authentication State changes.
+  // Listen for Supabase Authentication State changes. Dev access comes from
+  // the RLS-protected role table, never from a client-side email allowlist.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let disposed = false;
+    const applySession = async (session) => {
       if (session?.user?.email) {
         const email = session.user.email.toLowerCase();
         if (isAllowedEmail(email)) {
+          const { data: roleRow, error: roleError } = await supabase
+            .from('app_user_roles')
+            .select('role')
+            .eq('email', email)
+            .maybeSingle();
+          if (disposed) return;
           const userObj = {
             email,
             name: email.split('@')[0],
-            isDevAdmin: isDevAdminEmail(email),
+            isDevAdmin: !roleError && roleRow?.role === 'dev',
             supabaseUser: session.user
           };
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
@@ -295,33 +303,18 @@ export default function App() {
         localStorage.removeItem('ghn_user');
         setCurrentUser(null);
       }
-    });
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => applySession(session));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.email) {
-        const email = session.user.email.toLowerCase();
-        if (isAllowedEmail(email)) {
-          const userObj = {
-            email,
-            name: email.split('@')[0],
-            isDevAdmin: isDevAdminEmail(email),
-            supabaseUser: session.user
-          };
-          localStorage.setItem('ghn_user', JSON.stringify(userObj));
-          setCurrentUser(userObj);
-        } else {
-          showToast(`Tài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`, { tone: 'error', title: 'Truy cập bị từ chối', duration: 9000 });
-          supabase.auth.signOut();
-          localStorage.removeItem('ghn_user');
-          setCurrentUser(null);
-        }
-      } else {
-        localStorage.removeItem('ghn_user');
-        setCurrentUser(null);
-      }
+      void applySession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      disposed = true;
+      subscription.unsubscribe();
+    };
   }, [showToast]);
 
   useEffect(() => {
@@ -695,7 +688,11 @@ export default function App() {
 
               {activeTab === 'cod-suspicion' && currentUser && (
                 <Suspense fallback={<LoadingScreen text="Đang mở tab Đơn nghi vấn COD..." option={4} />}>
-                  <CodSuspicionReport filters={codSuspicionFilters} onAvailableWarehouses={setCodSuspicionWarehouses} />
+                  <CodSuspicionReport
+                    filters={codSuspicionFilters}
+                    onAvailableWarehouses={setCodSuspicionWarehouses}
+                    canManageResolutions={Boolean(currentUser?.isDevAdmin)}
+                  />
                 </Suspense>
               )}
             </div>

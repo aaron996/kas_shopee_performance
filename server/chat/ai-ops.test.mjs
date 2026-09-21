@@ -8,7 +8,7 @@ import { calculateModelCost, formatMicrousdToUsd, MODEL_PRICING } from './pricin
 import { readChatConfig } from './config.js';
 import { computeQuestionFingerprint, finalizeChatRequest, normalizeQuestionText, reserveChatRequest } from './quota.js';
 import { createChatHandler } from '../../api/chat.js';
-import { createAiOpsHandler, maskEmail } from '../../api/ai-ops.js';
+import { createAiOpsHandler as createAiOpsHandlerImpl, maskEmail } from '../../api/ai-ops.js';
 import { ChatError } from './errors.js';
 
 class FakeResponse extends EventEmitter {
@@ -24,6 +24,16 @@ class FakeResponse extends EventEmitter {
   flushHeaders() { this.headersSent = true; }
   write(chunk) { this.headersSent = true; this.body += chunk; return true; }
   end(chunk = '') { this.body += chunk; this.headersSent = true; this.writableEnded = true; }
+}
+
+// API authorization is injected in these handler tests. Production resolves
+// Dev status via the authenticated database RPC; fixtures label admin users by
+// their stable test id and keep regular users denied.
+function createAiOpsHandler(dependencies = {}) {
+  return createAiOpsHandlerImpl({
+    authorizeDev: async (_userClient, user) => String(user?.id || '').includes('admin'),
+    ...dependencies
+  });
 }
 
 test('MODEL_PRICING calculates exact integer micro-USD for Luna without float inaccuracies', () => {

@@ -22,21 +22,31 @@ import {
   groupOrdersByDriver,
   sortDrivers,
   filterDriverGroups,
+  filterDriverGroupsByResolutionStatus,
+  getCodSuspicionCaseKey,
   computeSuspicionKPIs,
   getAlertLevel,
   aggregateOrdersByEndDeliveryDate
 } from '../utils/codSuspicionProcessor';
-import { fetchCodSuspicionData } from '../utils/codSuspicionClient';
+import {
+  fetchCodSuspicionData,
+  fetchCodSuspicionCaseResolutions,
+  resolveCodSuspicionCase
+} from '../utils/codSuspicionClient';
 
 const TYPE_COLORS = {
   'Gối đầu COD': 'var(--ghn-orange, #f26522)',
   'Rút ruột': '#8b5cf6'
 };
 
-export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
+export default function CodSuspicionReport({ filters, onAvailableWarehouses, canManageResolutions = false }) {
   const [rawData, setRawData] = useState([]);
+  const [resolutions, setResolutions] = useState(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [resolutionError, setResolutionError] = useState('');
+  const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
+  const [resolvingCaseKeys, setResolvingCaseKeys] = useState(() => new Set());
 
   const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL' } = filters || {};
 
@@ -59,9 +69,25 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const res = await fetchCodSuspicionData();
-      if (res.success) {
-        setRawData(res.rows || []);
+      const [sourceResult, resolutionResult] = await Promise.all([
+        fetchCodSuspicionData(),
+        canManageResolutions ? fetchCodSuspicionCaseResolutions() : Promise.resolve({ success: true, rows: [] })
+      ]);
+      if (sourceResult.success) {
+        setRawData(sourceResult.rows || []);
+        setResolutions(new Map(
+          (resolutionResult.rows || []).map(row => [
+            getCodSuspicionCaseKey({
+              orderCode: row.order_code,
+              driverId: row.driver_id,
+              suspicionType: row.suspicion_type
+            }),
+            row
+          ])
+        ));
+        if (!resolutionResult.success) {
+          setResolutionError('Không thể tải trạng thái xử lý. Vui lòng thử lại trước khi xác nhận một đơn.');
+        }
       } else {
         setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
       }
@@ -71,16 +97,20 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [canManageResolutions]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   // Normalize all rows
-  const normalizedOrders = useMemo(() => {
-    return rawData.map(normalizeSuspicionOrder);
-  }, [rawData]);
+  const normalizedOrders = useMemo(() => rawData.map(raw => {
+    const order = normalizeSuspicionOrder(raw);
+    return {
+      ...order,
+      resolution: resolutions.get(getCodSuspicionCaseKey(order)) || null
+    };
+  }), [rawData, resolutions]);
 
   // Group all rows by driver and sort default
   const allDriverGroups = useMemo(() => {
@@ -112,6 +142,20 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
     });
   }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
+  const resolutionCounts = useMemo(() => {
+    const total = filteredDrivers.reduce((sum, driver) => sum + driver.orders.length, 0);
+    const resolved = filteredDrivers.reduce(
+      (sum, driver) => sum + driver.orders.filter(order => order.resolution?.status === 'resolved').length,
+      0
+    );
+    return { pending: total - resolved, resolved };
+  }, [filteredDrivers]);
+
+  const visibleDrivers = useMemo(
+    () => filterDriverGroupsByResolutionStatus(filteredDrivers, activeResolutionTab),
+    [filteredDrivers, activeResolutionTab]
+  );
+
   // Compute KPIs & Triage Chart stats
   const kpis = useMemo(() => {
     return computeSuspicionKPIs(filteredDrivers);
@@ -126,6 +170,36 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
       } else {
         next.add(driverId);
       }
+      return next;
+    });
+  };
+
+  const handleResolveOrder = async (order) => {
+    const caseKey = getCodSuspicionCaseKey(order);
+    if (resolvingCaseKeys.has(caseKey) || order.resolution?.status === 'resolved') return;
+
+    const confirmed = window.confirm(
+      `Xác nhận đơn ${order.orderCode} đã được các bên liên quan xử lý ở kênh khác? Thao tác này sẽ lưu trạng thái dùng chung.`
+    );
+    if (!confirmed) return;
+
+    setResolutionError('');
+    setResolvingCaseKeys(previous => new Set(previous).add(caseKey));
+    const result = await resolveCodSuspicionCase(order);
+    setResolvingCaseKeys(previous => {
+      const next = new Set(previous);
+      next.delete(caseKey);
+      return next;
+    });
+
+    if (!result.success) {
+      setResolutionError('Không thể lưu trạng thái xử lý. Đơn vẫn ở Cần xác minh; vui lòng thử lại.');
+      return;
+    }
+
+    setResolutions(previous => {
+      const next = new Map(previous);
+      next.set(caseKey, result.row);
       return next;
     });
   };
@@ -472,9 +546,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
         </div>
       </div>
 
-      {/* 4. Driver Accordion Header (Controls "Mở rộng tất cả / Thu gọn" removed) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+      {/* 4. Durable-resolution queue */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
           <h2
             style={{
               margin: 0,
@@ -497,14 +571,56 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
               borderRadius: 'var(--radius-pill, 999px)'
             }}
           >
-            {filteredDrivers.length} tài xế
+            {resolutionCounts.pending + resolutionCounts.resolved} đơn
           </span>
+        </div>
+
+        <div role="tablist" aria-label="Trạng thái xử lý đơn nghi vấn" style={{ display: 'flex', gap: '0.45rem' }}>
+          {[
+            { id: 'pending', label: 'Cần xác minh', count: resolutionCounts.pending },
+            { id: 'resolved', label: 'Đã xử lý', count: resolutionCounts.resolved }
+          ].map(tab => {
+            const selected = activeResolutionTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setActiveResolutionTab(tab.id)}
+                style={{
+                  minHeight: '36px',
+                  padding: '0.35rem 0.8rem',
+                  borderRadius: 'var(--radius-pill, 999px)',
+                  border: selected ? '1px solid var(--action-primary, #0ea5c4)' : '1px solid var(--border, #dce9f7)',
+                  background: selected ? 'var(--action-primary, #0ea5c4)' : 'var(--surface, #ffffff)',
+                  color: selected ? '#ffffff' : 'var(--text-main, #0f172a)',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {tab.label} <span aria-label={`${tab.count} đơn`}>({tab.count})</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {resolutionError && (
+        <div role="alert" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--danger-fg, #a13b2a)', background: 'var(--danger-bg, #f7d9d4)', border: '1px solid rgba(161, 59, 42, 0.3)', borderRadius: 'var(--radius-control, 10px)' }}>
+          {resolutionError} <button type="button" onClick={loadData} style={{ marginLeft: '0.5rem', color: 'inherit', fontWeight: 700, textDecoration: 'underline', background: 'transparent', border: 0, cursor: 'pointer' }}>Tải lại</button>
+        </div>
+      )}
+
+      {!canManageResolutions && (
+        <div role="status" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--warning-fg, #92400e)', background: 'var(--warning-bg, #fef3c7)', border: '1px solid rgba(146, 64, 14, 0.25)', borderRadius: 'var(--radius-control, 10px)' }}>
+          Bạn chỉ có quyền xem dữ liệu nguồn. Chỉ Dev Admin được xác nhận xử lý đơn.
+        </div>
+      )}
+
       {/* 6. Driver Accordion List */}
       <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {isLoading && filteredDrivers.length === 0 ? (
+        {isLoading && visibleDrivers.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -519,7 +635,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
               Đang tải danh sách tài xế và đơn nghi vấn...
             </div>
           </div>
-        ) : filteredDrivers.length === 0 ? (
+        ) : visibleDrivers.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -531,17 +647,20 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
           >
             <CheckCircle2 size={36} style={{ color: '#10b981', marginBottom: '0.75rem' }} />
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              Không có tài xế nào trong danh sách nghi vấn
+              {activeResolutionTab === 'resolved' ? 'Chưa có đơn nào đã xử lý' : 'Không có đơn nào cần xác minh'}
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
               {suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL'
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
-                : 'Hệ thống không ghi nhận tài xế nào đạt ngưỡng nghi vấn KAS-221 trong kỳ kiểm tra.'}
+                : activeResolutionTab === 'resolved'
+                  ? 'Các đơn sẽ xuất hiện ở đây sau khi Dev Admin xác nhận đã được các bên liên quan xử lý.'
+                  : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
             </div>
           </div>
         ) : (
-          filteredDrivers.map((driver, idx) => {
-            const isExpanded = expandedDrivers.has(driver.driverId);
+          visibleDrivers.map((driver, idx) => {
+            const accordionKey = `${activeResolutionTab}:${driver.driverId}`;
+            const isExpanded = expandedDrivers.has(accordionKey);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
             const driverAlertLevel = getAlertLevel(driver.maxScore);
 
@@ -561,7 +680,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                 {/* Driver Summary Header (Accordion Trigger) */}
                 <button
                   type="button"
-                  onClick={() => handleToggleExpandDriver(driver.driverId)}
+                  onClick={() => handleToggleExpandDriver(accordionKey)}
                   aria-expanded={isExpanded}
                   style={{
                     width: '100%',
@@ -692,7 +811,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                       <table
                         style={{
                           width: '100%',
-                          minWidth: '620px',
+                          minWidth: '760px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -706,11 +825,15 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
+                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Xử lý</th>
                           </tr>
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
                             const orderAlertLevel = getAlertLevel(order.totalScore);
+                            const caseKey = getCodSuspicionCaseKey(order);
+                            const isResolving = resolvingCaseKeys.has(caseKey);
+                            const isResolved = order.resolution?.status === 'resolved';
 
                             return (
                               <tr
@@ -760,6 +883,19 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                                   >
                                     {orderAlertLevel.label}
                                   </span>
+                                </td>
+
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: isResolved || isResolving || !canManageResolutions ? 'default' : 'pointer', color: isResolved ? 'var(--success-fg, #0f6e56)' : 'var(--text-main)' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isResolved}
+                                      disabled={isResolved || isResolving || !canManageResolutions}
+                                      onChange={() => handleResolveOrder(order)}
+                                      aria-label={isResolved ? `Đơn ${order.orderCode} đã xử lý` : `Xác nhận xử lý đơn ${order.orderCode}`}
+                                    />
+                                    <span>{isResolving ? 'Đang lưu…' : isResolved ? 'Đã xử lý' : 'Xác nhận'}</span>
+                                  </label>
                                 </td>
                               </tr>
                             );
