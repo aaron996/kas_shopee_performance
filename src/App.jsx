@@ -13,6 +13,7 @@ import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal from './components/AuthModal';
 import { isAllowedEmail } from './utils/authPolicy';
+import { getLocalPreviewUser } from './utils/localPreviewAuth';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
@@ -24,6 +25,8 @@ import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
+
+const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import LoadingScreen from './components/LoadingScreen';
 import { useToast } from './components/ui/Toast';
 import { Layers, ArrowRightLeft, Clock, Activity, Sparkles, ShieldAlert } from 'lucide-react';
@@ -70,6 +73,7 @@ async function recordAccess(email) {
 export default function App() {
   const showToast = useToast();
   const [currentUser, setCurrentUser] = useState(() => {
+    if (LOCAL_PREVIEW_USER) return LOCAL_PREVIEW_USER;
     try {
       const saved = localStorage.getItem('ghn_user');
       if (saved) {
@@ -97,8 +101,9 @@ export default function App() {
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
-  const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', alertLevel: 'ALL' });
+  const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', alertLevel: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
+  const [codSearchFocus, setCodSearchFocus] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
@@ -119,7 +124,7 @@ export default function App() {
   // When a valid ?scope= is present (embedded mode), skip this prompt
   // entirely — the host app already made the choice.
   const [hasPickedClient, setHasPickedClient] = useState(() => (
-    initialView.hasPickedClient
+    Boolean(LOCAL_PREVIEW_USER) || initialView.hasPickedClient
   ));
 
   // Let the host page (Control Tower) update the scope live via postMessage
@@ -203,6 +208,23 @@ export default function App() {
     });
   }, []);
 
+  const handleSelectCodSearchResult = useCallback((target) => {
+    if (!target) return;
+    setCodSuspicionFilters({
+      suspicionType: target.suspicionType || 'ALL',
+      warehouse: 'ALL',
+      alertLevel: 'ALL',
+      searchQuery: target.searchQuery || target.driverId || ''
+    });
+    setCodSearchFocus({ ...target, requestId: Date.now() });
+    setActiveTab('cod-suspicion');
+  }, []);
+
+  const clearCodSearch = useCallback(() => {
+    setCodSuspicionFilters(previous => ({ ...previous, searchQuery: '' }));
+    setCodSearchFocus(null);
+  }, []);
+
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('ghn_theme') === 'dark';
   });
@@ -274,6 +296,11 @@ export default function App() {
   // Listen for Supabase Authentication State changes. Dev access comes from
   // the RLS-protected role table, never from a client-side email allowlist.
   useEffect(() => {
+    if (LOCAL_PREVIEW_USER) {
+      setCurrentUser(LOCAL_PREVIEW_USER);
+      return undefined;
+    }
+
     let disposed = false;
     const applySession = async (session) => {
       if (session?.user?.email) {
@@ -336,6 +363,10 @@ export default function App() {
 
   const syncRequestRef = React.useRef(false);
   const handleSyncLiveSheet = useCallback(async () => {
+    if (LOCAL_PREVIEW_USER) {
+      setSyncStatus({ kind: 'default', source: 'Local preview', text: 'Local preview không gọi Supabase hoặc Google Sheet.' });
+      return;
+    }
     if (syncRequestRef.current) return;
     syncRequestRef.current = true;
     setIsSyncing(true);
@@ -447,7 +478,7 @@ export default function App() {
 
   // Real-time Presence & Access Logging
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.localPreview) return undefined;
 
     recordAccess(currentUser.email);
 
@@ -487,6 +518,7 @@ export default function App() {
   }, [currentUser]);
 
   const handleLogout = async () => {
+    if (LOCAL_PREVIEW_USER) return;
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
     setCurrentUser(null);
@@ -563,6 +595,8 @@ export default function App() {
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
         onSelectRegion={handleJumpToRegion}
+        onSelectCodResult={handleSelectCodSearchResult}
+        canSearchCod={Boolean(currentUser && !currentUser.localPreview)}
         hasInsightTab
       />
 
@@ -577,6 +611,7 @@ export default function App() {
           setIsDarkMode={setIsDarkMode}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onOpenPalette={() => setIsPaletteOpen(true)}
         />
 
         {/* Main Content Area (Header + Dashboard) */}
@@ -692,6 +727,10 @@ export default function App() {
                     filters={codSuspicionFilters}
                     onAvailableWarehouses={setCodSuspicionWarehouses}
                     canManageResolutions={Boolean(currentUser?.isDevAdmin)}
+                    dataEnabled={!currentUser?.localPreview}
+                    focusTarget={codSearchFocus}
+                    onFocusTargetHandled={() => setCodSearchFocus(null)}
+                    onClearSearch={clearCodSearch}
                   />
                 </Suspense>
               )}
@@ -775,7 +814,7 @@ export default function App() {
               onResetDefault={handleResetDefaultData}
             />
           )}
-          {currentUser && (
+          {currentUser && !currentUser.localPreview && (
             <ChatPanel
               isOpen={isChatOpen}
               onOpen={() => setIsChatOpen(true)}
