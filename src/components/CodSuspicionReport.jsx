@@ -65,12 +65,12 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   }, []);
 
   // Fetch data
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async ({ forceRefresh = false } = {}) => {
     setIsLoading(true);
     setErrorMsg('');
     try {
       const [sourceResult, resolutionResult] = await Promise.all([
-        fetchCodSuspicionData(),
+        fetchCodSuspicionData({ forceRefresh }),
         canManageResolutions ? fetchCodSuspicionCaseResolutions() : Promise.resolve({ success: true, rows: [] })
       ]);
       if (sourceResult.success) {
@@ -317,7 +317,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           <button
             type="button"
             className="nav-btn-sleek"
-            onClick={loadData}
+            onClick={() => loadData({ forceRefresh: true })}
             style={{ borderColor: 'currentColor', color: '#ef4444' }}
           >
             Thử lại
@@ -608,7 +608,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
 
       {resolutionError && (
         <div role="alert" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--danger-fg, #a13b2a)', background: 'var(--danger-bg, #f7d9d4)', border: '1px solid rgba(161, 59, 42, 0.3)', borderRadius: 'var(--radius-control, 10px)' }}>
-          {resolutionError} <button type="button" onClick={loadData} style={{ marginLeft: '0.5rem', color: 'inherit', fontWeight: 700, textDecoration: 'underline', background: 'transparent', border: 0, cursor: 'pointer' }}>Tải lại</button>
+          {resolutionError} <button type="button" onClick={() => loadData({ forceRefresh: true })} style={{ marginLeft: '0.5rem', color: 'inherit', fontWeight: 700, textDecoration: 'underline', background: 'transparent', border: 0, cursor: 'pointer' }}>Tải lại</button>
         </div>
       )}
 
