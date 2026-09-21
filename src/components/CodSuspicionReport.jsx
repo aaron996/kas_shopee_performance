@@ -414,10 +414,6 @@ export default function CodSuspicionReport({
               </p>
             </div>
           </div>
-
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)' }}>
-            Quy chuẩn sàng lọc KAS-221
-          </div>
         </div>
 
         {/* Bottom Ledger Metrics */}
