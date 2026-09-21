@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ShieldAlert,
   RefreshCw,
   ChevronDown,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  ImagePlus,
+  X,
+  MessageSquare,
+  LoaderCircle
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,7 +30,7 @@ import {
   sortDrivers,
   filterDriverGroups,
   filterDriverGroupsByResolutionStatus,
-  getCodSuspicionCaseKey,
+  getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
   aggregateOrdersByEndDeliveryDate
@@ -31,13 +38,25 @@ import {
 import {
   fetchCodSuspicionData,
   fetchCodSuspicionCaseResolutions,
-  resolveCodSuspicionCase
+  saveCodSuspicionDriverResolution,
+  undoCodSuspicionDriverResolution,
+  uploadCodResolutionEvidence,
+  removeCodResolutionEvidence
 } from '../utils/codSuspicionClient';
+import ModalDialog from './ui/ModalDialog';
 
 const TYPE_COLORS = {
   'Gối đầu COD': 'var(--ghn-orange, #f26522)',
   'Rút ruột': '#8b5cf6'
 };
+
+const CONTACT_CHANNELS = [
+  ['telegram', 'Telegram'],
+  ['gtalk', 'Gtalk'],
+  ['email', 'Email'],
+  ['verbal', 'Trao đổi miệng'],
+  ['other', 'Khác']
+];
 
 export default function CodSuspicionReport({ filters, onAvailableWarehouses, canManageResolutions = false }) {
   const [rawData, setRawData] = useState([]);
@@ -46,7 +65,10 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
-  const [resolvingCaseKeys, setResolvingCaseKeys] = useState(() => new Set());
+  const [resolvingDriverKeys, setResolvingDriverKeys] = useState(() => new Set());
+  const [workflowDialog, setWorkflowDialog] = useState(null);
+  const [workflowForm, setWorkflowForm] = useState({ contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
+  const fileInputRef = useRef(null);
 
   const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL' } = filters || {};
 
@@ -71,14 +93,13 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     try {
       const [sourceResult, resolutionResult] = await Promise.all([
         fetchCodSuspicionData({ forceRefresh }),
-        canManageResolutions ? fetchCodSuspicionCaseResolutions() : Promise.resolve({ success: true, rows: [] })
+        fetchCodSuspicionCaseResolutions()
       ]);
       if (sourceResult.success) {
         setRawData(sourceResult.rows || []);
         setResolutions(new Map(
           (resolutionResult.rows || []).map(row => [
-            getCodSuspicionCaseKey({
-              orderCode: row.order_code,
+            getCodSuspicionDriverKey({
               driverId: row.driver_id,
               suspicionType: row.suspicion_type
             }),
@@ -86,7 +107,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           ])
         ));
         if (!resolutionResult.success) {
-          setResolutionError('Không thể tải trạng thái xử lý. Vui lòng thử lại trước khi xác nhận một đơn.');
+          setResolutionError('Không thể tải trạng thái xử lý. Vui lòng thử lại trước khi thao tác.');
         }
       } else {
         setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
@@ -97,7 +118,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     } finally {
       setIsLoading(false);
     }
-  }, [canManageResolutions]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -108,7 +129,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     const order = normalizeSuspicionOrder(raw);
     return {
       ...order,
-      resolution: resolutions.get(getCodSuspicionCaseKey(order)) || null
+      resolution: resolutions.get(getCodSuspicionDriverKey(order)) || null
     };
   }), [rawData, resolutions]);
 
@@ -143,10 +164,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
   const resolutionCounts = useMemo(() => {
-    const total = filteredDrivers.reduce((sum, driver) => sum + driver.orders.length, 0);
+    const total = filteredDrivers.reduce((sum, driver) => sum + driver.orderCount, 0);
     const resolved = filteredDrivers.reduce(
-      (sum, driver) => sum + driver.orders.filter(order => order.resolution?.status === 'resolved').length,
-      0
+      (sum, driver) => sum + (driver.resolution?.status === 'resolved' ? driver.orderCount : 0), 0
     );
     return { pending: total - resolved, resolved };
   }, [filteredDrivers]);
@@ -174,34 +194,82 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     });
   };
 
-  const handleResolveOrder = async (order) => {
-    const caseKey = getCodSuspicionCaseKey(order);
-    if (resolvingCaseKeys.has(caseKey) || order.resolution?.status === 'resolved') return;
-
-    const confirmed = window.confirm(
-      `Xác nhận đơn ${order.orderCode} đã được các bên liên quan xử lý ở kênh khác? Thao tác này sẽ lưu trạng thái dùng chung.`
-    );
-    if (!confirmed) return;
-
-    setResolutionError('');
-    setResolvingCaseKeys(previous => new Set(previous).add(caseKey));
-    const result = await resolveCodSuspicionCase(order);
-    setResolvingCaseKeys(previous => {
-      const next = new Set(previous);
-      next.delete(caseKey);
-      return next;
+  const openWorkflowDialog = (driver) => {
+    if (!canManageResolutions) return;
+    const existing = driver.resolution || null;
+    setWorkflowDialog(driver);
+    setWorkflowForm({
+      contactChannel: existing?.contact_channel || 'telegram',
+      note: existing?.note || '',
+      attachments: Array.isArray(existing?.attachments) ? existing.attachments : [],
+      removedAttachments: [],
+      newFiles: []
     });
+  };
+
+  const addEvidenceFiles = (files) => {
+    const accepted = Array.from(files || []).filter(file => (
+      ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 5 * 1024 * 1024
+    ));
+    if (accepted.length !== Array.from(files || []).length) {
+      setResolutionError('Chỉ nhận ảnh JPG, PNG hoặc WEBP tối đa 5 MB.');
+    }
+    setWorkflowForm(previous => ({ ...previous, newFiles: [...previous.newFiles, ...accepted].slice(0, 5) }));
+  };
+
+  const handleSaveDriverResolution = async () => {
+    if (!workflowDialog || !workflowForm.contactChannel) return;
+    const driverKey = getCodSuspicionDriverKey(workflowDialog);
+    setResolutionError('');
+    setResolvingDriverKeys(previous => new Set(previous).add(driverKey));
+
+    const uploadedPaths = [];
+    for (const file of workflowForm.newFiles) {
+      const upload = await uploadCodResolutionEvidence(workflowDialog.driverId, file);
+      if (!upload.success) {
+        await removeCodResolutionEvidence(uploadedPaths);
+        setResolutionError('Không thể tải ảnh minh chứng. Trạng thái xử lý chưa được lưu.');
+        setResolvingDriverKeys(previous => { const next = new Set(previous); next.delete(driverKey); return next; });
+        return;
+      }
+      uploadedPaths.push(upload.path);
+    }
+
+    const attachments = [...workflowForm.attachments, ...uploadedPaths];
+    const result = await saveCodSuspicionDriverResolution({
+      driverId: workflowDialog.driverId,
+      suspicionType: workflowDialog.suspicionType,
+      contactChannel: workflowForm.contactChannel,
+      note: workflowForm.note,
+      attachments
+    });
+    setResolvingDriverKeys(previous => { const next = new Set(previous); next.delete(driverKey); return next; });
 
     if (!result.success) {
-      setResolutionError('Không thể lưu trạng thái xử lý. Đơn vẫn ở Cần xác minh; vui lòng thử lại.');
+      await removeCodResolutionEvidence(uploadedPaths);
+      setResolutionError('Không thể lưu trạng thái xử lý. Tài xế vẫn ở Cần xác minh; vui lòng thử lại.');
       return;
     }
 
-    setResolutions(previous => {
-      const next = new Map(previous);
-      next.set(caseKey, result.row);
-      return next;
-    });
+    await removeCodResolutionEvidence(workflowForm.removedAttachments);
+    setResolutions(previous => new Map(previous).set(driverKey, result.row));
+    setWorkflowDialog(null);
+  };
+
+  const handleUndoDriverResolution = async (driver) => {
+    const driverKey = getCodSuspicionDriverKey(driver);
+    if (resolvingDriverKeys.has(driverKey)) return;
+    setResolutionError('');
+    setResolvingDriverKeys(previous => new Set(previous).add(driverKey));
+    const result = await undoCodSuspicionDriverResolution(driver);
+    setResolvingDriverKeys(previous => { const next = new Set(previous); next.delete(driverKey); return next; });
+    if (!result.success) {
+      setResolutionError('Không thể hoàn tác trạng thái xử lý. Vui lòng thử lại.');
+      return;
+    }
+    const attachments = driver.resolution?.attachments || [];
+    await removeCodResolutionEvidence(attachments);
+    setResolutions(previous => { const next = new Map(previous); next.delete(driverKey); return next; });
   };
 
   // Chart data: Daily case distribution by endDeliveryDate (chronological, deduped orderCode)
@@ -795,10 +863,27 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                 {/* Expanded Details: Order Table */}
                 <div className={`cod-driver-details ${isExpanded ? 'is-expanded' : ''}`} aria-hidden={!isExpanded}>
                   <div className="cod-driver-details-inner">
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
                       </div>
+                      {driver.resolution?.status === 'resolved' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ color: 'var(--success-fg, #0f6e56)', fontSize: '0.78rem', fontWeight: 700 }}>
+                            Đã xử lý qua {CONTACT_CHANNELS.find(([value]) => value === driver.resolution.contact_channel)?.[1] || 'kênh khác'}
+                          </span>
+                          {canManageResolutions && (
+                            <>
+                              <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => openWorkflowDialog(driver)}><Pencil size={15} /> Chỉnh sửa</button>
+                              <button type="button" className="cod-workflow-action cod-workflow-action--danger" onClick={() => handleUndoDriverResolution(driver)} disabled={resolvingDriverKeys.has(getCodSuspicionDriverKey(driver))}><RotateCcw size={15} /> Hoàn tác / xóa</button>
+                            </>
+                          )}
+                        </div>
+                      ) : canManageResolutions ? (
+                        <button type="button" className="cod-workflow-action cod-workflow-action--primary" onClick={() => openWorkflowDialog(driver)}>
+                          <CheckCircle2 size={16} /> Xử lý toàn bộ {driver.orderCount} đơn
+                        </button>
+                      ) : null}
                     </div>
 
                     {isMobile && (
@@ -825,16 +910,11 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Xử lý</th>
                           </tr>
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
                             const orderAlertLevel = getAlertLevel(order.totalScore);
-                            const caseKey = getCodSuspicionCaseKey(order);
-                            const isResolving = resolvingCaseKeys.has(caseKey);
-                            const isResolved = order.resolution?.status === 'resolved';
-
                             return (
                               <tr
                                 key={order.orderCode}
@@ -885,18 +965,6 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                                   </span>
                                 </td>
 
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: isResolved || isResolving || !canManageResolutions ? 'default' : 'pointer', color: isResolved ? 'var(--success-fg, #0f6e56)' : 'var(--text-main)' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isResolved}
-                                      disabled={isResolved || isResolving || !canManageResolutions}
-                                      onChange={() => handleResolveOrder(order)}
-                                      aria-label={isResolved ? `Đơn ${order.orderCode} đã xử lý` : `Xác nhận xử lý đơn ${order.orderCode}`}
-                                    />
-                                    <span>{isResolving ? 'Đang lưu…' : isResolved ? 'Đã xử lý' : 'Xác nhận'}</span>
-                                  </label>
-                                </td>
                               </tr>
                             );
                           })}
@@ -910,6 +978,87 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
           })
         )}
       </div>
+
+      <ModalDialog
+        isOpen={Boolean(workflowDialog)}
+        onClose={() => !resolvingDriverKeys.has(getCodSuspicionDriverKey(workflowDialog || {})) && setWorkflowDialog(null)}
+        className="cod-workflow-modal"
+        titleId="cod-workflow-title"
+        descriptionId="cod-workflow-description"
+        dismissible={!resolvingDriverKeys.has(getCodSuspicionDriverKey(workflowDialog || {}))}
+      >
+        {workflowDialog && (
+          <form
+            onSubmit={(event) => { event.preventDefault(); handleSaveDriverResolution(); }}
+            onPaste={(event) => {
+              const pastedFiles = Array.from(event.clipboardData?.items || [])
+                .filter(item => item.kind === 'file')
+                .map(item => item.getAsFile())
+                .filter(Boolean);
+              if (pastedFiles.length) {
+                event.preventDefault();
+                addEvidenceFiles(pastedFiles);
+              }
+            }}
+          >
+            <header className="cod-workflow-modal__header">
+              <div className="cod-workflow-modal__icon"><MessageSquare size={22} /></div>
+              <div>
+                <h2 id="cod-workflow-title">{workflowDialog.resolution ? 'Cập nhật xử lý tài xế' : 'Ghi nhận xử lý tài xế'}</h2>
+                <p>{workflowDialog.driverName} · {workflowDialog.orderCount} đơn {workflowDialog.suspicionType}</p>
+              </div>
+              <button type="button" className="cod-workflow-modal__close" onClick={() => setWorkflowDialog(null)} aria-label="Đóng"><X size={20} /></button>
+            </header>
+
+            <p id="cod-workflow-description" className="cod-workflow-modal__intro">Xác nhận này sẽ áp dụng cho toàn bộ đơn nghi vấn đang hiển thị của tài xế. Dữ liệu nguồn KAS-221 không bị chỉnh sửa.</p>
+
+            <label className="cod-workflow-field">
+              <span>Kênh đã trao đổi <b aria-hidden="true">*</b></span>
+              <select value={workflowForm.contactChannel} onChange={(event) => setWorkflowForm(previous => ({ ...previous, contactChannel: event.target.value }))} required>
+                {CONTACT_CHANNELS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              </select>
+            </label>
+
+            <label className="cod-workflow-field">
+              <span>Ghi chú</span>
+              <textarea rows="4" maxLength="4000" value={workflowForm.note} onChange={(event) => setWorkflowForm(previous => ({ ...previous, note: event.target.value }))} placeholder="Nội dung trao đổi, người phối hợp, kết quả xác nhận…" />
+            </label>
+
+            <section className="cod-workflow-evidence" aria-label="Ảnh minh chứng">
+              <div>
+                <strong>Ảnh minh chứng</strong>
+                <span>Dán trực tiếp bằng Ctrl + V hoặc chọn tối đa 5 ảnh JPG, PNG, WEBP (5 MB/ảnh).</span>
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(event) => { addEvidenceFiles(event.target.files); event.target.value = ''; }} />
+              <button type="button" className="cod-evidence-dropzone" onClick={() => fileInputRef.current?.click()}>
+                <ImagePlus size={20} /> Chọn ảnh hoặc dán ảnh tại đây
+              </button>
+              {(workflowForm.attachments.length > 0 || workflowForm.newFiles.length > 0) && (
+                <ul className="cod-evidence-list">
+                  {workflowForm.attachments.map((path) => (
+                    <li key={path}><span>{path.split('/').pop()}</span><button type="button" onClick={() => setWorkflowForm(previous => ({ ...previous, attachments: previous.attachments.filter(item => item !== path), removedAttachments: [...previous.removedAttachments, path] }))} aria-label="Xóa ảnh đã lưu"><Trash2 size={15} /></button></li>
+                  ))}
+                  {workflowForm.newFiles.map((file, index) => (
+                    <li key={`${file.name}-${index}`}><span>{file.name}</span><button type="button" onClick={() => setWorkflowForm(previous => ({ ...previous, newFiles: previous.newFiles.filter((_, fileIndex) => fileIndex !== index) }))} aria-label={`Bỏ ${file.name}`}><X size={15} /></button></li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <label className="cod-workflow-skip">
+              <input type="checkbox" defaultChecked={typeof window !== 'undefined' && window.localStorage.getItem('cod-suspicion-skip-preflight') === 'true'} onChange={(event) => window.localStorage.setItem('cod-suspicion-skip-preflight', String(event.target.checked))} />
+              <span><b>Không hỏi lại</b><small>Bỏ bước nhắc xác nhận riêng ở lần xử lý sau; form lưu kênh trao đổi và ghi chú vẫn luôn hiện.</small></span>
+            </label>
+
+            <footer className="cod-workflow-modal__footer">
+              <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => setWorkflowDialog(null)}>Hủy</button>
+              <button type="submit" className="cod-workflow-action cod-workflow-action--primary" disabled={resolvingDriverKeys.has(getCodSuspicionDriverKey(workflowDialog))}>
+                {resolvingDriverKeys.has(getCodSuspicionDriverKey(workflowDialog)) ? <><LoaderCircle className="is-spinning" size={16} /> Đang lưu…</> : <><CheckCircle2 size={16} /> Lưu xử lý</>}
+              </button>
+            </footer>
+          </form>
+        )}
+      </ModalDialog>
 
     </div>
   );
