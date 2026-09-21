@@ -156,6 +156,42 @@ export function normalizeSuspicionOrder(raw) {
 }
 
 /**
+ * Stable logical key for matching a source order to separate workflow metadata.
+ * The database enforces the same three-part uniqueness constraint.
+ */
+export function getCodSuspicionCaseKey({ orderCode, driverId, suspicionType }) {
+  return JSON.stringify([
+    String(orderCode || '').trim(),
+    String(driverId || '').trim(),
+    String(suspicionType || '').trim()
+  ]);
+}
+
+/**
+ * Split already-filtered driver groups by persisted resolution status. A driver
+ * with both states intentionally appears in both tabs with only matching orders.
+ */
+export function filterDriverGroupsByResolutionStatus(driverGroups = [], status = 'pending') {
+  const resolved = status === 'resolved';
+
+  return driverGroups
+    .map(driver => {
+      const orders = driver.orders.filter(order => Boolean(order.resolution?.status === 'resolved') === resolved);
+      if (orders.length === 0) return null;
+
+      return {
+        ...driver,
+        orders,
+        orderCount: orders.length,
+        maxScore: Math.max(...orders.map(order => order.totalScore), 0),
+        totalCod: orders.reduce((sum, order) => sum + (order.codAmount || 0), 0),
+        warehouses: Array.from(new Set(orders.map(order => order.warehouseName))).sort()
+      };
+    })
+    .filter(Boolean);
+}
+
+/**
  * Group normalized order rows by Driver
  */
 export function groupOrdersByDriver(orders = []) {

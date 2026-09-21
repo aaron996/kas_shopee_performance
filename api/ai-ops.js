@@ -1,7 +1,6 @@
 import { readChatConfig, resolveModelSelection } from '../server/chat/config.js';
 import { getModelConfigOverview } from '../server/chat/model-config.js';
-import { authenticateRequest } from '../server/chat/auth.js';
-import { isDevAdminEmail } from '../src/utils/authPolicy.js';
+import { authenticateRequest, hasDevAdminRole } from '../server/chat/auth.js';
 import { formatMicrousdToUsd } from '../server/chat/pricing.js';
 import { sendJson } from '../server/chat/sse.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
@@ -25,6 +24,7 @@ export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 export function createAiOpsHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readChatConfig;
   const authenticate = dependencies.authenticate ?? authenticateRequest;
+  const authorizeDev = dependencies.authorizeDev ?? hasDevAdminRole;
 
   return async function handler(req, res) {
     let config;
@@ -37,7 +37,7 @@ export function createAiOpsHandler(dependencies = {}) {
       currentUser = auth.user;
       serviceClient = auth.serviceClient;
 
-      if (!isDevAdminEmail(currentUser.email)) {
+      if (!await authorizeDev(auth.userClient, currentUser)) {
         throw new ChatError('AI_OPS_FORBIDDEN', 'Chỉ Dev Admin mới có quyền truy cập AI Operations.', 403);
       }
     } catch (err) {
@@ -405,7 +405,7 @@ export function createAiOpsHandler(dependencies = {}) {
             p_daily_turn_limit: isUnlimited ? null : (dailyTurnLimit ?? 10),
             p_is_unlimited: Boolean(isUnlimited),
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
+            p_changed_by: currentUser.email || 'system'
           });
 
           if (error) {
@@ -435,7 +435,7 @@ export function createAiOpsHandler(dependencies = {}) {
           const { data, error } = await serviceClient.rpc('admin_reset_user_quota', {
             p_user_id: validUserId,
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'vinhlt@ghn.vn',
+            p_changed_by: currentUser.email || 'system',
             p_user_email: cleanEmail || null
           });
 
@@ -503,7 +503,7 @@ export function createAiOpsHandler(dependencies = {}) {
             p_model: validatedSelection.model,
             p_reasoning_effort: validatedSelection.reasoningEffort,
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
+            p_changed_by: currentUser.email || 'system'
           });
 
           if (error) {
@@ -544,7 +544,7 @@ export function createAiOpsHandler(dependencies = {}) {
             p_user_id: validUserId,
             p_user_email: cleanEmail || null,
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'vinhlt@ghn.vn'
+            p_changed_by: currentUser.email || 'system'
           });
 
           if (error) {

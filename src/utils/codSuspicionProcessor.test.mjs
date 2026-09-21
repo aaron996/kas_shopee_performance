@@ -9,9 +9,11 @@ import {
   formatDateVN,
   formatDateTimeVN,
   normalizeSuspicionOrder,
+  getCodSuspicionCaseKey,
   groupOrdersByDriver,
   sortDrivers,
   filterDriverGroups,
+  filterDriverGroupsByResolutionStatus,
   computeSuspicionKPIs,
   getAlertLevel,
   normalizeDateKey,
@@ -20,6 +22,28 @@ import {
 
 const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_suspicion_module.sql', import.meta.url);
 const appsScriptUrl = new URL('../../scripts/apps-script/sync-to-supabase.gs', import.meta.url);
+const resolutionMigrationUrl = new URL('../../supabase/migrations/20260921035354_create_cod_suspicion_case_resolutions.sql', import.meta.url);
+
+test('COD resolution migration persists only workflow metadata behind the two-account Dev allowlist', async () => {
+  const migration = await readFile(resolutionMigrationUrl, 'utf8');
+
+  assert.match(migration, /create table if not exists public\.cod_suspicion_case_resolutions/i);
+  assert.match(migration, /unique \(order_code, driver_id, suspicion_type\)/i);
+  assert.match(migration, /resolved_by uuid not null references auth\.users\(id\)/i);
+  assert.match(migration, /enable row level security/i);
+  assert.match(migration, /create table if not exists public\.app_user_roles/i);
+  assert.match(migration, /\('vinhlt@ghn\.vn', 'dev'\)/i);
+  assert.match(migration, /\('luongthevinh996@gmail\.com', 'dev'\)/i);
+  assert.match(migration, /create or replace function public\.is_dev_admin\(\)/i);
+  assert.match(migration, /select public\.is_dev_admin\(\)/i);
+  assert.match(migration, /revoke all on table public\.cod_suspicion_case_resolutions from public, anon, authenticated/i);
+  assert.match(migration, /grant select on table public\.cod_suspicion_case_resolutions to authenticated/i);
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /auth\.uid\(\)/i);
+  assert.match(migration, /revoke all on function public\.resolve_cod_suspicion_case/i);
+  assert.doesNotMatch(migration, /insert into public\.kas_cod_suspicion_data/i);
+  assert.doesNotMatch(migration, /update public\.kas_cod_suspicion_data/i);
+});
 
 test('KAS-221 migration exposes read-only data to authenticated users and fails closed on bad sync payloads', async () => {
   const migration = await readFile(migrationUrl, 'utf8');
@@ -198,6 +222,31 @@ test('groupOrdersByDriver groups orders under drivers and computes driver max sc
   assert.equal(d2.orderCount, 1);
   assert.equal(d2.maxScore, 15);
   assert.equal(d2.totalCod, 3000000);
+});
+
+test('resolution tabs keep a mixed-status driver in both views with only matching orders', () => {
+  const driverGroups = [{
+    driverId: 'D1',
+    driverName: 'Tài xế 1',
+    orders: [
+      { orderCode: 'O-pending', totalScore: 15, codAmount: 100, warehouseName: 'Kho A', resolution: null },
+      { orderCode: 'O-resolved', totalScore: 20, codAmount: 200, warehouseName: 'Kho B', resolution: { status: 'resolved' } }
+    ]
+  }];
+
+  const pending = filterDriverGroupsByResolutionStatus(driverGroups, 'pending');
+  const resolved = filterDriverGroupsByResolutionStatus(driverGroups, 'resolved');
+
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].orders.length, 1);
+  assert.equal(pending[0].orders[0].orderCode, 'O-pending');
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].orders.length, 1);
+  assert.equal(resolved[0].orders[0].orderCode, 'O-resolved');
+  assert.notEqual(
+    getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D1', suspicionType: 'Gối đầu COD' }),
+    getCodSuspicionCaseKey({ orderCode: 'O1', driverId: 'D2', suspicionType: 'Gối đầu COD' })
+  );
 });
 
 test('sortDrivers orders by highest score desc, then order count desc, then driverId', () => {

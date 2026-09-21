@@ -32,3 +32,13 @@ export async function authenticateRequest(authHeader, config, dependencies = {})
   return { user: data.user, ...clients };
 }
 
+/**
+ * Resolve the caller's Dev role through the database under their JWT. This is
+ * deliberately fail-closed: an unavailable role lookup never grants access.
+ */
+export async function hasDevAdminRole(userClient) {
+  if (!userClient || typeof userClient.rpc !== 'function') return false;
+  const { data, error } = await userClient.rpc('is_dev_admin');
+  return !error && data === true;
+}
+
