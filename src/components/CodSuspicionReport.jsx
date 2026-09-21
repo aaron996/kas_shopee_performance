@@ -563,6 +563,12 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
                     axisLine={false}
                     tickFormatter={(val) => val.replace(/^Kho\s+/i, '').slice(0, isMobile ? 11 : 20)}
                   />
+                  <XAxis
+                    type="number"
+                    dataKey="orderCount"
+                    domain={[0, 'dataMax']}
+                    hide
+                  />
                   <Tooltip
                     cursor={{ fill: 'var(--surface-subtle, #f2f7fd)' }}
                     content={({ active, payload }) => {
