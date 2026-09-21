@@ -337,7 +337,13 @@ export function computeSuspicionKPIs(driverGroups = []) {
       driverCount: w.drivers.size,
       totalCod: w.totalCod
     }))
-    .sort((a, b) => b.orderCount - a.orderCount)
+    // Sort before the UI applies its top-five limit. The explicit name
+    // tie-breaker makes each rendered bar stable even if snapshot row order
+    // changes, so its warehouse label and value remain from the same record.
+    .sort((a, b) => (
+      b.orderCount - a.orderCount ||
+      a.warehouse.localeCompare(b.warehouse, 'vi')
+    ))
     .slice(0, 10);
 
   return {

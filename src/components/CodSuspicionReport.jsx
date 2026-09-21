@@ -181,73 +181,40 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
           </div>
         </div>
 
-        {/* Bottom Ledger Metrics: 3 Columns with Dividers */}
+        {/* Bottom Ledger Metrics */}
         <div className="cod-ledger-metrics">
-          {/* Metric 1 */}
-          <div className="cod-ledger-metric-item">
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <div className="cod-ledger-metric-item cod-ledger-metric-item--drivers">
+            <div className="cod-ledger-metric-label">
               TÀI XẾ CẦN XÁC MINH
             </div>
-            <div
-              className="cod-ledger-metric-val"
-              style={{
-                fontSize: '2rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
-                color: 'var(--text-main, #0f172a)',
-                lineHeight: 1.2,
-                marginTop: '0.25rem'
-              }}
-            >
+            <div className="cod-ledger-metric-val">
               {kpis.totalDrivers.toLocaleString('vi-VN')}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+            <div className="cod-ledger-metric-note">
               Đối tượng trực tiếp cần phân công nhân sự rà soát
             </div>
           </div>
 
-          {/* Metric 2 */}
-          <div className="cod-ledger-metric-item">
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <div className="cod-ledger-metric-item cod-ledger-metric-item--orders">
+            <div className="cod-ledger-metric-label">
               TỔNG ĐƠN NGHI VẤN
             </div>
-            <div
-              className="cod-ledger-metric-val"
-              style={{
-                fontSize: '2rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
-                color: 'var(--text-main, #0f172a)',
-                lineHeight: 1.2,
-                marginTop: '0.25rem'
-              }}
-            >
+            <div className="cod-ledger-metric-val">
               {kpis.totalOrders.toLocaleString('vi-VN')}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+            <div className="cod-ledger-metric-note">
               Toàn bộ đơn phát sinh tín hiệu sau bộ lọc
             </div>
           </div>
 
-          {/* Metric 3 */}
-          <div className="cod-ledger-metric-item">
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <div className="cod-ledger-metric-item cod-ledger-metric-item--cod">
+            <div className="cod-ledger-metric-label">
               TỔNG TIỀN COD LIÊN QUAN
             </div>
-            <div
-              className="cod-ledger-metric-val"
-              style={{
-                fontSize: '1.8rem',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono, "IBM Plex Mono", monospace)',
-                color: 'var(--text-main, #0f172a)',
-                lineHeight: 1.2,
-                marginTop: '0.25rem'
-              }}
-            >
+            <div className="cod-ledger-metric-val">
               {formatCurrencyVND(kpis.totalCod)}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
+            <div className="cod-ledger-metric-note">
               Tiền thu hộ cần đối chiếu xác thực kho & khách
             </div>
           </div>
@@ -286,7 +253,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
 
       {/* 3. Paired Investigation Charts (B1) */}
       <div className="cod-charts-grid">
-        {/* Chart 1: Số case nghi ngờ theo ngày */}
+        {/* Chart 1: Số đơn nghi ngờ theo ngày */}
         <div className="cod-chart-card cod-chart-card--daily">
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -299,10 +266,10 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                   color: 'var(--text-main, #0f172a)'
                 }}
               >
-                SỐ CASE NGHI NGỜ THEO NGÀY
+                SỐ ĐƠN NGHI NGỜ THEO NGÀY
               </h2>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', fontFamily: 'var(--font-mono, monospace)' }}>
-                Đơn vị: Case
+                Đơn vị: Đơn
               </span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)', marginTop: '0.25rem' }}>
@@ -331,7 +298,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
           ) : (
             <div style={{ flex: 1, minHeight: isMobile ? '200px' : '230px', width: '100%' }}>
               <ResponsiveContainer width="100%" height={isMobile ? 220 : 250}>
-                <BarChart data={dailyCaseChartData} margin={{ top: 15, right: isMobile ? 8 : 15, left: isMobile ? -24 : -15, bottom: 5 }}>
+                <BarChart data={dailyCaseChartData} margin={{ top: 30, right: isMobile ? 8 : 15, left: isMobile ? -24 : -15, bottom: 5 }}>
                   <XAxis
                     dataKey="dateLabel"
                     stroke="var(--text-muted, #64748b)"
@@ -370,7 +337,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                               Ngày {data.fullDateLabel}
                             </div>
                             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--action-primary, #0ea5c4)' }}>
-                              {data.cases} case nghi vấn
+                              {data.cases} đơn nghi ngờ
                             </div>
                           </div>
                         );
@@ -380,11 +347,19 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                   />
                   <Bar
                     dataKey="cases"
-                    name="Số case nghi vấn"
+                    name="Số đơn nghi ngờ"
                     fill="var(--action-primary, #0ea5c4)"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={isMobile ? 32 : 48}
-                  />
+                  >
+                    <LabelList
+                      dataKey="cases"
+                      position="top"
+                      fill="var(--text-main, #0f172a)"
+                      fontSize={isMobile ? 10 : 11}
+                      fontWeight={700}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -701,12 +676,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                 {/* Expanded Details: Order Table */}
                 <div className={`cod-driver-details ${isExpanded ? 'is-expanded' : ''}`} aria-hidden={!isExpanded}>
                   <div className="cod-driver-details-inner">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Sắp theo điểm nghi vấn giảm dần
                       </div>
                     </div>
 
@@ -720,7 +692,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                       <table
                         style={{
                           width: '100%',
-                          minWidth: '680px',
+                          minWidth: '620px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -732,10 +704,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Trạng thái</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700 }}>Tiền COD</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày gán giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Tổng TG (ngày)</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Lý do fail ca 1</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
                           </tr>
                         </thead>
@@ -760,22 +729,11 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
 
                                 {/* Trạng thái */}
                                 <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap' }}>
-                                  <span
-                                    style={{
-                                      padding: '0.15rem 0.5rem',
-                                      borderRadius: '4px',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 600,
-                                      background: order.orderStatus === 'delivered' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                      color: order.orderStatus === 'delivered' ? '#10b981' : '#ef4444'
-                                    }}
-                                  >
-                                    {order.orderStatus}
-                                  </span>
+                                  {order.orderStatus.toLowerCase() === 'delivered' ? 'Giao thành công' : order.orderStatus}
                                 </td>
 
                                 {/* COD */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: '#10b981', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                   {formatCurrencyVND(order.codAmount)}
                                 </td>
 
@@ -784,33 +742,9 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses }) {
                                   {order.warehouseName}
                                 </td>
 
-                                {/* Ngày gán */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                                  {formatDateVN(order.firstDeliveredDate)}
-                                </td>
-
                                 {/* Ngày kết thúc */}
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
                                   {formatDateVN(order.endDeliveryDate)}
-                                </td>
-
-                                {/* Tổng thời gian (ngày) */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 600 }}>
-                                  {order.deliveryDurationDays !== null ? `${order.deliveryDurationDays} ngày` : '-'}
-                                </td>
-
-                                {/* Lý do fail ca đầu */}
-                                <td
-                                  style={{
-                                    padding: '0.65rem 0.75rem',
-                                    maxWidth: '220px',
-                                    whiteSpace: 'normal',
-                                    fontSize: '0.78rem',
-                                    color: order.firstFailNote === 'Không ghi nhận lý do' ? 'var(--text-muted)' : 'var(--text-main)'
-                                  }}
-                                  title={order.firstFailNote}
-                                >
-                                  {order.firstFailNote}
                                 </td>
 
                                 {/* Mức độ cảnh báo */}
