@@ -58,12 +58,12 @@ const CONTACT_CHANNELS = [
   ['other', 'Khác']
 ];
 
-const RESOLUTION_TABS = [
+const USER_RESOLUTION_TABS = [
   { id: 'pending', label: 'Cần xác minh' },
-  { id: 'in_progress', label: 'Đang xử lý' },
-  { id: 'resolved', label: 'Đã xử lý' },
-  { id: 'non_violation', label: 'Không vi phạm' }
+  { id: 'resolved', label: 'Đã xử lý' }
 ];
+
+const DEV_ONLY_RESOLUTION_TAB = { id: 'non_violation', label: 'Không vi phạm' };
 
 function getResolutionLabel(resolution) {
   if (resolution?.finding_outcome === 'non_violation') return 'Không vi phạm';
@@ -176,12 +176,11 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
   }, [allDriverGroups, suspicionType, warehouse, alertLevel]);
 
   const resolutionCounts = useMemo(() => {
-    const counts = { pending: 0, in_progress: 0, resolved: 0, non_violation: 0 };
+    const counts = { pending: 0, resolved: 0, non_violation: 0 };
     filteredDrivers.forEach(driver => {
       if (!driver.resolution) counts.pending += driver.orderCount;
       else if (driver.resolution.finding_outcome === 'non_violation') counts.non_violation += driver.orderCount;
-      else if (driver.resolution.enforcement_status === 'disciplinary_action') counts.resolved += driver.orderCount;
-      else counts.in_progress += driver.orderCount;
+      else counts.resolved += driver.orderCount;
     });
     return counts;
   }, [filteredDrivers]);
@@ -190,6 +189,17 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
     () => filterDriverGroupsByResolutionStatus(filteredDrivers, activeResolutionTab),
     [filteredDrivers, activeResolutionTab]
   );
+
+  const resolutionTabs = useMemo(
+    () => canManageResolutions ? [...USER_RESOLUTION_TABS, DEV_ONLY_RESOLUTION_TAB] : USER_RESOLUTION_TABS,
+    [canManageResolutions]
+  );
+
+  useEffect(() => {
+    if (!canManageResolutions && activeResolutionTab === 'non_violation') {
+      setActiveResolutionTab('pending');
+    }
+  }, [activeResolutionTab, canManageResolutions]);
 
   // Compute KPIs & Triage Chart stats
   const kpis = useMemo(() => {
@@ -663,7 +673,7 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
         </div>
 
         <div role="tablist" aria-label="Trạng thái xử lý đơn nghi vấn" style={{ display: 'flex', gap: '0.45rem' }}>
-          {RESOLUTION_TABS.map(tab => {
+          {resolutionTabs.map(tab => {
             const selected = activeResolutionTab === tab.id;
             return (
               <button
@@ -732,23 +742,19 @@ export default function CodSuspicionReport({ filters, onAvailableWarehouses, can
             <CheckCircle2 size={36} style={{ color: '#10b981', marginBottom: '0.75rem' }} />
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
               {activeResolutionTab === 'resolved'
-                ? 'Chưa có đơn nào đã xử lý theo chế tài'
-                : activeResolutionTab === 'in_progress'
-                  ? 'Chưa có đơn nào đang xử lý'
-                  : activeResolutionTab === 'non_violation'
-                    ? 'Chưa có đơn nào được kết luận không vi phạm'
-                    : 'Không có đơn nào cần xác minh'}
+                ? 'Chưa có đơn nào đã cập nhật xử lý'
+                : activeResolutionTab === 'non_violation'
+                  ? 'Chưa có đơn nào được kết luận không vi phạm'
+                  : 'Không có đơn nào cần xác minh'}
             </div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
               {suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL'
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : activeResolutionTab === 'resolved'
-                  ? 'Chỉ các trường hợp có vi phạm và đã áp chế tài mới xuất hiện tại đây.'
-                  : activeResolutionTab === 'in_progress'
-                    ? 'Các trường hợp có vi phạm nhưng chưa hoàn tất chế tài sẽ xuất hiện tại đây.'
-                    : activeResolutionTab === 'non_violation'
-                      ? 'Các trường hợp đã được kết luận không vi phạm sẽ xuất hiện tại đây.'
-                      : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
+                  ? 'Bao gồm các trường hợp có vi phạm đang xử lý hoặc đã xử lý theo chế tài.'
+                  : activeResolutionTab === 'non_violation'
+                    ? 'Chỉ Dev Admin thấy các trường hợp đã được kết luận không vi phạm.'
+                    : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
             </div>
           </div>
         ) : (
