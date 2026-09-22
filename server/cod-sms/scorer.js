@@ -238,6 +238,19 @@ export async function scoreSmsSource(source, config, options = {}) {
       store: false
     }, { signal: options.signal });
   } catch (error) {
+    // The public-facing ChatError intentionally hides this from the UI/API
+    // response (badge just shows "Lỗi chấm điểm"), so this is the only place
+    // the real OpenAI failure reason survives. Only log OpenAI SDK error
+    // metadata (status/code/type/message come from the API response, not
+    // from SMS content), never the request body or `error` object itself.
+    console.error('[cod-sms] scoreSmsSource: OpenAI request failed', {
+      orderCode: source?.orderCode,
+      model: config?.model,
+      status: error?.status,
+      code: error?.code,
+      type: error?.type,
+      message: error?.message
+    });
     throw new CodSmsScoringError(
       options.signal?.aborted ? 'COD_SMS_MODEL_TIMEOUT' : 'COD_SMS_MODEL_UNAVAILABLE',
       options.signal?.aborted
