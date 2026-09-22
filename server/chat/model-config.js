@@ -18,7 +18,7 @@ import { resolveModelSelection } from './config.js';
  * @param {object} user - Authenticated user { id, email }
  * @returns {Promise<object>} Effective config merging baseConfig with resolved model and reasoningEffort
  */
-export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = null) {
+export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = null, options = {}) {
   if (!serviceClient || typeof serviceClient.from !== 'function') {
     throw new ChatError('CHAT_CONFIG_UNAVAILABLE', 'Không có kết nối cơ sở dữ liệu để kiểm tra cấu hình chatbot.', 503);
   }
@@ -36,8 +36,9 @@ export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = nul
     user = arg3 || null;
   }
 
+  const feature = options.feature || 'chat';
   const userId = typeof user === 'string' ? user : user?.id;
-  let query = serviceClient.from('ai_chat_model_config').select('*');
+  let query = serviceClient.from('ai_chat_model_config').select('*').eq('feature', feature);
   if (userId) {
     if (typeof query.or === 'function') {
       query = query.or(`and(scope_type.eq.all,scope_key.eq.all),and(scope_type.eq.user,scope_key.eq.${userId})`);
@@ -124,7 +125,7 @@ export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = nul
  * Helper for admin dashboard to inspect allowed models, current global/user settings,
  * effective resolution, and recent audit logs.
  */
-export async function getModelConfigOverview(serviceClient, baseConfig, targetUserId = null) {
+export async function getModelConfigOverview(serviceClient, baseConfig, targetUserId = null, feature = 'chat') {
   if (!serviceClient || typeof serviceClient.from !== 'function') {
     throw new ChatError('CHAT_CONFIG_UNAVAILABLE', 'Không thể kết nối cơ sở dữ liệu.', 503);
   }
@@ -133,10 +134,12 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
     serviceClient
       .from('ai_chat_model_config')
       .select('*')
+      .eq('feature', feature)
       .order('updated_at', { ascending: false }),
     serviceClient
       .from('ai_chat_model_config_audit')
       .select('*')
+      .eq('feature', feature)
       .order('created_at', { ascending: false })
       .limit(20)
   ]);
@@ -174,6 +177,7 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
   const modelSelection = resolveModelSelection(effectiveModel, effectiveReasoningEffort);
 
   return {
+    feature,
     allowedModels: baseConfig.allowedModels,
     envDefault: {
       model: baseConfig.model,

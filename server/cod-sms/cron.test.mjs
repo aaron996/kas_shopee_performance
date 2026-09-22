@@ -53,6 +53,7 @@ test('runDailyCodSmsBatch pages through the source table until a short page ends
     readConfig: () => config,
     createServiceClient: () => ({}),
     createRepository: () => ({}),
+    resolveModelConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low' }),
     runBatch
   });
 
@@ -72,6 +73,7 @@ test('runDailyCodSmsBatch stops at the page safety cap instead of looping foreve
     readConfig: () => config,
     createServiceClient: () => ({}),
     createRepository: () => ({}),
+    resolveModelConfig: async () => ({ model: 'gpt-5.6-luna', reasoningEffort: 'low' }),
     runBatch,
     maxPages: 3
   });

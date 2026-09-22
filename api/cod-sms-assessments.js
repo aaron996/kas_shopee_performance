@@ -1,7 +1,7 @@
 import { authenticateRequest, hasDevAdminRole } from '../server/chat/auth.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
-import { sendJson } from '../server/chat/sse.js';
-import { readCodSmsConfig } from '../server/cod-sms/config.js';
+import { sendJson, startSse, sendSse } from '../server/chat/sse.js';
+import { readCodSmsConfig, resolveCodSmsModelConfig } from '../server/cod-sms/config.js';
 import {
   createCodSmsRepository,
   runAssessmentBatch,
@@ -12,6 +12,7 @@ import { sweepCodSmsSources } from '../server/cod-sms/cron.js';
 export const maxDuration = 300;
 const MAX_BODY_BYTES = 64 * 1024;
 const SUSPICION_TYPES = new Set(['Gối đầu COD', 'Rút ruột']);
+const ASSESSMENT_STATUSES = new Set(['pending', 'scored', 'no_evidence', 'failed']);
 
 async function readBody(req) {
   if (req.body !== undefined) {
@@ -95,12 +96,18 @@ function parseGetRequest(req) {
   if (suspicionType && !SUSPICION_TYPES.has(suspicionType)) {
     throw new ChatError('COD_SMS_BAD_REQUEST', 'suspicion_type không hợp lệ.', 400);
   }
+  const status = url.searchParams.get('status')?.trim() || null;
+  if (status && !ASSESSMENT_STATUSES.has(status)) {
+    throw new ChatError('COD_SMS_BAD_REQUEST', 'status không hợp lệ.', 400);
+  }
   const includeEvidence = url.searchParams.get('include_evidence') === 'true';
   return {
     includeEvidence,
     limit: parsePositiveInt(url.searchParams.get('limit'), 200, 500, 'limit'),
+    offset: parsePositiveInt(url.searchParams.get('offset'), 0, 100000, 'offset', true),
     filters: {
       suspicionType,
+      status,
       driverId: url.searchParams.get('driver_id')?.trim() || null,
       orderCode: url.searchParams.get('order_code')?.trim() || null
     }
@@ -113,6 +120,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
   const authorizeDev = dependencies.authorizeDev ?? hasDevAdminRole;
   const makeRepository = dependencies.createRepository ?? createCodSmsRepository;
   const runBatch = dependencies.runBatch ?? runAssessmentBatch;
+  const resolveModelConfig = dependencies.resolveModelConfig ?? resolveCodSmsModelConfig;
 
   return async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -125,7 +133,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
 
     try {
       const requireScoring = req.method === 'POST';
-      const config = getConfig(process.env, { requireScoring });
+      let config = getConfig(process.env, { requireScoring });
       const auth = await authenticate(req.headers.authorization, config);
       const repository = makeRepository(auth.serviceClient);
 
@@ -138,11 +146,16 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
             403
           );
         }
-        const rows = await repository.list(request);
+        const { rows, totalCount } = await repository.list(request);
         sendJson(res, 200, {
           contractVersion: '1',
           assessments: rows.map(row => serializeAssessment(row, request)),
-          meta: { count: rows.length, evidenceIncluded: request.includeEvidence }
+          meta: {
+            count: rows.length,
+            totalCount,
+            offset: request.offset,
+            evidenceIncluded: request.includeEvidence
+          }
         });
         return;
       }
@@ -150,6 +163,8 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       if (!await authorizeDev(auth.userClient, auth.user)) {
         throw new ChatError('COD_SMS_BATCH_FORBIDDEN', 'Chỉ Dev Admin được chạy batch SMS.', 403);
       }
+      const modelOverride = await resolveModelConfig(auth.serviceClient, process.env);
+      config = { ...config, ...modelOverride };
       let body;
       try {
         body = await readBody(req);
@@ -163,6 +178,14 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
         if (!res.writableEnded) controller.abort(new Error('Client disconnected'));
       });
 
+      // From here on the response streams over SSE so the Dev panel can show
+      // live per-order progress and a "Stop" button can react before the
+      // whole batch finishes. Everything that can still fail with a plain
+      // 4xx/5xx (auth, body parsing, validation) has already happened above,
+      // while headers are still unsent.
+      startSse(res);
+      const onProgress = update => sendSse(res, 'progress', update);
+
       if (request.sweep) {
         // The manual-run button's full-table sweep: same page-by-page walk
         // as the daily cron (server/cod-sms/cron.js), just authenticated as
@@ -172,13 +195,15 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
           repository,
           config,
           force: request.force,
-          signal: controller.signal
+          signal: controller.signal,
+          onProgress
         });
-        sendJson(res, 200, {
+        sendSse(res, 'batch_end', {
           contractVersion: '1',
           batch: { ...totals, force: request.force, sweep: true },
           assessments: []
         });
+        res.end();
         return;
       }
 
@@ -186,15 +211,24 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
         repository,
         config,
         ...request,
-        signal: controller.signal
+        signal: controller.signal,
+        onProgress
       }, dependencies);
-      sendJson(res, 200, {
+      sendSse(res, 'batch_end', {
         contractVersion: '1',
         batch: { ...result.summary, limit: request.limit, offset: request.offset, force: request.force },
         assessments: result.rows.map(row => serializeAssessment(row, { includeEvidence: true }))
       });
+      res.end();
     } catch (error) {
       const failure = toPublicError(error);
+      if (res.headersSent) {
+        // SSE already started — the status code is committed, so report the
+        // failure as an event instead of a fresh JSON error response.
+        sendSse(res, 'error', { code: failure.code, message: failure.message });
+        if (!res.writableEnded) res.end();
+        return;
+      }
       sendJson(res, failure.status, {
         error: { code: failure.code, message: failure.message }
       });

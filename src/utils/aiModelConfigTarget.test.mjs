@@ -17,12 +17,20 @@ const mockAllowedModels = [
 ];
 
 test('getModelConfigTargetKey: creates unique deterministic keys for All and Users', () => {
-  assert.equal(getModelConfigTargetKey('all', null), 'all');
-  assert.equal(getModelConfigTargetKey('all', { userId: VALID_UUID_A }), 'all');
-  assert.equal(getModelConfigTargetKey('user', { userId: VALID_UUID_A }), `user:${VALID_UUID_A.toLowerCase()}`);
-  assert.equal(getModelConfigTargetKey('user', { userId: `  ${VALID_UUID_B.toUpperCase()}  ` }), `user:${VALID_UUID_B.toLowerCase()}`);
-  assert.equal(getModelConfigTargetKey('user', null), 'user:none');
-  assert.equal(getModelConfigTargetKey('user', { userId: 'not-a-uuid' }), 'user:none');
+  assert.equal(getModelConfigTargetKey('all', null), 'chat:all');
+  assert.equal(getModelConfigTargetKey('all', { userId: VALID_UUID_A }), 'chat:all');
+  assert.equal(getModelConfigTargetKey('user', { userId: VALID_UUID_A }), `chat:user:${VALID_UUID_A.toLowerCase()}`);
+  assert.equal(getModelConfigTargetKey('user', { userId: `  ${VALID_UUID_B.toUpperCase()}  ` }), `chat:user:${VALID_UUID_B.toLowerCase()}`);
+  assert.equal(getModelConfigTargetKey('user', null), 'chat:user:none');
+  assert.equal(getModelConfigTargetKey('user', { userId: 'not-a-uuid' }), 'chat:user:none');
+});
+
+test('getModelConfigTargetKey: namespaces keys per feature', () => {
+  assert.equal(getModelConfigTargetKey('all', null, 'cod_sms'), 'cod_sms:all');
+  assert.equal(
+    getModelConfigTargetKey('user', { userId: VALID_UUID_A }, 'cod_sms'),
+    `cod_sms:user:${VALID_UUID_A.toLowerCase()}`
+  );
 });
 
 test('getInheritanceLabel: returns correct inheritance description', () => {

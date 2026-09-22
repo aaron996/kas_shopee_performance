@@ -1,5 +1,6 @@
 import { readChatConfig, resolveModelSelection } from '../server/chat/config.js';
 import { getModelConfigOverview } from '../server/chat/model-config.js';
+import { readCodSmsModelEnvDefault } from '../server/cod-sms/config.js';
 import { authenticateRequest, hasDevAdminRole } from '../server/chat/auth.js';
 import { formatMicrousdToUsd } from '../server/chat/pricing.js';
 import { sendJson } from '../server/chat/sse.js';
@@ -20,6 +21,20 @@ function escapeCsv(val) {
 }
 
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const MODEL_CONFIG_FEATURES = new Set(['chat', 'cod_sms']);
+
+function readModelConfigFeature(rawValue) {
+  const value = typeof rawValue === 'string' ? rawValue.trim().toLowerCase() : '';
+  return MODEL_CONFIG_FEATURES.has(value) ? value : 'chat';
+}
+
+function modelConfigBaseConfig(feature, chatConfig) {
+  // Each feature resolves its model override against its own env-var
+  // default, not the chatbot's — 'cod_sms' only supports scope 'all'
+  // (it's a background job, not a per-user session).
+  return feature === 'cod_sms' ? readCodSmsModelEnvDefault() : chatConfig;
+}
 
 export function createAiOpsHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readChatConfig;
@@ -307,9 +322,10 @@ export function createAiOpsHandler(dependencies = {}) {
         }
 
         if (view === 'model-config') {
+          const feature = readModelConfigFeature(url.searchParams.get('feature'));
           const rawUserId = url.searchParams.get('userId');
           let validTargetUserId = null;
-          if (rawUserId !== null) {
+          if (rawUserId !== null && feature !== 'cod_sms') {
             const targetUserId = rawUserId.trim();
             if (targetUserId) {
               if (!UUID_REGEX.test(targetUserId)) {
@@ -324,7 +340,12 @@ export function createAiOpsHandler(dependencies = {}) {
               validTargetUserId = targetUserId;
             }
           }
-          const overview = await getModelConfigOverview(serviceClient, config, validTargetUserId);
+          const overview = await getModelConfigOverview(
+            serviceClient,
+            modelConfigBaseConfig(feature, config),
+            validTargetUserId,
+            feature
+          );
           sendJson(res, 200, overview);
           return;
         }
@@ -465,6 +486,7 @@ export function createAiOpsHandler(dependencies = {}) {
 
         if (action === 'set-model-config') {
           const { scopeType, userId, userEmail, model, reasoningEffort, reason } = body;
+          const feature = readModelConfigFeature(body.feature);
           const cleanScope = typeof scopeType === 'string' ? scopeType.trim().toLowerCase() : '';
           const cleanReason = typeof reason === 'string' ? reason.trim() : '';
           const cleanModel = typeof model === 'string' ? model.trim() : '';
@@ -473,6 +495,10 @@ export function createAiOpsHandler(dependencies = {}) {
 
           if (cleanScope !== 'all' && cleanScope !== 'user') {
             sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'Phạm vi cấu hình phải là "all" hoặc "user".' } });
+            return;
+          }
+          if (feature === 'cod_sms' && cleanScope !== 'all') {
+            sendJson(res, 400, { error: { code: 'AI_OPS_INVALID_BODY', message: 'COD SMS scoring chỉ hỗ trợ phạm vi "Toàn hệ thống".' } });
             return;
           }
           if (!cleanReason) {
@@ -503,7 +529,8 @@ export function createAiOpsHandler(dependencies = {}) {
             p_model: validatedSelection.model,
             p_reasoning_effort: validatedSelection.reasoningEffort,
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'system'
+            p_changed_by: currentUser.email || 'system',
+            p_feature: feature
           });
 
           if (error) {
@@ -521,6 +548,7 @@ export function createAiOpsHandler(dependencies = {}) {
 
         if (action === 'reset-model-config') {
           const { scopeType, userId, userEmail, reason } = body;
+          const feature = readModelConfigFeature(body.feature);
           const cleanScope = typeof scopeType === 'string' ? scopeType.trim().toLowerCase() : '';
           const cleanReason = typeof reason === 'string' ? reason.trim() : '';
           const cleanEmail = typeof userEmail === 'string' ? userEmail.trim().toLowerCase() : '';
@@ -544,7 +572,8 @@ export function createAiOpsHandler(dependencies = {}) {
             p_user_id: validUserId,
             p_user_email: cleanEmail || null,
             p_reason: cleanReason,
-            p_changed_by: currentUser.email || 'system'
+            p_changed_by: currentUser.email || 'system',
+            p_feature: feature
           });
 
           if (error) {
