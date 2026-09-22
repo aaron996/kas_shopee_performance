@@ -241,11 +241,39 @@ export default function CodSuspicionReport({
     };
   }), [rawData, resolutions]);
 
-  // Group all rows by driver and sort default
+  // Group all rows by driver and sort default. A resolution can outlive its
+  // source orders — the daily KAS-221 sync fully replaces `kas_cod_suspicion_data`,
+  // so a driver who dropped out of today's flagged list still needs to show up
+  // wherever its saved resolution belongs (usually the "Đã xử lý" tab) instead
+  // of silently vanishing.
   const allDriverGroups = useMemo(() => {
     const grouped = groupOrdersByDriver(normalizedOrders);
-    return sortDrivers(grouped);
-  }, [normalizedOrders]);
+    const groupedKeys = new Set(grouped.map(getCodSuspicionDriverKey));
+    const orphanGroups = [];
+    resolutions.forEach((resolution, key) => {
+      if (groupedKeys.has(key)) return;
+      orphanGroups.push({
+        driverId: resolution.driver_id,
+        driverName: `Tài xế ${resolution.driver_id}`,
+        suspicionType: resolution.suspicion_type,
+        resolution,
+        isOrphan: true,
+        orders: [],
+        orderCount: 0,
+        maxScore: 0,
+        totalCod: 0,
+        warehouses: [],
+        signalSummary: {
+          signalReasonConflict: false,
+          signalFakeCall: false,
+          signalGpsFar: false,
+          signalGpsDuplicate: false,
+          signalGpsMocked: false
+        }
+      });
+    });
+    return sortDrivers([...grouped, ...orphanGroups]);
+  }, [normalizedOrders, resolutions]);
 
   // Extract all available warehouses for the filter dropdown
   const availableWarehouses = useMemo(() => {
@@ -1128,6 +1156,11 @@ export default function CodSuspicionReport({
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
+                        {driver.isOrphan && (
+                          <span style={{ display: 'block', marginTop: '0.3rem', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>
+                            Tài xế không còn đơn nghi vấn nào trong lần đồng bộ gần nhất — hiển thị theo lịch sử xử lý đã lưu.
+                          </span>
+                        )}
                       </div>
                       {driver.resolution?.status === 'resolved' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1136,7 +1169,12 @@ export default function CodSuspicionReport({
                           </span>
                           {canManageResolutions && (
                             <>
-                              <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => openWorkflowDialog(driver)}><Pencil size={15} /> Chỉnh sửa</button>
+                              {/* Editing calls upsert_cod_suspicion_driver_resolution, which requires
+                                  a matching row in kas_cod_suspicion_data — an orphan driver has none
+                                  (it dropped out of the latest sync), so only Undo is safe here. */}
+                              {!driver.isOrphan && (
+                                <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => openWorkflowDialog(driver)}><Pencil size={15} /> Chỉnh sửa</button>
+                              )}
                               <button type="button" className="cod-workflow-action cod-workflow-action--danger" onClick={() => handleUndoDriverResolution(driver)} disabled={resolvingDriverKeys.has(getCodSuspicionDriverKey(driver))}><RotateCcw size={15} /> Hoàn tác / xóa</button>
                             </>
                           )}
