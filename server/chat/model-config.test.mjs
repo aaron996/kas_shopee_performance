@@ -13,48 +13,28 @@ const baseConfig = readChatConfig({
   AI_CHAT_REASONING_EFFORT: 'low'
 });
 
+// Mirrors postgrest-js: every chain step (.eq/.or/.order/.limit) returns a new
+// chainable builder that is itself thenable, so arbitrarily long chains resolve.
+function createChainable(rows, error) {
+  return {
+    eq: () => createChainable(rows, error),
+    or: () => createChainable(rows, error),
+    order: () => createChainable(rows, error),
+    limit: () => createChainable(rows, error),
+    then(resolve, reject) {
+      return Promise.resolve(error ? { data: null, error } : { data: rows, error: null }).then(resolve, reject);
+    }
+  };
+}
+
 function createMockServiceClient(configRows = [], auditRows = [], queryError = null, auditError = null) {
   return {
     from(tableName) {
       if (tableName === 'ai_chat_model_config') {
-        return {
-          select(_fields) {
-            return {
-              or(_condition) {
-                if (queryError) return Promise.resolve({ data: null, error: queryError });
-                return Promise.resolve({ data: configRows, error: null });
-              },
-              eq(_col, _val) {
-                if (queryError) return Promise.resolve({ data: null, error: queryError });
-                return Promise.resolve({ data: configRows, error: null });
-              },
-              order(_column, _direction) {
-                if (queryError) return Promise.resolve({ data: null, error: queryError });
-                return Promise.resolve({ data: configRows, error: null });
-              },
-              then(resolve, _reject) {
-                if (queryError) return resolve({ data: null, error: queryError });
-                return resolve({ data: configRows, error: null });
-              }
-            };
-          }
-        };
+        return { select: () => createChainable(configRows, queryError) };
       }
       if (tableName === 'ai_chat_model_config_audit') {
-        return {
-          select(_fields) {
-            return {
-              order(_column, _direction) {
-                return {
-                  limit(_n) {
-                    if (auditError) return Promise.resolve({ data: null, error: auditError });
-                    return Promise.resolve({ data: auditRows, error: null });
-                  }
-                };
-              }
-            };
-          }
-        };
+        return { select: () => createChainable(auditRows, auditError) };
       }
       throw new Error(`Unexpected table: ${tableName}`);
     }

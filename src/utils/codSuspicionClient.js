@@ -254,6 +254,61 @@ export async function fetchCodSmsAssessmentsSummary({ limit = 500 } = {}) {
 }
 
 /**
+ * Fetch a page of the SMS AI scoring history (Dev Admin panel), with
+ * server-side pagination and status/driver/order filters. Never requests
+ * evidence.
+ */
+export async function fetchCodSmsAssessmentsHistory({ limit = 25, offset = 0, status = null, driverId = null, orderCode = null } = {}) {
+  try {
+    const authHeaders = await getAuthHeader();
+    const parsedLimit = Math.min(Math.max(Number(limit) || 25, 1), 500);
+    const parsedOffset = Math.max(Number(offset) || 0, 0);
+    const params = new URLSearchParams({ limit: String(parsedLimit), offset: String(parsedOffset) });
+    if (status) params.set('status', status);
+    if (driverId) params.set('driver_id', driverId);
+    if (orderCode) params.set('order_code', orderCode);
+    const url = `/api/cod-sms-assessments?${params.toString()}`;
+
+    const res = await withTimeout(
+      fetch(url, {
+        headers: {
+          ...authHeaders,
+          'Accept': 'application/json'
+        }
+      }),
+      'cod-sms-assessments-history'
+    );
+
+    if (!res.ok) {
+      let errPayload;
+      try { errPayload = await res.json(); } catch { /* ignore */ }
+      return {
+        success: false,
+        error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`,
+        assessments: [],
+        meta: {}
+      };
+    }
+
+    const data = await res.json();
+    return {
+      success: true,
+      contractVersion: data.contractVersion || '1',
+      assessments: Array.isArray(data.assessments) ? data.assessments : [],
+      meta: data.meta || {}
+    };
+  } catch (err) {
+    console.error('Failed to fetch COD SMS assessments history:', err);
+    return {
+      success: false,
+      error: err.message || 'UNKNOWN_ERROR',
+      assessments: [],
+      meta: {}
+    };
+  }
+}
+
+/**
  * Fetch verbatim evidence for a specific case (Dev Admin only).
  * Exactly targets one case by (suspicion_type, driver_id, order_code).
  */
@@ -309,29 +364,108 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
   }
 }
 
-async function postCodSmsBatch(body, label) {
+// Mirrors ChatPanel.jsx's readSse helper: the manual-run endpoint streams
+// `progress` events while a batch runs, then one `batch_end` (or `error`).
+async function readSse(response, onEvent) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Không nhận được luồng phản hồi từ máy chủ.');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const dispatchFrame = frame => {
+    const lines = frame.split(/\r?\n/);
+    let eventName = 'message';
+    const dataLines = [];
+    for (const line of lines) {
+      if (line.startsWith('event:')) eventName = line.slice(6).trim();
+      if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+    }
+    if (!dataLines.length) return;
+    let payload;
+    try {
+      payload = JSON.parse(dataLines.join('\n'));
+    } catch {
+      throw new Error('Phản hồi chấm điểm SMS không đúng định dạng.');
+    }
+    onEvent(eventName, payload);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() || '';
+    frames.forEach(dispatchFrame);
+    if (done) break;
+  }
+  if (buffer.trim()) dispatchFrame(buffer);
+}
+
+/**
+ * Combines a caller-supplied AbortSignal (e.g. a "Dừng" button) with a hard
+ * safety timeout, so a batch run either stops on user request or eventually
+ * gives up — same 280s ceiling the old non-streaming timeout used.
+ */
+function withStreamAbort(externalSignal, timeoutMs = BATCH_RUN_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error(`REQUEST_TIMEOUT:cod-sms-assessments-batch`)), timeoutMs);
+  const onExternalAbort = () => controller.abort(externalSignal.reason);
+  externalSignal?.addEventListener('abort', onExternalAbort);
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
+    }
+  };
+}
+
+async function postCodSmsBatchStream(body, { onProgress, signal } = {}) {
   const authHeaders = await getAuthHeader();
-  const res = await withTimeout(
-    fetch('/api/cod-sms-assessments', {
+  const { signal: combinedSignal, cleanup } = withStreamAbort(signal);
+
+  try {
+    const res = await fetch('/api/cod-sms-assessments', {
       method: 'POST',
       headers: {
         ...authHeaders,
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'text/event-stream'
       },
-      body: JSON.stringify(body)
-    }),
-    label,
-    BATCH_RUN_TIMEOUT_MS
-  );
+      body: JSON.stringify(body),
+      signal: combinedSignal
+    });
 
-  let data;
-  try { data = await res.json(); } catch { data = null; }
+    if (!res.ok) {
+      let errPayload;
+      try { errPayload = await res.json(); } catch { /* ignore */ }
+      throw new Error(errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`);
+    }
 
-  if (!res.ok) {
-    throw new Error(data?.error?.message || `Yêu cầu thất bại (${res.status})`);
+    let finalPayload = null;
+    let streamError = null;
+    await readSse(res, (event, payload) => {
+      if (event === 'progress') onProgress?.(payload);
+      else if (event === 'batch_end') finalPayload = payload;
+      else if (event === 'error') streamError = payload;
+    });
+
+    if (streamError) {
+      throw new Error(streamError.message || 'Chấm điểm SMS thất bại.');
+    }
+    if (!finalPayload) {
+      throw new Error('Không nhận được kết quả chấm điểm SMS.');
+    }
+    return finalPayload;
+  } catch (err) {
+    if (combinedSignal.aborted && !signal?.aborted) {
+      // Our own safety timeout fired, not the caller's Stop button.
+      throw new Error('Yêu cầu chấm điểm SMS quá thời gian chờ.');
+    }
+    throw err;
+  } finally {
+    cleanup();
   }
-  return data;
 }
 
 function sumBatchTotals(base, extra) {
@@ -346,8 +480,8 @@ function sumBatchTotals(base, extra) {
  * Manually trigger a scoring run (Dev Admin only; the server enforces this
  * independently via hasDevAdminRole, this is not the security boundary).
  *
- * Two steps, both server-side idempotent so a re-click never double-bills an
- * unchanged order:
+ * `mode: 'all'` (default) does the full-sweep flow, two steps, both
+ * server-side idempotent so a re-click never double-bills an unchanged order:
  * 1. A full sweep (`sweep: true`, same page-by-page walk as the daily cron)
  *    over every source order — picks up anything new/changed, and also
  *    retries `failed` rows up to the 5-attempt cap the claim RPC enforces.
@@ -355,11 +489,28 @@ function sumBatchTotals(base, extra) {
  *    again just now) gets one explicit `force: true` retry, scoped to only
  *    those specific order keys — never a blanket force over the whole table,
  *    so already-correct orders are never re-billed.
+ *
+ * `mode: 'cases'` scores only the given `{suspicionType, driverId,
+ * orderCode}` keys (one order, or a hand-picked list) — no sweep, no
+ * force-retry-failed follow-up step.
+ *
+ * `onProgress` is called with each `progress` SSE event; `signal` is an
+ * AbortSignal (e.g. wired to a "Dừng" button) that stops claiming new orders
+ * — orders already scored before the stop are kept, not rolled back.
  */
-export async function runCodSmsAssessmentBatch() {
+export async function runCodSmsAssessmentBatch({ mode = 'all', cases = [], onProgress, signal } = {}) {
   try {
-    const sweepData = await postCodSmsBatch({ sweep: true }, 'cod-sms-assessments-sweep');
+    if (mode === 'cases') {
+      const data = await postCodSmsBatchStream({ cases, force: false }, { onProgress, signal });
+      return { success: true, batch: { ...(data?.batch || {}), forceRetried: 0 } };
+    }
+
+    const sweepData = await postCodSmsBatchStream({ sweep: true }, { onProgress, signal });
     let totals = sweepData?.batch || {};
+
+    if (totals.aborted) {
+      return { success: true, batch: { ...totals, forceRetried: 0 } };
+    }
 
     const summary = await fetchCodSmsAssessmentsSummary({ limit: 500 });
     const stillFailedCases = summary.success
@@ -370,10 +521,10 @@ export async function runCodSmsAssessmentBatch() {
       : [];
 
     let forceRetried = 0;
-    if (stillFailedCases.length > 0) {
-      const forceData = await postCodSmsBatch(
+    if (stillFailedCases.length > 0 && !signal?.aborted) {
+      const forceData = await postCodSmsBatchStream(
         { cases: stillFailedCases, force: true },
-        'cod-sms-assessments-force-retry-failed'
+        { onProgress, signal }
       );
       totals = sumBatchTotals(totals, forceData?.batch);
       forceRetried = stillFailedCases.length;
@@ -384,6 +535,9 @@ export async function runCodSmsAssessmentBatch() {
       batch: { ...totals, forceRetried }
     };
   } catch (err) {
+    if (signal?.aborted) {
+      return { success: false, aborted: true, error: 'STOPPED_BY_USER' };
+    }
     console.error('Failed to run COD SMS assessment batch:', err);
     return {
       success: false,

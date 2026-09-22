@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ChatError, toPublicError } from '../chat/errors.js';
 import { sendJson } from '../chat/sse.js';
-import { readCodSmsConfig } from './config.js';
+import { readCodSmsConfig, resolveCodSmsModelConfig } from './config.js';
 import { createCodSmsRepository, runAssessmentBatch } from './service.js';
 
 // Safety cap on how many pages a single cron run will walk through the
@@ -35,7 +35,7 @@ function createServiceOnlyClient(config) {
  * both the daily cron job and the Dev Admin manual-run button so they behave
  * identically.
  */
-export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, signal, abortErrorCode = 'COD_SMS_SWEEP_ABORTED', abortErrorMessage = 'Lượt quét chấm điểm SMS đã bị dừng.' }) {
+export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, signal, onProgress }) {
   const totals = {
     pages: 0,
     requested: 0,
@@ -44,7 +44,8 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
     scored: 0,
     noEvidence: 0,
     failed: 0,
-    skippedUnchanged: 0
+    skippedUnchanged: 0,
+    aborted: false
   };
 
   let offset = 0;
@@ -52,9 +53,21 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
 
   while (totals.pages < maxPages) {
     if (signal?.aborted) {
-      throw new ChatError(abortErrorCode, abortErrorMessage, 499);
+      totals.aborted = true;
+      break;
     }
-    const result = await runBatch({ repository, config, limit, offset, cases: [], force, signal });
+    const result = await runBatch({
+      repository,
+      config,
+      limit,
+      offset,
+      cases: [],
+      force,
+      signal,
+      onProgress: onProgress
+        ? update => onProgress({ ...update, page: totals.pages + 1, pages: totals.pages, totals: { ...totals } })
+        : undefined
+    });
     totals.pages += 1;
     totals.requested += result.summary.requested;
     totals.found += result.summary.found;
@@ -64,6 +77,10 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
     totals.failed += result.summary.failed;
     totals.skippedUnchanged += result.summary.skippedUnchanged;
 
+    if (result.summary.aborted) {
+      totals.aborted = true;
+      break;
+    }
     if (result.summary.found < limit) break;
     offset += limit;
   }
@@ -75,10 +92,14 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readCodSmsConfig;
   const makeServiceClient = dependencies.createServiceClient ?? createServiceOnlyClient;
   const makeRepository = dependencies.createRepository ?? createCodSmsRepository;
+  const resolveModelConfig = dependencies.resolveModelConfig ?? resolveCodSmsModelConfig;
 
-  const config = getConfig(dependencies.env ?? process.env, { requireScoring: true });
+  const env = dependencies.env ?? process.env;
+  let config = getConfig(env, { requireScoring: true });
   const serviceClient = makeServiceClient(config);
   const repository = makeRepository(serviceClient);
+  const modelOverride = await resolveModelConfig(serviceClient, env);
+  config = { ...config, ...modelOverride };
 
   return sweepCodSmsSources({
     repository,
@@ -86,9 +107,7 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
     force: false,
     runBatch: dependencies.runBatch,
     maxPages: dependencies.maxPages,
-    signal: dependencies.signal,
-    abortErrorCode: 'COD_SMS_CRON_ABORTED',
-    abortErrorMessage: 'Cron chấm điểm SMS đã bị dừng.'
+    signal: dependencies.signal
   });
 }
 

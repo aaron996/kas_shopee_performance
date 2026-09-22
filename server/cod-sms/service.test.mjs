@@ -117,6 +117,86 @@ test('unchanged source fingerprint skips a second model call', async () => {
   assert.equal(modelCalls, 1);
 });
 
+function makeMultiSourceRepository(sources) {
+  const byOrder = new Map();
+  let nextId = 1;
+  return {
+    async loadSources() {
+      return sources;
+    },
+    async claim(source, claim) {
+      const assessment = {
+        id: `assessment-${nextId++}`,
+        suspicion_type: source.suspicionType,
+        driver_id: source.driverId,
+        order_code: source.orderCode,
+        status: 'pending',
+        rubric_version: claim.rubricVersion,
+        model: claim.model,
+        source_fingerprint: claim.fingerprint,
+        run_token: 'run-1',
+        attempt_count: 1
+      };
+      byOrder.set(source.orderCode, assessment);
+      return { claimed: true, assessment, run_token: 'run-1' };
+    },
+    async complete(id, _runToken, values) {
+      const current = [...byOrder.values()].find(a => a.id === id);
+      Object.assign(current, {
+        status: values.status,
+        sms_score: values.smsScore,
+        model_called: values.modelCalled,
+        scored_at: values.scoredAt
+      });
+      return current;
+    }
+  };
+}
+
+test('runAssessmentBatch reports processed/total progress after each order', async () => {
+  const sources = [makeSource([]), makeSource([])];
+  sources[0].orderCode = 'ORDER-1';
+  sources[1].orderCode = 'ORDER-2';
+  const repository = makeMultiSourceRepository(sources);
+  const progressUpdates = [];
+
+  const result = await runAssessmentBatch({
+    repository,
+    config,
+    limit: 2,
+    onProgress: update => progressUpdates.push(update)
+  }, {});
+
+  assert.equal(result.summary.noEvidence, 2);
+  assert.equal(progressUpdates.length, 2);
+  assert.deepEqual(progressUpdates.map(u => u.processed), [1, 2]);
+  assert.equal(progressUpdates[0].total, 2);
+});
+
+test('runAssessmentBatch stops claiming new orders on abort but keeps already-scored rows (no throw)', async () => {
+  const sources = [makeSource([]), makeSource([]), makeSource([])];
+  sources[0].orderCode = 'ORDER-1';
+  sources[1].orderCode = 'ORDER-2';
+  sources[2].orderCode = 'ORDER-3';
+  const repository = makeMultiSourceRepository(sources);
+  const controller = new AbortController();
+
+  const result = await runAssessmentBatch({
+    repository,
+    config,
+    limit: 3,
+    signal: controller.signal,
+    onProgress: () => {
+      // Abort after the first order finishes, before the second is claimed.
+      if (!controller.signal.aborted) controller.abort();
+    }
+  }, {});
+
+  assert.equal(result.summary.aborted, true);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.summary.noEvidence, 1);
+});
+
 test('migration keeps assessment data server-only and claim RPC security-invoker', async () => {
   const sql = await readFile(
     new URL('../../supabase/migrations/20260922074814_cod_suspicion_sms_assessments.sql', import.meta.url),

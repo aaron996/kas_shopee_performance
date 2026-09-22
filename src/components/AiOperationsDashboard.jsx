@@ -90,6 +90,7 @@ export default function AiOperationsDashboard() {
   const [isPurging, setIsPurging] = useState(false);
 
   // Model Config State
+  const [configFeature, setConfigFeature] = useState('chat'); // 'chat' | 'cod_sms'
   const [targetScope, setTargetScope] = useState('all'); // 'all' | 'user'
   const [selectedUser, setSelectedUser] = useState(null); // { userId, email } | null
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -116,9 +117,18 @@ export default function AiOperationsDashboard() {
   const activeControllerRef = useRef(null);
 
   const currentTargetKey = useMemo(
-    () => getModelConfigTargetKey(targetScope, selectedUser),
-    [targetScope, selectedUser]
+    () => getModelConfigTargetKey(targetScope, selectedUser, configFeature),
+    [targetScope, selectedUser, configFeature]
   );
+
+  // COD SMS scoring is a background job (no per-user session) — it only
+  // supports the 'all' scope. Snap back to 'all' if the feature switch
+  // lands on it while 'user' was selected.
+  useEffect(() => {
+    if (configFeature === 'cod_sms' && targetScope !== 'all') {
+      setTargetScope('all');
+    }
+  }, [configFeature, targetScope]);
   const currentTargetKeyRef = useRef(currentTargetKey);
 
   useEffect(() => {
@@ -437,6 +447,7 @@ export default function AiOperationsDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'set-model-config',
+          feature: configFeature,
           scopeType: mutationScope,
           userId: mutationScope === 'user' ? mutationUser?.userId : null,
           userEmail: mutationScope === 'user' ? mutationUser?.email : null,
@@ -497,6 +508,7 @@ export default function AiOperationsDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'reset-model-config',
+          feature: configFeature,
           scopeType: mutationScope,
           userId: mutationScope === 'user' ? mutationUser?.userId : null,
           userEmail: mutationScope === 'user' ? mutationUser?.email : null,
@@ -547,7 +559,7 @@ export default function AiOperationsDashboard() {
     setModelConfigError('');
 
     const targetUserId = (targetScope === 'user' && selectedUser?.userId) ? selectedUser.userId : null;
-    const url = `/api/ai-ops?view=model-config${targetUserId ? `&userId=${encodeURIComponent(targetUserId)}` : ''}`;
+    const url = `/api/ai-ops?view=model-config&feature=${encodeURIComponent(configFeature)}${targetUserId ? `&userId=${encodeURIComponent(targetUserId)}` : ''}`;
 
     fetchWithAuth(url, { signal: controller.signal })
       .then((data) => {
@@ -601,7 +613,7 @@ export default function AiOperationsDashboard() {
         activeControllerRef.current = null;
       }
     };
-  }, [activeSubtab, currentTargetKey, reloadNonce, fetchWithAuth, targetScope, selectedUser]);
+  }, [activeSubtab, currentTargetKey, reloadNonce, fetchWithAuth, targetScope, selectedUser, configFeature]);
 
   // Load active tab data (Overview, Quotas, Research)
   useEffect(() => {
@@ -1189,6 +1201,42 @@ export default function AiOperationsDashboard() {
             </div>
           </div>
 
+          {/* Feature Switch: which pipeline this Model Config screen edits */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            background: 'var(--card-bg)',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '10px',
+            border: '1px solid var(--border)'
+          }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tính năng:</span>
+            {[
+              { id: 'chat', label: 'Chatbot' },
+              { id: 'cod_sms', label: 'COD SMS scoring' }
+            ].map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setConfigFeature(f.id)}
+                disabled={isModelConfigLoading}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.82rem',
+                  fontWeight: configFeature === f.id ? 700 : 500,
+                  background: configFeature === f.id ? 'var(--ghn-orange)' : 'var(--card-bg)',
+                  color: configFeature === f.id ? 'white' : 'var(--text-main)',
+                  cursor: 'pointer'
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {/* Precedence Policy Info Banner */}
           <div style={{
             display: 'flex',
@@ -1321,7 +1369,7 @@ export default function AiOperationsDashboard() {
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
                   1. Chọn phạm vi áp dụng (Scope)
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: configFeature === 'cod_sms' ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                   <button
                     type="button"
                     onClick={() => handleSelectScope('all')}
@@ -1348,36 +1396,38 @@ export default function AiOperationsDashboard() {
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleSelectScope('user')}
-                    disabled={isModelConfigLoading || isSavingConfig}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.75rem 1rem',
-                      borderRadius: '8px',
-                      border: targetScope === 'user' ? '2px solid var(--primary)' : '1px solid var(--border)',
-                      background: targetScope === 'user' ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
-                      color: targetScope === 'user' ? 'var(--primary)' : 'var(--text-main)',
-                      fontWeight: targetScope === 'user' ? 700 : 500,
-                      cursor: (isModelConfigLoading || isSavingConfig) ? 'not-allowed' : 'pointer',
-                      textAlign: 'left',
-                      opacity: (isModelConfigLoading || isSavingConfig) ? 0.7 : 1
-                    }}
-                  >
-                    <UserCheck size={18} />
-                    <div>
-                      <div>Người dùng cụ thể</div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>Override cho 1 user</div>
-                    </div>
-                  </button>
+                  {configFeature !== 'cod_sms' && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectScope('user')}
+                      disabled={isModelConfigLoading || isSavingConfig}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '8px',
+                        border: targetScope === 'user' ? '2px solid var(--primary)' : '1px solid var(--border)',
+                        background: targetScope === 'user' ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
+                        color: targetScope === 'user' ? 'var(--primary)' : 'var(--text-main)',
+                        fontWeight: targetScope === 'user' ? 700 : 500,
+                        cursor: (isModelConfigLoading || isSavingConfig) ? 'not-allowed' : 'pointer',
+                        textAlign: 'left',
+                        opacity: (isModelConfigLoading || isSavingConfig) ? 0.7 : 1
+                      }}
+                    >
+                      <UserCheck size={18} />
+                      <div>
+                        <div>Người dùng cụ thể</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>Override cho 1 user</div>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* User Search & Selection (if scope === 'user') */}
-              {targetScope === 'user' && (
+              {targetScope === 'user' && configFeature !== 'cod_sms' && (
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',

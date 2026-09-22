@@ -1,5 +1,8 @@
-import { resolveModelSelection } from '../chat/config.js';
+import { ALLOWED_MODELS, resolveModelSelection } from '../chat/config.js';
+import { resolveEffectiveChatConfig } from '../chat/model-config.js';
 import { ChatError } from '../chat/errors.js';
+
+const COD_SMS_MODEL_FEATURE = 'cod_sms';
 
 const DEFAULT_RUBRIC_VERSION = 'sms-rubric-2026-09-19-v1';
 
@@ -59,4 +62,36 @@ export function readCodSmsConfig(env = process.env, options = {}) {
   };
 }
 
-export { DEFAULT_RUBRIC_VERSION };
+/**
+ * The COD SMS scoring env-var default (COD_SMS_AI_MODEL/COD_SMS_AI_REASONING_EFFORT),
+ * exposed with `allowedModels` so it can serve as the fallback `baseConfig` for
+ * resolveEffectiveChatConfig — mirrors how readChatConfig() feeds the chat feature.
+ */
+export function readCodSmsModelEnvDefault(env = process.env) {
+  const model = env.COD_SMS_AI_MODEL?.trim() || 'gpt-5.6-luna';
+  const reasoningEffort = env.COD_SMS_AI_REASONING_EFFORT?.trim() || 'low';
+  let modelSelection;
+  try {
+    modelSelection = resolveModelSelection(model, reasoningEffort);
+  } catch (error) {
+    throw new ChatError('COD_SMS_CONFIG_INVALID', error.message, 503, { cause: error });
+  }
+  return { ...modelSelection, allowedModels: ALLOWED_MODELS };
+}
+
+/**
+ * Resolves the effective COD SMS scoring model, precedence:
+ *   1. Dev Admin override (ai_chat_model_config, feature='cod_sms', scope_type='all')
+ *   2. COD_SMS_AI_MODEL / COD_SMS_AI_REASONING_EFFORT env vars
+ * COD SMS scoring is a background job, not a per-user session, so unlike chat
+ * there is no 'user' scope — only 'all'.
+ */
+export async function resolveCodSmsModelConfig(serviceClient, env = process.env) {
+  const envDefault = readCodSmsModelEnvDefault(env);
+  const effective = await resolveEffectiveChatConfig(serviceClient, envDefault, null, {
+    feature: COD_SMS_MODEL_FEATURE
+  });
+  return { model: effective.model, reasoningEffort: effective.reasoningEffort };
+}
+
+export { DEFAULT_RUBRIC_VERSION, COD_SMS_MODEL_FEATURE };

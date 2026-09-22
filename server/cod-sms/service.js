@@ -183,21 +183,22 @@ export function createCodSmsRepository(serviceClient) {
       return data;
     },
 
-    async list({ limit, filters = {}, includeEvidence = false }) {
+    async list({ limit, offset = 0, filters = {}, includeEvidence = false }) {
       const columns = includeEvidence ? [...ASSESSMENT_COLUMNS, 'evidence'].join(',') : ASSESSMENT_COLUMNS.join(',');
       let query = serviceClient
         .from('cod_suspicion_sms_assessments')
-        .select(columns)
+        .select(columns, { count: 'exact' })
         .order('updated_at', { ascending: false })
-        .limit(limit);
+        .range(offset, offset + limit - 1);
       if (filters.suspicionType) query = query.eq('suspicion_type', filters.suspicionType);
+      if (filters.status) query = query.eq('status', filters.status);
       if (filters.driverId) query = query.eq('driver_id', filters.driverId);
       if (filters.orderCode) query = query.eq('order_code', filters.orderCode);
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) {
         throw databaseError('COD_SMS_ASSESSMENT_READ_FAILED', 'Không thể đọc kết quả chấm điểm SMS.', error);
       }
-      return data ?? [];
+      return { rows: data ?? [], totalCount: count ?? (data ?? []).length };
     }
   };
 }
@@ -264,7 +265,8 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     offset = 0,
     cases = [],
     force = false,
-    signal
+    signal,
+    onProgress
   } = params;
   const score = dependencies.scoreSource ?? scoreSmsSource;
   const sources = await repository.loadSources({ limit, offset, cases });
@@ -276,12 +278,21 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     scored: 0,
     noEvidence: 0,
     failed: 0,
-    skippedUnchanged: 0
+    skippedUnchanged: 0,
+    aborted: false
+  };
+  const emitProgress = () => {
+    onProgress?.({ processed: rows.length, total: sources.length, summary: { ...summary } });
   };
 
   for (const source of sources) {
     if (signal?.aborted) {
-      throw new ChatError('COD_SMS_BATCH_ABORTED', 'Batch chấm điểm SMS đã bị dừng.', 499);
+      // A per-order write (claim/complete) is committed individually, so
+      // stopping here loses nothing already scored — it just stops claiming
+      // new rows. The response still completes normally (no throw) with
+      // whatever was done so far.
+      summary.aborted = true;
+      break;
     }
     const fingerprint = computeSourceFingerprint(source);
     const claim = await repository.claim(source, {
@@ -294,6 +305,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     if (!claim.claimed) {
       summary.skippedUnchanged += 1;
       rows.push(claim.assessment);
+      emitProgress();
       continue;
     }
 
@@ -309,6 +321,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       }, 'no_evidence', false, scoredAt));
       summary.noEvidence += 1;
       rows.push(completed);
+      emitProgress();
       continue;
     }
 
@@ -338,6 +351,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       summary.failed += 1;
       rows.push(completed);
     }
+    emitProgress();
   }
 
   return { summary, rows };

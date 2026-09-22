@@ -34,7 +34,11 @@ export class CodSmsScoringError extends ChatError {
   }
 }
 
-function invalidOutput(reason) {
+function invalidOutput(reason, source) {
+  console.error('[cod-sms] validateModelAssessment: schema/business-rule check failed', {
+    orderCode: source?.orderCode,
+    reason
+  });
   return new CodSmsScoringError(
     'COD_SMS_MODEL_SCHEMA_INVALID',
     'Model trả về dữ liệu không đúng schema chấm điểm SMS.',
@@ -120,74 +124,74 @@ function hasQualifyingBankEvidence(evidence, orderCode) {
   });
 }
 
-function assertStringArray(value, field, options = {}) {
+function assertStringArray(value, field, options = {}, source) {
   const { allowedValues = null, maxItems = Infinity, maxItemLength = Infinity } = options;
-  if (!Array.isArray(value)) throw invalidOutput(`${field} must be an array`);
-  if (value.length > maxItems) throw invalidOutput(`${field} has too many items`);
+  if (!Array.isArray(value)) throw invalidOutput(`${field} must be an array`, source);
+  if (value.length > maxItems) throw invalidOutput(`${field} has too many items`, source);
   if (value.some(item => typeof item !== 'string' || !item || item.length > maxItemLength)) {
-    throw invalidOutput(`${field} must contain non-empty strings`);
+    throw invalidOutput(`${field} must contain non-empty strings`, source);
   }
-  if (new Set(value).size !== value.length) throw invalidOutput(`${field} must be unique`);
+  if (new Set(value).size !== value.length) throw invalidOutput(`${field} must be unique`, source);
   if (allowedValues && value.some(item => !allowedValues.includes(item))) {
-    throw invalidOutput(`${field} contains an unsupported value`);
+    throw invalidOutput(`${field} contains an unsupported value`, source);
   }
 }
 
 export function validateModelAssessment(raw, source) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw invalidOutput('output must be an object');
+    throw invalidOutput('output must be an object', source);
   }
   const keys = Object.keys(raw);
   if (keys.length !== OUTPUT_KEYS.size || keys.some(key => !OUTPUT_KEYS.has(key))) {
-    throw invalidOutput('output keys do not match the contract');
+    throw invalidOutput('output keys do not match the contract', source);
   }
-  if (raw.order_code !== String(source.orderCode)) throw invalidOutput('order_code mismatch');
+  if (raw.order_code !== String(source.orderCode)) throw invalidOutput('order_code mismatch', source);
   if (!Number.isInteger(raw.diem_sms) || raw.diem_sms < 0 || raw.diem_sms > 9) {
-    throw invalidOutput('diem_sms out of range');
+    throw invalidOutput('diem_sms out of range', source);
   }
   if (!CONFIDENCE_VALUES.includes(raw.muc_do_tin_cay)) {
-    throw invalidOutput('invalid confidence');
+    throw invalidOutput('invalid confidence', source);
   }
   assertStringArray(raw.mau_hinh_phat_hien, 'mau_hinh_phat_hien', {
     allowedValues: PATTERN_VALUES,
     maxItems: 5,
     maxItemLength: 20
-  });
-  assertStringArray(raw.bang_chung, 'bang_chung', { maxItems: 10, maxItemLength: 4000 });
+  }, source);
+  assertStringArray(raw.bang_chung, 'bang_chung', { maxItems: 10, maxItemLength: 4000 }, source);
   if (typeof raw.giai_thich !== 'string' || !raw.giai_thich.trim() || raw.giai_thich.length > 4000) {
-    throw invalidOutput('invalid explanation');
+    throw invalidOutput('invalid explanation', source);
   }
 
   const messages = normalizeMessages(source.messages);
   const originalContents = new Set(messages.map(message => message.content));
   if (raw.bang_chung.some(evidence => !originalContents.has(evidence))) {
-    throw invalidOutput('evidence is not a verbatim source message');
+    throw invalidOutput('evidence is not a verbatim source message', source);
   }
 
   const patterns = new Set(raw.mau_hinh_phat_hien);
   const hasMau1 = patterns.has('mau_1');
   const hasMau4 = patterns.has('mau_4');
   const hasBase = hasMau1 || hasMau4;
-  if (hasMau1 && hasMau4) throw invalidOutput('mau_1 and mau_4 are mutually exclusive');
+  if (hasMau1 && hasMau4) throw invalidOutput('mau_1 and mau_4 are mutually exclusive', source);
   if (!hasBase && [...patterns].some(pattern => pattern !== 'mau_1' && pattern !== 'mau_4')) {
-    throw invalidOutput('additional patterns require a base pattern');
+    throw invalidOutput('additional patterns require a base pattern', source);
   }
 
   const expectedScore = [...patterns].reduce((sum, pattern) => sum + PATTERN_WEIGHTS[pattern], 0);
-  if (raw.diem_sms !== expectedScore) throw invalidOutput('score does not match rubric weights');
+  if (raw.diem_sms !== expectedScore) throw invalidOutput('score does not match rubric weights', source);
 
   if (raw.diem_sms === 0) {
     if (patterns.size !== 0 || raw.bang_chung.length !== 0
       || raw.muc_do_tin_cay !== 'khong_co_bang_chung') {
-      throw invalidOutput('zero score must use no-evidence shape');
+      throw invalidOutput('zero score must use no-evidence shape', source);
     }
   } else {
     if (!hasBase || raw.bang_chung.length === 0
       || raw.muc_do_tin_cay === 'khong_co_bang_chung') {
-      throw invalidOutput('positive score must include base pattern and evidence');
+      throw invalidOutput('positive score must include base pattern and evidence', source);
     }
     if (!hasQualifyingBankEvidence(raw.bang_chung, String(source.orderCode))) {
-      throw invalidOutput('bank-account pattern lacks banking context');
+      throw invalidOutput('bank-account pattern lacks banking context', source);
     }
   }
 
@@ -273,7 +277,7 @@ export async function scoreSmsSource(source, config, options = {}) {
   try {
     parsed = JSON.parse(extractOutputText(response));
   } catch (error) {
-    throw invalidOutput(`invalid JSON: ${error.message}`);
+    throw invalidOutput(`invalid JSON: ${error.message}`, source);
   }
   return validateModelAssessment(parsed, source);
 }
