@@ -69,6 +69,8 @@ export const moduleRegistry = Object.freeze([
     icon: Truck,
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở BXH Performance...',
+    // Temporarily hidden from regular users; re-enable by removing this flag.
+    requiresDevAdmin: true,
     surface: lazy(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
   },
   {
@@ -91,7 +93,10 @@ if (
 }
 
 export const getModule = (id) => moduleRegistry.find(module => module.id === id);
-export const navigationModules = (surface) => moduleRegistry.filter(module => module.navigation[surface]);
+export const navigationModules = (surface, currentUser) => moduleRegistry
+  .filter(module => module.navigation[surface])
+  .filter(module => !module.requiresDevAdmin || currentUser?.isDevAdmin)
+  .filter(module => !module.requiresAuth || currentUser);
 
 export const MODULE_GROUP_LABELS = Object.freeze({
   'ka-performance-metrics': 'KA performance metrics',

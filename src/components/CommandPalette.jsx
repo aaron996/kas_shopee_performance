@@ -28,7 +28,8 @@ export default function CommandPalette({
   setClientFilter,
   onSelectRegion,
   onSelectCodResult,
-  canSearchCod = false
+  canSearchCod = false,
+  currentUser
 }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -47,7 +48,7 @@ export default function CommandPalette({
   }, [isOpen]);
 
   const navigationItems = useMemo(() => {
-    const tabItems = navigationModules('commandPalette').map(module => ({
+    const tabItems = navigationModules('commandPalette', currentUser).map(module => ({
       type: 'tab',
       id: module.id,
       label: module.label,
@@ -76,7 +77,7 @@ export default function CommandPalette({
     );
 
     return [...tabItems, ...clientItems, ...regionItems];
-  }, []);
+  }, [currentUser]);
 
   const cleanQuery = normalizeSearchText(query);
   const shouldSearchCod = canSearchCod && cleanQuery.length >= MIN_DATA_QUERY_LENGTH;

@@ -692,6 +692,7 @@ export default function App() {
         onSelectRegion={handleJumpToRegion}
         onSelectCodResult={handleSelectCodSearchResult}
         canSearchCod={Boolean(currentUser && !currentUser.localPreview)}
+        currentUser={currentUser}
       />
 
       {/* Main Layout wrapper for Sidebar + Content */}
@@ -770,7 +771,7 @@ export default function App() {
 
           {/* Mobile Bottom Navigation Bar */}
           <nav className="mobile-bottom-nav">
-            {navigationModules('mobile').map(module => {
+            {navigationModules('mobile', currentUser).map(module => {
               const Icon = module.icon;
               return (
                 <button
