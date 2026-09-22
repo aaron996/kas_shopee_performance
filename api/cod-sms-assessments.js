@@ -139,7 +139,8 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
 
       if (req.method === 'GET') {
         const request = parseGetRequest(req);
-        if (request.includeEvidence && !await authorizeDev(auth.userClient, auth.user)) {
+        const isDev = await authorizeDev(auth.userClient, auth.user);
+        if (request.includeEvidence && !isDev) {
           throw new ChatError(
             'COD_SMS_EVIDENCE_FORBIDDEN',
             'Bạn không có quyền xem bằng chứng SMS nguyên văn.',
@@ -149,7 +150,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
         const { rows, totalCount } = await repository.list(request);
         sendJson(res, 200, {
           contractVersion: '1',
-          assessments: rows.map(row => serializeAssessment(row, request)),
+          assessments: rows.map(row => serializeAssessment(row, { ...request, includeDetails: isDev })),
           meta: {
             count: rows.length,
             totalCount,

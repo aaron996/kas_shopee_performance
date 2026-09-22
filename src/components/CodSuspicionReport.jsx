@@ -194,7 +194,7 @@ export default function CodSuspicionReport({
         }
         setSmsAssessments(assessmentMap);
       } else {
-        setSmsError('Không thể tải kết quả chấm SMS AI. Vui lòng thử lại.');
+        setSmsError('Không thể tải mức độ nghi ngờ. Vui lòng thử lại.');
       }
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
@@ -1202,7 +1202,7 @@ export default function CodSuspicionReport({
           }}
         >
           <LoaderCircle size={14} className="is-spinning" />
-          <span>Đang tải kết quả chấm SMS AI...</span>
+          <span>Đang tải mức độ nghi ngờ...</span>
         </div>
       )}
 
@@ -1474,10 +1474,7 @@ export default function CodSuspicionReport({
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
                               </>
                             ) : (
-                              <>
-                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>AI đánh giá</th>
-                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700, minWidth: '110px' }}>Điểm nghi ngờ SMS</th>
-                              </>
+                              <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700, minWidth: '110px' }}>Mức độ nghi ngờ</th>
                             )}
                           </tr>
                         </thead>
@@ -1567,19 +1564,11 @@ export default function CodSuspicionReport({
                                     </td>
                                   </>
                                 ) : (
-                                  <>
-                                    {/* AI đánh giá */}
-                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                      <span className={`cod-sms-badge cod-sms-badge--${smsVerdict.level}`}>
-                                        {smsVerdict.text}
-                                      </span>
-                                    </td>
-
-                                    {/* Điểm nghi ngờ SMS */}
-                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap', fontWeight: 700 }}>
-                                      {smsBadge.score ?? '—'}
-                                    </td>
-                                  </>
+                                  <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <span className={`cod-sms-badge cod-sms-badge--${smsVerdict.level}`}>
+                                      {smsVerdict.text}
+                                    </span>
+                                  </td>
                                 )}
 
                               </tr>

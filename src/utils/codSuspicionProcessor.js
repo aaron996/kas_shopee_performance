@@ -658,6 +658,6 @@ export function getSmsSimpleVerdict(assessment) {
     && Number(assessment.smsScore) > 0
   );
   return isSuspicious
-    ? { text: 'Nghi ngờ SMS bất thường', level: 'high' }
-    : { text: 'Không có bất thường SMS', level: 'no_evidence' };
+    ? { text: 'Có dấu hiệu nghi ngờ', level: 'high' }
+    : { text: 'Không có dấu hiệu nghi ngờ', level: 'no_evidence' };
 }
