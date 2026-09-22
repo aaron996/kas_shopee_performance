@@ -19,7 +19,7 @@ export default function Sidebar({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const tabs = navigationModules('sidebar');
+  const tabs = navigationModules('sidebar', currentUser);
   const groupedTabs = tabs.filter(tab => tab.group);
   const standaloneTabs = tabs.filter(tab => !tab.group);
   const groupOrder = [];
