@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyCronSecret, runDailyCodSmsBatch, createCodSmsCronHandler } from './cron.js';
+import { verifyCronSecret, sweepCodSmsSources, runDailyCodSmsBatch, createCodSmsCronHandler } from './cron.js';
 
 function makeRes() {
   const res = {
@@ -109,6 +109,33 @@ test('createCodSmsCronHandler runs the batch and returns totals for an authorize
   const body = JSON.parse(res.body);
   assert.equal(body.cron, true);
   assert.equal(body.totals.scored, 4);
+});
+
+test('sweepCodSmsSources passes force through to each page of runBatch', async () => {
+  const config = { maxBatchLimit: 10 };
+  const calls = [];
+  const runBatch = async (params) => {
+    calls.push({ force: params.force, offset: params.offset });
+    return { summary: { requested: 1, found: 1, claimed: 1, scored: 0, noEvidence: 0, failed: 1, skippedUnchanged: 0 } };
+  };
+
+  const totals = await sweepCodSmsSources({ repository: {}, config, force: true, runBatch, maxPages: 1 });
+
+  assert.equal(calls[0].force, true);
+  assert.equal(totals.failed, 1);
+});
+
+test('sweepCodSmsSources defaults force to false when not passed (daily cron never force-rebills)', async () => {
+  const config = { maxBatchLimit: 10 };
+  let capturedForce;
+  const runBatch = async (params) => {
+    capturedForce = params.force;
+    return { summary: { requested: 0, found: 0, claimed: 0, scored: 0, noEvidence: 0, failed: 0, skippedUnchanged: 0 } };
+  };
+
+  await sweepCodSmsSources({ repository: {}, config, runBatch, maxPages: 1 });
+
+  assert.equal(capturedForce, false);
 });
 
 test('createCodSmsCronHandler only allows GET and POST', async () => {

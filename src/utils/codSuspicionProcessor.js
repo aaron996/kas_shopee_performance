@@ -642,3 +642,22 @@ export function getSmsScoreBadge(assessment) {
     confidence: null
   };
 }
+
+/**
+ * Simplified two-state read for the regular (non-Dev-Admin) order table:
+ * either the AI found a positive suspicion score, or it did not (which
+ * folds no_evidence, pending, failed, and unscored all into the same
+ * conservative "no anomaly" bucket — regular users never see the technical
+ * distinction between those). Reuses the existing 'high'/'no_evidence' badge
+ * CSS classes so no new styling is needed.
+ */
+export function getSmsSimpleVerdict(assessment) {
+  const isSuspicious = Boolean(
+    assessment
+    && assessment.status === 'scored'
+    && Number(assessment.smsScore) > 0
+  );
+  return isSuspicious
+    ? { text: 'Nghi ngờ SMS bất thường', level: 'high' }
+    : { text: 'Không có bất thường SMS', level: 'no_evidence' };
+}

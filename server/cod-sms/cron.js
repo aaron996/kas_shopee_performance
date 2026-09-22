@@ -27,23 +27,15 @@ function createServiceOnlyClient(config) {
 
 /**
  * Walk the entire kas_cod_suspicion_data source table page by page and claim
- * every row that is new, stale, or previously failed. Rows already scored
- * with an unchanged fingerprint are skipped by repository.claim() without
- * calling the model, so re-running this daily does not re-bill unchanged
- * orders.
+ * every row that is new, stale, or previously failed (the claim RPC caps
+ * failed-row retries at 5 attempts on its own, see the
+ * cod_suspicion_sms_reclaim_failed migration). Rows already scored with an
+ * unchanged fingerprint are skipped by repository.claim() without calling
+ * the model, so re-running this does not re-bill unchanged orders. Shared by
+ * both the daily cron job and the Dev Admin manual-run button so they behave
+ * identically.
  */
-export async function runDailyCodSmsBatch(dependencies = {}) {
-  const getConfig = dependencies.readConfig ?? readCodSmsConfig;
-  const makeServiceClient = dependencies.createServiceClient ?? createServiceOnlyClient;
-  const makeRepository = dependencies.createRepository ?? createCodSmsRepository;
-  const runBatch = dependencies.runBatch ?? runAssessmentBatch;
-  const maxPages = dependencies.maxPages ?? MAX_PAGES_PER_RUN;
-  const signal = dependencies.signal;
-
-  const config = getConfig(dependencies.env ?? process.env, { requireScoring: true });
-  const serviceClient = makeServiceClient(config);
-  const repository = makeRepository(serviceClient);
-
+export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, signal, abortErrorCode = 'COD_SMS_SWEEP_ABORTED', abortErrorMessage = 'Lượt quét chấm điểm SMS đã bị dừng.' }) {
   const totals = {
     pages: 0,
     requested: 0,
@@ -60,9 +52,9 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
 
   while (totals.pages < maxPages) {
     if (signal?.aborted) {
-      throw new ChatError('COD_SMS_CRON_ABORTED', 'Cron chấm điểm SMS đã bị dừng.', 499);
+      throw new ChatError(abortErrorCode, abortErrorMessage, 499);
     }
-    const result = await runBatch({ repository, config, limit, offset, cases: [], force: false, signal });
+    const result = await runBatch({ repository, config, limit, offset, cases: [], force, signal });
     totals.pages += 1;
     totals.requested += result.summary.requested;
     totals.found += result.summary.found;
@@ -77,6 +69,27 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
   }
 
   return totals;
+}
+
+export async function runDailyCodSmsBatch(dependencies = {}) {
+  const getConfig = dependencies.readConfig ?? readCodSmsConfig;
+  const makeServiceClient = dependencies.createServiceClient ?? createServiceOnlyClient;
+  const makeRepository = dependencies.createRepository ?? createCodSmsRepository;
+
+  const config = getConfig(dependencies.env ?? process.env, { requireScoring: true });
+  const serviceClient = makeServiceClient(config);
+  const repository = makeRepository(serviceClient);
+
+  return sweepCodSmsSources({
+    repository,
+    config,
+    force: false,
+    runBatch: dependencies.runBatch,
+    maxPages: dependencies.maxPages,
+    signal: dependencies.signal,
+    abortErrorCode: 'COD_SMS_CRON_ABORTED',
+    abortErrorMessage: 'Cron chấm điểm SMS đã bị dừng.'
+  });
 }
 
 export function createCodSmsCronHandler(dependencies = {}) {

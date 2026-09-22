@@ -7,6 +7,7 @@ import {
   runAssessmentBatch,
   serializeAssessment
 } from '../server/cod-sms/service.js';
+import { sweepCodSmsSources } from '../server/cod-sms/cron.js';
 
 export const maxDuration = 300;
 const MAX_BODY_BYTES = 64 * 1024;
@@ -69,6 +70,13 @@ function parseBatchRequest(body, config) {
   if (body.force !== undefined && typeof body.force !== 'boolean') {
     throw new ChatError('COD_SMS_BAD_REQUEST', 'force phải là boolean.', 400);
   }
+  if (body.sweep !== undefined && typeof body.sweep !== 'boolean') {
+    throw new ChatError('COD_SMS_BAD_REQUEST', 'sweep phải là boolean.', 400);
+  }
+  const sweep = body.sweep === true;
+  if (sweep && cases.length > 0) {
+    throw new ChatError('COD_SMS_BAD_REQUEST', 'sweep không dùng chung với cases.', 400);
+  }
   const parsedCases = cases.map(parseCase);
   const requestedLimit = parsePositiveInt(
     body.limit,
@@ -78,7 +86,7 @@ function parseBatchRequest(body, config) {
   );
   const limit = Math.max(requestedLimit, parsedCases.length);
   const offset = parsePositiveInt(body.offset, 0, 10000, 'offset', true);
-  return { limit, offset, cases: parsedCases, force: body.force === true };
+  return { limit, offset, cases: parsedCases, force: body.force === true, sweep };
 }
 
 function parseGetRequest(req) {
@@ -154,6 +162,26 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       res.on?.('close', () => {
         if (!res.writableEnded) controller.abort(new Error('Client disconnected'));
       });
+
+      if (request.sweep) {
+        // The manual-run button's full-table sweep: same page-by-page walk
+        // as the daily cron (server/cod-sms/cron.js), just authenticated as
+        // the calling Dev Admin instead of CRON_SECRET. Only aggregate
+        // counts are returned (no row list — a sweep can span many pages).
+        const totals = await sweepCodSmsSources({
+          repository,
+          config,
+          force: request.force,
+          signal: controller.signal
+        });
+        sendJson(res, 200, {
+          contractVersion: '1',
+          batch: { ...totals, force: request.force, sweep: true },
+          assessments: []
+        });
+        return;
+      }
+
       const result = await runBatch({
         repository,
         config,

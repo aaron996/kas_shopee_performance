@@ -309,50 +309,79 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
   }
 }
 
+async function postCodSmsBatch(body, label) {
+  const authHeaders = await getAuthHeader();
+  const res = await withTimeout(
+    fetch('/api/cod-sms-assessments', {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(body)
+    }),
+    label,
+    BATCH_RUN_TIMEOUT_MS
+  );
+
+  let data;
+  try { data = await res.json(); } catch { data = null; }
+
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `Yêu cầu thất bại (${res.status})`);
+  }
+  return data;
+}
+
+function sumBatchTotals(base, extra) {
+  const merged = { ...base };
+  for (const key of ['found', 'claimed', 'scored', 'noEvidence', 'failed', 'skippedUnchanged']) {
+    merged[key] = (base?.[key] || 0) + (extra?.[key] || 0);
+  }
+  return merged;
+}
+
 /**
- * Manually trigger a scoring batch (Dev Admin only; the server enforces this
+ * Manually trigger a scoring run (Dev Admin only; the server enforces this
  * independently via hasDevAdminRole, this is not the security boundary).
- * Reuses the same POST /api/cod-sms-assessments path the daily cron job
- * calls, so a manual run and the cron run behave identically and never
- * double-charge an unchanged order thanks to the source-fingerprint claim.
+ *
+ * Two steps, both server-side idempotent so a re-click never double-bills an
+ * unchanged order:
+ * 1. A full sweep (`sweep: true`, same page-by-page walk as the daily cron)
+ *    over every source order — picks up anything new/changed, and also
+ *    retries `failed` rows up to the 5-attempt cap the claim RPC enforces.
+ * 2. Whatever is still `failed` after that (attempts exhausted, or failed
+ *    again just now) gets one explicit `force: true` retry, scoped to only
+ *    those specific order keys — never a blanket force over the whole table,
+ *    so already-correct orders are never re-billed.
  */
-export async function runCodSmsAssessmentBatch({ limit } = {}) {
+export async function runCodSmsAssessmentBatch() {
   try {
-    const authHeaders = await getAuthHeader();
-    const body = {};
-    if (limit) {
-      body.limit = Math.min(Math.max(Number(limit) || 0, 1), 500);
-    }
+    const sweepData = await postCodSmsBatch({ sweep: true }, 'cod-sms-assessments-sweep');
+    let totals = sweepData?.batch || {};
 
-    const res = await withTimeout(
-      fetch('/api/cod-sms-assessments', {
-        method: 'POST',
-        headers: {
-          ...authHeaders,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(body)
-      }),
-      'cod-sms-assessments-run-batch',
-      BATCH_RUN_TIMEOUT_MS
-    );
+    const summary = await fetchCodSmsAssessmentsSummary({ limit: 500 });
+    const stillFailedCases = summary.success
+      ? (summary.assessments || [])
+          .filter(item => item.status === 'failed')
+          .map(item => item.key)
+          .filter(Boolean)
+      : [];
 
-    let data;
-    try { data = await res.json(); } catch { data = null; }
-
-    if (!res.ok) {
-      return {
-        success: false,
-        error: data?.error?.message || `Yêu cầu thất bại (${res.status})`
-      };
+    let forceRetried = 0;
+    if (stillFailedCases.length > 0) {
+      const forceData = await postCodSmsBatch(
+        { cases: stillFailedCases, force: true },
+        'cod-sms-assessments-force-retry-failed'
+      );
+      totals = sumBatchTotals(totals, forceData?.batch);
+      forceRetried = stillFailedCases.length;
     }
 
     return {
       success: true,
-      contractVersion: data?.contractVersion || '1',
-      batch: data?.batch || null,
-      assessments: Array.isArray(data?.assessments) ? data.assessments : []
+      batch: { ...totals, forceRetried }
     };
   } catch (err) {
     console.error('Failed to run COD SMS assessment batch:', err);
