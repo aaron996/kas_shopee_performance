@@ -23,15 +23,16 @@ export const SMS_ASSESSMENT_JSON_SCHEMA = Object.freeze({
     diem_sms: { type: 'integer', minimum: 0, maximum: 9 },
     muc_do_tin_cay: { type: 'string', enum: CONFIDENCE_VALUES },
     mau_hinh_phat_hien: {
+      // `uniqueItems` is rejected by OpenAI Structured Outputs strict mode
+      // ("'uniqueItems' is not permitted"); uniqueness is instead enforced
+      // in validateModelAssessment()'s assertStringArray check below.
       type: 'array',
       maxItems: 5,
-      uniqueItems: true,
       items: { type: 'string', enum: PATTERN_VALUES }
     },
     bang_chung: {
       type: 'array',
       maxItems: 10,
-      uniqueItems: true,
       items: { type: 'string', minLength: 1, maxLength: 4000 }
     },
     giai_thich: { type: 'string', minLength: 1, maxLength: 4000 }
