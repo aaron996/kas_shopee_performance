@@ -18,12 +18,14 @@ StarRocks DW (dtr_lastmile, online_core, iceberg)
         ▼ (Scheduled server-side job: n8n workflow hoặc BI Script)
 Chạy query: 01_score_model_hcm_v20_PENDING_VERIFY.sql (Grain: 1 dòng / đơn)
         │
-        ▼ (POST HTTPS /rest/v1/rpc/sync_kas_cod_suspicion_data)
+        ▼ (Apps Script aggregate 1 đơn + nhiều SMS)
+        ▼ (POST HTTPS /rest/v1/rpc/sync_kas_cod_suspicion_snapshot)
 Supabase RPC (SECURITY DEFINER, TRUNCATE + INSERT trong 1 transaction)
         │
         ▼
 Supabase Tables:
   - public.kas_cod_suspicion_data (Grain: 1 dòng / đơn, RLS: authenticated read-only)
+  - public.kas_cod_suspicion_sms_messages (Grain: nhiều SMS / đơn, không cấp client đọc trực tiếp)
   - public.kas_cod_suspicion_metadata (Thời điểm snapshot & số lượng)
         │
         ▼ (Supabase JS Client + User Session RLS)
@@ -32,8 +34,9 @@ App React/Vite (src/components/CodSuspicionReport.jsx)
 
 - **App client (trình duyệt)** tuyệt đối không kết nối trực tiếp đến StarRocks.
 - Dữ liệu đồng bộ vào Supabase theo cơ chế **atomic full-refresh** tương tự như OPS KPI metric: `TRUNCATE` và `INSERT` trong cùng transaction qua RPC `sync_kas_cod_suspicion_data`.
-- **Mọi user đã đăng nhập app** có thể đọc hai bảng KAS-221 qua Supabase RLS.
-  `anon` không có quyền; thao tác ghi/full-refresh vẫn chỉ dành cho `service_role`.
+- **Mọi user đã đăng nhập app** chỉ đọc snapshot đơn KAS-221 theo RLS. Nội dung
+  SMS thô không được cấp qua Data API client; `anon` không có quyền và thao tác
+  ghi/full-refresh vẫn chỉ dành cho `service_role`.
 - Khi không có đơn nghi vấn nào (batch 0 dòng), RPC vẫn cập nhật `kas_cod_suspicion_metadata` với timestamp mới nhất, giúp UI hiển thị chính xác "Cập nhật lúc ... (0 đơn nghi vấn)" mà không bị crash hay hiển thị sai lệch.
 
 ---
@@ -87,7 +90,7 @@ ORDER BY `Điểm tổng nghi vấn` DESC;
 
 ## 3. Data Contract gửi vào RPC Supabase
 
-Endpoint:
+Endpoint legacy (chỉ nhận source đã ở grain một dòng / đơn):
 ```
 POST https://iyjsihwgnzcytbojvoom.supabase.co/rest/v1/rpc/sync_kas_cod_suspicion_data
 Headers:
@@ -131,7 +134,33 @@ Payload body:
 }
 ```
 
-*Lưu ý:* RPC cũng chấp nhận tên cột trực tiếp bằng tiếng Việt có dấu từ SQL gốc (như `ID tài xế`, `Mã đơn`, `Kho giao`, `Mâu thuẫn lý do vs duration (M7)`, v.v.).
+*Lưu ý:* RPC legacy cũng chấp nhận tên cột trực tiếp bằng tiếng Việt có dấu từ SQL gốc (như `ID tài xế`, `Mã đơn`, `Kho giao`, `Mâu thuẫn lý do vs duration (M7)`, v.v.).
+
+### 3.1. Snapshot COD có SMS (nguồn `goi_dau_COD`)
+
+Tab hiện tại có grain một dòng cho mỗi SMS, nên không được gửi thẳng vào RPC
+legacy: một đơn có nhiều SMS sẽ làm nhân số đơn và tổng COD. Dùng script
+`scripts/apps-script/sync-cod-suspicion-sms-snapshot.gs`, chạy dry-run trước,
+và gọi endpoint mới:
+
+```
+POST https://iyjsihwgnzcytbojvoom.supabase.co/rest/v1/rpc/sync_kas_cod_suspicion_snapshot
+```
+
+Payload có ba field:
+
+```json
+{
+  "orders": ["1 dòng canonical cho mỗi đơn"],
+  "sms_messages": ["nhiều SMS đã dedupe, mỗi SMS tham chiếu đơn cha"],
+  "snapshot_meta": { "batch_id": "...", "source_rows": 203 }
+}
+```
+
+RPC validate toàn bộ payload trước khi `TRUNCATE`, rồi ghi cả bảng đơn và bảng
+SMS trong cùng transaction. Không bật `COD_SUSPICION_GID`/nhánh COD legacy trong
+`sync-to-supabase.gs` cùng lúc với script mới, vì nó có thể ghi lại snapshot ở
+SMS-grain qua RPC cũ.
 
 ---
 
