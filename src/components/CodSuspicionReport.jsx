@@ -40,6 +40,7 @@ import {
   aggregateOrdersByEndDeliveryDate,
   getCodSmsCaseKey,
   getSmsScoreBadge,
+  getSmsSimpleVerdict,
   formatSmsConfidence,
   SMS_PATTERN_LABELS
 } from '../utils/codSuspicionProcessor';
@@ -975,11 +976,6 @@ export default function CodSuspicionReport({
         </div>
       )}
 
-      {!canManageResolutions && (
-        <div role="status" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--warning-fg, #92400e)', background: 'var(--warning-bg, #fef3c7)', border: '1px solid rgba(146, 64, 14, 0.25)', borderRadius: 'var(--radius-control, 10px)' }}>
-          Bạn chỉ có quyền xem dữ liệu nguồn. Chỉ Dev Admin được xác nhận xử lý đơn.
-        </div>
-      )}
 
       {searchQuery && (
         <div className="cod-search-context" role="status">
@@ -1228,7 +1224,7 @@ export default function CodSuspicionReport({
                       <table
                         style={{
                           width: '100%',
-                          minWidth: '920px',
+                          minWidth: isDevAdmin ? '920px' : '860px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -1242,8 +1238,17 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
+                            {isDevAdmin ? (
+                              <>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
+                              </>
+                            ) : (
+                              <>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>AI đánh giá</th>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700, minWidth: '110px' }}>Điểm nghi ngờ SMS</th>
+                              </>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -1256,6 +1261,7 @@ export default function CodSuspicionReport({
                             });
                             const smsAssessment = smsAssessments.get(smsKey);
                             const smsBadge = getSmsScoreBadge(smsAssessment);
+                            const smsVerdict = getSmsSimpleVerdict(smsAssessment);
 
                             return (
                               <tr
@@ -1307,26 +1313,44 @@ export default function CodSuspicionReport({
                                   </span>
                                 </td>
 
-                                {/* Điểm SMS (AI) */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  <span className={`cod-sms-badge cod-sms-badge--${smsBadge.level}`}>
-                                    {smsBadge.text}
-                                  </span>
-                                </td>
+                                {isDevAdmin ? (
+                                  <>
+                                    {/* Điểm SMS (AI) */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <span className={`cod-sms-badge cod-sms-badge--${smsBadge.level}`}>
+                                        {smsBadge.text}
+                                      </span>
+                                    </td>
 
-                                {/* Thao tác */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  <button
-                                    type="button"
-                                    className="cod-sms-action-btn"
-                                    onClick={() => openSmsModal(order, smsAssessment)}
-                                    title={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
-                                    aria-label={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
-                                  >
-                                    <MessageSquare size={13} />
-                                    <span>Xem chi tiết SMS</span>
-                                  </button>
-                                </td>
+                                    {/* Thao tác */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <button
+                                        type="button"
+                                        className="cod-sms-action-btn"
+                                        onClick={() => openSmsModal(order, smsAssessment)}
+                                        title={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                        aria-label={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                      >
+                                        <MessageSquare size={13} />
+                                        <span>Xem chi tiết SMS</span>
+                                      </button>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* AI đánh giá */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <span className={`cod-sms-badge cod-sms-badge--${smsVerdict.level}`}>
+                                        {smsVerdict.text}
+                                      </span>
+                                    </td>
+
+                                    {/* Điểm nghi ngờ SMS */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                                      {smsBadge.score ?? '—'}
+                                    </td>
+                                  </>
+                                )}
 
                               </tr>
                             );
