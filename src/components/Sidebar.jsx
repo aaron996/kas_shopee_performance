@@ -88,7 +88,6 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="sidebar-nav">
-        <div className="sidebar-nav-title">BÁO CÁO</div>
         {groupOrder.map(group => (
           <div key={group} className="sidebar-nav-group">
             <div className="sidebar-nav-group-title">{MODULE_GROUP_LABELS[group] || group}</div>
