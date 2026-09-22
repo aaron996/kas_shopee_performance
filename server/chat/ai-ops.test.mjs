@@ -568,16 +568,18 @@ test('api/ai-ops reset-override supports email resolution and null userId', asyn
 });
 
 test('api/ai-ops GET view=model-config returns allowed models and config overview for Dev Admin', async () => {
+  const configRows = [
+    { scope_type: 'all', scope_key: 'all', model: 'gpt-5.6-terra', reasoning_effort: 'high', updated_by: 'vinhlt@ghn.vn', updated_at: '2026-09-11T00:00:00Z' }
+  ];
+  const chainable = (rows) => ({
+    eq: () => chainable(rows),
+    order: () => chainable(rows),
+    limit: () => chainable(rows),
+    then: (res) => res({ data: rows, error: null })
+  });
   const serviceClient = {
     from: (table) => ({
-      select: () => ({
-        order: () => ({
-          limit: () => Promise.resolve({ data: [], error: null }),
-          then: (res) => res({ data: [
-            { scope_type: 'all', scope_key: 'all', model: 'gpt-5.6-terra', reasoning_effort: 'high', updated_by: 'vinhlt@ghn.vn', updated_at: '2026-09-11T00:00:00Z' }
-          ], error: null })
-        })
-      })
+      select: () => chainable(table === 'ai_chat_model_config' ? configRows : [])
     })
   };
 

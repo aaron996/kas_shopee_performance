@@ -6,16 +6,16 @@ export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
  * - 'user:<UUID>' cho User cụ thể
  * - 'user:none' khi đang ở tab User nhưng chưa chọn user
  */
-export function getModelConfigTargetKey(scope, user) {
-  if (scope === 'all') return 'all';
+export function getModelConfigTargetKey(scope, user, feature = 'chat') {
+  if (scope === 'all') return `${feature}:all`;
   if (scope === 'user') {
     const rawId = user?.userId;
     if (typeof rawId === 'string' && UUID_REGEX.test(rawId.trim())) {
-      return `user:${rawId.trim().toLowerCase()}`;
+      return `${feature}:user:${rawId.trim().toLowerCase()}`;
     }
-    return 'user:none';
+    return `${feature}:user:none`;
   }
-  return 'all';
+  return `${feature}:all`;
 }
 
 /**

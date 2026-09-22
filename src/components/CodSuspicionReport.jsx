@@ -12,7 +12,9 @@ import {
   X,
   MessageSquare,
   LoaderCircle,
-  Search
+  Search,
+  Info,
+  Play
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,6 +28,7 @@ import {
 import {
   formatCurrencyVND,
   formatDateVN,
+  formatDateTimeVN,
   normalizeSuspicionOrder,
   groupOrdersByDriver,
   sortDrivers,
@@ -34,7 +37,12 @@ import {
   getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
-  aggregateOrdersByEndDeliveryDate
+  aggregateOrdersByEndDeliveryDate,
+  getCodSmsCaseKey,
+  getSmsScoreBadge,
+  getSmsSimpleVerdict,
+  formatSmsConfidence,
+  SMS_PATTERN_LABELS
 } from '../utils/codSuspicionProcessor';
 import {
   fetchCodSuspicionData,
@@ -42,8 +50,15 @@ import {
   saveCodSuspicionDriverResolution,
   undoCodSuspicionDriverResolution,
   uploadCodResolutionEvidence,
-  removeCodResolutionEvidence
+  removeCodResolutionEvidence,
+  fetchCodSmsAssessmentsSummary,
+  fetchCodSmsAssessmentsHistory,
+  fetchCodSmsAssessmentEvidenceCached,
+  getCachedCodSmsEvidence,
+  invalidateCodSmsEvidenceCache,
+  runCodSmsAssessmentBatch
 } from '../utils/codSuspicionClient';
+import LoadingScreen from './LoadingScreen';
 import ModalDialog from './ui/ModalDialog';
 
 const TYPE_COLORS = {
@@ -72,9 +87,12 @@ function getResolutionLabel(resolution) {
 }
 
 export default function CodSuspicionReport({
+  active = true,
   filters,
   onAvailableWarehouses,
   canManageResolutions = false,
+  isDevAdmin = false,
+  userEmail = '',
   dataEnabled = true,
   focusTarget = null,
   onFocusTargetHandled,
@@ -82,13 +100,35 @@ export default function CodSuspicionReport({
 }) {
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
+  const [smsAssessments, setSmsAssessments] = useState(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [isSmsLoading, setIsSmsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
+  const [smsError, setSmsError] = useState('');
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
   const [resolvingDriverKeys, setResolvingDriverKeys] = useState(() => new Set());
   const [workflowDialog, setWorkflowDialog] = useState(null);
   const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
+  const [smsDetailModal, setSmsDetailModal] = useState(null);
+  const [evidenceState, setEvidenceState] = useState({ isLoading: false, error: null, evidence: null });
+  const activeSmsRequestRef = useRef(null);
+  const [manualRunDialogOpen, setManualRunDialogOpen] = useState(false);
+  const [manualRunState, setManualRunState] = useState({ isRunning: false, error: null, result: null, aborted: false });
+  const [manualRunProgress, setManualRunProgress] = useState(null);
+  const [manualRunMode, setManualRunMode] = useState('all'); // 'all' | 'cases'
+  const [manualRunSearch, setManualRunSearch] = useState('');
+  const [manualRunSelectedKeys, setManualRunSelectedKeys] = useState(() => new Map());
+  const manualRunAbortRef = useRef(null);
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [historyTotalCount, setHistoryTotalCount] = useState(0);
+  const [historyFilters, setHistoryFilters] = useState({ status: '', driverId: '', orderCode: '' });
+  const HISTORY_PAGE_SIZE = 25;
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
@@ -108,22 +148,38 @@ export default function CodSuspicionReport({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      activeSmsRequestRef.current?.controller?.abort();
+    };
+  }, []);
+
   // Fetch data
   const loadData = useCallback(async ({ forceRefresh = false } = {}) => {
     if (!dataEnabled) {
       setRawData([]);
       setResolutions(new Map());
+      setSmsAssessments(new Map());
       setErrorMsg('');
       setResolutionError('');
+      setSmsError('');
       setIsLoading(false);
+      setIsSmsLoading(false);
+      setHasLoaded(true);
       return;
     }
+    if (forceRefresh) {
+      invalidateCodSmsEvidenceCache();
+    }
     setIsLoading(true);
+    setIsSmsLoading(true);
     setErrorMsg('');
+    setSmsError('');
     try {
-      const [sourceResult, resolutionResult] = await Promise.all([
+      const [sourceResult, resolutionResult, smsResult] = await Promise.all([
         fetchCodSuspicionData({ forceRefresh }),
-        fetchCodSuspicionCaseResolutions()
+        fetchCodSuspicionCaseResolutions(),
+        fetchCodSmsAssessmentsSummary({ limit: 500 })
       ]);
       if (sourceResult.success) {
         setRawData(sourceResult.rows || []);
@@ -142,17 +198,221 @@ export default function CodSuspicionReport({
       } else {
         setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
       }
+
+      if (smsResult.success) {
+        const assessmentMap = new Map();
+        for (const item of smsResult.assessments || []) {
+          if (item?.key) {
+            assessmentMap.set(getCodSmsCaseKey(item.key), item);
+          }
+        }
+        setSmsAssessments(assessmentMap);
+      } else {
+        setSmsError('Không thể tải mức độ nghi ngờ. Vui lòng thử lại.');
+      }
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
       setErrorMsg('Đã xảy ra lỗi khi kết nối Supabase. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
+      setIsSmsLoading(false);
+      setHasLoaded(true);
     }
   }, [dataEnabled]);
 
+  const loadEvidenceForModal = useCallback(async (order, { forceRefresh = false } = {}) => {
+    if (!isDevAdmin || !order) return;
+    const caseKey = getCodSmsCaseKey(order);
+
+    // Cancel previous in-flight fetch to prevent race condition
+    if (activeSmsRequestRef.current?.controller) {
+      activeSmsRequestRef.current.controller.abort();
+    }
+
+    const controller = new AbortController();
+    activeSmsRequestRef.current = { caseKey, controller };
+
+    // Synchronous cache hit check
+    if (!forceRefresh) {
+      const cached = getCachedCodSmsEvidence({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin
+      });
+      if (cached?.assessment) {
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(cached.assessment.evidence) ? cached.assessment.evidence : []
+        });
+        return;
+      }
+    }
+
+    setEvidenceState({ isLoading: true, error: null, evidence: null });
+
+    try {
+      const result = await fetchCodSmsAssessmentEvidenceCached({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin,
+        forceRefresh,
+        signal: controller.signal
+      });
+
+      // Ignore if user navigated away or opened a different SMS
+      if (activeSmsRequestRef.current?.caseKey !== caseKey) {
+        return;
+      }
+      if (result.aborted) {
+        return;
+      }
+
+      if (result.success && result.assessment) {
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(result.assessment.evidence) ? result.assessment.evidence : []
+        });
+      } else {
+        setEvidenceState({
+          isLoading: false,
+          error: result.error || 'Không thể tải bằng chứng SMS nguyên văn.',
+          evidence: null
+        });
+      }
+    } catch (err) {
+      if (activeSmsRequestRef.current?.caseKey !== caseKey || err.name === 'AbortError') {
+        return;
+      }
+      console.error('Failed to load SMS evidence:', err);
+      setEvidenceState({
+        isLoading: false,
+        error: 'Lỗi mạng khi tải bằng chứng SMS.',
+        evidence: null
+      });
+    }
+  }, [isDevAdmin, userEmail]);
+
+  const openSmsModal = useCallback((order, assessment) => {
+    setSmsDetailModal({ order, assessment });
+    if (isDevAdmin && assessment && (assessment.status === 'scored' || assessment.evidenceRestricted)) {
+      const cached = getCachedCodSmsEvidence({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin
+      });
+      if (cached?.assessment) {
+        if (activeSmsRequestRef.current?.controller) {
+          activeSmsRequestRef.current.controller.abort();
+        }
+        activeSmsRequestRef.current = { caseKey: getCodSmsCaseKey(order), controller: null };
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(cached.assessment.evidence) ? cached.assessment.evidence : []
+        });
+      } else {
+        loadEvidenceForModal(order);
+      }
+    } else {
+      if (activeSmsRequestRef.current?.controller) {
+        activeSmsRequestRef.current.controller.abort();
+      }
+      activeSmsRequestRef.current = null;
+      setEvidenceState({ isLoading: false, error: null, evidence: null });
+    }
+  }, [isDevAdmin, userEmail, loadEvidenceForModal]);
+
+  const closeSmsModal = useCallback(() => {
+    if (activeSmsRequestRef.current?.controller) {
+      activeSmsRequestRef.current.controller.abort();
+    }
+    activeSmsRequestRef.current = null;
+    setSmsDetailModal(null);
+  }, []);
+
+  const handleRunManualBatch = useCallback(async () => {
+    const cases = manualRunMode === 'cases'
+      ? [...manualRunSelectedKeys.values()].map(({ suspicionType, driverId, orderCode }) => ({ suspicionType, driverId, orderCode }))
+      : [];
+    if (manualRunMode === 'cases' && cases.length === 0) return;
+
+    setManualRunState({ isRunning: true, error: null, result: null, aborted: false });
+    setManualRunProgress(null);
+    const controller = new AbortController();
+    manualRunAbortRef.current = controller;
+
+    const result = await runCodSmsAssessmentBatch({
+      mode: manualRunMode,
+      cases,
+      signal: controller.signal,
+      onProgress: update => setManualRunProgress(update)
+    });
+    manualRunAbortRef.current = null;
+
+    if (!result.success) {
+      setManualRunState(result.aborted
+        ? { isRunning: false, error: null, result: null, aborted: true }
+        : { isRunning: false, error: result.error || 'Không thể chạy chấm điểm SMS.', result: null, aborted: false });
+      if (result.aborted) await loadData({ forceRefresh: true });
+      return;
+    }
+    setManualRunState({ isRunning: false, error: null, result: result.batch, aborted: false });
+    await loadData({ forceRefresh: true });
+  }, [loadData, manualRunMode, manualRunSelectedKeys]);
+
+  const handleStopManualBatch = useCallback(() => {
+    manualRunAbortRef.current?.abort();
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError('');
+    const result = await fetchCodSmsAssessmentsHistory({
+      limit: HISTORY_PAGE_SIZE,
+      offset: historyOffset,
+      status: historyFilters.status || null,
+      driverId: historyFilters.driverId.trim() || null,
+      orderCode: historyFilters.orderCode.trim() || null
+    });
+    if (result.success) {
+      setHistoryRows(result.assessments);
+      setHistoryTotalCount(result.meta?.totalCount ?? result.assessments.length);
+    } else {
+      setHistoryError(result.error || 'Không thể tải lịch sử chấm điểm SMS AI.');
+    }
+    setHistoryLoading(false);
+  }, [historyOffset, historyFilters]);
+
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isDevAdmin && historyPanelOpen) loadHistory();
+  }, [isDevAdmin, historyPanelOpen, loadHistory]);
+
+  const updateHistoryFilter = useCallback((key, value) => {
+    setHistoryOffset(0);
+    setHistoryFilters(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const closeManualRunDialog = useCallback(() => {
+    if (manualRunState.isRunning) return;
+    setManualRunDialogOpen(false);
+    setManualRunState({ isRunning: false, error: null, result: null, aborted: false });
+    setManualRunProgress(null);
+    setManualRunMode('all');
+    setManualRunSearch('');
+    setManualRunSelectedKeys(new Map());
+  }, [manualRunState.isRunning]);
+
+  useEffect(() => {
+    if (active) loadData();
+  }, [active, loadData]);
 
   // Normalize all rows
   const normalizedOrders = useMemo(() => rawData.map(raw => {
@@ -163,11 +423,51 @@ export default function CodSuspicionReport({
     };
   }), [rawData, resolutions]);
 
-  // Group all rows by driver and sort default
+  // Order picker (manual SMS run, mode='cases'): filters the already-loaded
+  // orders client-side, no extra API call needed.
+  const manualRunSearchResults = useMemo(() => {
+    const term = manualRunSearch.trim().toLowerCase();
+    if (!term) return [];
+    return normalizedOrders
+      .filter(order => order.orderCode.toLowerCase().includes(term)
+        || order.driverId.toLowerCase().includes(term)
+        || order.driverName.toLowerCase().includes(term))
+      .slice(0, 50);
+  }, [normalizedOrders, manualRunSearch]);
+
+  // Group all rows by driver and sort default. A resolution can outlive its
+  // source orders — the daily KAS-221 sync fully replaces `kas_cod_suspicion_data`,
+  // so a driver who dropped out of today's flagged list still needs to show up
+  // wherever its saved resolution belongs (usually the "Đã xử lý" tab) instead
+  // of silently vanishing.
   const allDriverGroups = useMemo(() => {
     const grouped = groupOrdersByDriver(normalizedOrders);
-    return sortDrivers(grouped);
-  }, [normalizedOrders]);
+    const groupedKeys = new Set(grouped.map(getCodSuspicionDriverKey));
+    const orphanGroups = [];
+    resolutions.forEach((resolution, key) => {
+      if (groupedKeys.has(key)) return;
+      orphanGroups.push({
+        driverId: resolution.driver_id,
+        driverName: `Tài xế ${resolution.driver_id}`,
+        suspicionType: resolution.suspicion_type,
+        resolution,
+        isOrphan: true,
+        orders: [],
+        orderCount: 0,
+        maxScore: 0,
+        totalCod: 0,
+        warehouses: [],
+        signalSummary: {
+          signalReasonConflict: false,
+          signalFakeCall: false,
+          signalGpsFar: false,
+          signalGpsDuplicate: false,
+          signalGpsMocked: false
+        }
+      });
+    });
+    return sortDrivers([...grouped, ...orphanGroups]);
+  }, [normalizedOrders, resolutions]);
 
   // Extract all available warehouses for the filter dropdown
   const availableWarehouses = useMemo(() => {
@@ -768,7 +1068,167 @@ export default function CodSuspicionReport({
             );
           })}
         </div>
+
+        {isDevAdmin && (
+          <>
+            <button
+              type="button"
+              className="cod-workflow-action cod-workflow-action--secondary"
+              onClick={() => setManualRunDialogOpen(true)}
+              title="Chạy thủ công một lượt chấm điểm SMS AI cho toàn bộ đơn mới hoặc đã thay đổi"
+            >
+              <Play size={15} /> Chạy chấm điểm SMS thủ công
+            </button>
+            <button
+              type="button"
+              className="cod-workflow-action cod-workflow-action--secondary"
+              onClick={() => setHistoryPanelOpen(open => !open)}
+              title="Xem lịch sử các lượt AI đọc và chấm điểm SMS"
+            >
+              <Search size={15} /> {historyPanelOpen ? 'Ẩn lịch sử chấm SMS' : 'Lịch sử chấm SMS'}
+            </button>
+          </>
+        )}
       </div>
+
+      {isDevAdmin && historyPanelOpen && (
+        <div style={{
+          marginBottom: '0.85rem',
+          background: 'var(--card-bg)',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '0.85rem 1rem',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface-hover)',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
+          }}>
+            <span>LỊCH SỬ CHẤM ĐIỂM SMS AI</span>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontWeight: 400 }}>
+              <select
+                value={historyFilters.status}
+                onChange={e => updateHistoryFilter('status', e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem' }}
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="pending">Đang chờ</option>
+                <option value="scored">Đã chấm</option>
+                <option value="no_evidence">Không có bằng chứng</option>
+                <option value="failed">Lỗi</option>
+              </select>
+              <input
+                type="text"
+                value={historyFilters.driverId}
+                onChange={e => updateHistoryFilter('driverId', e.target.value)}
+                placeholder="ID tài xế"
+                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', width: '110px' }}
+              />
+              <input
+                type="text"
+                value={historyFilters.orderCode}
+                onChange={e => updateHistoryFilter('orderCode', e.target.value)}
+                placeholder="Mã đơn"
+                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', width: '130px' }}
+              />
+              <button
+                type="button"
+                onClick={loadHistory}
+                disabled={historyLoading}
+                className="cod-workflow-action cod-workflow-action--secondary"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+              >
+                <RefreshCw size={13} className={historyLoading ? 'is-spinning' : ''} /> Tải lại
+              </button>
+            </div>
+          </div>
+
+          {historyError && (
+            <div style={{ padding: '0.75rem 1rem', color: 'var(--danger-fg, #a13b2a)', fontSize: '0.85rem' }}>
+              {historyError}
+            </div>
+          )}
+
+          <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '0.5rem 1rem' }}>Mã đơn</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Tài xế</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Loại</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Trạng thái</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Điểm</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Model</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Cập nhật</th>
+                  <th style={{ padding: '0.5rem 1rem' }}>Lỗi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyLoading ? (
+                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải...</td></tr>
+                ) : historyRows.length === 0 ? (
+                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Không có bản ghi nào phù hợp.</td></tr>
+                ) : historyRows.map(row => (
+                  <tr key={`${row.key?.suspicionType}-${row.key?.driverId}-${row.key?.orderCode}`} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '0.5rem 1rem', fontFamily: 'var(--font-mono, monospace)' }}>{row.key?.orderCode}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.key?.driverId}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.key?.suspicionType}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.status}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.smsScore ?? '—'}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.model || '—'}</td>
+                    <td style={{ padding: '0.5rem 1rem' }}>{row.updatedAt ? new Date(row.updatedAt).toLocaleString('vi-VN') : '—'}</td>
+                    <td style={{ padding: '0.5rem 1rem', color: row.technicalError ? 'var(--danger-fg, #a13b2a)' : 'inherit' }}>
+                      {row.technicalError?.message || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.6rem 1rem',
+            borderTop: '1px solid var(--border)',
+            fontSize: '0.8rem',
+            color: 'var(--text-muted)'
+          }}>
+            <span>
+              {historyTotalCount > 0
+                ? `${historyOffset + 1}–${Math.min(historyOffset + HISTORY_PAGE_SIZE, historyTotalCount)} / ${historyTotalCount}`
+                : '0 bản ghi'}
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button
+                type="button"
+                disabled={historyLoading || historyOffset === 0}
+                onClick={() => setHistoryOffset(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))}
+                className="cod-workflow-action cod-workflow-action--secondary"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+              >
+                Trước
+              </button>
+              <button
+                type="button"
+                disabled={historyLoading || historyOffset + HISTORY_PAGE_SIZE >= historyTotalCount}
+                onClick={() => setHistoryOffset(historyOffset + HISTORY_PAGE_SIZE)}
+                className="cod-workflow-action cod-workflow-action--secondary"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {resolutionError && (
         <div role="alert" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--danger-fg, #a13b2a)', background: 'var(--danger-bg, #f7d9d4)', border: '1px solid rgba(161, 59, 42, 0.3)', borderRadius: 'var(--radius-control, 10px)' }}>
@@ -776,11 +1236,67 @@ export default function CodSuspicionReport({
         </div>
       )}
 
-      {!canManageResolutions && (
-        <div role="status" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--warning-fg, #92400e)', background: 'var(--warning-bg, #fef3c7)', border: '1px solid rgba(146, 64, 14, 0.25)', borderRadius: 'var(--radius-control, 10px)' }}>
-          Bạn chỉ có quyền xem dữ liệu nguồn. Chỉ Dev Admin được xác nhận xử lý đơn.
+      {smsError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: '0.85rem',
+            padding: '0.75rem 1rem',
+            color: 'var(--danger-fg, #a13b2a)',
+            background: 'var(--danger-bg, #f7d9d4)',
+            border: '1px solid rgba(161, 59, 42, 0.3)',
+            borderRadius: 'var(--radius-control, 10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <span>{smsError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadData({ forceRefresh: true })}
+            style={{
+              color: 'inherit',
+              fontWeight: 700,
+              textDecoration: 'underline',
+              background: 'transparent',
+              border: 0,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Thử lại
+          </button>
         </div>
       )}
+
+      {isSmsLoading && !isLoading && (
+        <div
+          role="status"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            marginBottom: '0.85rem',
+            padding: '0.35rem 0.75rem',
+            borderRadius: 'var(--radius-pill, 999px)',
+            background: 'var(--surface-subtle, #f2f7fd)',
+            border: '1px solid var(--border, #dce9f7)',
+            color: 'var(--action-primary, #0ea5c4)',
+            fontSize: '0.78rem',
+            fontWeight: 600
+          }}
+        >
+          <LoaderCircle size={14} className="is-spinning" />
+          <span>Đang tải mức độ nghi ngờ...</span>
+        </div>
+      )}
+
 
       {searchQuery && (
         <div className="cod-search-context" role="status">
@@ -796,20 +1312,21 @@ export default function CodSuspicionReport({
 
       {/* 6. Driver Accordion List */}
       <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {isLoading && visibleDrivers.length === 0 ? (
+        {isLoading && !hasLoaded && visibleDrivers.length === 0 ? (
           <div
             style={{
-              textAlign: 'center',
-              padding: '4rem 1rem',
+              position: 'relative',
+              minHeight: '260px',
               background: 'var(--card-bg, #ffffff)',
               borderRadius: '12px',
-              border: '1px solid var(--border)'
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden'
             }}
           >
-            <RefreshCw size={28} className="is-spinning" style={{ color: 'var(--ghn-orange)' }} />
-            <div style={{ marginTop: '1rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Đang tải danh sách tài xế và đơn nghi vấn...
-            </div>
+            <LoadingScreen fullScreen={false} />
           </div>
         ) : visibleDrivers.length === 0 ? (
           <div
@@ -989,6 +1506,11 @@ export default function CodSuspicionReport({
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         DANH SÁCH ĐƠN NGHI VẤN LIÊN QUAN ({driver.orders.length} ĐƠN)
+                        {driver.isOrphan && (
+                          <span style={{ display: 'block', marginTop: '0.3rem', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>
+                            Tài xế không còn đơn nghi vấn nào trong lần đồng bộ gần nhất — hiển thị theo lịch sử xử lý đã lưu.
+                          </span>
+                        )}
                       </div>
                       {driver.resolution?.status === 'resolved' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -997,7 +1519,12 @@ export default function CodSuspicionReport({
                           </span>
                           {canManageResolutions && (
                             <>
-                              <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => openWorkflowDialog(driver)}><Pencil size={15} /> Chỉnh sửa</button>
+                              {/* Editing calls upsert_cod_suspicion_driver_resolution, which requires
+                                  a matching row in kas_cod_suspicion_data — an orphan driver has none
+                                  (it dropped out of the latest sync), so only Undo is safe here. */}
+                              {!driver.isOrphan && (
+                                <button type="button" className="cod-workflow-action cod-workflow-action--secondary" onClick={() => openWorkflowDialog(driver)}><Pencil size={15} /> Chỉnh sửa</button>
+                              )}
                               <button type="button" className="cod-workflow-action cod-workflow-action--danger" onClick={() => handleUndoDriverResolution(driver)} disabled={resolvingDriverKeys.has(getCodSuspicionDriverKey(driver))}><RotateCcw size={15} /> Hoàn tác / xóa</button>
                             </>
                           )}
@@ -1019,7 +1546,7 @@ export default function CodSuspicionReport({
                       <table
                         style={{
                           width: '100%',
-                          minWidth: '760px',
+                          minWidth: isDevAdmin ? '920px' : '860px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -1033,11 +1560,28 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
+                            {isDevAdmin ? (
+                              <>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
+                              </>
+                            ) : (
+                              <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700, minWidth: '110px' }}>Mức độ nghi ngờ</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
                             const orderAlertLevel = getAlertLevel(order.totalScore);
+                            const smsKey = getCodSmsCaseKey({
+                              suspicionType: order.suspicionType,
+                              driverId: order.driverId,
+                              orderCode: order.orderCode
+                            });
+                            const smsAssessment = smsAssessments.get(smsKey);
+                            const smsBadge = getSmsScoreBadge(smsAssessment);
+                            const smsVerdict = getSmsSimpleVerdict(smsAssessment);
+
                             return (
                               <tr
                                 key={order.orderCode}
@@ -1073,7 +1617,7 @@ export default function CodSuspicionReport({
                                   {formatDateVN(order.endDeliveryDate)}
                                 </td>
 
-                                {/* Mức độ cảnh báo */}
+                                {/* Mức độ cảnh báo (SQL) */}
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <span
                                     style={{
@@ -1087,6 +1631,37 @@ export default function CodSuspicionReport({
                                     {orderAlertLevel.label}
                                   </span>
                                 </td>
+
+                                {isDevAdmin ? (
+                                  <>
+                                    {/* Điểm SMS (AI) */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <span className={`cod-sms-badge cod-sms-badge--${smsBadge.level}`}>
+                                        {smsBadge.text}
+                                      </span>
+                                    </td>
+
+                                    {/* Thao tác */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <button
+                                        type="button"
+                                        className="cod-sms-action-btn"
+                                        onClick={() => openSmsModal(order, smsAssessment)}
+                                        title={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                        aria-label={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                      >
+                                        <MessageSquare size={13} />
+                                        <span>Xem chi tiết SMS</span>
+                                      </button>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <span className={`cod-sms-badge cod-sms-badge--${smsVerdict.level}`}>
+                                      {smsVerdict.text}
+                                    </span>
+                                  </td>
+                                )}
 
                               </tr>
                             );
@@ -1206,6 +1781,543 @@ export default function CodSuspicionReport({
               </button>
             </footer>
           </form>
+        )}
+      </ModalDialog>
+
+      {/* Modal chi tiết đánh giá SMS AI */}
+      <ModalDialog
+        isOpen={Boolean(smsDetailModal)}
+        onClose={closeSmsModal}
+        className="cod-sms-modal"
+        titleId="cod-sms-modal-title"
+        descriptionId="cod-sms-modal-description"
+      >
+        {smsDetailModal && (
+          <div className="cod-sms-modal__content">
+            <header className="cod-sms-modal__header">
+              <div className="cod-sms-modal__icon">
+                <MessageSquare size={22} />
+              </div>
+              <div>
+                <h2 id="cod-sms-modal-title">Chi tiết đánh giá SMS AI</h2>
+                <p id="cod-sms-modal-description">
+                  Đơn <strong>{smsDetailModal.order.orderCode}</strong> · {smsDetailModal.order.driverName} ({smsDetailModal.order.suspicionType})
+                </p>
+              </div>
+              <button
+                type="button"
+                className="cod-sms-modal__close"
+                onClick={closeSmsModal}
+                aria-label="Đóng"
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className="cod-sms-modal__body">
+              {/* Thẻ tóm tắt thông tin đơn */}
+              <div className="cod-sms-modal__meta-strip">
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Kho giao</span>
+                  <span className="cod-sms-modal__meta-value">{smsDetailModal.order.warehouseName}</span>
+                </div>
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Tiền COD</span>
+                  <span className="cod-sms-modal__meta-value">{formatCurrencyVND(smsDetailModal.order.codAmount)}</span>
+                </div>
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Cảnh báo SQL</span>
+                  <span
+                    className="cod-sms-modal__meta-value"
+                    style={{ color: getAlertLevel(smsDetailModal.order.totalScore).color, fontWeight: 700 }}
+                  >
+                    {getAlertLevel(smsDetailModal.order.totalScore).label} ({smsDetailModal.order.totalScore}đ)
+                  </span>
+                </div>
+              </div>
+
+              {smsDetailModal.assessment ? (
+                <>
+                  {/* Điểm & Mức độ tin cậy */}
+                  <div className="cod-sms-modal__score-card">
+                    <div className="cod-sms-modal__score-main">
+                      <div className="cod-sms-modal__score-figure">
+                        <span className="cod-sms-modal__score-num">
+                          {smsDetailModal.assessment.smsScore ?? '—'}
+                        </span>
+                        <span className="cod-sms-modal__score-max">/9</span>
+                      </div>
+                      <div className="cod-sms-modal__score-info">
+                        <div className="cod-sms-modal__score-heading">
+                          Điểm nghi vấn SMS (AI)
+                        </div>
+                        <div className="cod-sms-modal__score-badge-wrap">
+                          <span className={`cod-sms-badge cod-sms-badge--${getSmsScoreBadge(smsDetailModal.assessment).level}`}>
+                            {getSmsScoreBadge(smsDetailModal.assessment).text}
+                          </span>
+                          {smsDetailModal.assessment.confidence && (
+                            <span className="cod-sms-modal__confidence-sub">
+                              Mức độ tin cậy: <strong>{formatSmsConfidence(smsDetailModal.assessment.confidence)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mẫu hình phát hiện */}
+                    <div className="cod-sms-modal__section">
+                      <div className="cod-sms-modal__section-title">Mẫu hình phát hiện:</div>
+                      {Array.isArray(smsDetailModal.assessment.detectedPatterns) && smsDetailModal.assessment.detectedPatterns.length > 0 ? (
+                        <div className="cod-sms-modal__patterns-list">
+                          {smsDetailModal.assessment.detectedPatterns.map(patternKey => (
+                            <div key={patternKey} className="cod-sms-modal__pattern-tag">
+                              <CheckCircle2 size={14} className="cod-sms-modal__pattern-icon" />
+                              <span>{SMS_PATTERN_LABELS[patternKey] || patternKey}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="cod-sms-modal__empty-patterns">
+                          Không phát hiện mẫu hình nghi vấn trong nội dung SMS.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Giải thích từ AI */}
+                    {smsDetailModal.assessment.explanation && (
+                      <div className="cod-sms-modal__section">
+                        <div className="cod-sms-modal__section-title">Nhận định phân tích từ AI:</div>
+                        <div className="cod-sms-modal__explanation">
+                          {smsDetailModal.assessment.explanation}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Metadata audit */}
+                    <div className="cod-sms-modal__audit-meta">
+                      <span>Thời gian chấm: <strong>{formatDateTimeVN(smsDetailModal.assessment.scoredAt)}</strong></span>
+                      {smsDetailModal.assessment.model && (
+                        <span>Mô hình: <strong>{smsDetailModal.assessment.model}</strong></span>
+                      )}
+                      {smsDetailModal.assessment.rubricVersion && (
+                        <span>Rubric: <strong>{smsDetailModal.assessment.rubricVersion}</strong></span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Khu vực Bằng chứng SMS */}
+                  <div className="cod-sms-modal__evidence-card">
+                    <div className="cod-sms-modal__evidence-header">
+                      <strong>Bằng chứng SMS nguyên văn</strong>
+                    </div>
+
+                    {!isDevAdmin ? (
+                      <div className="cod-sms-modal__evidence-notice">
+                        <div className="cod-sms-modal__notice-icon">
+                          <ShieldAlert size={18} />
+                        </div>
+                        <div>
+                          <div className="cod-sms-modal__notice-title">Bằng chứng SMS chỉ dành cho Dev Admin</div>
+                          <div className="cod-sms-modal__notice-desc">
+                            Nội dung tin nhắn SMS nguyên văn được giới hạn quyền truy cập theo quy định bảo vệ dữ liệu nội bộ.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="cod-sms-modal__evidence-dev-content">
+                        {smsDetailModal.assessment.status === 'no_evidence' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Không có SMS nào được ghi nhận làm bằng chứng.
+                          </div>
+                        ) : smsDetailModal.assessment.status === 'pending' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Đơn này chưa được chấm điểm, chưa có bằng chứng để hiển thị.
+                          </div>
+                        ) : smsDetailModal.assessment.status === 'failed' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Lượt chấm điểm bị lỗi, không có bằng chứng để hiển thị.
+                          </div>
+                        ) : (
+                          <>
+                            {evidenceState.isLoading && (
+                              <div className="cod-sms-modal__evidence-loading">
+                                <LoadingScreen fullScreen={false} />
+                              </div>
+                            )}
+
+                            {evidenceState.error && (
+                              <div className="cod-sms-modal__evidence-error">
+                                <AlertTriangle size={18} />
+                                <span>{evidenceState.error}</span>
+                                <button
+                                  type="button"
+                                  className="cod-workflow-action cod-workflow-action--secondary"
+                                  onClick={() => loadEvidenceForModal(smsDetailModal.order, { forceRefresh: true })}
+                                  style={{ marginLeft: 'auto', padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
+                                >
+                                  <RotateCcw size={13} /> Thử lại
+                                </button>
+                              </div>
+                            )}
+
+                            {!evidenceState.isLoading && !evidenceState.error && evidenceState.evidence && (
+                              <>
+                                {evidenceState.evidence.length > 0 ? (
+                                  <div className="cod-sms-modal__evidence-quotes">
+                                    {evidenceState.evidence.map((quote, idx) => (
+                                      <div key={idx} className="cod-sms-modal__quote-item">
+                                        <span className="cod-sms-modal__quote-idx">#{idx + 1}</span>
+                                        <div className="cod-sms-modal__quote-text">{quote}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="cod-sms-modal__evidence-empty">
+                                    Không có SMS nào được ghi nhận làm bằng chứng.
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="cod-sms-modal__unscored-state">
+                  <Info size={28} style={{ color: 'var(--text-muted)' }} />
+                  <h3>Đơn hàng này chưa có kết quả chấm điểm SMS AI</h3>
+                  <p>
+                    Hệ thống sàng lọc chưa ghi nhận lượt phân tích SMS cho đơn hàng này. Kết quả sẽ tự động cập nhật khi có đợt chấm điểm mới.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <footer className="cod-sms-modal__footer">
+              <button
+                type="button"
+                className="cod-workflow-action cod-workflow-action--secondary"
+                onClick={closeSmsModal}
+              >
+                Đóng
+              </button>
+            </footer>
+          </div>
+        )}
+      </ModalDialog>
+
+      {/* Chạy chấm điểm SMS AI thủ công (Dev Admin) */}
+      <ModalDialog
+        isOpen={manualRunDialogOpen}
+        onClose={closeManualRunDialog}
+        className="cod-sms-modal"
+        titleId="cod-sms-manual-run-title"
+        descriptionId="cod-sms-manual-run-description"
+        dismissible={!manualRunState.isRunning}
+      >
+        {manualRunDialogOpen && (
+          <div className="cod-sms-modal__content">
+            <header className="cod-sms-modal__header">
+              <div className="cod-sms-modal__icon">
+                <Play size={22} />
+              </div>
+              <div>
+                <h2 id="cod-sms-manual-run-title">Chạy chấm điểm SMS AI thủ công</h2>
+                <p id="cod-sms-manual-run-description">
+                  Quét toàn bộ đơn mới hoặc thay đổi kể từ lần chấm gần nhất, đồng thời tự động chấm lại các đơn đang lỗi.
+                </p>
+              </div>
+              {!manualRunState.isRunning && (
+                <button type="button" className="cod-sms-modal__close" onClick={closeManualRunDialog} aria-label="Đóng">
+                  <X size={20} />
+                </button>
+              )}
+            </header>
+
+            <div className="cod-sms-modal__body">
+              {!manualRunState.isRunning && !manualRunState.result && !manualRunState.error && !manualRunState.aborted && (
+                <>
+                  <div className="cod-sms-modal__unscored-state">
+                    <AlertTriangle size={28} style={{ color: 'var(--warning-fg, #92400e)' }} />
+                    <h3>Thao tác này gọi mô hình AI thật, phát sinh chi phí.</h3>
+                    <p>
+                      Đơn đã chấm điểm và chưa thay đổi sẽ được bỏ qua tự động (không tính phí lại).
+                      Đơn mới, đã thay đổi, hoặc trước đó lỗi/treo sẽ được chấm lại — bao gồm cả
+                      việc buộc chấm lại các đơn vẫn còn ở trạng thái lỗi sau lượt quét.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setManualRunMode('all')}
+                      className="cod-workflow-action"
+                      style={{
+                        flex: 1,
+                        background: manualRunMode === 'all' ? 'var(--ghn-orange)' : 'var(--card-bg)',
+                        color: manualRunMode === 'all' ? 'white' : 'var(--text-main)'
+                      }}
+                    >
+                      Tất cả đơn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualRunMode('cases')}
+                      className="cod-workflow-action"
+                      style={{
+                        flex: 1,
+                        background: manualRunMode === 'cases' ? 'var(--ghn-orange)' : 'var(--card-bg)',
+                        color: manualRunMode === 'cases' ? 'white' : 'var(--text-main)'
+                      }}
+                    >
+                      Chọn đơn cụ thể
+                    </button>
+                  </div>
+
+                  {manualRunMode === 'cases' && (
+                    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <input
+                        type="text"
+                        value={manualRunSearch}
+                        onChange={e => setManualRunSearch(e.target.value)}
+                        placeholder="Tìm theo mã đơn, ID tài xế hoặc tên tài xế..."
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          fontSize: '0.85rem'
+                        }}
+                      />
+
+                      {manualRunSearch.trim() && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <span>{manualRunSearchResults.length} kết quả</span>
+                          {manualRunSearchResults.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualRunSelectedKeys(prev => {
+                                  const next = new Map(prev);
+                                  manualRunSearchResults.forEach(order => {
+                                    next.set(getCodSmsCaseKey(order), order);
+                                  });
+                                  return next;
+                                });
+                              }}
+                              style={{ border: 'none', background: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                              Chọn tất cả kết quả đang lọc
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {manualRunSearchResults.length > 0 && (
+                        <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                          {manualRunSearchResults.map(order => {
+                            const key = getCodSmsCaseKey(order);
+                            const checked = manualRunSelectedKeys.has(key);
+                            return (
+                              <label
+                                key={key}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  padding: '0.4rem 0.6rem',
+                                  fontSize: '0.8rem',
+                                  borderBottom: '1px solid var(--border)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setManualRunSelectedKeys(prev => {
+                                      const next = new Map(prev);
+                                      if (checked) next.delete(key); else next.set(key, order);
+                                      return next;
+                                    });
+                                  }}
+                                />
+                                <span>{order.orderCode}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  {order.driverName} ({order.driverId}) · {order.suspicionType}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {manualRunSelectedKeys.size > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {[...manualRunSelectedKeys.entries()].map(([key, order]) => (
+                            <span
+                              key={key}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '999px',
+                                background: 'var(--surface-hover)',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              {order.orderCode}
+                              <button
+                                type="button"
+                                onClick={() => setManualRunSelectedKeys(prev => {
+                                  const next = new Map(prev);
+                                  next.delete(key);
+                                  return next;
+                                })}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', display: 'flex' }}
+                                aria-label={`Bỏ chọn ${order.orderCode}`}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                            Đã chọn {manualRunSelectedKeys.size} đơn
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {manualRunState.isRunning && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1rem 0' }}>
+                  <div className="cod-sms-modal__evidence-loading" style={{ justifyContent: 'center' }}>
+                    <LoaderCircle size={20} className="is-spinning" />
+                    <span>
+                      {manualRunProgress?.total
+                        ? `Đang chấm điểm SMS AI: ${manualRunProgress.processed}/${manualRunProgress.total} đơn (trang ${manualRunProgress.page ?? 1})...`
+                        : manualRunProgress?.processed
+                          ? `Đang chấm điểm SMS AI: đã xử lý ${manualRunProgress.processed} đơn...`
+                          : 'Đang chạy chấm điểm SMS AI, có thể mất vài phút...'}
+                    </span>
+                  </div>
+                  {manualRunProgress?.total > 0 && (
+                    <div style={{ height: '6px', borderRadius: '999px', background: 'var(--border)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${Math.min(100, Math.round((manualRunProgress.processed / manualRunProgress.total) * 100))}%`,
+                        background: 'var(--ghn-orange)',
+                        transition: 'width 0.2s ease'
+                      }} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={handleStopManualBatch}
+                    style={{ alignSelf: 'center' }}
+                  >
+                    Dừng
+                  </button>
+                </div>
+              )}
+
+              {!manualRunState.isRunning && manualRunState.aborted && (
+                <div className="cod-sms-modal__audit-meta" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem' }}>
+                  <span>Đã dừng theo yêu cầu — các đơn đã xử lý trước đó vẫn được giữ nguyên.</span>
+                  <span>Đã xử lý trong lượt này: <strong>{manualRunProgress?.processed ?? 0}</strong></span>
+                </div>
+              )}
+
+              {!manualRunState.isRunning && manualRunState.error && (
+                <div className="cod-sms-modal__evidence-error">
+                  <AlertTriangle size={18} />
+                  <span>{manualRunState.error}</span>
+                </div>
+              )}
+
+              {!manualRunState.isRunning && manualRunState.result && (
+                <div className="cod-sms-modal__audit-meta" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem' }}>
+                  <span>Đã chấm mới: <strong>{manualRunState.result.scored ?? 0}</strong></span>
+                  <span>Không có bằng chứng: <strong>{manualRunState.result.noEvidence ?? 0}</strong></span>
+                  <span>Lỗi chấm điểm: <strong>{manualRunState.result.failed ?? 0}</strong></span>
+                  <span>Bỏ qua (không đổi từ lần trước): <strong>{manualRunState.result.skippedUnchanged ?? 0}</strong></span>
+                  {manualRunState.result.forceRetried > 0 && (
+                    <span>Trong đó buộc chấm lại đơn lỗi: <strong>{manualRunState.result.forceRetried}</strong></span>
+                  )}
+                  <span>Tổng số đơn xét trong lượt này: <strong>{manualRunState.result.found ?? 0}</strong></span>
+                </div>
+              )}
+            </div>
+
+            <footer className="cod-sms-modal__footer">
+              {manualRunState.isRunning ? null : manualRunState.result ? (
+                <button
+                  type="button"
+                  className="cod-workflow-action cod-workflow-action--primary"
+                  onClick={closeManualRunDialog}
+                >
+                  Đóng
+                </button>
+              ) : manualRunState.aborted ? (
+                <>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={closeManualRunDialog}
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--primary"
+                    onClick={handleRunManualBatch}
+                  >
+                    <Play size={16} /> Chạy tiếp
+                  </button>
+                </>
+              ) : manualRunState.error ? (
+                <>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={closeManualRunDialog}
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--primary"
+                    onClick={handleRunManualBatch}
+                  >
+                    <RotateCcw size={16} /> Thử lại
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={closeManualRunDialog}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--primary"
+                    onClick={handleRunManualBatch}
+                    disabled={manualRunMode === 'cases' && manualRunSelectedKeys.size === 0}
+                  >
+                    <Play size={16} /> Chạy ngay
+                  </button>
+                </>
+              )}
+            </footer>
+          </div>
         )}
       </ModalDialog>
 

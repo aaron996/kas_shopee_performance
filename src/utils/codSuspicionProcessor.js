@@ -281,6 +281,20 @@ export function filterDriverGroups(driverGroups = [], {
 
   return driverGroups
     .map(driver => {
+      // Orphan drivers (resolution recorded but no order currently in the
+      // source snapshot) have no order-level data to filter against —
+      // apply only suspicionType and the driver-identity part of search.
+      if (driver.isOrphan) {
+        if (suspicionType !== 'ALL' && driver.suspicionType !== suspicionType) return null;
+        if (cleanSearch) {
+          const matchesDriver =
+            driver.driverId.toLowerCase().includes(cleanSearch) ||
+            driver.driverName.toLowerCase().includes(cleanSearch);
+          if (!matchesDriver) return null;
+        }
+        return driver;
+      }
+
       // 1. Filter orders of this driver
       const matchingOrders = driver.orders.filter(order => {
         if (suspicionType !== 'ALL' && order.suspicionType !== suspicionType) {
@@ -523,3 +537,127 @@ export function aggregateOrdersByEndDeliveryDate(input = []) {
   });
 }
 
+/**
+ * 3-tuple key for joining SMS AI assessment to an order: (suspicionType, driverId, orderCode).
+ * Strictly requires all 3 parts to prevent incorrect collisions.
+ */
+export function getCodSmsCaseKey(params = {}) {
+  const suspicionType = String(params.suspicionType ?? params.suspicion_type ?? '').trim();
+  const driverId = String(params.driverId ?? params.driver_id ?? '').trim();
+  const orderCode = String(params.orderCode ?? params.order_code ?? '').trim();
+  return `${suspicionType}\u0000${driverId}\u0000${orderCode}`;
+}
+
+export const SMS_PATTERN_LABELS = Object.freeze({
+  mau_1: 'STK khớp tên tài xế (+5)',
+  mau_2: 'Hội thoại hai chiều xác nhận (+1)',
+  mau_3: 'Hẹn giao lại tự động trong 24h (+1)',
+  mau_4: 'STK chưa khớp tên tài xế (+1)',
+  mau_5: 'Trùng STK với đơn khác (+2)'
+});
+
+export const SMS_CONFIDENCE_LABELS = Object.freeze({
+  cao: 'Cao',
+  trung_binh: 'Trung bình',
+  thap: 'Thấp',
+  khong_co_bang_chung: 'Không có bằng chứng'
+});
+
+export function formatSmsConfidence(confidence) {
+  if (!confidence) return '-';
+  return SMS_CONFIDENCE_LABELS[confidence] || confidence;
+}
+
+/**
+ * Return badge UI representation and metadata for an SMS assessment.
+ * Badge levels:
+ * - 'high': danger tone (red)
+ * - 'medium': warning tone (amber)
+ * - 'low': info tone (blue)
+ * - 'no_evidence': neutral subtle tone
+ * - 'unscored': subtle muted
+ * - 'pending': neutral/amber subtle
+ * - 'failed': subtle muted error
+ */
+export function getSmsScoreBadge(assessment) {
+  if (!assessment) {
+    return {
+      text: '— · Chưa chấm',
+      level: 'unscored',
+      label: 'Chưa chấm',
+      score: null,
+      confidence: null
+    };
+  }
+
+  const { status, smsScore, confidence } = assessment;
+
+  if (status === 'pending') {
+    return {
+      text: '— · Đang chờ chấm',
+      level: 'pending',
+      label: 'Đang chờ chấm',
+      score: null,
+      confidence: null
+    };
+  }
+
+  if (status === 'failed') {
+    return {
+      text: '— · Lỗi chấm điểm',
+      level: 'failed',
+      label: 'Lỗi chấm điểm',
+      score: null,
+      confidence: null
+    };
+  }
+
+  if (status === 'no_evidence' || smsScore === 0) {
+    return {
+      text: '0 · Không có bằng chứng',
+      level: 'no_evidence',
+      label: 'Không có bằng chứng',
+      score: 0,
+      confidence: 'khong_co_bang_chung'
+    };
+  }
+
+  if (status === 'scored' && smsScore !== null && smsScore !== undefined) {
+    const confidenceLabel = formatSmsConfidence(confidence);
+    const level = confidence === 'cao' ? 'high' : confidence === 'trung_binh' ? 'medium' : 'low';
+    return {
+      text: `${smsScore} · ${confidenceLabel}`,
+      level,
+      label: confidenceLabel,
+      score: smsScore,
+      confidence
+    };
+  }
+
+  return {
+    text: '— · Chưa chấm',
+    level: 'unscored',
+    label: 'Chưa chấm',
+    score: null,
+    confidence: null
+  };
+}
+
+/**
+ * Simplified two-state read for the regular (non-Dev-Admin) order table:
+ * either the AI found a positive suspicion score, or it did not (which
+ * folds no_evidence, pending, failed, and unscored all into the same
+ * conservative "no anomaly" bucket — regular users never see the technical
+ * distinction between those). Reuses the existing 'high'/'no_evidence' badge
+ * CSS classes so no new styling is needed.
+ */
+export function getSmsSimpleVerdict(assessment) {
+  const isSuspicious = Boolean(
+    assessment
+    && assessment.status === 'scored'
+    && Number(assessment.smsScore) > 0
+  );
+  return isSuspicious
+    ? { text: 'Có dấu hiệu nghi ngờ', level: 'high' }
+    : { text: 'Không có dấu hiệu nghi ngờ', level: 'no_evidence' };
+}

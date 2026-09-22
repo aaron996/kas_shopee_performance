@@ -18,7 +18,12 @@ import {
   computeSuspicionKPIs,
   getAlertLevel,
   normalizeDateKey,
-  aggregateOrdersByEndDeliveryDate
+  aggregateOrdersByEndDeliveryDate,
+  getCodSmsCaseKey,
+  getSmsScoreBadge,
+  getSmsSimpleVerdict,
+  formatSmsConfidence,
+  SMS_PATTERN_LABELS
 } from './codSuspicionProcessor.js';
 
 const migrationUrl = new URL('../../supabase/migrations/20260917_create_kas_cod_suspicion_module.sql', import.meta.url);
@@ -353,6 +358,44 @@ test('filterDriverGroups filters by suspicion type, warehouse and search query',
   assert.equal(searchO3[0].driverId, 'D2');
 });
 
+test('filterDriverGroups keeps an orphan driver (resolution with no current source orders) matching only on suspicion type and driver identity', () => {
+  const orphan = {
+    driverId: 'D9',
+    driverName: 'Tài xế D9',
+    suspicionType: 'Gối đầu COD',
+    isOrphan: true,
+    orders: [],
+    resolution: { status: 'resolved', finding_outcome: 'violation' }
+  };
+  const drivers = [
+    orphan,
+    {
+      driverId: 'D2',
+      driverName: 'Trần Văn B',
+      suspicionType: 'Rút ruột',
+      orders: [
+        { orderCode: 'O3', suspicionType: 'Rút ruột', warehouseName: 'Kho Tân Bình', totalScore: 20, codAmount: 5000 }
+      ]
+    }
+  ];
+
+  // An orphan has no order-level data, so warehouse/alertLevel filters never exclude it.
+  assert.equal(filterDriverGroups(drivers, { warehouse: 'Kho Tân Bình' }).length, 2);
+  assert.equal(filterDriverGroups(drivers, { alertLevel: 'HIGH' }).length, 2);
+
+  // Suspicion type still filters it out.
+  assert.deepEqual(
+    filterDriverGroups(drivers, { suspicionType: 'Rút ruột' }).map(d => d.driverId),
+    ['D2']
+  );
+
+  // Search matches driver identity, not (nonexistent) order codes.
+  assert.deepEqual(
+    filterDriverGroups(drivers, { searchQuery: 'D9' }).map(d => d.driverId),
+    ['D9']
+  );
+});
+
 test('computeSuspicionKPIs sorts warehouse bars by order count with a stable name tie-breaker', () => {
   const drivers = [
     {
@@ -505,5 +548,218 @@ test('aggregateOrdersByEndDeliveryDate returns empty array when input is empty o
     }
   ];
   assert.deepEqual(aggregateOrdersByEndDeliveryDate(noValidDateDrivers), []);
+});
+
+test('getCodSmsCaseKey joins assessment and order using full 3-part key (suspicionType, driverId, orderCode)', () => {
+  const key1 = getCodSmsCaseKey({
+    suspicionType: 'Gối đầu COD',
+    driverId: '3100818',
+    orderCode: 'GY8CFXTR'
+  });
+
+  const keyMatching = getCodSmsCaseKey({
+    suspicion_type: 'Gối đầu COD',
+    driver_id: '3100818',
+    order_code: 'GY8CFXTR'
+  });
+
+  const keyDifferentType = getCodSmsCaseKey({
+    suspicionType: 'Rút ruột',
+    driverId: '3100818',
+    orderCode: 'GY8CFXTR'
+  });
+
+  const keyDifferentDriver = getCodSmsCaseKey({
+    suspicionType: 'Gối đầu COD',
+    driverId: '9999999',
+    orderCode: 'GY8CFXTR'
+  });
+
+  const keyWithWhitespace = getCodSmsCaseKey({
+    suspicionType: '  Gối đầu COD  ',
+    driverId: ' 3100818 ',
+    orderCode: ' GY8CFXTR '
+  });
+
+  assert.equal(key1, keyMatching);
+  assert.equal(key1, keyWithWhitespace);
+  assert.notEqual(key1, keyDifferentType, 'Must not collide across different suspicion types');
+  assert.notEqual(key1, keyDifferentDriver, 'Must not collide across different drivers with same orderCode');
+});
+
+test('getSmsScoreBadge correctly maps all score and confidence states with explicit text labels', () => {
+  // 1. Scored with high confidence
+  const badgeHigh = getSmsScoreBadge({
+    status: 'scored',
+    smsScore: 6,
+    confidence: 'cao'
+  });
+  assert.equal(badgeHigh.text, '6 · Cao');
+  assert.equal(badgeHigh.level, 'high');
+  assert.equal(badgeHigh.label, 'Cao');
+  assert.equal(badgeHigh.score, 6);
+
+  // 2. Scored with medium confidence
+  const badgeMed = getSmsScoreBadge({
+    status: 'scored',
+    smsScore: 3,
+    confidence: 'trung_binh'
+  });
+  assert.equal(badgeMed.text, '3 · Trung bình');
+  assert.equal(badgeMed.level, 'medium');
+  assert.equal(badgeMed.label, 'Trung bình');
+  assert.equal(badgeMed.score, 3);
+
+  // 3. Scored with low confidence
+  const badgeLow = getSmsScoreBadge({
+    status: 'scored',
+    smsScore: 1,
+    confidence: 'thap'
+  });
+  assert.equal(badgeLow.text, '1 · Thấp');
+  assert.equal(badgeLow.level, 'low');
+  assert.equal(badgeLow.label, 'Thấp');
+  assert.equal(badgeLow.score, 1);
+
+  // 4. Zero score (no evidence)
+  const badgeZero = getSmsScoreBadge({
+    status: 'no_evidence',
+    smsScore: 0,
+    confidence: 'khong_co_bang_chung'
+  });
+  assert.equal(badgeZero.text, '0 · Không có bằng chứng');
+  assert.equal(badgeZero.level, 'no_evidence');
+  assert.equal(badgeZero.label, 'Không có bằng chứng');
+  assert.equal(badgeZero.score, 0);
+
+  // 5. Pending
+  const badgePending = getSmsScoreBadge({
+    status: 'pending',
+    smsScore: null,
+    confidence: null
+  });
+  assert.equal(badgePending.text, '— · Đang chờ chấm');
+  assert.equal(badgePending.level, 'pending');
+  assert.equal(badgePending.label, 'Đang chờ chấm');
+  assert.equal(badgePending.score, null);
+
+  // 6. Failed (technical error hidden from user)
+  const badgeFailed = getSmsScoreBadge({
+    status: 'failed',
+    smsScore: null,
+    confidence: null,
+    technicalError: { code: 'COD_SMS_MODEL_TIMEOUT', message: 'Internal timeout' }
+  });
+  assert.equal(badgeFailed.text, '— · Lỗi chấm điểm');
+  assert.equal(badgeFailed.level, 'failed');
+  assert.equal(badgeFailed.label, 'Lỗi chấm điểm');
+  assert.doesNotMatch(badgeFailed.text, /TIMEOUT|Internal/);
+
+  // 7. Unscored (null / undefined)
+  const badgeUnscored = getSmsScoreBadge(null);
+  assert.equal(badgeUnscored.text, '— · Chưa chấm');
+  assert.equal(badgeUnscored.level, 'unscored');
+  assert.equal(badgeUnscored.label, 'Chưa chấm');
+  assert.equal(badgeUnscored.score, null);
+});
+
+test('SMS AI assessment score does not change SQL totalScore, alert levels, driver sorting or KPIs', () => {
+  // Order with SQL total_score = 15 (Medium alert level)
+  const rawOrder = {
+    driver_id: 'D01',
+    driver_name: 'Nguyễn Văn A',
+    order_code: 'ORD_01',
+    suspicion_type: 'Gối đầu COD',
+    order_status: 'delivered',
+    cod_amount: 1500000,
+    warehouse_name: 'Kho Tân Bình',
+    end_delivery_date: '2026-09-15',
+    total_score: 15
+  };
+
+  const normalized = normalizeSuspicionOrder(rawOrder);
+  assert.equal(normalized.totalScore, 15);
+
+  // SQL alert level is Medium
+  const initialAlertLevel = getAlertLevel(normalized.totalScore);
+  assert.equal(initialAlertLevel.value, 'MEDIUM');
+  assert.equal(initialAlertLevel.label, 'Vừa');
+
+  // Attach an SMS assessment with high score (6 points)
+  const smsAssessment = {
+    key: { suspicionType: 'Gối đầu COD', driverId: 'D01', orderCode: 'ORD_01' },
+    status: 'scored',
+    smsScore: 6,
+    confidence: 'cao'
+  };
+
+  // Invariant 1: totalScore must remain 15, NOT 15 + 6 = 21
+  assert.equal(normalized.totalScore, 15, 'SMS score must not mutate or add to SQL totalScore');
+
+  // Invariant 2: SQL alert level remains Medium, NOT High
+  const alertAfterSms = getAlertLevel(normalized.totalScore);
+  assert.equal(alertAfterSms.value, 'MEDIUM');
+
+  // Invariant 3: Driver sorting is strictly determined by SQL maxScore and order count
+  const driverA = {
+    driverId: 'D01',
+    maxScore: 15, // SQL score
+    orderCount: 1,
+    orders: [normalized]
+  };
+
+  const driverB = {
+    driverId: 'D02',
+    maxScore: 18, // SQL High
+    orderCount: 1,
+    orders: [{ totalScore: 18, orderCode: 'ORD_02' }]
+  };
+
+  // Even if D01 has smsScore = 6 and D02 has smsScore = 0, D02 ranks higher due to SQL score 18 > 15
+  const sorted = sortDrivers([driverA, driverB]);
+  assert.equal(sorted[0].driverId, 'D02');
+  assert.equal(sorted[1].driverId, 'D01');
+
+  // Invariant 4: KPI computations only aggregate SQL scores and COD amounts
+  const kpis = computeSuspicionKPIs([driverA, driverB]);
+  assert.equal(kpis.totalDrivers, 2);
+  assert.equal(kpis.totalOrders, 2);
+  assert.equal(kpis.totalCod, 1500000);
+});
+
+test('SMS_PATTERN_LABELS provides human-readable Vietnamese labels for all 5 rubric patterns', () => {
+  assert.equal(SMS_PATTERN_LABELS.mau_1, 'STK khớp tên tài xế (+5)');
+  assert.equal(SMS_PATTERN_LABELS.mau_2, 'Hội thoại hai chiều xác nhận (+1)');
+  assert.equal(SMS_PATTERN_LABELS.mau_3, 'Hẹn giao lại tự động trong 24h (+1)');
+  assert.equal(SMS_PATTERN_LABELS.mau_4, 'STK chưa khớp tên tài xế (+1)');
+  assert.equal(SMS_PATTERN_LABELS.mau_5, 'Trùng STK với đơn khác (+2)');
+
+  assert.equal(formatSmsConfidence('cao'), 'Cao');
+  assert.equal(formatSmsConfidence('trung_binh'), 'Trung bình');
+  assert.equal(formatSmsConfidence('thap'), 'Thấp');
+  assert.equal(formatSmsConfidence('khong_co_bang_chung'), 'Không có bằng chứng');
+  assert.equal(formatSmsConfidence(null), '-');
+});
+
+test('getSmsSimpleVerdict only ever returns one of the two allowed regular-user strings', () => {
+  const suspicious = getSmsSimpleVerdict({ status: 'scored', smsScore: 6, confidence: 'cao' });
+  assert.equal(suspicious.text, 'Có dấu hiệu nghi ngờ');
+  assert.equal(suspicious.level, 'high');
+
+  const zeroScore = getSmsSimpleVerdict({ status: 'scored', smsScore: 0, confidence: null });
+  assert.equal(zeroScore.text, 'Không có dấu hiệu nghi ngờ');
+
+  const noEvidence = getSmsSimpleVerdict({ status: 'no_evidence', smsScore: 0 });
+  assert.equal(noEvidence.text, 'Không có dấu hiệu nghi ngờ');
+
+  const pending = getSmsSimpleVerdict({ status: 'pending', smsScore: null });
+  assert.equal(pending.text, 'Không có dấu hiệu nghi ngờ');
+
+  const failed = getSmsSimpleVerdict({ status: 'failed', smsScore: null, technicalError: { code: 'X', message: 'y' } });
+  assert.equal(failed.text, 'Không có dấu hiệu nghi ngờ');
+  assert.doesNotMatch(failed.text, /lỗi|error|X\b/i);
+
+  const unscored = getSmsSimpleVerdict(null);
+  assert.equal(unscored.text, 'Không có dấu hiệu nghi ngờ');
 });
 
