@@ -8,34 +8,28 @@ import { MODULE_IDS } from './moduleIds.js';
 export const moduleRegistry = Object.freeze([
   {
     id: 'report1',
-    label: '1. OPS metric',
-    mobileLabel: '1. OPS metric',
+    label: 'OPS metric',
+    mobileLabel: 'OPS metric',
     icon: Layers,
+    group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     surface: lazy(() => import('./ops-metrics/Report1MienVungHub.jsx'))
   },
   {
-    id: 'ranking',
-    label: 'BXH Performance',
-    mobileLabel: 'BXH Xe',
-    icon: Truck,
-    navigation: { sidebar: true, commandPalette: true, mobile: true },
-    loadingText: 'Đang mở BXH Performance...',
-    surface: lazy(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
-  },
-  {
     id: 'report5',
-    label: '2. % Ca 1 theo lane',
-    mobileLabel: '2. % Ca 1',
+    label: '% Ca 1 theo lane',
+    mobileLabel: '% Ca 1',
     icon: ArrowRightLeft,
+    group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     surface: lazy(() => import('../components/Report5LaneCa1.jsx'))
   },
   {
     id: 'report3',
-    label: '3. Leadtime từng chặng',
-    mobileLabel: '3. Leadtime',
+    label: 'Leadtime từng chặng',
+    mobileLabel: 'Leadtime',
     icon: Clock,
+    group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở tab Leadtime...',
     overlay: {
@@ -45,9 +39,10 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report-insight',
-    label: '4. Insight',
-    mobileLabel: '4. Insight',
+    label: 'Insight',
+    mobileLabel: 'Insight',
     icon: Sparkles,
+    group: 'operation-insights',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở tab Insight...',
     overlay: {
@@ -57,14 +52,24 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'cod-suspicion',
-    label: '5. Đơn nghi vấn COD',
-    mobileLabel: '5. Nghi vấn COD',
+    label: 'Đơn nghi vấn COD',
+    mobileLabel: 'Nghi vấn COD',
     icon: ShieldAlert,
+    group: 'operation-insights',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở tab Đơn nghi vấn COD...',
     keepMounted: true,
     requiresAuth: true,
     surface: lazy(() => import('../components/CodSuspicionReport.jsx'))
+  },
+  {
+    id: 'ranking',
+    label: 'BXH Performance',
+    mobileLabel: 'BXH Xe',
+    icon: Truck,
+    navigation: { sidebar: true, commandPalette: true, mobile: true },
+    loadingText: 'Đang mở BXH Performance...',
+    surface: lazy(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
   },
   {
     id: 'dev-admin',
@@ -87,3 +92,8 @@ if (
 
 export const getModule = (id) => moduleRegistry.find(module => module.id === id);
 export const navigationModules = (surface) => moduleRegistry.filter(module => module.navigation[surface]);
+
+export const MODULE_GROUP_LABELS = Object.freeze({
+  'ka-performance-metrics': 'KA performance metrics',
+  'operation-insights': 'Operation insights'
+});

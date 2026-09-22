@@ -311,6 +311,36 @@ button:active:not(:disabled),
   font-size: 0.6rem;
 }
 
+.sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.sidebar-nav-group-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.35);
+  margin-left: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.15rem;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.app-sidebar.collapsed .sidebar-nav-group-title {
+  display: none;
+}
+
+.sidebar-nav-standalone {
+  padding: 0 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .sidebar-nav-item {
   display: flex;
   align-items: center;
@@ -1271,6 +1301,16 @@ body.dark-mode .header-sep {
   max-width: 1600px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* Unified initial-load state: same size/position for every tab, no page
+   content underneath until data is ready. */
+.main-content-initial-loading {
+  position: relative;
+  min-height: calc(100vh - 6rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Section Header */
