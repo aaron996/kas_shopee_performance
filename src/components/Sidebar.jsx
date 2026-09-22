@@ -2,7 +2,7 @@ import React from 'react';
 import { LogOut, Search, UserCheck, ShieldCheck } from 'lucide-react';
 import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
-import { navigationModules } from '../modules/moduleRegistry.jsx';
+import { navigationModules, MODULE_GROUP_LABELS } from '../modules/moduleRegistry.jsx';
 
 export default function Sidebar({
   activeTab,
@@ -20,7 +20,28 @@ export default function Sidebar({
   };
 
   const tabs = navigationModules('sidebar');
+  const groupedTabs = tabs.filter(tab => tab.group);
+  const standaloneTabs = tabs.filter(tab => !tab.group);
+  const groupOrder = [];
+  groupedTabs.forEach(tab => {
+    if (!groupOrder.includes(tab.group)) groupOrder.push(tab.group);
+  });
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
+
+  const renderTabButton = (tab) => {
+    const Icon = tab.icon;
+    return (
+      <button
+        key={tab.id}
+        aria-current={activeTab === tab.id ? 'page' : undefined}
+        className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+        onClick={() => setActiveTab(tab.id)}
+      >
+        <Icon size={18} />
+        <span title={tab.label}>{tab.label}</span>
+      </button>
+    );
+  };
 
   return (
     <aside id="app-sidebar" className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -68,20 +89,12 @@ export default function Sidebar({
       {/* Navigation */}
       <nav className="sidebar-nav">
         <div className="sidebar-nav-title">BÁO CÁO</div>
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              aria-current={activeTab === tab.id ? 'page' : undefined}
-              className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon size={18} />
-              <span title={tab.label}>{tab.label}</span>
-            </button>
-          );
-        })}
+        {groupOrder.map(group => (
+          <div key={group} className="sidebar-nav-group">
+            <div className="sidebar-nav-group-title">{MODULE_GROUP_LABELS[group] || group}</div>
+            {groupedTabs.filter(tab => tab.group === group).map(renderTabButton)}
+          </div>
+        ))}
         {/* Mobile ONLY Dev Admin Button */}
         {currentUser?.isDevAdmin && (
           <button
@@ -96,6 +109,13 @@ export default function Sidebar({
       </nav>
 
       <div style={{ flex: 1 }}></div>
+
+      {/* Standalone tabs (e.g. BXH) sit right above the footer/theme toggle */}
+      {standaloneTabs.length > 0 && (
+        <nav className="sidebar-nav sidebar-nav-standalone">
+          {standaloneTabs.map(renderTabButton)}
+        </nav>
+      )}
 
       {/* Footer Settings & Profile */}
       <div className="sidebar-footer">

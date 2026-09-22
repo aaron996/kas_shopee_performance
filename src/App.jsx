@@ -19,6 +19,7 @@ import { supabase } from './utils/supabaseClient';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules } from './modules/moduleRegistry.jsx';
+import LoadingScreen from './components/LoadingScreen.jsx';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
@@ -314,6 +315,11 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
+  // Gates the single unified loading animation over the report area. Only the
+  // very first sync attempt of the session blocks the view — later background
+  // refreshes never re-show it, so previously loaded numbers stay on screen
+  // (see the lastSyncedAt comment below).
+  const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(!!LOCAL_PREVIEW_USER);
   // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
   // chỉ tab Leadtime có "syncedAt" riêng). Không dùng cho việc chặn UI: sync
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
@@ -387,6 +393,7 @@ export default function App() {
     setLeadtimeSyncedAt(null);
     setLastSyncedAt(null);
     setSyncStatus({ kind: 'default', source: 'Chưa tải', text: 'Đã xóa dữ liệu trên phiên này. Tải lại để lấy dữ liệu vận hành.' });
+    setHasCompletedInitialSync(false);
   };
 
   const syncRequestRef = React.useRef(false);
@@ -466,6 +473,7 @@ export default function App() {
     } finally {
       syncRequestRef.current = false;
       setIsSyncing(false);
+      setHasCompletedInitialSync(true);
     }
   }, [currentUser, showToast]);
 
@@ -738,18 +746,26 @@ export default function App() {
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
-            {activeTab !== 'dev-admin' && syncStatus.kind === 'error' && <div className="report-data-context">
-              <StatusNotice tone="warning">
-                {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
-              </StatusNotice>
-            </div>}
-            <ModuleSurfaceOutlet
-              activeModuleId={activeTab}
-              runtimeByModule={runtimeByModule}
-              currentUser={currentUser}
-              warmModuleIds={hasOpenedCodTab ? ['cod-suspicion'] : []}
-              onBackToOverview={() => setActiveTab('report1')}
-            />
+            {activeTab !== 'dev-admin' && !hasCompletedInitialSync ? (
+              <div className="main-content-initial-loading">
+                <LoadingScreen fullScreen={false} />
+              </div>
+            ) : (
+              <>
+                {activeTab !== 'dev-admin' && syncStatus.kind === 'error' && <div className="report-data-context">
+                  <StatusNotice tone="warning">
+                    {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
+                  </StatusNotice>
+                </div>}
+                <ModuleSurfaceOutlet
+                  activeModuleId={activeTab}
+                  runtimeByModule={runtimeByModule}
+                  currentUser={currentUser}
+                  warmModuleIds={hasOpenedCodTab ? ['cod-suspicion'] : []}
+                  onBackToOverview={() => setActiveTab('report1')}
+                />
+              </>
+            )}
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
