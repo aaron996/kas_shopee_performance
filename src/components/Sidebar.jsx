@@ -1,7 +1,8 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, Clock, LogOut, Search, UserCheck, ShieldCheck, Sparkles, ShieldAlert, Truck } from 'lucide-react';
+import { LogOut, Search, UserCheck, ShieldCheck } from 'lucide-react';
 import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
+import { navigationModules } from '../modules/moduleRegistry.jsx';
 
 export default function Sidebar({
   activeTab,
@@ -18,14 +19,7 @@ export default function Sidebar({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const tabs = [
-    { id: 'report1', label: '1. OPS metric', icon: Layers },
-    { id: 'ranking', label: 'BXH Performance', icon: Truck },
-    { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
-    { id: 'report3', label: '3. Leadtime từng chặng', icon: Clock },
-    { id: 'report-insight', label: '4. Insight', icon: Sparkles },
-    { id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', icon: ShieldAlert }
-  ];
+  const tabs = navigationModules('sidebar');
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 
   return (

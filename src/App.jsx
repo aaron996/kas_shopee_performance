@@ -1,16 +1,7 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Report1MienVungHub from './components/Report1MienVungHub';
-import Report5LaneCa1 from './components/Report5LaneCa1';
-// Lazy: recharts chỉ nằm trong chunk của tab này, không kéo theo khi mở tab 1/2.
-const ReportLeadtime = lazy(() => import('./components/ReportLeadtime'));
-// Lazy: kéo theo leadtimeCalc (build index cho tab 3) — chỉ cần tải khi mở tab Insight.
-const ReportInsight = lazy(() => import('./components/ReportInsight'));
-const CodSuspicionReport = lazy(() => import('./components/CodSuspicionReport'));
-const PerformanceRoadRanking = lazy(() => import('./components/PerformanceRoadRanking'));
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
-import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal from './components/AuthModal';
 import { isAllowedEmail } from './utils/authPolicy';
@@ -21,16 +12,17 @@ import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS } from './data/defaultDataset';
 import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage, getVietnamBusinessDay } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
-import UnderDevelopmentOverlay from './components/ui/UnderDevelopmentOverlay';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 
+import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
+import { navigationModules } from './modules/moduleRegistry.jsx';
+
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
-import LoadingScreen from './components/LoadingScreen';
 import { useToast } from './components/ui/Toast';
-import { Layers, ArrowRightLeft, Clock, Activity, Sparkles, ShieldAlert, Truck } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -605,6 +597,65 @@ export default function App() {
     ...(activeTab === 'report1' && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
+  const runtimeByModule = {
+    report1: {
+      pickRows: filteredPickRows,
+      deliRows: filteredDeliRows,
+      fdRows: filteredFdRows,
+      clientFilter,
+      expandAllHubs,
+      selectedRegions,
+      density,
+      isFullscreen,
+      setIsFullscreen,
+      onRetryData: handleSyncLiveSheet,
+      onOpenSummary: () => setIsSummaryOpen(true),
+      focusTarget: report1FocusTarget,
+      onClearFocusTarget: () => setReport1FocusTarget(null)
+    },
+    ranking: {
+      pickRows: filteredPickRows,
+      deliRows: filteredDeliRows,
+      clientFilter,
+      selectedRegions,
+      selectedHubTypes,
+      allHubTypes,
+      onJumpToReport1: handleJumpFromRankingToReport1,
+      density
+    },
+    report5: {
+      ca1Rows: filteredCa1Rows,
+      density,
+      isFullscreen,
+      setIsFullscreen
+    },
+    report3: {
+      leadtimeRows,
+      clientFilter,
+      density,
+      dataSource: leadtimeSource,
+      syncedAt: leadtimeSyncedAt
+    },
+    'report-insight': {
+      pickRows,
+      deliRows,
+      leadtimeRows,
+      clientFilter,
+      onJumpToRegion: handleJumpToRegion
+    },
+    'cod-suspicion': {
+      filters: codSuspicionFilters,
+      onAvailableWarehouses: setCodSuspicionWarehouses,
+      canManageResolutions: Boolean(currentUser?.isDevAdmin),
+      isDevAdmin: Boolean(currentUser?.isDevAdmin),
+      userEmail: currentUser?.email,
+      dataEnabled: !currentUser?.localPreview,
+      focusTarget: codSearchFocus,
+      onFocusTargetHandled: () => setCodSearchFocus(null),
+      onClearSearch: clearCodSearch
+    },
+    'dev-admin': { onlineUsers }
+  };
   return (
     <div className="app-container">
       {/* Authentication Protection Modal */}
@@ -633,7 +684,6 @@ export default function App() {
         onSelectRegion={handleJumpToRegion}
         onSelectCodResult={handleSelectCodSearchResult}
         canSearchCod={Boolean(currentUser && !currentUser.localPreview)}
-        hasInsightTab
       />
 
       {/* Main Layout wrapper for Sidebar + Content */}
@@ -693,163 +743,31 @@ export default function App() {
                 {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
               </StatusNotice>
             </div>}
-            <div key={activeTab} className="tab-view-content">
-              {activeTab === 'report1' && (
-                <Report1MienVungHub
-                  pickRows={filteredPickRows}
-                  deliRows={filteredDeliRows}
-                  fdRows={filteredFdRows}
-                  clientFilter={clientFilter}
-                  expandAllHubs={expandAllHubs}
-                  selectedRegions={selectedRegions}
-                  density={density}
-                  isFullscreen={isFullscreen}
-                  setIsFullscreen={setIsFullscreen}
-                  onRetryData={handleSyncLiveSheet}
-                  onOpenSummary={() => setIsSummaryOpen(true)}
-                  focusTarget={report1FocusTarget}
-                  onClearFocusTarget={() => setReport1FocusTarget(null)}
-                />
-              )}
-
-              {activeTab === 'ranking' && (
-                <Suspense fallback={<LoadingScreen text="Đang mở BXH Performance..." option={4} />}>
-                  <PerformanceRoadRanking
-                    pickRows={filteredPickRows}
-                    deliRows={filteredDeliRows}
-                    clientFilter={clientFilter}
-                    selectedRegions={selectedRegions}
-                    selectedHubTypes={selectedHubTypes}
-                    allHubTypes={allHubTypes}
-                    onJumpToReport1={handleJumpFromRankingToReport1}
-                    density={density}
-                  />
-                </Suspense>
-              )}
-
-              {activeTab === 'report5' && (
-                <Report5LaneCa1
-                  ca1Rows={filteredCa1Rows}
-                  density={density}
-                  isFullscreen={isFullscreen}
-                  setIsFullscreen={setIsFullscreen}
-                />
-              )}
-
-              {activeTab === 'report3' && (
-                <UnderDevelopmentOverlay
-                  description="Dữ liệu đo lường leadtime từng chặng đang được kết nối và kiểm thử độ chính xác theo mạng lưới vận hành mới."
-                  onBackToOverview={() => setActiveTab('report1')}
-                >
-                  <Suspense fallback={<LoadingScreen text="Đang mở tab Leadtime..." option={4} />}>
-                    <ReportLeadtime
-                      leadtimeRows={leadtimeRows}
-                      clientFilter={clientFilter}
-                      density={density}
-                      dataSource={leadtimeSource}
-                      syncedAt={leadtimeSyncedAt}
-                    />
-                  </Suspense>
-                </UnderDevelopmentOverlay>
-              )}
-
-              {activeTab === 'report-insight' && (
-                <UnderDevelopmentOverlay
-                  description="Hệ thống phân tích nguyên nhân biến động KPI và xếp hạng rủi ro trạm đang được kiểm thử thuật toán đối soát."
-                  onBackToOverview={() => setActiveTab('report1')}
-                >
-                  <Suspense fallback={<LoadingScreen text="Đang mở tab Insight..." option={4} />}>
-                    <ReportInsight
-                      pickRows={pickRows}
-                      deliRows={deliRows}
-                      leadtimeRows={leadtimeRows}
-                      clientFilter={clientFilter}
-                      onJumpToRegion={handleJumpToRegion}
-                    />
-                  </Suspense>
-                </UnderDevelopmentOverlay>
-              )}
-
-              {activeTab === 'dev-admin' && currentUser?.isDevAdmin && (
-                <DevAdminDashboard onlineUsers={onlineUsers} />
-              )}
-
-            </div>
-            {(hasOpenedCodTab || activeTab === 'cod-suspicion') && currentUser && (
-              <div style={{ display: activeTab === 'cod-suspicion' ? undefined : 'none' }}>
-                <Suspense fallback={<LoadingScreen text="Đang mở tab Đơn nghi vấn COD..." option={4} />}>
-                  <CodSuspicionReport
-                    active={activeTab === 'cod-suspicion'}
-                    filters={codSuspicionFilters}
-                    onAvailableWarehouses={setCodSuspicionWarehouses}
-                    canManageResolutions={Boolean(currentUser?.isDevAdmin)}
-                    isDevAdmin={Boolean(currentUser?.isDevAdmin)}
-                    userEmail={currentUser?.email}
-                    dataEnabled={!currentUser?.localPreview}
-                    focusTarget={codSearchFocus}
-                    onFocusTargetHandled={() => setCodSearchFocus(null)}
-                    onClearSearch={clearCodSearch}
-                  />
-                </Suspense>
-              </div>
-            )}
+            <ModuleSurfaceOutlet
+              activeModuleId={activeTab}
+              runtimeByModule={runtimeByModule}
+              currentUser={currentUser}
+              warmModuleIds={hasOpenedCodTab ? ['cod-suspicion'] : []}
+              onBackToOverview={() => setActiveTab('report1')}
+            />
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
           <nav className="mobile-bottom-nav">
-            <button
-              className={`mobile-nav-item ${activeTab === 'report1' ? 'active' : ''}`}
-              aria-current={activeTab === 'report1' ? 'page' : undefined}
-              onClick={() => setActiveTab('report1')}
-            >
-              <Layers size={18} />
-              <span>1. OPS metric</span>
-            </button>
-
-            <button
-              className={`mobile-nav-item ${activeTab === 'ranking' ? 'active' : ''}`}
-              aria-current={activeTab === 'ranking' ? 'page' : undefined}
-              onClick={() => setActiveTab('ranking')}
-            >
-              <Truck size={18} />
-              <span>BXH Xe</span>
-            </button>
-
-            <button
-              className={`mobile-nav-item ${activeTab === 'report5' ? 'active' : ''}`}
-              aria-current={activeTab === 'report5' ? 'page' : undefined}
-              onClick={() => setActiveTab('report5')}
-            >
-              <ArrowRightLeft size={18} />
-              <span>2. % Ca 1</span>
-            </button>
-
-            <button
-              className={`mobile-nav-item ${activeTab === 'report3' ? 'active' : ''}`}
-              aria-current={activeTab === 'report3' ? 'page' : undefined}
-              onClick={() => setActiveTab('report3')}
-            >
-              <Clock size={18} />
-              <span>3. Leadtime</span>
-            </button>
-
-            <button
-              className={`mobile-nav-item ${activeTab === 'report-insight' ? 'active' : ''}`}
-              aria-current={activeTab === 'report-insight' ? 'page' : undefined}
-              onClick={() => setActiveTab('report-insight')}
-            >
-              <Sparkles size={18} />
-              <span>4. Insight</span>
-            </button>
-
-            <button
-              className={`mobile-nav-item ${activeTab === 'cod-suspicion' ? 'active' : ''}`}
-              aria-current={activeTab === 'cod-suspicion' ? 'page' : undefined}
-              onClick={() => setActiveTab('cod-suspicion')}
-            >
-              <ShieldAlert size={18} />
-              <span>5. Nghi vấn COD</span>
-            </button>
+            {navigationModules('mobile').map(module => {
+              const Icon = module.icon;
+              return (
+                <button
+                  key={module.id}
+                  className={`mobile-nav-item ${activeTab === module.id ? 'active' : ''}`}
+                  aria-current={activeTab === module.id ? 'page' : undefined}
+                  onClick={() => setActiveTab(module.id)}
+                >
+                  <Icon size={18} />
+                  <span>{module.mobileLabel}</span>
+                </button>
+              );
+            })}
 
             <button
               className="mobile-nav-item"
