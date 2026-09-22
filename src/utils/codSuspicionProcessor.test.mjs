@@ -353,6 +353,44 @@ test('filterDriverGroups filters by suspicion type, warehouse and search query',
   assert.equal(searchO3[0].driverId, 'D2');
 });
 
+test('filterDriverGroups keeps an orphan driver (resolution with no current source orders) matching only on suspicion type and driver identity', () => {
+  const orphan = {
+    driverId: 'D9',
+    driverName: 'Tài xế D9',
+    suspicionType: 'Gối đầu COD',
+    isOrphan: true,
+    orders: [],
+    resolution: { status: 'resolved', finding_outcome: 'violation' }
+  };
+  const drivers = [
+    orphan,
+    {
+      driverId: 'D2',
+      driverName: 'Trần Văn B',
+      suspicionType: 'Rút ruột',
+      orders: [
+        { orderCode: 'O3', suspicionType: 'Rút ruột', warehouseName: 'Kho Tân Bình', totalScore: 20, codAmount: 5000 }
+      ]
+    }
+  ];
+
+  // An orphan has no order-level data, so warehouse/alertLevel filters never exclude it.
+  assert.equal(filterDriverGroups(drivers, { warehouse: 'Kho Tân Bình' }).length, 2);
+  assert.equal(filterDriverGroups(drivers, { alertLevel: 'HIGH' }).length, 2);
+
+  // Suspicion type still filters it out.
+  assert.deepEqual(
+    filterDriverGroups(drivers, { suspicionType: 'Rút ruột' }).map(d => d.driverId),
+    ['D2']
+  );
+
+  // Search matches driver identity, not (nonexistent) order codes.
+  assert.deepEqual(
+    filterDriverGroups(drivers, { searchQuery: 'D9' }).map(d => d.driverId),
+    ['D9']
+  );
+});
+
 test('computeSuspicionKPIs sorts warehouse bars by order count with a stable name tie-breaker', () => {
   const drivers = [
     {
