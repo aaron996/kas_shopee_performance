@@ -230,6 +230,12 @@ function completionValues(result, status, modelCalled, scoredAt) {
 
 export function serializeAssessment(row, options = {}) {
   const includeEvidence = options.includeEvidence === true;
+  // Regular (non-Dev-Admin) users must only ever learn the bare suspicion
+  // score/status — never the scoring method (raw SMS evidence, AI
+  // explanation, model name, rubric version, technical error detail).
+  // Defaults to true so internal callers (dev-only batch runs, etc.) keep
+  // getting the full payload unless they opt out explicitly.
+  const includeDetails = options.includeDetails !== false;
   const evidenceCount = Array.isArray(row.evidence) ? row.evidence.length : 0;
   return {
     key: {
@@ -239,17 +245,17 @@ export function serializeAssessment(row, options = {}) {
     },
     status: row.status,
     smsScore: row.sms_score,
-    confidence: row.confidence,
-    detectedPatterns: row.detected_patterns ?? [],
+    confidence: includeDetails ? row.confidence : null,
+    detectedPatterns: includeDetails ? (row.detected_patterns ?? []) : [],
     evidence: includeEvidence ? (row.evidence ?? []) : null,
     evidenceRestricted: !includeEvidence && (evidenceCount > 0 || row.status === 'scored'),
-    explanation: row.explanation,
-    rubricVersion: row.rubric_version,
-    model: row.model,
-    modelCalled: row.model_called,
-    sourceFingerprint: row.source_fingerprint,
+    explanation: includeDetails ? row.explanation : null,
+    rubricVersion: includeDetails ? row.rubric_version : null,
+    model: includeDetails ? row.model : null,
+    modelCalled: includeDetails ? row.model_called : null,
+    sourceFingerprint: includeDetails ? row.source_fingerprint : null,
     scoredAt: row.scored_at,
-    technicalError: row.error_code
+    technicalError: includeDetails && row.error_code
       ? { code: row.error_code, message: row.error_message }
       : null,
     attemptCount: row.attempt_count,
