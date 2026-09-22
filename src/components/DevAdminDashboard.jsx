@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import AiOperationsDashboard from './AiOperationsDashboard';
+import LoadingScreen from './LoadingScreen';
 
 const PAGE_SIZE = 1000;
 
@@ -198,7 +199,9 @@ export default function DevAdminDashboard({ onlineUsers }) {
         </div>
         <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
           {isLoading ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Đang tổng hợp danh sách user...</div>
+            <div style={{ position: 'relative', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LoadingScreen fullScreen={false} />
+            </div>
           ) : loadError ? (
             <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '2rem' }}>{loadError}</div>
           ) : userSummary.length === 0 ? (
@@ -286,7 +289,9 @@ export default function DevAdminDashboard({ onlineUsers }) {
           </div>
           <div style={{ padding: '1rem', height: '400px', overflowY: 'auto' }}>
             {isLoading ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>Đang tải log truy cập...</div>
+              <div style={{ position: 'relative', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <LoadingScreen fullScreen={false} />
+              </div>
             ) : loadError ? (
               <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '3rem 1rem' }}>{loadError}</div>
             ) : accessLogs.length === 0 ? (

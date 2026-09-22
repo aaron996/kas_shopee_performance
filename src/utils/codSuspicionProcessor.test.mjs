@@ -743,23 +743,23 @@ test('SMS_PATTERN_LABELS provides human-readable Vietnamese labels for all 5 rub
 
 test('getSmsSimpleVerdict only ever returns one of the two allowed regular-user strings', () => {
   const suspicious = getSmsSimpleVerdict({ status: 'scored', smsScore: 6, confidence: 'cao' });
-  assert.equal(suspicious.text, 'Nghi ngờ SMS bất thường');
+  assert.equal(suspicious.text, 'Có dấu hiệu nghi ngờ');
   assert.equal(suspicious.level, 'high');
 
   const zeroScore = getSmsSimpleVerdict({ status: 'scored', smsScore: 0, confidence: null });
-  assert.equal(zeroScore.text, 'Không có bất thường SMS');
+  assert.equal(zeroScore.text, 'Không có dấu hiệu nghi ngờ');
 
   const noEvidence = getSmsSimpleVerdict({ status: 'no_evidence', smsScore: 0 });
-  assert.equal(noEvidence.text, 'Không có bất thường SMS');
+  assert.equal(noEvidence.text, 'Không có dấu hiệu nghi ngờ');
 
   const pending = getSmsSimpleVerdict({ status: 'pending', smsScore: null });
-  assert.equal(pending.text, 'Không có bất thường SMS');
+  assert.equal(pending.text, 'Không có dấu hiệu nghi ngờ');
 
   const failed = getSmsSimpleVerdict({ status: 'failed', smsScore: null, technicalError: { code: 'X', message: 'y' } });
-  assert.equal(failed.text, 'Không có bất thường SMS');
+  assert.equal(failed.text, 'Không có dấu hiệu nghi ngờ');
   assert.doesNotMatch(failed.text, /lỗi|error|X\b/i);
 
   const unscored = getSmsSimpleVerdict(null);
-  assert.equal(unscored.text, 'Không có bất thường SMS');
+  assert.equal(unscored.text, 'Không có dấu hiệu nghi ngờ');
 });
 

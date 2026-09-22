@@ -1,41 +1,59 @@
+/* Unified Loading Overlay */
 .loading-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(4px);
-  transition: all 0.3s ease;
+  outline: none;
+  /* Anti-flicker delay: 150ms before becoming visible to prevent micro-flashes on fast loads */
+  animation: loadingOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+
+.loading-overlay--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.loading-overlay--contained {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border-radius: inherit;
+  min-height: 120px;
 }
 
 body.dark-mode .loading-overlay {
-  background-color: rgba(15, 23, 42, 0.9);
+  background-color: rgba(15, 23, 42, 0.88);
 }
 
 .loading-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: center;
 }
 
 .loading-sprite {
-  width: 150px;
-  height: 150px;
+  width: 140px;
+  height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.loading-overlay--contained .loading-sprite {
+  width: 100px;
+  height: 100px;
+}
+
 .sprite-option-4 {
   background-image: url('/loading_sprite.jpg');
-  background-size: 400% 400%; /* 4x4 grid */
+  background-size: 400% 400%; /* 4x4 grid of 16 frames */
   background-repeat: no-repeat;
   animation: playSprite 0.8s step-end infinite;
   border-radius: 12px;
-  /* Add a soft shadow to make it pop */
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   background-color: #f1f5f9;
 }
@@ -45,18 +63,13 @@ body.dark-mode .sprite-option-4 {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
-.loading-text {
-  font-family: var(--font-sans);
-  font-size: 1.125rem;
-  font-weight: 500;
-  color: var(--text-main);
-  margin: 0;
-  text-shadow: 0 2px 4px rgba(255,255,255,0.8);
-}
-
-body.dark-mode .loading-text {
-  color: #f1f5f9;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+@keyframes loadingOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes playSprite {
@@ -81,4 +94,18 @@ body.dark-mode .loading-text {
   93.75% { background-position: 100% 100%; }
   
   100.00% { background-position: 0% 0%; }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay {
+    animation: none;
+    opacity: 1;
+    transition: none;
+  }
+
+  .sprite-option-4 {
+    animation: none !important;
+    background-position: 0% 0% !important;
+  }
 }
