@@ -101,10 +101,15 @@ export default function App() {
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
+  const [hasOpenedCodTab, setHasOpenedCodTab] = useState(initialView.tab === 'cod-suspicion');
   const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', alertLevel: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
   const [codSearchFocus, setCodSearchFocus] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'cod-suspicion') setHasOpenedCodTab(true);
+  }, [activeTab]);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
   // When this app is loaded inside an <iframe>, the host page can pass the
@@ -721,9 +726,12 @@ export default function App() {
                 <DevAdminDashboard onlineUsers={onlineUsers} />
               )}
 
-              {activeTab === 'cod-suspicion' && currentUser && (
+            </div>
+            {(hasOpenedCodTab || activeTab === 'cod-suspicion') && currentUser && (
+              <div style={{ display: activeTab === 'cod-suspicion' ? undefined : 'none' }}>
                 <Suspense fallback={<LoadingScreen text="Đang mở tab Đơn nghi vấn COD..." option={4} />}>
                   <CodSuspicionReport
+                    active={activeTab === 'cod-suspicion'}
                     filters={codSuspicionFilters}
                     onAvailableWarehouses={setCodSuspicionWarehouses}
                     canManageResolutions={Boolean(currentUser?.isDevAdmin)}
@@ -733,8 +741,8 @@ export default function App() {
                     onClearSearch={clearCodSearch}
                   />
                 </Suspense>
-              )}
-            </div>
+              </div>
+            )}
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
