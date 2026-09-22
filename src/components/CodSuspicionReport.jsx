@@ -12,7 +12,8 @@ import {
   X,
   MessageSquare,
   LoaderCircle,
-  Search
+  Search,
+  Info
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,6 +27,7 @@ import {
 import {
   formatCurrencyVND,
   formatDateVN,
+  formatDateTimeVN,
   normalizeSuspicionOrder,
   groupOrdersByDriver,
   sortDrivers,
@@ -34,7 +36,11 @@ import {
   getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
-  aggregateOrdersByEndDeliveryDate
+  aggregateOrdersByEndDeliveryDate,
+  getCodSmsCaseKey,
+  getSmsScoreBadge,
+  formatSmsConfidence,
+  SMS_PATTERN_LABELS
 } from '../utils/codSuspicionProcessor';
 import {
   fetchCodSuspicionData,
@@ -42,7 +48,9 @@ import {
   saveCodSuspicionDriverResolution,
   undoCodSuspicionDriverResolution,
   uploadCodResolutionEvidence,
-  removeCodResolutionEvidence
+  removeCodResolutionEvidence,
+  fetchCodSmsAssessmentsSummary,
+  fetchCodSmsAssessmentEvidence
 } from '../utils/codSuspicionClient';
 import ModalDialog from './ui/ModalDialog';
 
@@ -76,6 +84,7 @@ export default function CodSuspicionReport({
   filters,
   onAvailableWarehouses,
   canManageResolutions = false,
+  isDevAdmin = false,
   dataEnabled = true,
   focusTarget = null,
   onFocusTargetHandled,
@@ -83,14 +92,19 @@ export default function CodSuspicionReport({
 }) {
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
+  const [smsAssessments, setSmsAssessments] = useState(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [isSmsLoading, setIsSmsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
+  const [smsError, setSmsError] = useState('');
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
   const [resolvingDriverKeys, setResolvingDriverKeys] = useState(() => new Set());
   const [workflowDialog, setWorkflowDialog] = useState(null);
   const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
+  const [smsDetailModal, setSmsDetailModal] = useState(null);
+  const [evidenceState, setEvidenceState] = useState({ isLoading: false, error: null, evidence: null });
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
@@ -115,18 +129,24 @@ export default function CodSuspicionReport({
     if (!dataEnabled) {
       setRawData([]);
       setResolutions(new Map());
+      setSmsAssessments(new Map());
       setErrorMsg('');
       setResolutionError('');
+      setSmsError('');
       setIsLoading(false);
+      setIsSmsLoading(false);
       setHasLoaded(true);
       return;
     }
     setIsLoading(true);
+    setIsSmsLoading(true);
     setErrorMsg('');
+    setSmsError('');
     try {
-      const [sourceResult, resolutionResult] = await Promise.all([
+      const [sourceResult, resolutionResult, smsResult] = await Promise.all([
         fetchCodSuspicionData({ forceRefresh }),
-        fetchCodSuspicionCaseResolutions()
+        fetchCodSuspicionCaseResolutions(),
+        fetchCodSmsAssessmentsSummary({ limit: 500 })
       ]);
       if (sourceResult.success) {
         setRawData(sourceResult.rows || []);
@@ -145,14 +165,68 @@ export default function CodSuspicionReport({
       } else {
         setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
       }
+
+      if (smsResult.success) {
+        const assessmentMap = new Map();
+        for (const item of smsResult.assessments || []) {
+          if (item?.key) {
+            assessmentMap.set(getCodSmsCaseKey(item.key), item);
+          }
+        }
+        setSmsAssessments(assessmentMap);
+      } else {
+        setSmsError('Không thể tải kết quả chấm SMS AI. Vui lòng thử lại.');
+      }
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
       setErrorMsg('Đã xảy ra lỗi khi kết nối Supabase. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
+      setIsSmsLoading(false);
       setHasLoaded(true);
     }
   }, [dataEnabled]);
+
+  const loadEvidenceForModal = useCallback(async (order) => {
+    if (!isDevAdmin || !order) return;
+    setEvidenceState({ isLoading: true, error: null, evidence: null });
+    try {
+      const result = await fetchCodSmsAssessmentEvidence({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode
+      });
+      if (result.success && result.assessment) {
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(result.assessment.evidence) ? result.assessment.evidence : []
+        });
+      } else {
+        setEvidenceState({
+          isLoading: false,
+          error: result.error || 'Không thể tải bằng chứng SMS nguyên văn.',
+          evidence: null
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load SMS evidence:', err);
+      setEvidenceState({
+        isLoading: false,
+        error: 'Lỗi mạng khi tải bằng chứng SMS.',
+        evidence: null
+      });
+    }
+  }, [isDevAdmin]);
+
+  const openSmsModal = useCallback((order, assessment) => {
+    setSmsDetailModal({ order, assessment });
+    if (isDevAdmin && assessment && (assessment.status === 'scored' || assessment.evidenceRestricted)) {
+      loadEvidenceForModal(order);
+    } else {
+      setEvidenceState({ isLoading: false, error: null, evidence: null });
+    }
+  }, [isDevAdmin, loadEvidenceForModal]);
 
   useEffect(() => {
     if (active) loadData();
@@ -808,6 +882,67 @@ export default function CodSuspicionReport({
         </div>
       )}
 
+      {smsError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: '0.85rem',
+            padding: '0.75rem 1rem',
+            color: 'var(--danger-fg, #a13b2a)',
+            background: 'var(--danger-bg, #f7d9d4)',
+            border: '1px solid rgba(161, 59, 42, 0.3)',
+            borderRadius: 'var(--radius-control, 10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <span>{smsError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadData({ forceRefresh: true })}
+            style={{
+              color: 'inherit',
+              fontWeight: 700,
+              textDecoration: 'underline',
+              background: 'transparent',
+              border: 0,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {isSmsLoading && !isLoading && (
+        <div
+          role="status"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            marginBottom: '0.85rem',
+            padding: '0.35rem 0.75rem',
+            borderRadius: 'var(--radius-pill, 999px)',
+            background: 'var(--surface-subtle, #f2f7fd)',
+            border: '1px solid var(--border, #dce9f7)',
+            color: 'var(--action-primary, #0ea5c4)',
+            fontSize: '0.78rem',
+            fontWeight: 600
+          }}
+        >
+          <LoaderCircle size={14} className="is-spinning" />
+          <span>Đang tải kết quả chấm SMS AI...</span>
+        </div>
+      )}
+
       {!canManageResolutions && (
         <div role="status" style={{ marginBottom: '0.85rem', padding: '0.75rem 1rem', color: 'var(--warning-fg, #92400e)', background: 'var(--warning-bg, #fef3c7)', border: '1px solid rgba(146, 64, 14, 0.25)', borderRadius: 'var(--radius-control, 10px)' }}>
           Bạn chỉ có quyền xem dữ liệu nguồn. Chỉ Dev Admin được xác nhận xử lý đơn.
@@ -1061,7 +1196,7 @@ export default function CodSuspicionReport({
                       <table
                         style={{
                           width: '100%',
-                          minWidth: '760px',
+                          minWidth: '920px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -1075,11 +1210,21 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
+                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
+                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
                           </tr>
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
                             const orderAlertLevel = getAlertLevel(order.totalScore);
+                            const smsKey = getCodSmsCaseKey({
+                              suspicionType: order.suspicionType,
+                              driverId: order.driverId,
+                              orderCode: order.orderCode
+                            });
+                            const smsAssessment = smsAssessments.get(smsKey);
+                            const smsBadge = getSmsScoreBadge(smsAssessment);
+
                             return (
                               <tr
                                 key={order.orderCode}
@@ -1115,7 +1260,7 @@ export default function CodSuspicionReport({
                                   {formatDateVN(order.endDeliveryDate)}
                                 </td>
 
-                                {/* Mức độ cảnh báo */}
+                                {/* Mức độ cảnh báo (SQL) */}
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <span
                                     style={{
@@ -1128,6 +1273,27 @@ export default function CodSuspicionReport({
                                   >
                                     {orderAlertLevel.label}
                                   </span>
+                                </td>
+
+                                {/* Điểm SMS (AI) */}
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <span className={`cod-sms-badge cod-sms-badge--${smsBadge.level}`}>
+                                    {smsBadge.text}
+                                  </span>
+                                </td>
+
+                                {/* Thao tác */}
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <button
+                                    type="button"
+                                    className="cod-sms-action-btn"
+                                    onClick={() => openSmsModal(order, smsAssessment)}
+                                    title={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                    aria-label={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                                  >
+                                    <MessageSquare size={13} />
+                                    <span>Xem chi tiết SMS</span>
+                                  </button>
                                 </td>
 
                               </tr>
@@ -1248,6 +1414,231 @@ export default function CodSuspicionReport({
               </button>
             </footer>
           </form>
+        )}
+      </ModalDialog>
+
+      {/* Modal chi tiết đánh giá SMS AI */}
+      <ModalDialog
+        isOpen={Boolean(smsDetailModal)}
+        onClose={() => setSmsDetailModal(null)}
+        className="cod-sms-modal"
+        titleId="cod-sms-modal-title"
+        descriptionId="cod-sms-modal-description"
+      >
+        {smsDetailModal && (
+          <div className="cod-sms-modal__content">
+            <header className="cod-sms-modal__header">
+              <div className="cod-sms-modal__icon">
+                <MessageSquare size={22} />
+              </div>
+              <div>
+                <h2 id="cod-sms-modal-title">Chi tiết đánh giá SMS AI</h2>
+                <p id="cod-sms-modal-description">
+                  Đơn <strong>{smsDetailModal.order.orderCode}</strong> · {smsDetailModal.order.driverName} ({smsDetailModal.order.suspicionType})
+                </p>
+              </div>
+              <button
+                type="button"
+                className="cod-sms-modal__close"
+                onClick={() => setSmsDetailModal(null)}
+                aria-label="Đóng"
+              >
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className="cod-sms-modal__body">
+              {/* Thẻ tóm tắt thông tin đơn */}
+              <div className="cod-sms-modal__meta-strip">
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Kho giao</span>
+                  <span className="cod-sms-modal__meta-value">{smsDetailModal.order.warehouseName}</span>
+                </div>
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Tiền COD</span>
+                  <span className="cod-sms-modal__meta-value">{formatCurrencyVND(smsDetailModal.order.codAmount)}</span>
+                </div>
+                <div className="cod-sms-modal__meta-item">
+                  <span className="cod-sms-modal__meta-label">Cảnh báo SQL</span>
+                  <span
+                    className="cod-sms-modal__meta-value"
+                    style={{ color: getAlertLevel(smsDetailModal.order.totalScore).color, fontWeight: 700 }}
+                  >
+                    {getAlertLevel(smsDetailModal.order.totalScore).label} ({smsDetailModal.order.totalScore}đ)
+                  </span>
+                </div>
+              </div>
+
+              {smsDetailModal.assessment ? (
+                <>
+                  {/* Điểm & Mức độ tin cậy */}
+                  <div className="cod-sms-modal__score-card">
+                    <div className="cod-sms-modal__score-main">
+                      <div className="cod-sms-modal__score-figure">
+                        <span className="cod-sms-modal__score-num">
+                          {smsDetailModal.assessment.smsScore ?? '—'}
+                        </span>
+                        <span className="cod-sms-modal__score-max">/9</span>
+                      </div>
+                      <div className="cod-sms-modal__score-info">
+                        <div className="cod-sms-modal__score-heading">
+                          Điểm nghi vấn SMS (AI)
+                        </div>
+                        <div className="cod-sms-modal__score-badge-wrap">
+                          <span className={`cod-sms-badge cod-sms-badge--${getSmsScoreBadge(smsDetailModal.assessment).level}`}>
+                            {getSmsScoreBadge(smsDetailModal.assessment).text}
+                          </span>
+                          {smsDetailModal.assessment.confidence && (
+                            <span className="cod-sms-modal__confidence-sub">
+                              Mức độ tin cậy: <strong>{formatSmsConfidence(smsDetailModal.assessment.confidence)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mẫu hình phát hiện */}
+                    <div className="cod-sms-modal__section">
+                      <div className="cod-sms-modal__section-title">Mẫu hình phát hiện:</div>
+                      {Array.isArray(smsDetailModal.assessment.detectedPatterns) && smsDetailModal.assessment.detectedPatterns.length > 0 ? (
+                        <div className="cod-sms-modal__patterns-list">
+                          {smsDetailModal.assessment.detectedPatterns.map(patternKey => (
+                            <div key={patternKey} className="cod-sms-modal__pattern-tag">
+                              <CheckCircle2 size={14} className="cod-sms-modal__pattern-icon" />
+                              <span>{SMS_PATTERN_LABELS[patternKey] || patternKey}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="cod-sms-modal__empty-patterns">
+                          Không phát hiện mẫu hình nghi vấn trong nội dung SMS.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Giải thích từ AI */}
+                    {smsDetailModal.assessment.explanation && (
+                      <div className="cod-sms-modal__section">
+                        <div className="cod-sms-modal__section-title">Nhận định phân tích từ AI:</div>
+                        <div className="cod-sms-modal__explanation">
+                          {smsDetailModal.assessment.explanation}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Metadata audit */}
+                    <div className="cod-sms-modal__audit-meta">
+                      <span>Thời gian chấm: <strong>{formatDateTimeVN(smsDetailModal.assessment.scoredAt)}</strong></span>
+                      {smsDetailModal.assessment.model && (
+                        <span>Mô hình: <strong>{smsDetailModal.assessment.model}</strong></span>
+                      )}
+                      {smsDetailModal.assessment.rubricVersion && (
+                        <span>Rubric: <strong>{smsDetailModal.assessment.rubricVersion}</strong></span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Khu vực Bằng chứng SMS */}
+                  <div className="cod-sms-modal__evidence-card">
+                    <div className="cod-sms-modal__evidence-header">
+                      <strong>Bằng chứng SMS nguyên văn</strong>
+                    </div>
+
+                    {!isDevAdmin ? (
+                      <div className="cod-sms-modal__evidence-notice">
+                        <div className="cod-sms-modal__notice-icon">
+                          <ShieldAlert size={18} />
+                        </div>
+                        <div>
+                          <div className="cod-sms-modal__notice-title">Bằng chứng SMS chỉ dành cho Dev Admin</div>
+                          <div className="cod-sms-modal__notice-desc">
+                            Nội dung tin nhắn SMS nguyên văn được giới hạn quyền truy cập theo quy định bảo vệ dữ liệu nội bộ.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="cod-sms-modal__evidence-dev-content">
+                        {smsDetailModal.assessment.status === 'no_evidence' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Không có SMS nào được ghi nhận làm bằng chứng.
+                          </div>
+                        ) : smsDetailModal.assessment.status === 'pending' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Đơn này chưa được chấm điểm, chưa có bằng chứng để hiển thị.
+                          </div>
+                        ) : smsDetailModal.assessment.status === 'failed' ? (
+                          <div className="cod-sms-modal__evidence-empty">
+                            Lượt chấm điểm bị lỗi, không có bằng chứng để hiển thị.
+                          </div>
+                        ) : (
+                          <>
+                            {evidenceState.isLoading && (
+                              <div className="cod-sms-modal__evidence-loading">
+                                <LoaderCircle size={18} className="is-spinning" />
+                                <span>Đang tải bằng chứng SMS nguyên văn...</span>
+                              </div>
+                            )}
+
+                            {evidenceState.error && (
+                              <div className="cod-sms-modal__evidence-error">
+                                <AlertTriangle size={18} />
+                                <span>{evidenceState.error}</span>
+                                <button
+                                  type="button"
+                                  className="cod-workflow-action cod-workflow-action--secondary"
+                                  onClick={() => loadEvidenceForModal(smsDetailModal.order)}
+                                  style={{ marginLeft: 'auto', padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
+                                >
+                                  <RotateCcw size={13} /> Thử lại
+                                </button>
+                              </div>
+                            )}
+
+                            {!evidenceState.isLoading && !evidenceState.error && evidenceState.evidence && (
+                              <>
+                                {evidenceState.evidence.length > 0 ? (
+                                  <div className="cod-sms-modal__evidence-quotes">
+                                    {evidenceState.evidence.map((quote, idx) => (
+                                      <div key={idx} className="cod-sms-modal__quote-item">
+                                        <span className="cod-sms-modal__quote-idx">#{idx + 1}</span>
+                                        <div className="cod-sms-modal__quote-text">{quote}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="cod-sms-modal__evidence-empty">
+                                    Không có SMS nào được ghi nhận làm bằng chứng.
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="cod-sms-modal__unscored-state">
+                  <Info size={28} style={{ color: 'var(--text-muted)' }} />
+                  <h3>Đơn hàng này chưa có kết quả chấm điểm SMS AI</h3>
+                  <p>
+                    Hệ thống sàng lọc chưa ghi nhận lượt phân tích SMS cho đơn hàng này. Kết quả sẽ tự động cập nhật khi có đợt chấm điểm mới.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <footer className="cod-sms-modal__footer">
+              <button
+                type="button"
+                className="cod-workflow-action cod-workflow-action--secondary"
+                onClick={() => setSmsDetailModal(null)}
+              >
+                Đóng
+              </button>
+            </footer>
+          </div>
         )}
       </ModalDialog>
 

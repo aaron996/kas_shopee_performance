@@ -190,3 +190,118 @@ export async function removeCodResolutionEvidence(paths) {
     return { success: false, error: err.message || 'UNKNOWN_ERROR' };
   }
 }
+
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch (err) {
+    console.warn('Could not read auth session for COD SMS assessments:', err);
+  }
+  return {};
+}
+
+/**
+ * Fetch batch summary of COD SMS AI assessments (contract v1).
+ * Never requests evidence (include_evidence=false).
+ */
+export async function fetchCodSmsAssessmentsSummary({ limit = 500 } = {}) {
+  try {
+    const authHeaders = await getAuthHeader();
+    const parsedLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    const url = `/api/cod-sms-assessments?limit=${parsedLimit}`;
+
+    const res = await withTimeout(
+      fetch(url, {
+        headers: {
+          ...authHeaders,
+          'Accept': 'application/json'
+        }
+      }),
+      'cod-sms-assessments-summary'
+    );
+
+    if (!res.ok) {
+      let errPayload;
+      try { errPayload = await res.json(); } catch { /* ignore */ }
+      return {
+        success: false,
+        error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`,
+        assessments: []
+      };
+    }
+
+    const data = await res.json();
+    return {
+      success: true,
+      contractVersion: data.contractVersion || '1',
+      assessments: Array.isArray(data.assessments) ? data.assessments : [],
+      meta: data.meta || {}
+    };
+  } catch (err) {
+    console.error('Failed to fetch COD SMS assessments summary:', err);
+    return {
+      success: false,
+      error: err.message || 'UNKNOWN_ERROR',
+      assessments: []
+    };
+  }
+}
+
+/**
+ * Fetch verbatim evidence for a specific case (Dev Admin only).
+ * Exactly targets one case by (suspicion_type, driver_id, order_code).
+ */
+export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, orderCode }) {
+  try {
+    const authHeaders = await getAuthHeader();
+    const params = new URLSearchParams({
+      suspicion_type: String(suspicionType || '').trim(),
+      driver_id: String(driverId || '').trim(),
+      order_code: String(orderCode || '').trim(),
+      include_evidence: 'true',
+      limit: '1'
+    });
+    const url = `/api/cod-sms-assessments?${params.toString()}`;
+
+    const res = await withTimeout(
+      fetch(url, {
+        headers: {
+          ...authHeaders,
+          'Accept': 'application/json'
+        }
+      }),
+      'cod-sms-assessment-evidence'
+    );
+
+    if (!res.ok) {
+      let errPayload;
+      try { errPayload = await res.json(); } catch { /* ignore */ }
+      return {
+        success: false,
+        error: errPayload?.error?.message || `Không thể tải bằng chứng SMS (${res.status})`,
+        assessment: null
+      };
+    }
+
+    const data = await res.json();
+    const assessment = Array.isArray(data.assessments) && data.assessments.length > 0
+      ? data.assessments[0]
+      : null;
+
+    return {
+      success: true,
+      contractVersion: data.contractVersion || '1',
+      assessment
+    };
+  } catch (err) {
+    console.error('Failed to fetch COD SMS assessment evidence:', err);
+    return {
+      success: false,
+      error: err.message || 'UNKNOWN_ERROR',
+      assessment: null
+    };
+  }
+}
