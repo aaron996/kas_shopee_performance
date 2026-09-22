@@ -53,9 +53,12 @@ import {
   removeCodResolutionEvidence,
   fetchCodSmsAssessmentsSummary,
   fetchCodSmsAssessmentsHistory,
-  fetchCodSmsAssessmentEvidence,
+  fetchCodSmsAssessmentEvidenceCached,
+  getCachedCodSmsEvidence,
+  invalidateCodSmsEvidenceCache,
   runCodSmsAssessmentBatch
 } from '../utils/codSuspicionClient';
+import LoadingScreen from './LoadingScreen';
 import ModalDialog from './ui/ModalDialog';
 
 const TYPE_COLORS = {
@@ -89,6 +92,7 @@ export default function CodSuspicionReport({
   onAvailableWarehouses,
   canManageResolutions = false,
   isDevAdmin = false,
+  userEmail = '',
   dataEnabled = true,
   focusTarget = null,
   onFocusTargetHandled,
@@ -109,6 +113,7 @@ export default function CodSuspicionReport({
   const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
   const [smsDetailModal, setSmsDetailModal] = useState(null);
   const [evidenceState, setEvidenceState] = useState({ isLoading: false, error: null, evidence: null });
+  const activeSmsRequestRef = useRef(null);
   const [manualRunDialogOpen, setManualRunDialogOpen] = useState(false);
   const [manualRunState, setManualRunState] = useState({ isRunning: false, error: null, result: null, aborted: false });
   const [manualRunProgress, setManualRunProgress] = useState(null);
@@ -143,6 +148,12 @@ export default function CodSuspicionReport({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      activeSmsRequestRef.current?.controller?.abort();
+    };
+  }, []);
+
   // Fetch data
   const loadData = useCallback(async ({ forceRefresh = false } = {}) => {
     if (!dataEnabled) {
@@ -156,6 +167,9 @@ export default function CodSuspicionReport({
       setIsSmsLoading(false);
       setHasLoaded(true);
       return;
+    }
+    if (forceRefresh) {
+      invalidateCodSmsEvidenceCache();
     }
     setIsLoading(true);
     setIsSmsLoading(true);
@@ -206,15 +220,58 @@ export default function CodSuspicionReport({
     }
   }, [dataEnabled]);
 
-  const loadEvidenceForModal = useCallback(async (order) => {
+  const loadEvidenceForModal = useCallback(async (order, { forceRefresh = false } = {}) => {
     if (!isDevAdmin || !order) return;
-    setEvidenceState({ isLoading: true, error: null, evidence: null });
-    try {
-      const result = await fetchCodSmsAssessmentEvidence({
+    const caseKey = getCodSmsCaseKey(order);
+
+    // Cancel previous in-flight fetch to prevent race condition
+    if (activeSmsRequestRef.current?.controller) {
+      activeSmsRequestRef.current.controller.abort();
+    }
+
+    const controller = new AbortController();
+    activeSmsRequestRef.current = { caseKey, controller };
+
+    // Synchronous cache hit check
+    if (!forceRefresh) {
+      const cached = getCachedCodSmsEvidence({
         suspicionType: order.suspicionType,
         driverId: order.driverId,
-        orderCode: order.orderCode
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin
       });
+      if (cached?.assessment) {
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(cached.assessment.evidence) ? cached.assessment.evidence : []
+        });
+        return;
+      }
+    }
+
+    setEvidenceState({ isLoading: true, error: null, evidence: null });
+
+    try {
+      const result = await fetchCodSmsAssessmentEvidenceCached({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin,
+        forceRefresh,
+        signal: controller.signal
+      });
+
+      // Ignore if user navigated away or opened a different SMS
+      if (activeSmsRequestRef.current?.caseKey !== caseKey) {
+        return;
+      }
+      if (result.aborted) {
+        return;
+      }
+
       if (result.success && result.assessment) {
         setEvidenceState({
           isLoading: false,
@@ -229,6 +286,9 @@ export default function CodSuspicionReport({
         });
       }
     } catch (err) {
+      if (activeSmsRequestRef.current?.caseKey !== caseKey || err.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to load SMS evidence:', err);
       setEvidenceState({
         isLoading: false,
@@ -236,16 +296,47 @@ export default function CodSuspicionReport({
         evidence: null
       });
     }
-  }, [isDevAdmin]);
+  }, [isDevAdmin, userEmail]);
 
   const openSmsModal = useCallback((order, assessment) => {
     setSmsDetailModal({ order, assessment });
     if (isDevAdmin && assessment && (assessment.status === 'scored' || assessment.evidenceRestricted)) {
-      loadEvidenceForModal(order);
+      const cached = getCachedCodSmsEvidence({
+        suspicionType: order.suspicionType,
+        driverId: order.driverId,
+        orderCode: order.orderCode,
+        userEmail,
+        isDevAdmin
+      });
+      if (cached?.assessment) {
+        if (activeSmsRequestRef.current?.controller) {
+          activeSmsRequestRef.current.controller.abort();
+        }
+        activeSmsRequestRef.current = { caseKey: getCodSmsCaseKey(order), controller: null };
+        setEvidenceState({
+          isLoading: false,
+          error: null,
+          evidence: Array.isArray(cached.assessment.evidence) ? cached.assessment.evidence : []
+        });
+      } else {
+        loadEvidenceForModal(order);
+      }
     } else {
+      if (activeSmsRequestRef.current?.controller) {
+        activeSmsRequestRef.current.controller.abort();
+      }
+      activeSmsRequestRef.current = null;
       setEvidenceState({ isLoading: false, error: null, evidence: null });
     }
-  }, [isDevAdmin, loadEvidenceForModal]);
+  }, [isDevAdmin, userEmail, loadEvidenceForModal]);
+
+  const closeSmsModal = useCallback(() => {
+    if (activeSmsRequestRef.current?.controller) {
+      activeSmsRequestRef.current.controller.abort();
+    }
+    activeSmsRequestRef.current = null;
+    setSmsDetailModal(null);
+  }, []);
 
   const handleRunManualBatch = useCallback(async () => {
     const cases = manualRunMode === 'cases'
@@ -1224,17 +1315,18 @@ export default function CodSuspicionReport({
         {isLoading && !hasLoaded && visibleDrivers.length === 0 ? (
           <div
             style={{
-              textAlign: 'center',
-              padding: '4rem 1rem',
+              position: 'relative',
+              minHeight: '260px',
               background: 'var(--card-bg, #ffffff)',
               borderRadius: '12px',
-              border: '1px solid var(--border)'
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden'
             }}
           >
-            <RefreshCw size={28} className="is-spinning" style={{ color: 'var(--ghn-orange)' }} />
-            <div style={{ marginTop: '1rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Đang tải danh sách tài xế và đơn nghi vấn...
-            </div>
+            <LoadingScreen fullScreen={false} />
           </div>
         ) : visibleDrivers.length === 0 ? (
           <div
@@ -1695,7 +1787,7 @@ export default function CodSuspicionReport({
       {/* Modal chi tiết đánh giá SMS AI */}
       <ModalDialog
         isOpen={Boolean(smsDetailModal)}
-        onClose={() => setSmsDetailModal(null)}
+        onClose={closeSmsModal}
         className="cod-sms-modal"
         titleId="cod-sms-modal-title"
         descriptionId="cod-sms-modal-description"
@@ -1715,7 +1807,7 @@ export default function CodSuspicionReport({
               <button
                 type="button"
                 className="cod-sms-modal__close"
-                onClick={() => setSmsDetailModal(null)}
+                onClick={closeSmsModal}
                 aria-label="Đóng"
               >
                 <X size={20} />
@@ -1849,8 +1941,7 @@ export default function CodSuspicionReport({
                           <>
                             {evidenceState.isLoading && (
                               <div className="cod-sms-modal__evidence-loading">
-                                <LoaderCircle size={18} className="is-spinning" />
-                                <span>Đang tải bằng chứng SMS nguyên văn...</span>
+                                <LoadingScreen fullScreen={false} />
                               </div>
                             )}
 
@@ -1861,7 +1952,7 @@ export default function CodSuspicionReport({
                                 <button
                                   type="button"
                                   className="cod-workflow-action cod-workflow-action--secondary"
-                                  onClick={() => loadEvidenceForModal(smsDetailModal.order)}
+                                  onClick={() => loadEvidenceForModal(smsDetailModal.order, { forceRefresh: true })}
                                   style={{ marginLeft: 'auto', padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
                                 >
                                   <RotateCcw size={13} /> Thử lại
@@ -1908,7 +1999,7 @@ export default function CodSuspicionReport({
               <button
                 type="button"
                 className="cod-workflow-action cod-workflow-action--secondary"
-                onClick={() => setSmsDetailModal(null)}
+                onClick={closeSmsModal}
               >
                 Đóng
               </button>

@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 const PAGE_SIZE = 1000;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -312,7 +312,15 @@ export async function fetchCodSmsAssessmentsHistory({ limit = 25, offset = 0, st
  * Fetch verbatim evidence for a specific case (Dev Admin only).
  * Exactly targets one case by (suspicion_type, driver_id, order_code).
  */
-export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, orderCode }) {
+export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, orderCode, signal = null }) {
+  if (signal?.aborted) {
+    return {
+      success: false,
+      aborted: true,
+      error: 'Yêu cầu tải bằng chứng đã bị hủy.',
+      assessment: null
+    };
+  }
   try {
     const authHeaders = await getAuthHeader();
     const params = new URLSearchParams({
@@ -329,7 +337,8 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
         headers: {
           ...authHeaders,
           'Accept': 'application/json'
-        }
+        },
+        signal
       }),
       'cod-sms-assessment-evidence'
     );
@@ -355,6 +364,14 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
       assessment
     };
   } catch (err) {
+    if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+      return {
+        success: false,
+        aborted: true,
+        error: 'Yêu cầu tải bằng chứng đã bị hủy.',
+        assessment: null
+      };
+    }
     console.error('Failed to fetch COD SMS assessment evidence:', err);
     return {
       success: false,
@@ -362,6 +379,113 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
       assessment: null
     };
   }
+}
+
+export const COD_SMS_EVIDENCE_CACHE_TTL_MS = 5 * 60 * 1000;
+const codSmsEvidenceCache = new Map();
+
+/**
+ * Builds a deterministic cache key ensuring:
+ * 1. Proper user scope (user email + role) so one user/role cannot see or poison another's cached data.
+ * 2. Stable 3-tuple identifier (suspicionType, driverId, orderCode) matching backend criteria.
+ */
+export function getCodSmsEvidenceCacheKey({
+  suspicionType,
+  driverId,
+  orderCode,
+  userEmail = '',
+  isDevAdmin = false
+} = {}) {
+  const normEmail = String(userEmail || '').trim().toLowerCase();
+  const roleScope = isDevAdmin ? 'dev' : 'viewer';
+  const sType = String(suspicionType || '').trim();
+  const dId = String(driverId || '').trim();
+  const oCode = String(orderCode || '').trim();
+  return `${normEmail}::${roleScope}::${sType}\u0000${dId}\u0000${oCode}`;
+}
+
+/**
+ * Read cached SMS evidence if present and not expired.
+ */
+export function getCachedCodSmsEvidence(params) {
+  const key = getCodSmsEvidenceCacheKey(params);
+  const entry = codSmsEvidenceCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    codSmsEvidenceCache.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+/**
+ * Invalidate cached SMS evidence by key/pattern or clear all if no parameter provided.
+ */
+export function invalidateCodSmsEvidenceCache(params) {
+  if (!params) {
+    codSmsEvidenceCache.clear();
+    return;
+  }
+  if (typeof params === 'string') {
+    codSmsEvidenceCache.delete(params);
+    for (const k of codSmsEvidenceCache.keys()) {
+      if (k.endsWith(params) || k.includes(params)) {
+        codSmsEvidenceCache.delete(k);
+      }
+    }
+    return;
+  }
+  const key = getCodSmsEvidenceCacheKey(params);
+  codSmsEvidenceCache.delete(key);
+}
+
+export function clearCodSmsEvidenceCache() {
+  codSmsEvidenceCache.clear();
+}
+
+/**
+ * Fetches SMS evidence with in-memory caching and AbortSignal support.
+ * Serves immediately from cache if available and unexpired.
+ */
+export async function fetchCodSmsAssessmentEvidenceCached({
+  suspicionType,
+  driverId,
+  orderCode,
+  userEmail = '',
+  isDevAdmin = false,
+  forceRefresh = false,
+  signal = null
+}) {
+  const cacheKey = getCodSmsEvidenceCacheKey({ suspicionType, driverId, orderCode, userEmail, isDevAdmin });
+
+  if (!forceRefresh) {
+    const cached = getCachedCodSmsEvidence({ suspicionType, driverId, orderCode, userEmail, isDevAdmin });
+    if (cached) {
+      return {
+        ...cached,
+        fromCache: true
+      };
+    }
+  }
+
+  const result = await fetchCodSmsAssessmentEvidence({
+    suspicionType,
+    driverId,
+    orderCode,
+    signal
+  });
+
+  if (result.success && result.assessment) {
+    codSmsEvidenceCache.set(cacheKey, {
+      result,
+      expiresAt: Date.now() + COD_SMS_EVIDENCE_CACHE_TTL_MS
+    });
+  }
+
+  return {
+    ...result,
+    fromCache: false
+  };
 }
 
 // Mirrors ChatPanel.jsx's readSse helper: the manual-run endpoint streams

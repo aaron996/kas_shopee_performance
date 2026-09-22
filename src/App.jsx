@@ -736,6 +736,7 @@ export default function App() {
                     onAvailableWarehouses={setCodSuspicionWarehouses}
                     canManageResolutions={Boolean(currentUser?.isDevAdmin)}
                     isDevAdmin={Boolean(currentUser?.isDevAdmin)}
+                    userEmail={currentUser?.email}
                     dataEnabled={!currentUser?.localPreview}
                     focusTarget={codSearchFocus}
                     onFocusTargetHandled={() => setCodSearchFocus(null)}

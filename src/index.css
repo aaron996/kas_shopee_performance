@@ -6080,13 +6080,12 @@ body.dark-mode .cod-workflow-modal__header, body.dark-mode .cod-workflow-skip, b
   gap: 0.5rem;
 }
 .cod-sms-modal__evidence-loading {
+  position: relative;
+  min-height: 120px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
   padding: 0.8rem;
-  color: var(--action-primary, #0ea5c4);
-  font-size: 0.8rem;
-  font-weight: 500;
 }
 .cod-sms-modal__evidence-error {
   display: flex;
