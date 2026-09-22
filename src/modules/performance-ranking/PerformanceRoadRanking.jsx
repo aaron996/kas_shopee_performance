@@ -17,8 +17,8 @@ import {
   SUPPORTED_KPIS,
   SMALL_SAMPLE_THRESHOLD,
   getMetricDef
-} from '../utils/performanceRanking.js';
-import { formatPct, formatVol, formatDiff, formatDateLabel } from '../utils/dataProcessor.js';
+} from '../../utils/performanceRanking.js';
+import { formatPct, formatVol, formatDiff, formatDateLabel } from '../../utils/dataProcessor.js';
 
 // SVG Vector Delivery Truck component
 function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {

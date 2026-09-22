@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
-import AnimatedNumber from './ui/AnimatedNumber';
+import AnimatedNumber from '../../components/ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
 import { ChevronRight, ArrowUp, AlertTriangle, X, Copy, MessageSquareText } from 'lucide-react';
-import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
-import StatusNotice from './ui/StatusNotice';
-import { appendCsvContext, csvCell } from '../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber, getHubType } from '../utils/dataProcessor';
-import { getHubIdentityKey } from '../utils/performanceRanking';
-import { useToast } from './ui/Toast';
+import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
+import StatusNotice from '../../components/ui/StatusNotice';
+import { appendCsvContext, csvCell } from '../../utils/dashboardState';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber, getHubType } from '../../utils/dataProcessor';
+import { getHubIdentityKey } from '../../utils/performanceRanking';
+import { useToast } from '../../components/ui/Toast';
 
 function SparklineChart({ card, isGood }) {
   const [hoverIndex, setHoverIndex] = useState(null);

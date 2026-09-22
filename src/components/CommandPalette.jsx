@@ -1,20 +1,15 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowRightLeft,
-  Clock,
   CornerDownLeft,
   Filter,
-  Layers,
   LoaderCircle,
   MapPin,
   PackageSearch,
   Search,
-  ShieldAlert,
-  Sparkles,
-  Truck,
   UserRound
 } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
+import { navigationModules } from '../modules/moduleRegistry.jsx';
 import { fetchCodSuspicionData } from '../utils/codSuspicionClient';
 import {
   buildCodSearchItems,
@@ -33,8 +28,7 @@ export default function CommandPalette({
   setClientFilter,
   onSelectRegion,
   onSelectCodResult,
-  canSearchCod = false,
-  hasInsightTab = false
+  canSearchCod = false
 }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -53,16 +47,13 @@ export default function CommandPalette({
   }, [isOpen]);
 
   const navigationItems = useMemo(() => {
-    const tabItems = [
-      { type: 'tab', id: 'report1', label: '1. OPS metric', section: 'Điều hướng', icon: Layers },
-      { type: 'tab', id: 'ranking', label: 'BXH Performance', section: 'Điều hướng', icon: Truck },
-      { type: 'tab', id: 'report5', label: '2. % Ca 1 theo lane', section: 'Điều hướng', icon: ArrowRightLeft },
-      { type: 'tab', id: 'report3', label: '3. Leadtime từng chặng', section: 'Điều hướng', icon: Clock }
-    ];
-    if (hasInsightTab) {
-      tabItems.push({ type: 'tab', id: 'report-insight', label: '4. Insight', section: 'Điều hướng', icon: Sparkles });
-    }
-    tabItems.push({ type: 'tab', id: 'cod-suspicion', label: '5. Đơn nghi vấn COD', section: 'Điều hướng', icon: ShieldAlert });
+    const tabItems = navigationModules('commandPalette').map(module => ({
+      type: 'tab',
+      id: module.id,
+      label: module.label,
+      section: 'Điều hướng',
+      icon: module.icon
+    }));
 
     const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
       type: 'client',
@@ -85,7 +76,7 @@ export default function CommandPalette({
     );
 
     return [...tabItems, ...clientItems, ...regionItems];
-  }, [hasInsightTab]);
+  }, []);
 
   const cleanQuery = normalizeSearchText(query);
   const shouldSearchCod = canSearchCod && cleanQuery.length >= MIN_DATA_QUERY_LENGTH;
