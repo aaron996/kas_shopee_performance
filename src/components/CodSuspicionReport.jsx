@@ -13,7 +13,8 @@ import {
   MessageSquare,
   LoaderCircle,
   Search,
-  Info
+  Info,
+  Play
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -50,7 +51,8 @@ import {
   uploadCodResolutionEvidence,
   removeCodResolutionEvidence,
   fetchCodSmsAssessmentsSummary,
-  fetchCodSmsAssessmentEvidence
+  fetchCodSmsAssessmentEvidence,
+  runCodSmsAssessmentBatch
 } from '../utils/codSuspicionClient';
 import ModalDialog from './ui/ModalDialog';
 
@@ -105,6 +107,8 @@ export default function CodSuspicionReport({
   const [workflowForm, setWorkflowForm] = useState({ findingOutcome: 'violation', enforcementStatus: 'in_progress', contactChannel: 'telegram', note: '', attachments: [], removedAttachments: [], newFiles: [] });
   const [smsDetailModal, setSmsDetailModal] = useState(null);
   const [evidenceState, setEvidenceState] = useState({ isLoading: false, error: null, evidence: null });
+  const [manualRunDialogOpen, setManualRunDialogOpen] = useState(false);
+  const [manualRunState, setManualRunState] = useState({ isRunning: false, error: null, result: null });
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
@@ -227,6 +231,23 @@ export default function CodSuspicionReport({
       setEvidenceState({ isLoading: false, error: null, evidence: null });
     }
   }, [isDevAdmin, loadEvidenceForModal]);
+
+  const handleRunManualBatch = useCallback(async () => {
+    setManualRunState({ isRunning: true, error: null, result: null });
+    const result = await runCodSmsAssessmentBatch({});
+    if (!result.success) {
+      setManualRunState({ isRunning: false, error: result.error || 'Không thể chạy chấm điểm SMS.', result: null });
+      return;
+    }
+    setManualRunState({ isRunning: false, error: null, result: result.batch });
+    await loadData({ forceRefresh: true });
+  }, [loadData]);
+
+  const closeManualRunDialog = useCallback(() => {
+    if (manualRunState.isRunning) return;
+    setManualRunDialogOpen(false);
+    setManualRunState({ isRunning: false, error: null, result: null });
+  }, [manualRunState.isRunning]);
 
   useEffect(() => {
     if (active) loadData();
@@ -874,6 +895,17 @@ export default function CodSuspicionReport({
             );
           })}
         </div>
+
+        {isDevAdmin && (
+          <button
+            type="button"
+            className="cod-workflow-action cod-workflow-action--secondary"
+            onClick={() => setManualRunDialogOpen(true)}
+            title="Chạy thủ công một lượt chấm điểm SMS AI cho toàn bộ đơn mới hoặc đã thay đổi"
+          >
+            <Play size={15} /> Chạy chấm điểm SMS thủ công
+          </button>
+        )}
       </div>
 
       {resolutionError && (
@@ -1637,6 +1669,120 @@ export default function CodSuspicionReport({
               >
                 Đóng
               </button>
+            </footer>
+          </div>
+        )}
+      </ModalDialog>
+
+      {/* Chạy chấm điểm SMS AI thủ công (Dev Admin) */}
+      <ModalDialog
+        isOpen={manualRunDialogOpen}
+        onClose={closeManualRunDialog}
+        className="cod-sms-modal"
+        titleId="cod-sms-manual-run-title"
+        descriptionId="cod-sms-manual-run-description"
+        dismissible={!manualRunState.isRunning}
+      >
+        {manualRunDialogOpen && (
+          <div className="cod-sms-modal__content">
+            <header className="cod-sms-modal__header">
+              <div className="cod-sms-modal__icon">
+                <Play size={22} />
+              </div>
+              <div>
+                <h2 id="cod-sms-manual-run-title">Chạy chấm điểm SMS AI thủ công</h2>
+                <p id="cod-sms-manual-run-description">
+                  Chạy một lượt batch cho toàn bộ đơn mới hoặc thay đổi kể từ lần chấm gần nhất.
+                </p>
+              </div>
+              {!manualRunState.isRunning && (
+                <button type="button" className="cod-sms-modal__close" onClick={closeManualRunDialog} aria-label="Đóng">
+                  <X size={20} />
+                </button>
+              )}
+            </header>
+
+            <div className="cod-sms-modal__body">
+              {!manualRunState.isRunning && !manualRunState.result && !manualRunState.error && (
+                <div className="cod-sms-modal__unscored-state">
+                  <AlertTriangle size={28} style={{ color: 'var(--warning-fg, #92400e)' }} />
+                  <h3>Thao tác này gọi mô hình AI thật, phát sinh chi phí.</h3>
+                  <p>
+                    Đơn đã chấm điểm và chưa thay đổi sẽ được bỏ qua tự động (không tính phí lại).
+                    Chỉ đơn mới, đã thay đổi, hoặc lượt chấm trước bị lỗi/treo mới được chấm lại.
+                  </p>
+                </div>
+              )}
+
+              {manualRunState.isRunning && (
+                <div className="cod-sms-modal__evidence-loading" style={{ justifyContent: 'center', padding: '1.5rem 0' }}>
+                  <LoaderCircle size={20} className="is-spinning" />
+                  <span>Đang chạy chấm điểm SMS AI, có thể mất vài phút...</span>
+                </div>
+              )}
+
+              {!manualRunState.isRunning && manualRunState.error && (
+                <div className="cod-sms-modal__evidence-error">
+                  <AlertTriangle size={18} />
+                  <span>{manualRunState.error}</span>
+                </div>
+              )}
+
+              {!manualRunState.isRunning && manualRunState.result && (
+                <div className="cod-sms-modal__audit-meta" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem' }}>
+                  <span>Đã chấm mới: <strong>{manualRunState.result.scored ?? 0}</strong></span>
+                  <span>Không có bằng chứng: <strong>{manualRunState.result.noEvidence ?? 0}</strong></span>
+                  <span>Lỗi chấm điểm: <strong>{manualRunState.result.failed ?? 0}</strong></span>
+                  <span>Bỏ qua (không đổi từ lần trước): <strong>{manualRunState.result.skippedUnchanged ?? 0}</strong></span>
+                  <span>Tổng số đơn xét trong lượt này: <strong>{manualRunState.result.found ?? 0}</strong></span>
+                </div>
+              )}
+            </div>
+
+            <footer className="cod-sms-modal__footer">
+              {manualRunState.isRunning ? null : manualRunState.result ? (
+                <button
+                  type="button"
+                  className="cod-workflow-action cod-workflow-action--primary"
+                  onClick={closeManualRunDialog}
+                >
+                  Đóng
+                </button>
+              ) : manualRunState.error ? (
+                <>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={closeManualRunDialog}
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--primary"
+                    onClick={handleRunManualBatch}
+                  >
+                    <RotateCcw size={16} /> Thử lại
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--secondary"
+                    onClick={closeManualRunDialog}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    className="cod-workflow-action cod-workflow-action--primary"
+                    onClick={handleRunManualBatch}
+                  >
+                    <Play size={16} /> Chạy ngay
+                  </button>
+                </>
+              )}
             </footer>
           </div>
         )}

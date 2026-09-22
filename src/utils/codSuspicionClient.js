@@ -2,16 +2,19 @@ import { supabase } from './supabaseClient';
 
 const PAGE_SIZE = 1000;
 const REQUEST_TIMEOUT_MS = 15000;
+// A manual scoring batch can legitimately run for minutes (server maxDuration
+// is 300s), unlike the other short read/write calls in this file.
+const BATCH_RUN_TIMEOUT_MS = 280000;
 // COD data is a periodically synced snapshot. Keep it in memory briefly so
 // navigating away from and back to the tab does not re-download every row.
 // This intentionally does not persist across a page reload or browser session.
 const COD_SUSPICION_CACHE_TTL_MS = 5 * 60 * 1000;
 let codSuspicionCache = null;
 
-function withTimeout(promise, label) {
+function withTimeout(promise, label, timeoutMs = REQUEST_TIMEOUT_MS) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`REQUEST_TIMEOUT:${label}`)), REQUEST_TIMEOUT_MS);
+    timeoutId = setTimeout(() => reject(new Error(`REQUEST_TIMEOUT:${label}`)), timeoutMs);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
@@ -302,6 +305,60 @@ export async function fetchCodSmsAssessmentEvidence({ suspicionType, driverId, o
       success: false,
       error: err.message || 'UNKNOWN_ERROR',
       assessment: null
+    };
+  }
+}
+
+/**
+ * Manually trigger a scoring batch (Dev Admin only; the server enforces this
+ * independently via hasDevAdminRole, this is not the security boundary).
+ * Reuses the same POST /api/cod-sms-assessments path the daily cron job
+ * calls, so a manual run and the cron run behave identically and never
+ * double-charge an unchanged order thanks to the source-fingerprint claim.
+ */
+export async function runCodSmsAssessmentBatch({ limit } = {}) {
+  try {
+    const authHeaders = await getAuthHeader();
+    const body = {};
+    if (limit) {
+      body.limit = Math.min(Math.max(Number(limit) || 0, 1), 500);
+    }
+
+    const res = await withTimeout(
+      fetch('/api/cod-sms-assessments', {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(body)
+      }),
+      'cod-sms-assessments-run-batch',
+      BATCH_RUN_TIMEOUT_MS
+    );
+
+    let data;
+    try { data = await res.json(); } catch { data = null; }
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data?.error?.message || `Yêu cầu thất bại (${res.status})`
+      };
+    }
+
+    return {
+      success: true,
+      contractVersion: data?.contractVersion || '1',
+      batch: data?.batch || null,
+      assessments: Array.isArray(data?.assessments) ? data.assessments : []
+    };
+  } catch (err) {
+    console.error('Failed to run COD SMS assessment batch:', err);
+    return {
+      success: false,
+      error: err.message || 'UNKNOWN_ERROR'
     };
   }
 }
