@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallba
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import AnimatedNumber from './ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, Layers, ArrowUp, AlertTriangle, Maximize2, Minimize2, Download, Grid, X, Copy, Image, MessageSquareText } from 'lucide-react';
+import { ChevronRight, ArrowUp, AlertTriangle, X, Copy, MessageSquareText } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber } from '../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber, getHubType } from '../utils/dataProcessor';
+import { getHubIdentityKey } from '../utils/performanceRanking';
 import { useToast } from './ui/Toast';
 
 function SparklineChart({ card, isGood }) {
@@ -123,14 +124,32 @@ function SparklineChart({ card, isGood }) {
 }
 
 
-export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], clientFilter, expandAllHubs, selectedRegions = [], density, isFullscreen, setIsFullscreen, onRetryData, onOpenSummary }) {
+export default function Report1MienVungHub({
+  pickRows,
+  deliRows,
+  fdRows = [],
+  clientFilter,
+  expandAllHubs,
+  selectedRegions = [],
+  density,
+  isFullscreen,
+  setIsFullscreen,
+  onRetryData,
+  onOpenSummary,
+  focusTarget = null,
+  onClearFocusTarget = null
+}) {
   const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
-  const [expandedRegions, setExpandedRegions] = useState({});
+  const [expandedRegions, setExpandedRegions] = useState(() => {
+    return focusTarget?.region ? { [focusTarget.region]: true } : {};
+  });
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
-  const [activeTableTab, setActiveTableTab] = useState('p1st');
+  const [activeTableTab, setActiveTableTab] = useState(() => {
+    return focusTarget?.metricKey || 'p1st';
+  });
   const [activeKpiCard, setActiveKpiCard] = useState(0);
 
   const kpiCarouselRef = useRef(null);
@@ -270,7 +289,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     }
   };
 
-  const scrollToRef = (ref, sectionId) => {
+  const scrollToRef = useCallback((ref, sectionId) => {
     if (sectionId) {
       setActiveTableTab(sectionId);
       setHighlightedSection(sectionId);
@@ -283,7 +302,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       const y = ref.current.getBoundingClientRect().top + window.scrollY - stickyOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
-  };
+  }, [showStickyBar]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -315,19 +334,19 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
     setExpandedRegions(prev => ({ ...prev, [regKey]: !prev[regKey] }));
   };
 
-  const expandAll = () => {
+  const expandAll = useCallback(() => {
     captureTableLayout();
     const all = {};
     MIEN_ORDER.forEach(mien => {
       MIEN_REGIONS[mien].forEach(r => { all[r] = true; });
     });
     setExpandedRegions(all);
-  };
+  }, [captureTableLayout]);
 
-  const collapseAll = () => {
+  const collapseAll = useCallback(() => {
     captureTableLayout();
     setExpandedRegions({});
-  };
+  }, [captureTableLayout]);
 
   useEffect(() => {
     const handleExportEvent = (event) => handleExportCSV(event.detail);
@@ -343,21 +362,81 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       const region = e.detail?.region;
       if (!region) return;
       setExpandedRegions(prev => ({ ...prev, [region]: true }));
-      scrollToRef(refP1st, 'p1st');
+      const mk = e.detail?.metricKey;
+      if (mk === 'popr') {
+        scrollToRef(refPOpr, 'popr');
+      } else if (mk === 'd1st') {
+        scrollToRef(refD1st, 'd1st');
+      } else if (mk === 'dodr') {
+        scrollToRef(refDOdr, 'dodr');
+      } else {
+        scrollToRef(refP1st, 'p1st');
+      }
     };
     window.addEventListener('jump-to-region', handleJumpToRegion);
     return () => window.removeEventListener('jump-to-region', handleJumpToRegion);
-  });
+  }, [scrollToRef]);
 
-
-
+  // When focusTarget changes (e.g. from drill-down), auto-expand its region and switch active table tab
   useEffect(() => {
+    if (!focusTarget?.region) return;
+    const { region, metricKey } = focusTarget;
+    setExpandedRegions(prev => ({ ...prev, [region]: true }));
+    if (metricKey) {
+      setActiveTableTab(metricKey);
+    }
+  }, [focusTarget]);
+
+  // Scroll to focused hub row when available
+  useEffect(() => {
+    if (!focusTarget?.hub && !focusTarget?.hubId) return;
+    const timer = setTimeout(() => {
+      let el = null;
+      try {
+        if (focusTarget.hubId) {
+          el = document.querySelector(`[data-hub-target="${CSS.escape(focusTarget.hubId)}"]`);
+        }
+        if (!el && focusTarget.hub) {
+          el = document.querySelector(`[data-hub-target="${CSS.escape(focusTarget.hub)}"]`) ||
+               document.querySelector(`[data-hub-name="${CSS.escape(focusTarget.hub)}"]`);
+        }
+        if (!el) {
+          el = document.querySelector('.focused-drilldown-row');
+        }
+      } catch {
+        el = document.querySelector('.focused-drilldown-row');
+      }
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        const targetRef = focusTarget.metricKey === 'popr' ? refPOpr
+          : focusTarget.metricKey === 'd1st' ? refD1st
+          : focusTarget.metricKey === 'dodr' ? refDOdr
+          : refP1st;
+        scrollToRef(targetRef, focusTarget.metricKey || 'p1st');
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [focusTarget, activeTableTab, scrollToRef]);
+
+  const hasMountedExpandRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedExpandRef.current) {
+      hasMountedExpandRef.current = true;
+      if (expandAllHubs) {
+        expandAll();
+      }
+      return;
+    }
     if (expandAllHubs) {
       expandAll();
     } else {
       collapseAll();
+      if (focusTarget?.region) {
+        setExpandedRegions({ [focusTarget.region]: true });
+      }
     }
-  }, [expandAllHubs]);
+  }, [expandAllHubs, focusTarget, expandAll, collapseAll]);
 
   // Filter rows by client
   const filteredPick = useMemo(() => {
@@ -656,6 +735,13 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
       dateEntityMap[hKey].tot += tot;
       dateEntityMap[hKey].ont += ont;
 
+      // Composite Hub identity level (preserves distinct identity when hubs share names)
+      const compId = isFd ? `${reg}::${subEntity}` : getHubIdentityKey(r);
+      const compKey = `HUBID_${compId}_${d}`;
+      if (!dateEntityMap[compKey]) dateEntityMap[compKey] = { tot: 0, ont: 0 };
+      dateEntityMap[compKey].tot += tot;
+      dateEntityMap[compKey].ont += ont;
+
       // Region level
       const rKey = `REG_${reg}_${d}`;
       if (!dateEntityMap[rKey]) dateEntityMap[rKey] = { tot: 0, ont: 0, bestVol: 0, bestOnt: 0, sameVol: 0, sameOnt: 0 };
@@ -722,6 +808,89 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
         });
       });
     });
+
+    const getSubEntitiesForRegion = (reg) => {
+      const regionRows = rows.filter(r => r.region === reg);
+      const compMap = new Map();
+      const hubNamesSet = new Map();
+
+      regionRows.forEach(r => {
+        const subEntity = isFd ? (r.deliverywh || 'Khác') : r.hub;
+        const hubType = isFd ? '' : getHubType(r);
+        const compId = isFd ? `${reg}::${subEntity}` : getHubIdentityKey(r);
+
+        if (!hubNamesSet.has(subEntity)) {
+          hubNamesSet.set(subEntity, new Set());
+        }
+        if (hubType) {
+          hubNamesSet.get(subEntity).add(hubType);
+        }
+
+        if (!compMap.has(compId)) {
+          compMap.set(compId, {
+            id: compId,
+            hub: subEntity,
+            region: reg,
+            hubType,
+            statKey: `HUBID_${compId}`,
+            lateVol: 0
+          });
+        }
+
+        if (r.report_date === d1Date) {
+          let tot = 0;
+          let ont = 0;
+          if (isFd) {
+            tot = getRowVal(r, 'mau_fd');
+            ont = getRowVal(r, 'fd_hoan_thanh');
+          } else if (isDeli) {
+            tot = getRowVal(r, 'mau_deli', 'mau_del');
+            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
+          } else {
+            tot = getRowVal(r, 'mau_pu');
+            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
+          }
+          compMap.get(compId).lateVol += (tot - ont);
+        }
+      });
+
+      // Disambiguate displayName with (hubType) if name collision exists in region
+      compMap.forEach(item => {
+        const hasCollidingNames = (hubNamesSet.get(item.hub)?.size || 0) > 1;
+        item.displayName = hasCollidingNames && item.hubType ? `${item.hub} (${item.hubType})` : item.hub;
+      });
+
+      // Sort by late volume descending on D-1 and take top 10
+      const topItems = Array.from(compMap.values())
+        .sort((a, b) => b.lateVol - a.lateVol)
+        .slice(0, 10);
+
+      const itemsToRender = [...topItems];
+
+      // If focusTarget belongs to this region, ensure it is rendered even if outside top 10
+      if (focusTarget?.region === reg && (focusTarget?.hub || focusTarget?.hubId)) {
+        const alreadyIncluded = itemsToRender.some(item =>
+          (focusTarget.hubId && item.id === focusTarget.hubId) ||
+          (!focusTarget.hubId && item.hub === focusTarget.hub && (!focusTarget.hubType || item.hubType === focusTarget.hubType))
+        );
+
+        if (!alreadyIncluded) {
+          let targetItem = null;
+          if (focusTarget.hubId && compMap.has(focusTarget.hubId)) {
+            targetItem = compMap.get(focusTarget.hubId);
+          } else {
+            targetItem = Array.from(compMap.values()).find(item =>
+              item.hub === focusTarget.hub && (!focusTarget.hubType || item.hubType === focusTarget.hubType)
+            );
+          }
+          if (targetItem) {
+            itemsToRender.push(targetItem);
+          }
+        }
+      }
+
+      return itemsToRender;
+    };
 
     const isHighlighted = highlightedSection === sectionId;
 
@@ -854,28 +1023,7 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                 let totalRowSpan = 1 + sortedRegions.length;
                 sortedRegions.forEach(reg => {
                   if (expandedRegions[reg]) {
-                    const subMap = {};
-                    rows.filter(r => r.region === reg).forEach(r => {
-                      const entityKey = isFd ? (r.deliverywh || 'Khác') : r.hub;
-                      if (!subMap[entityKey]) subMap[entityKey] = 0;
-                      if (r.report_date === d1Date) {
-                        let tot = 0;
-                        let ont = 0;
-                        if (isFd) {
-                          tot = getRowVal(r, 'mau_fd');
-                          ont = getRowVal(r, 'fd_hoan_thanh');
-                        } else if (isDeli) {
-                          tot = getRowVal(r, 'mau_deli', 'mau_del');
-                          ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
-                        } else {
-                          tot = getRowVal(r, 'mau_pu');
-                          ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
-                        }
-                        subMap[entityKey] += (tot - ont);
-                      }
-                    });
-                    const topSubItems = Object.keys(subMap).sort((a, b) => subMap[b] - subMap[a]).slice(0, 10);
-                    totalRowSpan += topSubItems.length;
+                    totalRowSpan += getSubEntitiesForRegion(reg).length;
                   }
                 });
 
@@ -928,32 +1076,6 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
 
                       const regWtd = calcStats(`REG_${reg}`, weekCur);
 
-                      // Get Top Sub-entities (Hubs or Lanes) for this region sorted by absolute uncompleted/late volume on D-1
-                      const subMap = {};
-                      rows.filter(r => r.region === reg).forEach(r => {
-                        const entityKey = isFd ? (r.deliverywh || 'Khác') : r.hub;
-                        if (!subMap[entityKey]) subMap[entityKey] = 0;
-                        if (r.report_date === d1Date) {
-                          let tot = 0;
-                          let ont = 0;
-                          if (isFd) {
-                            tot = getRowVal(r, 'mau_fd');
-                            ont = getRowVal(r, 'fd_hoan_thanh');
-                          } else if (isDeli) {
-                            tot = getRowVal(r, 'mau_deli', 'mau_del');
-                            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
-                          } else {
-                            tot = getRowVal(r, 'mau_pu');
-                            ont = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
-                          }
-                          subMap[entityKey] += (tot - ont);
-                        }
-                      });
-
-                      const top10SubItems = Object.keys(subMap)
-                        .sort((a, b) => subMap[b] - subMap[a])
-                        .slice(0, 10);
-
                       return (
                         <React.Fragment key={reg}>
                           <tr data-motion-id={`region:${reg}`}>
@@ -1002,18 +1124,34 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
                           </tr>
 
                           {/* Render Top Hub / Lane Sub-rows if expanded */}
-                          {isExpanded && top10SubItems.map(subItem => {
-                            const subD1 = calcStats(`HUB_${reg}_${subItem}`, [d1Date]);
-                            const subWtd = calcStats(`HUB_${reg}_${subItem}`, weekCur);
+                          {isExpanded && getSubEntitiesForRegion(reg).map(subItem => {
+                            const isFocused = Boolean(
+                              (focusTarget?.hubId && focusTarget.hubId === subItem.id) ||
+                              (focusTarget?.region === reg && focusTarget?.hub === subItem.hub && (
+                                focusTarget?.hubType ? focusTarget.hubType === subItem.hubType : true
+                              ))
+                            );
+                            const subD1 = calcStats(subItem.statKey, [d1Date]);
+                            const subWtd = calcStats(subItem.statKey, weekCur);
                             return (
-                              <tr key={subItem} className="sub-row" data-motion-id={`sub:${reg}:${subItem}`} data-hub-row="true">
-                                <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>{subItem}</td>
+                              <tr
+                                key={subItem.id}
+                                className={`sub-row ${isFocused ? 'focused-drilldown-row' : ''}`}
+                                data-motion-id={`sub:${subItem.id}`}
+                                data-hub-row="true"
+                                data-hub-target={subItem.id}
+                                data-hub-name={subItem.hub}
+                              >
+                                <td className="lbl lbl-2" style={{ paddingLeft: '2rem' }}>
+                                  <span>{subItem.displayName}</span>
+                                  {isFocused && <span className="focused-hub-pill">Đang xem từ BXH</span>}
+                                </td>
                                 {weekPrev.map((d, idx) => {
-                                  const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
+                                  const s = calcStats(subItem.statKey, [d]);
                                   return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                                 })}
                                 {weekCur.slice(0, -1).map(d => {
-                                  const s = calcStats(`HUB_${reg}_${subItem}`, [d]);
+                                  const s = calcStats(subItem.statKey, [d]);
                                   return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
                                 })}
                                 <td className="sep" style={cellColorStyle(subD1.pct)}>{formatPct(subD1.pct)}</td>
@@ -1107,6 +1245,31 @@ export default function Report1MienVungHub({ pickRows, deliRows, fdRows = [], cl
         >
           <X size={20} />
         </button>
+      )}
+
+      {/* Drill-down Focus Banner */}
+      {focusTarget?.hub && (
+        <div className="report1-focus-banner" role="status">
+          <div className="focus-banner-content">
+            <span className="focus-banner-badge">Đang xem Hub</span>
+            <span className="focus-banner-text">
+              <strong>{focusTarget.hub}</strong>
+              {focusTarget.hubType ? ` (${focusTarget.hubType})` : ''}
+              {focusTarget.region ? ` · Vùng: ${focusTarget.region}` : ''}
+              {focusTarget.metricKey ? ` · Bảng chỉ số: ${focusTarget.metricKey.toUpperCase()}` : ''}
+            </span>
+          </div>
+          {typeof onClearFocusTarget === 'function' && (
+            <button
+              type="button"
+              className="focus-banner-close-btn"
+              onClick={onClearFocusTarget}
+              aria-label="Bỏ tiêu điểm Hub"
+            >
+              Đóng tiêu điểm ×
+            </button>
+          )}
+        </div>
       )}
 
       {/* Top Split Dashboard (Layout 2: Card-Based) */}

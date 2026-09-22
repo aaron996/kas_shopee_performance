@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ArrowRightLeft, Clock, LogOut, Search, UserCheck, ShieldCheck, Sparkles, ShieldAlert } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, LogOut, Search, UserCheck, ShieldCheck, Sparkles, ShieldAlert, Truck } from 'lucide-react';
 import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 
@@ -20,6 +20,7 @@ export default function Sidebar({
 
   const tabs = [
     { id: 'report1', label: '1. OPS metric', icon: Layers },
+    { id: 'ranking', label: 'BXH Performance', icon: Truck },
     { id: 'report5', label: '2. % Ca 1 theo lane', icon: ArrowRightLeft },
     { id: 'report3', label: '3. Leadtime từng chặng', icon: Clock },
     { id: 'report-insight', label: '4. Insight', icon: Sparkles },

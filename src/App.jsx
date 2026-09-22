@@ -8,6 +8,7 @@ const ReportLeadtime = lazy(() => import('./components/ReportLeadtime'));
 // Lazy: kéo theo leadtimeCalc (build index cho tab 3) — chỉ cần tải khi mở tab Insight.
 const ReportInsight = lazy(() => import('./components/ReportInsight'));
 const CodSuspicionReport = lazy(() => import('./components/CodSuspicionReport'));
+const PerformanceRoadRanking = lazy(() => import('./components/PerformanceRoadRanking'));
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DevAdminDashboard from './components/DevAdminDashboard';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
@@ -29,7 +30,7 @@ import { supabase } from './utils/supabaseClient';
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import LoadingScreen from './components/LoadingScreen';
 import { useToast } from './components/ui/Toast';
-import { Layers, ArrowRightLeft, Clock, Activity, Sparkles, ShieldAlert } from 'lucide-react';
+import { Layers, ArrowRightLeft, Clock, Activity, Sparkles, ShieldAlert, Truck } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -254,6 +255,20 @@ export default function App() {
   const [leadtimeSource, setLeadtimeSource] = useState('none');
   const [leadtimeSyncedAt, setLeadtimeSyncedAt] = useState(null);
 
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      window.__GHN_DEV_INJECT_DATA__ = ({ pick, deli, ca1, user } = {}) => {
+        if (user) setCurrentUser(user);
+        if (pick) setPickRows(normalizeRows(pick));
+        if (deli) setDeliRows(normalizeRows(deli));
+        if (ca1) setCa1Rows(normalizeRows(ca1));
+      };
+    }
+    return () => {
+      delete window.__GHN_DEV_INJECT_DATA__;
+    };
+  }, []);
+
   // Initialize selected regions with all regions
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
@@ -283,6 +298,22 @@ export default function App() {
     if (hasPickedClient) saveDashboardView(sessionStorage, { client: clientFilter, tab: activeTab, regions: selectedRegions, hubTypes: hubTypeSelection, density });
   }, [hasPickedClient, clientFilter, activeTab, selectedRegions, hubTypeSelection, density]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [report1FocusTarget, setReport1FocusTarget] = useState(null);
+
+  const handleJumpFromRankingToReport1 = useCallback(({ hubId, hub, region, hubType, metricKey } = {}) => {
+    setActiveTab('report1');
+    if (region) {
+      setSelectedRegions(prev => (prev.includes(region) ? prev : [...prev, region]));
+    }
+    setReport1FocusTarget({
+      hubId,
+      hub,
+      region,
+      hubType,
+      metricKey,
+      requestId: Date.now()
+    });
+  }, []);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
@@ -671,7 +702,24 @@ export default function App() {
                   setIsFullscreen={setIsFullscreen}
                   onRetryData={handleSyncLiveSheet}
                   onOpenSummary={() => setIsSummaryOpen(true)}
+                  focusTarget={report1FocusTarget}
+                  onClearFocusTarget={() => setReport1FocusTarget(null)}
                 />
+              )}
+
+              {activeTab === 'ranking' && (
+                <Suspense fallback={<LoadingScreen text="Đang mở BXH Performance..." option={4} />}>
+                  <PerformanceRoadRanking
+                    pickRows={filteredPickRows}
+                    deliRows={filteredDeliRows}
+                    clientFilter={clientFilter}
+                    selectedRegions={selectedRegions}
+                    selectedHubTypes={selectedHubTypes}
+                    allHubTypes={allHubTypes}
+                    onJumpToReport1={handleJumpFromRankingToReport1}
+                    density={density}
+                  />
+                </Suspense>
               )}
 
               {activeTab === 'report5' && (
@@ -746,6 +794,15 @@ export default function App() {
             >
               <Layers size={18} />
               <span>1. OPS metric</span>
+            </button>
+
+            <button
+              className={`mobile-nav-item ${activeTab === 'ranking' ? 'active' : ''}`}
+              aria-current={activeTab === 'ranking' ? 'page' : undefined}
+              onClick={() => setActiveTab('ranking')}
+            >
+              <Truck size={18} />
+              <span>BXH Xe</span>
             </button>
 
             <button

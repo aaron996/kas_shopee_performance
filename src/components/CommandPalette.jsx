@@ -11,6 +11,7 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
+  Truck,
   UserRound
 } from 'lucide-react';
 import { MIEN_REGIONS } from '../data/defaultDataset';
@@ -54,6 +55,7 @@ export default function CommandPalette({
   const navigationItems = useMemo(() => {
     const tabItems = [
       { type: 'tab', id: 'report1', label: '1. OPS metric', section: 'Điều hướng', icon: Layers },
+      { type: 'tab', id: 'ranking', label: 'BXH Performance', section: 'Điều hướng', icon: Truck },
       { type: 'tab', id: 'report5', label: '2. % Ca 1 theo lane', section: 'Điều hướng', icon: ArrowRightLeft },
       { type: 'tab', id: 'report3', label: '3. Leadtime từng chặng', section: 'Điều hướng', icon: Clock }
     ];

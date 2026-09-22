@@ -1,5 +1,5 @@
 export const VIEW_KEY = 'ghn_dashboard_view_v1';
-export const REPORTS = ['report1', 'report5', 'report3', 'report-insight', 'cod-suspicion'];
+export const REPORTS = ['report1', 'ranking', 'report5', 'report3', 'report-insight', 'cod-suspicion'];
 
 // OPS data is published on Vietnam's operating day. Keep this independent of
 // the viewer's device timezone so a tab left open overnight refreshes once the
