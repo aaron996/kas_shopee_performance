@@ -281,6 +281,20 @@ export function filterDriverGroups(driverGroups = [], {
 
   return driverGroups
     .map(driver => {
+      // Orphan drivers (resolution recorded but no order currently in the
+      // source snapshot) have no order-level data to filter against —
+      // apply only suspicionType and the driver-identity part of search.
+      if (driver.isOrphan) {
+        if (suspicionType !== 'ALL' && driver.suspicionType !== suspicionType) return null;
+        if (cleanSearch) {
+          const matchesDriver =
+            driver.driverId.toLowerCase().includes(cleanSearch) ||
+            driver.driverName.toLowerCase().includes(cleanSearch);
+          if (!matchesDriver) return null;
+        }
+        return driver;
+      }
+
       // 1. Filter orders of this driver
       const matchingOrders = driver.orders.filter(order => {
         if (suspicionType !== 'ALL' && order.suspicionType !== suspicionType) {
