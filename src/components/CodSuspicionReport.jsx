@@ -234,7 +234,7 @@ export default function CodSuspicionReport({
 
   const handleRunManualBatch = useCallback(async () => {
     setManualRunState({ isRunning: true, error: null, result: null });
-    const result = await runCodSmsAssessmentBatch({});
+    const result = await runCodSmsAssessmentBatch();
     if (!result.success) {
       setManualRunState({ isRunning: false, error: result.error || 'Không thể chạy chấm điểm SMS.', result: null });
       return;
@@ -1692,7 +1692,7 @@ export default function CodSuspicionReport({
               <div>
                 <h2 id="cod-sms-manual-run-title">Chạy chấm điểm SMS AI thủ công</h2>
                 <p id="cod-sms-manual-run-description">
-                  Chạy một lượt batch cho toàn bộ đơn mới hoặc thay đổi kể từ lần chấm gần nhất.
+                  Quét toàn bộ đơn mới hoặc thay đổi kể từ lần chấm gần nhất, đồng thời tự động chấm lại các đơn đang lỗi.
                 </p>
               </div>
               {!manualRunState.isRunning && (
@@ -1709,7 +1709,8 @@ export default function CodSuspicionReport({
                   <h3>Thao tác này gọi mô hình AI thật, phát sinh chi phí.</h3>
                   <p>
                     Đơn đã chấm điểm và chưa thay đổi sẽ được bỏ qua tự động (không tính phí lại).
-                    Chỉ đơn mới, đã thay đổi, hoặc lượt chấm trước bị lỗi/treo mới được chấm lại.
+                    Đơn mới, đã thay đổi, hoặc trước đó lỗi/treo sẽ được chấm lại — bao gồm cả
+                    việc buộc chấm lại các đơn vẫn còn ở trạng thái lỗi sau lượt quét.
                   </p>
                 </div>
               )}
@@ -1734,6 +1735,9 @@ export default function CodSuspicionReport({
                   <span>Không có bằng chứng: <strong>{manualRunState.result.noEvidence ?? 0}</strong></span>
                   <span>Lỗi chấm điểm: <strong>{manualRunState.result.failed ?? 0}</strong></span>
                   <span>Bỏ qua (không đổi từ lần trước): <strong>{manualRunState.result.skippedUnchanged ?? 0}</strong></span>
+                  {manualRunState.result.forceRetried > 0 && (
+                    <span>Trong đó buộc chấm lại đơn lỗi: <strong>{manualRunState.result.forceRetried}</strong></span>
+                  )}
                   <span>Tổng số đơn xét trong lượt này: <strong>{manualRunState.result.found ?? 0}</strong></span>
                 </div>
               )}
