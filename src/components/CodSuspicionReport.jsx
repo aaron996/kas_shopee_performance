@@ -72,6 +72,7 @@ function getResolutionLabel(resolution) {
 }
 
 export default function CodSuspicionReport({
+  active = true,
   filters,
   onAvailableWarehouses,
   canManageResolutions = false,
@@ -83,6 +84,7 @@ export default function CodSuspicionReport({
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
@@ -116,6 +118,7 @@ export default function CodSuspicionReport({
       setErrorMsg('');
       setResolutionError('');
       setIsLoading(false);
+      setHasLoaded(true);
       return;
     }
     setIsLoading(true);
@@ -147,12 +150,13 @@ export default function CodSuspicionReport({
       setErrorMsg('Đã xảy ra lỗi khi kết nối Supabase. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [dataEnabled]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (active) loadData();
+  }, [active, loadData]);
 
   // Normalize all rows
   const normalizedOrders = useMemo(() => rawData.map(raw => {
@@ -796,7 +800,7 @@ export default function CodSuspicionReport({
 
       {/* 6. Driver Accordion List */}
       <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {isLoading && visibleDrivers.length === 0 ? (
+        {isLoading && !hasLoaded && visibleDrivers.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
