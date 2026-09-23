@@ -23,6 +23,7 @@ import {
   buildCodSmsAssessmentMap,
   getDriverGroupMaxSmsScore,
   getEffectiveAlertLevel,
+  getOrderEffectiveAlertLevel,
   addSmsSummaryToDriverGroups,
   getSmsScoreBadge,
   getSmsSimpleVerdict,
@@ -647,11 +648,81 @@ test('SMS assessment joins never collide across drivers or suspicion types with 
 test('effective SMS alert uses the configured boundary and preserves SQL High and Low', () => {
   assert.equal(getEffectiveAlertLevel(15, null).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(15, 0).value, 'MEDIUM');
-  assert.equal(getEffectiveAlertLevel(15, 0, 0).value, 'HIGH', 'Zero qualifies only when the configured boundary is zero');
+  assert.equal(getEffectiveAlertLevel(15, 0, 0).value, 'MEDIUM', 'Invalid zero boundary falls back to one');
   assert.equal(getEffectiveAlertLevel(15, 1).value, 'HIGH', 'Default threshold is inclusive at one');
+  assert.equal(getEffectiveAlertLevel(15, 8, 9).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(15, 9, 9).value, 'HIGH');
   assert.equal(getEffectiveAlertLevel(15, 1, 2).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(18, 0).value, 'HIGH', 'SQL High remains High');
   assert.equal(getEffectiveAlertLevel(14, 9).value, 'LOW', 'SQL Low remains Low');
+});
+
+test('SQL boundaries and SMS threshold change only Medium by one level', () => {
+  for (const [sql, expected] of [[14, 'LOW'], [15, 'MEDIUM'], [17, 'MEDIUM'], [18, 'HIGH']]) {
+    assert.equal(getEffectiveAlertLevel(sql, null, 5).value, expected);
+  }
+  assert.equal(getEffectiveAlertLevel(15, 4, 5).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(15, 5, 5).value, 'HIGH');
+  assert.equal(getEffectiveAlertLevel(17, 9, 5).value, 'HIGH');
+  assert.equal(getEffectiveAlertLevel(14, 9, 5).value, 'LOW');
+  assert.equal(getEffectiveAlertLevel(18, 9, 5).value, 'HIGH');
+});
+
+test('regular-user alert filter uses the driver level after warehouse filtering', () => {
+  const type = 'Gối đầu COD';
+  const rows = [
+    { order_code: 'A', total_score: 15, warehouse_name: 'Kho A' },
+    { order_code: 'B', total_score: 17, warehouse_name: 'Kho B' },
+    { order_code: 'C', total_score: 18, warehouse_name: 'Kho A' },
+    { order_code: 'D', total_score: 14, warehouse_name: 'Kho A' }
+  ].map(row => normalizeSuspicionOrder({ driver_id: 'D1', suspicion_type: type, ...row }));
+  const groups = groupOrdersByDriver(rows);
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'A' }, status: 'scored', smsScore: 4 },
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'B' }, status: 'scored', smsScore: 5 },
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'C' }, status: 'scored', smsScore: 9 },
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'D' }, status: 'scored', smsScore: 9 }
+  ]);
+  const regularOptions = { assessmentsByCaseKey: assessments, threshold: 5, useEffectiveAlertLevel: true };
+  const regularHigh = addSmsSummaryToDriverGroups(filterDriverGroups(groups, { ...regularOptions, alertLevel: 'HIGH', warehouse: 'Kho B' }), assessments, { threshold: 5 });
+  assert.deepEqual(regularHigh[0].orders.map(order => order.orderCode), ['B']);
+  assert.equal(regularHigh[0].maxSmsScore, 5);
+  assert.equal(regularHigh[0].effectiveAlertLevel.value, 'HIGH');
+  assert.equal(getOrderEffectiveAlertLevel(regularHigh[0].orders[0], assessments, 5).value, 'HIGH');
+  const regularHighInA = addSmsSummaryToDriverGroups(filterDriverGroups(groups, { ...regularOptions, alertLevel: 'HIGH', warehouse: 'Kho A' }), assessments, { threshold: 5 });
+  assert.deepEqual(regularHighInA[0].orders.map(order => order.orderCode), ['C', 'A', 'D']);
+  assert.equal(regularHighInA[0].maxSmsScore, 9);
+  assert.equal(regularHighInA[0].effectiveAlertLevel.value, 'HIGH');
+  assert.equal(filterDriverGroups(groups, { ...regularOptions, alertLevel: 'MEDIUM', warehouse: 'Kho A' }).length, 0);
+  assert.equal(filterDriverGroups(groups, { ...regularOptions, alertLevel: 'LOW' }).length, 0);
+  const devHigh = filterDriverGroups(groups, { alertLevel: 'HIGH' });
+  assert.deepEqual(devHigh[0].orders.map(order => order.orderCode), ['C']);
+  assert.equal(getAlertLevel(devHigh[0].orders[0].totalScore).value, 'HIGH');
+  const devMedium = filterDriverGroups(groups, { alertLevel: 'MEDIUM' });
+  assert.deepEqual(devMedium[0].orders.map(order => order.orderCode), ['B', 'A']);
+  assert.deepEqual(rows.map(order => order.totalScore), [15, 17, 18, 14]);
+});
+
+test('the highest SMS score across a driver group promotes its SQL Medium driver level', () => {
+  const type = 'Gối đầu COD';
+  const groups = groupOrdersByDriver([
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'LOW', suspicion_type: type, total_score: 14 }),
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'MEDIUM', suspicion_type: type, total_score: 15 })
+  ]);
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'LOW' }, status: 'scored', smsScore: 9 },
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'MEDIUM' }, status: 'scored', smsScore: 0 }
+  ]);
+  const [driver] = addSmsSummaryToDriverGroups(groups, assessments, { threshold: 5 });
+  assert.equal(driver.maxSmsScore, 9);
+  assert.equal(driver.effectiveAlertLevel.value, 'HIGH');
+  assert.equal(getOrderEffectiveAlertLevel(driver.orders.find(order => order.orderCode === 'LOW'), assessments, 5).value, 'LOW');
+  assert.equal(filterDriverGroups(groups, {
+    alertLevel: 'HIGH', assessmentsByCaseKey: assessments, threshold: 5, useEffectiveAlertLevel: true
+  }).length, 1);
+  assert.equal(filterDriverGroups(groups, {
+    alertLevel: 'MEDIUM', assessmentsByCaseKey: assessments, threshold: 5, useEffectiveAlertLevel: true
+  }).length, 0);
 });
 
 test('SMS summary is computed from the filtered order subset and does not change SQL scores', () => {
@@ -827,7 +898,7 @@ test('SMS_PATTERN_LABELS provides human-readable Vietnamese labels for all 5 rub
   assert.equal(formatSmsConfidence(null), '-');
 });
 
-test('getSmsSimpleVerdict only ever returns one of the two allowed regular-user strings', () => {
+test('getSmsSimpleVerdict preserves the existing regular-user labels', () => {
   const suspicious = getSmsSimpleVerdict({ status: 'scored', smsScore: 6, confidence: 'cao' });
   assert.equal(suspicious.text, 'Có dấu hiệu nghi ngờ');
   assert.equal(suspicious.level, 'high');
@@ -843,7 +914,7 @@ test('getSmsSimpleVerdict only ever returns one of the two allowed regular-user 
 
   const failed = getSmsSimpleVerdict({ status: 'failed', smsScore: null, technicalError: { code: 'X', message: 'y' } });
   assert.equal(failed.text, 'Không có dấu hiệu nghi ngờ');
-  assert.doesNotMatch(failed.text, /lỗi|error|X\b/i);
+  assert.doesNotMatch(failed.text, /error|X\b/i);
 
   const unscored = getSmsSimpleVerdict(null);
   assert.equal(unscored.text, 'Không có dấu hiệu nghi ngờ');

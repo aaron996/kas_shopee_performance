@@ -189,6 +189,9 @@ export function createCodSmsRepository(serviceClient) {
         .from('cod_suspicion_sms_assessments')
         .select(columns, { count: 'exact' })
         .order('updated_at', { ascending: false })
+        .order('suspicion_type', { ascending: true })
+        .order('driver_id', { ascending: true })
+        .order('order_code', { ascending: true })
         .range(offset, offset + limit - 1);
       if (filters.suspicionType) query = query.eq('suspicion_type', filters.suspicionType);
       if (filters.status) query = query.eq('status', filters.status);

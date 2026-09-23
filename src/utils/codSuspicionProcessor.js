@@ -275,7 +275,10 @@ export function filterDriverGroups(driverGroups = [], {
   suspicionType = 'ALL',
   warehouse = 'ALL',
   alertLevel = 'ALL',
-  searchQuery = ''
+  searchQuery = '',
+  assessmentsByCaseKey = null,
+  threshold = DEFAULT_SMS_ESCALATION_THRESHOLD,
+  useEffectiveAlertLevel = false
 } = {}) {
   const cleanSearch = searchQuery.trim().toLowerCase();
 
@@ -295,7 +298,9 @@ export function filterDriverGroups(driverGroups = [], {
         return driver;
       }
 
-      // 1. Filter orders of this driver
+      // Filter the source orders first. For regular users the alert filter is
+      // applied to the resulting driver case, whose SMS score is the maximum
+      // across these orders. Dev retains the SQL order-level filter.
       const matchingOrders = driver.orders.filter(order => {
         if (suspicionType !== 'ALL' && order.suspicionType !== suspicionType) {
           return false;
@@ -303,13 +308,19 @@ export function filterDriverGroups(driverGroups = [], {
         if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
           return false;
         }
-        if (alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
+        if (!useEffectiveAlertLevel && alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
         }
         return true;
       });
 
       if (matchingOrders.length === 0) return null;
+
+      if (useEffectiveAlertLevel && alertLevel !== 'ALL') {
+        const maxScore = Math.max(...matchingOrders.map(order => order.totalScore), 0);
+        const maxSmsScore = getDriverGroupMaxSmsScore(matchingOrders, assessmentsByCaseKey);
+        if (getEffectiveAlertLevel(maxScore, maxSmsScore, threshold).value !== alertLevel) return null;
+      }
 
       // 2. Check search query against driver ID, driver Name, or matching order codes
       if (cleanSearch) {
@@ -588,19 +599,26 @@ export function getDriverGroupMaxSmsScore(driverGroup, assessmentsByCaseKey) {
 
   let maxSmsScore = null;
   orders.forEach(order => {
-    const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order));
-    if (!assessment || assessment.status !== 'scored') return;
-
-    const rawScore = assessment.smsScore ?? assessment.sms_score;
-    if (rawScore === null || rawScore === undefined || (typeof rawScore !== 'number' && typeof rawScore !== 'string')) {
-      return;
-    }
-    const smsScore = typeof rawScore === 'string' && rawScore.trim() === '' ? NaN : Number(rawScore);
-    if (!Number.isInteger(smsScore) || smsScore < 0 || smsScore > 9) return;
+    const smsScore = getOrderSmsScore(order, assessmentsByCaseKey);
+    if (smsScore === null) return;
     if (maxSmsScore === null || smsScore > maxSmsScore) maxSmsScore = smsScore;
   });
 
   return maxSmsScore;
+}
+
+function getOrderSmsScore(order, assessmentsByCaseKey) {
+  if (!(assessmentsByCaseKey instanceof Map)) return null;
+  const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order));
+  if (!assessment || assessment.status !== 'scored') return null;
+  const rawScore = assessment.smsScore ?? assessment.sms_score;
+  if (rawScore === null || rawScore === undefined || (typeof rawScore !== 'number' && typeof rawScore !== 'string')) return null;
+  const smsScore = typeof rawScore === 'string' && rawScore.trim() === '' ? NaN : Number(rawScore);
+  return Number.isInteger(smsScore) && smsScore >= 0 && smsScore <= 9 ? smsScore : null;
+}
+
+export function getOrderEffectiveAlertLevel(order, assessmentsByCaseKey, threshold = DEFAULT_SMS_ESCALATION_THRESHOLD) {
+  return getEffectiveAlertLevel(order.totalScore, getOrderSmsScore(order, assessmentsByCaseKey), threshold);
 }
 
 /**
@@ -617,7 +635,7 @@ export function getEffectiveAlertLevel(
   const parsedThreshold = typeof threshold === 'number' || (typeof threshold === 'string' && threshold.trim() !== '')
     ? Number(threshold)
     : NaN;
-  const effectiveThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+  const effectiveThreshold = Number.isInteger(parsedThreshold) && parsedThreshold >= 1 && parsedThreshold <= 9
     ? parsedThreshold
     : DEFAULT_SMS_ESCALATION_THRESHOLD;
   const hasPositiveOrZeroValidScore = Number.isInteger(maxSmsScore) && maxSmsScore >= 0 && maxSmsScore <= 9;
@@ -644,12 +662,15 @@ export function addSmsSummaryToDriverGroups(
 ) {
   return driverGroups.map(driver => {
     const maxSmsScore = getDriverGroupMaxSmsScore(driver, assessmentsByCaseKey);
+    const effectiveAlertLevel = driver.orders?.length
+      ? threshold === null
+        ? getAlertLevel(driver.maxScore)
+        : getEffectiveAlertLevel(driver.maxScore, maxSmsScore, threshold)
+      : null;
     return {
       ...driver,
       maxSmsScore,
-      effectiveAlertLevel: driver.orders?.length
-        ? getEffectiveAlertLevel(driver.maxScore, maxSmsScore, threshold)
-        : null
+      effectiveAlertLevel
     };
   });
 }
@@ -749,20 +770,10 @@ export function getSmsScoreBadge(assessment) {
   };
 }
 
-/**
- * Simplified two-state read for the regular (non-Dev-Admin) order table:
- * either the AI found a positive suspicion score, or it did not (which
- * folds no_evidence, pending, failed, and unscored all into the same
- * conservative "no anomaly" bucket — regular users never see the technical
- * distinction between those). Reuses the existing 'high'/'no_evidence' badge
- * CSS classes so no new styling is needed.
- */
+/** Keep the existing two-state SMS label for regular users. */
 export function getSmsSimpleVerdict(assessment) {
-  const isSuspicious = Boolean(
-    assessment
-    && assessment.status === 'scored'
-    && Number(assessment.smsScore) > 0
-  );
+  const isSuspicious = Boolean(assessment && assessment.status === 'scored'
+    && Number(assessment.smsScore ?? assessment.sms_score) > 0);
   return isSuspicious
     ? { text: 'Có dấu hiệu nghi ngờ', level: 'high' }
     : { text: 'Không có dấu hiệu nghi ngờ', level: 'no_evidence' };
