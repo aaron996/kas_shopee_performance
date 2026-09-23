@@ -2,10 +2,15 @@ import { ChatError } from '../chat/errors.js';
 import {
   computeSourceFingerprint,
   extractLongNumericSequences,
+  hasBankEvidenceCandidate,
   hasBankingContext,
   normalizeMessages,
   scoreSmsSource
 } from './scorer.js';
+
+// Mirrors the attempt cap in claim_cod_suspicion_sms_assessment
+// (migration 20260922101500_cod_suspicion_sms_reclaim_failed).
+const MAX_FAILED_ATTEMPTS = 5;
 
 const ASSESSMENT_COLUMNS = [
   'id',
@@ -138,6 +143,18 @@ export function createCodSmsRepository(serviceClient) {
       }));
     },
 
+    async loadAssessments(sources) {
+      if (!sources.length) return new Map();
+      const { data, error } = await serviceClient
+        .from('cod_suspicion_sms_assessments')
+        .select([...ASSESSMENT_COLUMNS, 'evidence'].join(','))
+        .in('order_code', [...new Set(sources.map(source => source.orderCode))]);
+      if (error) {
+        throw databaseError('COD_SMS_ASSESSMENT_READ_FAILED', 'Không thể đọc kết quả chấm điểm SMS.', error);
+      }
+      return new Map((data ?? []).map(row => [caseKey(row), row]));
+    },
+
     async claim(source, { fingerprint, rubricVersion, model, force, staleAfterSeconds }) {
       const { data, error } = await serviceClient.rpc('claim_cod_suspicion_sms_assessment', {
         p_suspicion_type: source.suspicionType,
@@ -245,10 +262,11 @@ export function createCodSmsRepository(serviceClient) {
       }
     },
 
-    async recordRunItem(runId, assessment, { outcome }) {
+    async recordRunItems(runId, items) {
+      if (!items.length) return;
       const { error } = await serviceClient
         .from('cod_suspicion_sms_run_items')
-        .insert({
+        .insert(items.map(({ assessment, outcome }) => ({
           run_id: runId,
           suspicion_type: assessment.suspicion_type,
           driver_id: assessment.driver_id,
@@ -258,7 +276,7 @@ export function createCodSmsRepository(serviceClient) {
           model_called: outcome !== 'skipped_unchanged' && assessment.model_called === true,
           error_code: outcome === 'failed' ? assessment.error_code : null,
           error_message: outcome === 'failed' ? assessment.error_message : null
-        });
+        })));
       if (error) {
         throw databaseError('COD_SMS_RUN_ITEM_FAILED', 'Không thể ghi log đơn trong batch SMS.', error);
       }
@@ -299,6 +317,25 @@ function technicalFailure(error) {
     ? 'Chấm điểm SMS thất bại do lỗi kỹ thuật.'
     : String(error.message || 'Chấm điểm SMS thất bại do lỗi kỹ thuật.').slice(0, 500);
   return { errorCode: knownCode.slice(0, 100), errorMessage: knownMessage };
+}
+
+/**
+ * Same reclaim conditions as claim_cod_suspicion_sms_assessment, evaluated on a
+ * bulk read so unchanged orders skip the per-order RPC round trip. A `true`
+ * still goes through the RPC, which stays the authority (it may still decline).
+ */
+function needsClaim(existing, { fingerprint, rubricVersion, model, force, staleAfterSeconds }, now) {
+  if (!existing || force) return true;
+  if (existing.source_fingerprint !== fingerprint
+    || existing.rubric_version !== rubricVersion
+    || existing.model !== model) {
+    return true;
+  }
+  if (existing.status === 'pending') {
+    return new Date(existing.updated_at).getTime() < now - staleAfterSeconds * 1000;
+  }
+  if (existing.status === 'failed') return existing.attempt_count < MAX_FAILED_ATTEMPTS;
+  return false;
 }
 
 function completionValues(result, status, modelCalled, scoredAt) {
@@ -440,19 +477,21 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     onProgress
   } = params;
   const score = dependencies.scoreSource ?? scoreSmsSource;
-  const logItem = async (assessment, outcome) => {
-    if (!runId || typeof repository.recordRunItem !== 'function') return;
+  const logItems = async items => {
+    if (!runId || typeof repository.recordRunItems !== 'function' || !items.length) return;
     try {
-      await repository.recordRunItem(runId, assessment, { outcome });
+      await repository.recordRunItems(runId, items);
     } catch (error) {
-      console.error('[cod-sms] could not record run item', {
+      console.error('[cod-sms] could not record run items', {
         runId,
-        orderCode: assessment?.order_code,
+        count: items.length,
         code: error?.code
       });
     }
   };
+  const logItem = (assessment, outcome) => logItems([{ assessment, outcome }]);
   const sources = await repository.loadSources({ limit, offset, cases });
+  const existingByCase = await repository.loadAssessments(sources);
   const rows = [];
   const summary = {
     requested: cases.length || limit,
@@ -468,7 +507,30 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     onProgress?.({ processed: rows.length, total: sources.length, summary: { ...summary } });
   };
 
+  const now = Date.now();
+  const claimOptions = source => ({
+    fingerprint: computeSourceFingerprint(source),
+    rubricVersion: config.rubricVersion,
+    model: config.model,
+    force,
+    staleAfterSeconds: config.pendingStaleSeconds
+  });
+  const pending = [];
+  const skipped = [];
   for (const source of sources) {
+    const options = claimOptions(source);
+    const existing = existingByCase.get(caseKey(source));
+    if (needsClaim(existing, options, now)) pending.push({ source, options });
+    else skipped.push(existing);
+  }
+  if (skipped.length) {
+    summary.skippedUnchanged += skipped.length;
+    rows.push(...skipped);
+    await logItems(skipped.map(assessment => ({ assessment, outcome: 'skipped_unchanged' })));
+    emitProgress();
+  }
+
+  for (const { source, options } of pending) {
     if (signal?.aborted) {
       // A per-order write (claim/complete) is committed individually, so
       // stopping here loses nothing already scored — it just stops claiming
@@ -477,14 +539,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       summary.aborted = true;
       break;
     }
-    const fingerprint = computeSourceFingerprint(source);
-    const claim = await repository.claim(source, {
-      fingerprint,
-      rubricVersion: config.rubricVersion,
-      model: config.model,
-      force,
-      staleAfterSeconds: config.pendingStaleSeconds
-    });
+    const claim = await repository.claim(source, options);
     if (!claim.claimed) {
       summary.skippedUnchanged += 1;
       rows.push(claim.assessment);
@@ -495,13 +550,16 @@ export async function runAssessmentBatch(params, dependencies = {}) {
 
     summary.claimed += 1;
     const scoredAt = new Date().toISOString();
-    if (!source.messages.length) {
+    const hasMessages = source.messages.length > 0;
+    if (!hasMessages || !hasBankEvidenceCandidate(source)) {
       const completed = await repository.complete(claim.assessment.id, claim.run_token, completionValues({
         smsScore: 0,
         confidence: 'khong_co_bang_chung',
         detectedPatterns: [],
         evidence: [],
-        explanation: 'Không có SMS trong snapshot; kết quả này không phải kết luận đơn không vi phạm.'
+        explanation: hasMessages
+          ? 'Không có SMS nào vừa có ngữ cảnh ngân hàng/chuyển khoản vừa có chuỗi số từ 8 chữ số nên không gọi AI; kết quả này không phải kết luận đơn không vi phạm.'
+          : 'Không có SMS trong snapshot; kết quả này không phải kết luận đơn không vi phạm.'
       }, 'no_evidence', false, scoredAt));
       summary.noEvidence += 1;
       rows.push(completed);
