@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runAssessmentBatch, withLoggedRun } from './service.js';
+import { computeSourceFingerprint } from './scorer.js';
 
 const config = {
   model: 'gpt-5.6-luna',
@@ -21,12 +22,19 @@ function makeSource(messages) {
   };
 }
 
+function rowKey(row) {
+  return `${row.suspicion_type}\u0000${row.driver_id}\u0000${row.order_code}`;
+}
+
 function makeMemoryRepository(source) {
   let current = null;
   let nextId = 1;
   return {
     async loadSources() {
       return [source];
+    },
+    async loadAssessments() {
+      return current ? new Map([[rowKey(current), current]]) : new Map();
     },
     async claim(_source, claim) {
       const unchanged = current
@@ -117,14 +125,19 @@ test('unchanged source fingerprint skips a second model call', async () => {
   assert.equal(modelCalls, 1);
 });
 
-function makeMultiSourceRepository(sources) {
+function makeMultiSourceRepository(sources, existing = []) {
   const byOrder = new Map();
   let nextId = 1;
   return {
+    claimedOrders: [],
     async loadSources() {
       return sources;
     },
+    async loadAssessments() {
+      return new Map(existing.map(row => [rowKey(row), row]));
+    },
     async claim(source, claim) {
+      this.claimedOrders.push(source.orderCode);
       const assessment = {
         id: `assessment-${nextId++}`,
         suspicion_type: source.suspicionType,
@@ -152,6 +165,65 @@ function makeMultiSourceRepository(sources) {
     }
   };
 }
+
+test('SMS without a bank-account candidate stores no_evidence without calling the model', async () => {
+  const repository = makeMemoryRepository(makeSource([
+    {
+      smsTime: '2026-09-13T13:37:00',
+      recipientType: 'NN',
+      content: 'Quy khach da hen giao lai don hang GYY4CGUD vao ngay 15-09-2026.'
+    },
+    { smsTime: '2026-09-13T13:40:00', recipientType: 'NN', content: 'Vietcombank' },
+    { smsTime: '2026-09-13T13:41:00', recipientType: 'NN', content: '0181002719005' }
+  ]));
+  const result = await runAssessmentBatch({ repository, config, limit: 1 }, {
+    scoreSource: async () => { throw new Error('model must not be called'); }
+  });
+
+  assert.equal(result.summary.noEvidence, 1);
+  assert.equal(result.rows[0].status, 'no_evidence');
+  assert.equal(result.rows[0].model_called, false);
+});
+
+test('bulk-read unchanged orders skip the claim RPC and are logged in one insert', async () => {
+  const source = orderCode => ({ ...makeSource([]), orderCode });
+  const sources = ['SCORED', 'FRESH-PENDING', 'STALE-PENDING', 'FAILED-RETRY', 'FAILED-CAPPED', 'NEW']
+    .map(source);
+  const fingerprint = sources.map(item => computeSourceFingerprint(item));
+  const existingRow = (index, fields) => ({
+    id: `existing-${index}`,
+    suspicion_type: 'Gối đầu COD',
+    driver_id: 'driver-1',
+    order_code: sources[index].orderCode,
+    source_fingerprint: fingerprint[index],
+    rubric_version: config.rubricVersion,
+    model: config.model,
+    updated_at: new Date().toISOString(),
+    attempt_count: 1,
+    ...fields
+  });
+  const repository = makeMultiSourceRepository(sources, [
+    existingRow(0, { status: 'scored', sms_score: 5 }),
+    existingRow(1, { status: 'pending' }),
+    existingRow(2, { status: 'pending', updated_at: new Date(Date.now() - 3600_000).toISOString() }),
+    existingRow(3, { status: 'failed', attempt_count: 4 }),
+    existingRow(4, { status: 'failed', attempt_count: 5 })
+  ]);
+  const inserts = [];
+  repository.recordRunItems = async (_runId, items) => {
+    inserts.push(items.map(item => [item.assessment.order_code, item.outcome]));
+  };
+
+  const result = await runAssessmentBatch({ repository, config, limit: 6, runId: 'run-x' }, {});
+
+  assert.deepEqual(repository.claimedOrders, ['STALE-PENDING', 'FAILED-RETRY', 'NEW']);
+  assert.equal(result.summary.skippedUnchanged, 3);
+  assert.deepEqual(inserts[0], [
+    ['SCORED', 'skipped_unchanged'],
+    ['FRESH-PENDING', 'skipped_unchanged'],
+    ['FAILED-CAPPED', 'skipped_unchanged']
+  ]);
+});
 
 test('runAssessmentBatch reports processed/total progress after each order', async () => {
   const sources = [makeSource([]), makeSource([])];
@@ -225,8 +297,10 @@ test('withLoggedRun records one item per order and closes the run with totals', 
   repository.finishRun = async (id, values) => {
     runs.find(run => run.id === id).finished = values;
   };
-  repository.recordRunItem = async (runId, assessment, { outcome }) => {
-    items.push({ runId, orderCode: assessment.order_code, outcome, error: assessment.error_message });
+  repository.recordRunItems = async (runId, batch) => {
+    for (const { assessment, outcome } of batch) {
+      items.push({ runId, orderCode: assessment.order_code, outcome, error: assessment.error_message });
+    }
   };
 
   const { runId, result } = await withLoggedRun(repository, { trigger: 'manual', mode: 'cases' }, id =>
@@ -249,7 +323,7 @@ test('withLoggedRun records one item per order and closes the run with totals', 
 test('run log write failures never break scoring', async () => {
   const repository = makeMemoryRepository(makeSource([]));
   repository.createRun = async () => { throw new Error('db down'); };
-  repository.recordRunItem = async () => { throw new Error('must not be called without a run id'); };
+  repository.recordRunItems = async () => { throw new Error('must not be called without a run id'); };
   const originalError = console.error;
   console.error = () => {};
   try {

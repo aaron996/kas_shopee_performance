@@ -131,6 +131,15 @@ function hasQualifyingBankEvidence(evidence, orderCode) {
   });
 }
 
+/**
+ * validateModelAssessment() rejects every positive score whose evidence lacks
+ * such a message, so without one the model can only ever return 0.
+ */
+export function hasBankEvidenceCandidate(source) {
+  const contents = normalizeMessages(source.messages).map(message => message.content);
+  return hasQualifyingBankEvidence(contents, String(source.orderCode));
+}
+
 function assertStringArray(value, field, options = {}, source) {
   const { allowedValues = null, maxItems = Infinity, maxItemLength = Infinity } = options;
   if (!Array.isArray(value)) throw invalidOutput(`${field} must be an array`, source);

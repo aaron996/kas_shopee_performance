@@ -42,7 +42,7 @@ import {
   aggregateOrdersByEndDeliveryDate,
   getCodSmsCaseKey,
   getSmsScoreBadge,
-  getSmsSimpleVerdict,
+  summarizeCodSmsAssessments,
   formatSmsConfidence,
   SMS_PATTERN_LABELS
 } from '../utils/codSuspicionProcessor';
@@ -111,6 +111,7 @@ export default function CodSuspicionReport({
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
   const [smsError, setSmsError] = useState('');
+  const [smsAssessmentsFailed, setSmsAssessmentsFailed] = useState(false);
   const [activeResolutionTab, setActiveResolutionTab] = useState('pending');
   const [resolvingDriverKeys, setResolvingDriverKeys] = useState(() => new Set());
   const [workflowDialog, setWorkflowDialog] = useState(null);
@@ -162,6 +163,7 @@ export default function CodSuspicionReport({
       setErrorMsg('');
       setResolutionError('');
       setSmsError('');
+      setSmsAssessmentsFailed(false);
       setIsLoading(false);
       setIsSmsLoading(false);
       setHasLoaded(true);
@@ -174,6 +176,7 @@ export default function CodSuspicionReport({
     setIsSmsLoading(true);
     setErrorMsg('');
     setSmsError('');
+    setSmsAssessmentsFailed(false);
     setSmsThreshold(null);
     try {
       const [sourceResult, resolutionResult, smsResult, thresholdResult] = await Promise.all([
@@ -211,12 +214,14 @@ export default function CodSuspicionReport({
         setSmsAssessments(buildCodSmsAssessmentMap(smsResult.assessments));
       } else {
         setSmsAssessments(new Map());
+        setSmsAssessmentsFailed(true);
         smsLoadErrors.push('Không thể tải đầy đủ đánh giá SMS; mức đang hiển thị chỉ dựa trên điểm SQL, chưa phải kết luận SMS.');
       }
       if (smsLoadErrors.length) setSmsError(`${smsLoadErrors.join(' ')} Vui lòng tải lại.`);
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
       setSmsAssessments(new Map());
+      setSmsAssessmentsFailed(true);
       setSmsThreshold(null);
       setSmsError('Không thể tải đầy đủ đánh giá SMS và mốc áp dụng; tạm hiển thị mức theo SQL. Vui lòng tải lại.');
       setErrorMsg('Đã xảy ra lỗi khi kết nối Supabase. Vui lòng thử lại.');
@@ -487,6 +492,11 @@ export default function CodSuspicionReport({
     });
     return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments, { threshold: smsThreshold });
   }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery, smsAssessments, smsThreshold, isDevAdmin]);
+
+  const smsOverview = useMemo(
+    () => summarizeCodSmsAssessments(normalizedOrders, smsAssessments),
+    [normalizedOrders, smsAssessments]
+  );
 
   const resolutionCounts = useMemo(() => {
     const driverIdsByStatus = {
@@ -1085,6 +1095,39 @@ export default function CodSuspicionReport({
         )}
       </div>
 
+      {isDevAdmin && (
+        <section className="cod-sms-overview" aria-label="Tổng quan chấm điểm SMS AI">
+          <div className="cod-sms-overview__title">
+            <strong>Tổng quan chấm điểm SMS AI</strong>
+            <span>
+              Trạng thái hiện tại của {smsOverview.total} đơn trong snapshot, không phụ thuộc lần chạy nào
+              {smsOverview.lastScoredAt && ` · Lần chấm gần nhất: ${formatDateTimeVN(smsOverview.lastScoredAt)}`}
+            </span>
+          </div>
+          {isSmsLoading ? (
+            <span className="cod-sms-overview__note">Đang tải kết quả chấm...</span>
+          ) : smsAssessmentsFailed ? (
+            <span className="cod-sms-overview__note cod-sms-overview__note--error">Không tải được kết quả chấm SMS, chưa thể tổng hợp.</span>
+          ) : (
+            <div className="cod-sms-overview__stats">
+              {[
+                { key: 'flagged', label: 'có điểm SMS > 0', level: 'high' },
+                { key: 'zero', label: 'điểm 0 / không bằng chứng', level: 'no_evidence' },
+                { key: 'failed', label: 'lỗi chấm', level: 'failed' },
+                { key: 'unscored', label: 'chưa chấm', level: 'unscored' }
+              ].map(stat => (
+                <span
+                  key={stat.key}
+                  className={`cod-sms-overview__stat cod-sms-overview__stat--${stat.level}${smsOverview[stat.key] ? '' : ' is-zero'}`}
+                >
+                  <strong>{smsOverview[stat.key]}</strong> {stat.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {isDevAdmin && historyPanelOpen && (
         <CodSmsRunHistoryPanel driverNameById={driverNameById} refreshKey={smsRunsRefreshKey} />
       )}
@@ -1095,7 +1138,7 @@ export default function CodSuspicionReport({
         </div>
       )}
 
-      {smsError && (
+      {isDevAdmin && smsError && (
         <div
           role="alert"
           style={{
@@ -1414,7 +1457,7 @@ export default function CodSuspicionReport({
                       <table
                         style={{
                           width: '100%',
-                          minWidth: isDevAdmin ? '920px' : '860px',
+                          minWidth: isDevAdmin ? '920px' : '750px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -1428,13 +1471,11 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
-                            {isDevAdmin ? (
+                            {isDevAdmin && (
                               <>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
                               </>
-                            ) : (
-                              <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700, minWidth: '110px' }}>Mức độ nghi ngờ</th>
                             )}
                           </tr>
                         </thead>
@@ -1452,7 +1493,6 @@ export default function CodSuspicionReport({
                             });
                             const smsAssessment = smsAssessments.get(smsKey);
                             const smsBadge = getSmsScoreBadge(smsAssessment);
-                            const smsVerdict = getSmsSimpleVerdict(smsAssessment);
 
                             return (
                               <tr
@@ -1504,7 +1544,7 @@ export default function CodSuspicionReport({
                                   </span>
                                 </td>
 
-                                {isDevAdmin ? (
+                                {isDevAdmin && (
                                   <>
                                     {/* Điểm SMS (AI) */}
                                     <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1527,12 +1567,6 @@ export default function CodSuspicionReport({
                                       </button>
                                     </td>
                                   </>
-                                ) : (
-                                  <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                    <span className={`cod-sms-badge cod-sms-badge--${smsVerdict.level}`}>
-                                      {smsVerdict.text}
-                                    </span>
-                                  </td>
                                 )}
 
                               </tr>
