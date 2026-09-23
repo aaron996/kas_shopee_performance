@@ -25,7 +25,11 @@ const PATTERN_WEIGHTS = Object.freeze({
   mau_5: 2
 });
 
-const BANKING_CONTEXT = /(?:techcombank|vietcombank|\btech\b|\bvcb\b|\bmbbank\b|\bmb\b|\bvib\b|vpbank|\bacb\b|sacombank|\bbidv\b|agribank|tpbank|\bocb\b|seabank|hdbank|\bmsb\b|ngân\s*hàng|ngan\s*hang|chuyển\s*khoản|chuyen\s*khoan|số\s*tài\s*khoản|so\s*tai\s*khoan|\bstk\b|\bck\b)/iu;
+// Deliberately loose: this is only a guard against the model inventing a bank
+// signal out of a phone number / order code, not the detector itself. Real
+// driver SMS spell bank names freely ("VP bank", "Techcobank", "Vietcom bank"),
+// so any token containing "bank" counts, plus common abbreviations.
+const BANKING_CONTEXT = /(?:bank|\btech(?:com?)?\b|\bvietcom\b|\bvcb\b|\bmb\b|\bvib\b|\bvpb\b|\btpb\b|\bacb\b|\bbidv\b|\bagri\b|\bocb\b|\bmsb\b|\bshb\b|\bscb\b|\bstk\b|\bck\b|\btk\b|ngân\s*hàng|ngan\s*hang|chuyển\s*(?:khoản|tiền)|chuyen\s*(?:khoan|tien)|tài\s*khoản|tai\s*khoan)/iu;
 
 export class CodSmsScoringError extends ChatError {
   constructor(code, message, status = 502, options = {}) {
@@ -39,9 +43,12 @@ function invalidOutput(reason, source) {
     orderCode: source?.orderCode,
     reason
   });
+  // The reason is a fixed rule label (never SMS content), so it is safe to
+  // persist in error_message — the Dev history panel needs it to tell a real
+  // schema break apart from a business-rule rejection.
   return new CodSmsScoringError(
     'COD_SMS_MODEL_SCHEMA_INVALID',
-    'Model trả về dữ liệu không đúng schema chấm điểm SMS.',
+    `Model trả về dữ liệu không đúng schema chấm điểm SMS (${reason}).`,
     502,
     { cause: new Error(reason) }
   );
@@ -276,8 +283,10 @@ export async function scoreSmsSource(source, config, options = {}) {
   let parsed;
   try {
     parsed = JSON.parse(extractOutputText(response));
-  } catch (error) {
-    throw invalidOutput(`invalid JSON: ${error.message}`, source);
+  } catch {
+    // Not logging the parser message: newer V8 quotes a slice of the model
+    // output in it, which may echo SMS content.
+    throw invalidOutput('invalid JSON', source);
   }
   return validateModelAssessment(parsed, source);
 }

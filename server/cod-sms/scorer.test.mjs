@@ -90,3 +90,38 @@ test('rejects model JSON that does not match the required schema', async () => {
     error => error.code === 'COD_SMS_MODEL_SCHEMA_INVALID'
   );
 });
+
+test('accepts loosely spelled bank names seen in real driver SMS', () => {
+  for (const [orderCode, driverName, content] of [
+    ['VNGH80009359305', 'Phạm Văn Hiếu', 'VP bank 249997803 pham van hieu 1439k'],
+    ['VNGH80087909201', 'Nguyễn Quốc Khánh', 'Techcobank Nguyễn Quốc Khánh 19035714995013........4256k']
+  ]) {
+    const bankSource = {
+      ...source,
+      orderCode,
+      driverName,
+      messages: [{ smsTime: '2026-09-16T09:45:10', recipientType: 'NN', content }]
+    };
+    const result = validateModelAssessment({
+      order_code: orderCode,
+      diem_sms: 5,
+      muc_do_tin_cay: 'cao',
+      mau_hinh_phat_hien: ['mau_1'],
+      bang_chung: [content],
+      giai_thich: 'Có số tài khoản kèm tên ngân hàng và tên khớp tài xế.'
+    }, bankSource);
+    assert.equal(result.smsScore, 5);
+  }
+});
+
+test('schema rejection message carries the rule that failed', () => {
+  assert.throws(() => validateModelAssessment({
+    order_code: 'GY8CFXTR',
+    diem_sms: 3,
+    muc_do_tin_cay: 'cao',
+    mau_hinh_phat_hien: ['mau_1'],
+    bang_chung: [source.messages[0].content],
+    giai_thich: 'Sai điểm.'
+  }, source), error => error.code === 'COD_SMS_MODEL_SCHEMA_INVALID'
+    && error.message.includes('score does not match rubric weights'));
+});

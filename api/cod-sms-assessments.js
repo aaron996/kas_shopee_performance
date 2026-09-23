@@ -5,7 +5,10 @@ import { readCodSmsConfig, resolveCodSmsModelConfig } from '../server/cod-sms/co
 import {
   createCodSmsRepository,
   runAssessmentBatch,
-  serializeAssessment
+  serializeAssessment,
+  serializeRun,
+  serializeRunItem,
+  withLoggedRun
 } from '../server/cod-sms/service.js';
 import { sweepCodSmsSources } from '../server/cod-sms/cron.js';
 
@@ -13,6 +16,8 @@ export const maxDuration = 300;
 const MAX_BODY_BYTES = 64 * 1024;
 const SUSPICION_TYPES = new Set(['Gối đầu COD', 'Rút ruột']);
 const ASSESSMENT_STATUSES = new Set(['pending', 'scored', 'no_evidence', 'failed']);
+const GET_VIEWS = new Set(['assessments', 'runs', 'run_items']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function readBody(req) {
   if (req.body !== undefined) {
@@ -92,6 +97,24 @@ function parseBatchRequest(body, config) {
 
 function parseGetRequest(req) {
   const url = readUrl(req);
+  const view = url.searchParams.get('view')?.trim() || 'assessments';
+  if (!GET_VIEWS.has(view)) {
+    throw new ChatError('COD_SMS_BAD_REQUEST', 'view không hợp lệ.', 400);
+  }
+  if (view === 'runs') {
+    return {
+      view,
+      limit: parsePositiveInt(url.searchParams.get('limit'), 20, 100, 'limit'),
+      offset: parsePositiveInt(url.searchParams.get('offset'), 0, 100000, 'offset', true)
+    };
+  }
+  if (view === 'run_items') {
+    const runId = url.searchParams.get('run_id')?.trim() || '';
+    if (!UUID_PATTERN.test(runId)) {
+      throw new ChatError('COD_SMS_BAD_REQUEST', 'run_id không hợp lệ.', 400);
+    }
+    return { view, runId };
+  }
   const suspicionType = url.searchParams.get('suspicion_type')?.trim() || null;
   if (suspicionType && !SUSPICION_TYPES.has(suspicionType)) {
     throw new ChatError('COD_SMS_BAD_REQUEST', 'suspicion_type không hợp lệ.', 400);
@@ -102,6 +125,7 @@ function parseGetRequest(req) {
   }
   const includeEvidence = url.searchParams.get('include_evidence') === 'true';
   return {
+    view,
     includeEvidence,
     limit: parsePositiveInt(url.searchParams.get('limit'), 200, 500, 'limit'),
     offset: parsePositiveInt(url.searchParams.get('offset'), 0, 100000, 'offset', true),
@@ -140,6 +164,30 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       if (req.method === 'GET') {
         const request = parseGetRequest(req);
         const isDev = await authorizeDev(auth.userClient, auth.user);
+        if (request.view !== 'assessments') {
+          // Run logs expose model names and technical error detail — the
+          // scoring method — so they are Dev Admin only, like evidence.
+          if (!isDev) {
+            throw new ChatError('COD_SMS_RUNS_FORBIDDEN', 'Chỉ Dev Admin được xem lịch sử batch SMS.', 403);
+          }
+          if (request.view === 'runs') {
+            const { rows, totalCount } = await repository.listRuns(request);
+            sendJson(res, 200, {
+              contractVersion: '1',
+              runs: rows.map(serializeRun),
+              meta: { count: rows.length, totalCount, offset: request.offset }
+            });
+          } else {
+            const rows = await repository.listRunItems(request.runId);
+            sendJson(res, 200, {
+              contractVersion: '1',
+              runId: request.runId,
+              items: rows.map(serializeRunItem),
+              meta: { count: rows.length }
+            });
+          }
+          return;
+        }
         if (request.includeEvidence && !isDev) {
           throw new ChatError(
             'COD_SMS_EVIDENCE_FORBIDDEN',
@@ -186,38 +234,49 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       // while headers are still unsent.
       startSse(res);
       const onProgress = update => sendSse(res, 'progress', update);
+      const runMeta = {
+        trigger: 'manual',
+        mode: request.sweep ? 'sweep' : (request.force ? 'retry_failed' : 'cases'),
+        triggeredBy: auth.user?.id ?? null,
+        triggeredByEmail: auth.user?.email ?? null,
+        model: config.model,
+        rubricVersion: config.rubricVersion,
+        force: request.force
+      };
 
       if (request.sweep) {
         // The manual-run button's full-table sweep: same page-by-page walk
         // as the daily cron (server/cod-sms/cron.js), just authenticated as
         // the calling Dev Admin instead of CRON_SECRET. Only aggregate
         // counts are returned (no row list — a sweep can span many pages).
-        const totals = await sweepCodSmsSources({
+        const { runId, result: totals } = await withLoggedRun(repository, runMeta, id => sweepCodSmsSources({
           repository,
           config,
           force: request.force,
+          runId: id,
           signal: controller.signal,
           onProgress
-        });
+        }));
         sendSse(res, 'batch_end', {
           contractVersion: '1',
-          batch: { ...totals, force: request.force, sweep: true },
+          batch: { ...totals, force: request.force, sweep: true, runId },
           assessments: []
         });
         res.end();
         return;
       }
 
-      const result = await runBatch({
+      const { runId, result } = await withLoggedRun(repository, runMeta, id => runBatch({
         repository,
         config,
         ...request,
+        runId: id,
         signal: controller.signal,
         onProgress
-      }, dependencies);
+      }, dependencies));
       sendSse(res, 'batch_end', {
         contractVersion: '1',
-        batch: { ...result.summary, limit: request.limit, offset: request.offset, force: request.force },
+        batch: { ...result.summary, limit: request.limit, offset: request.offset, force: request.force, runId },
         assessments: result.rows.map(row => serializeAssessment(row, { includeEvidence: true }))
       });
       res.end();

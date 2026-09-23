@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ChatError, toPublicError } from '../chat/errors.js';
 import { sendJson } from '../chat/sse.js';
 import { readCodSmsConfig, resolveCodSmsModelConfig } from './config.js';
-import { createCodSmsRepository, runAssessmentBatch } from './service.js';
+import { createCodSmsRepository, runAssessmentBatch, withLoggedRun } from './service.js';
 
 // Safety cap on how many pages a single cron run will walk through the
 // source table. At the default maxBatchLimit (<=500/page) this still covers
@@ -35,7 +35,7 @@ function createServiceOnlyClient(config) {
  * both the daily cron job and the Dev Admin manual-run button so they behave
  * identically.
  */
-export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, signal, onProgress }) {
+export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, runId = null, signal, onProgress }) {
   const totals = {
     pages: 0,
     requested: 0,
@@ -63,6 +63,7 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
       offset,
       cases: [],
       force,
+      runId,
       signal,
       onProgress: onProgress
         ? update => onProgress({ ...update, page: totals.pages + 1, pages: totals.pages, totals: { ...totals } })
@@ -101,14 +102,22 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
   const modelOverride = await resolveModelConfig(serviceClient, env);
   config = { ...config, ...modelOverride };
 
-  return sweepCodSmsSources({
+  const { result } = await withLoggedRun(repository, {
+    trigger: 'cron',
+    mode: 'sweep',
+    model: config.model,
+    rubricVersion: config.rubricVersion,
+    force: false
+  }, runId => sweepCodSmsSources({
     repository,
     config,
     force: false,
     runBatch: dependencies.runBatch,
     maxPages: dependencies.maxPages,
+    runId,
     signal: dependencies.signal
-  });
+  }));
+  return result;
 }
 
 export function createCodSmsCronHandler(dependencies = {}) {
