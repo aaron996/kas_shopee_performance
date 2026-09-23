@@ -20,6 +20,10 @@ import {
   normalizeDateKey,
   aggregateOrdersByEndDeliveryDate,
   getCodSmsCaseKey,
+  buildCodSmsAssessmentMap,
+  getDriverGroupMaxSmsScore,
+  getEffectiveAlertLevel,
+  addSmsSummaryToDriverGroups,
   getSmsScoreBadge,
   getSmsSimpleVerdict,
   formatSmsConfidence,
@@ -585,6 +589,88 @@ test('getCodSmsCaseKey joins assessment and order using full 3-part key (suspici
   assert.equal(key1, keyWithWhitespace);
   assert.notEqual(key1, keyDifferentType, 'Must not collide across different suspicion types');
   assert.notEqual(key1, keyDifferentDriver, 'Must not collide across different drivers with same orderCode');
+});
+
+test('driver SMS summary handles zero, one, and many filtered orders without summing scores', () => {
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O1' }, status: 'scored', smsScore: 2 },
+    { key: { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O2' }, status: 'scored', smsScore: 6 },
+    { key: { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O3' }, status: 'scored', smsScore: 4 }
+  ]);
+
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [] }, assessments), null, 'Zero orders means no valid SMS score');
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [{ suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O1' }] }, assessments), 2);
+  assert.equal(getDriverGroupMaxSmsScore({
+    orders: ['O1', 'O2', 'O3'].map(orderCode => ({ suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode }))
+  }, assessments), 6, 'Multiple order scores use the maximum instead of a sum');
+});
+
+test('SMS score zero is distinct from missing, while non-scored states cannot create a positive score', () => {
+  const order = { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O1' };
+  const zeroScoreMap = buildCodSmsAssessmentMap([
+    { key: order, status: 'scored', smsScore: 0 }
+  ]);
+  const noEvidenceMap = buildCodSmsAssessmentMap([
+    { key: order, status: 'no_evidence', smsScore: 8 }
+  ]);
+  const pendingMap = buildCodSmsAssessmentMap([
+    { key: order, status: 'pending', smsScore: 8 }
+  ]);
+  const failedMap = buildCodSmsAssessmentMap([
+    { key: order, status: 'failed', smsScore: 8 }
+  ]);
+  const invalidScoreMap = buildCodSmsAssessmentMap([
+    { key: order, status: 'scored', smsScore: Number.NaN }
+  ]);
+
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, new Map()), null, 'Missing assessment is null');
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, zeroScoreMap), 0, 'A valid numeric zero remains zero');
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, noEvidenceMap), null);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, pendingMap), null);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, failedMap), null);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [order] }, invalidScoreMap), null);
+});
+
+test('SMS assessment joins never collide across drivers or suspicion types with the same order code', () => {
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: 'Rút ruột', driverId: 'D2', orderCode: 'SHARED' }, status: 'scored', smsScore: 9 }
+  ]);
+  const orderWithSameCode = { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'SHARED' };
+  const orderWithSameTypeAndCode = { suspicionType: 'Rút ruột', driverId: 'D1', orderCode: 'SHARED' };
+  const exactMatch = { suspicionType: 'Rút ruột', driverId: 'D2', orderCode: 'SHARED' };
+
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [orderWithSameCode] }, assessments), null);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [orderWithSameTypeAndCode] }, assessments), null);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [exactMatch] }, assessments), 9);
+});
+
+test('effective SMS alert uses the configured boundary and preserves SQL High and Low', () => {
+  assert.equal(getEffectiveAlertLevel(15, null).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(15, 0).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(15, 0, 0).value, 'HIGH', 'Zero qualifies only when the configured boundary is zero');
+  assert.equal(getEffectiveAlertLevel(15, 1).value, 'HIGH', 'Default threshold is inclusive at one');
+  assert.equal(getEffectiveAlertLevel(15, 1, 2).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(18, 0).value, 'HIGH', 'SQL High remains High');
+  assert.equal(getEffectiveAlertLevel(14, 9).value, 'LOW', 'SQL Low remains Low');
+});
+
+test('SMS summary is computed from the filtered order subset and does not change SQL scores', () => {
+  const drivers = groupOrdersByDriver([
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'O1', suspicion_type: 'Gối đầu COD', total_score: 15 }),
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'O2', suspicion_type: 'Gối đầu COD', total_score: 18 })
+  ]);
+  const filteredDrivers = filterDriverGroups(drivers, { alertLevel: 'MEDIUM' });
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O1' }, status: 'scored', smsScore: 2 },
+    { key: { suspicionType: 'Gối đầu COD', driverId: 'D1', orderCode: 'O2' }, status: 'scored', smsScore: 9 }
+  ]);
+
+  const [summary] = addSmsSummaryToDriverGroups(filteredDrivers, assessments);
+  assert.deepEqual(summary.orders.map(order => order.orderCode), ['O1'], 'SQL alert filter removes O2 before the SMS maximum is computed');
+  assert.equal(summary.maxSmsScore, 2);
+  assert.equal(summary.effectiveAlertLevel.value, 'HIGH');
+  assert.equal(summary.maxScore, 15);
+  assert.equal(summary.orders[0].totalScore, 15, 'SMS summary leaves source SQL totalScore untouched');
 });
 
 test('getSmsScoreBadge correctly maps all score and confidence states with explicit text labels', () => {

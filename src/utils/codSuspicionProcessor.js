@@ -548,6 +548,112 @@ export function getCodSmsCaseKey(params = {}) {
   return `${suspicionType}\u0000${driverId}\u0000${orderCode}`;
 }
 
+export const DEFAULT_SMS_ESCALATION_THRESHOLD = 1;
+
+function hasCodSmsCaseIdentity(params = {}) {
+  return Boolean(
+    String(params.suspicionType ?? params.suspicion_type ?? '').trim() &&
+    String(params.driverId ?? params.driver_id ?? '').trim() &&
+    String(params.orderCode ?? params.order_code ?? '').trim()
+  );
+}
+
+/**
+ * Index API assessment rows by the complete case identity. Invalid/incomplete
+ * keys are ignored so they cannot match an order by its code alone.
+ */
+export function buildCodSmsAssessmentMap(assessments = []) {
+  const assessmentMap = new Map();
+  if (!Array.isArray(assessments)) return assessmentMap;
+
+  assessments.forEach(assessment => {
+    const identity = assessment?.key ?? assessment;
+    if (!hasCodSmsCaseIdentity(identity)) return;
+    assessmentMap.set(getCodSmsCaseKey(identity), assessment);
+  });
+
+  return assessmentMap;
+}
+
+/**
+ * Get the maximum valid SMS score from the orders in one already-filtered
+ * driver group. Returns null when none of those orders has a scored result;
+ * a numeric zero remains distinct from no valid score.
+ */
+export function getDriverGroupMaxSmsScore(driverGroup, assessmentsByCaseKey) {
+  const orders = Array.isArray(driverGroup) ? driverGroup : driverGroup?.orders;
+  if (!Array.isArray(orders) || orders.length === 0 || !(assessmentsByCaseKey instanceof Map)) {
+    return null;
+  }
+
+  let maxSmsScore = null;
+  orders.forEach(order => {
+    const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order));
+    if (!assessment || assessment.status !== 'scored') return;
+
+    const rawScore = assessment.smsScore ?? assessment.sms_score;
+    if (rawScore === null || rawScore === undefined || (typeof rawScore !== 'number' && typeof rawScore !== 'string')) {
+      return;
+    }
+    const smsScore = typeof rawScore === 'string' && rawScore.trim() === '' ? NaN : Number(rawScore);
+    if (!Number.isInteger(smsScore) || smsScore < 0 || smsScore > 9) return;
+    if (maxSmsScore === null || smsScore > maxSmsScore) maxSmsScore = smsScore;
+  });
+
+  return maxSmsScore;
+}
+
+/**
+ * Return the effective alert-level descriptor for a SQL total score and the
+ * maximum valid SMS score across the driver's filtered orders. Only SQL
+ * Medium can rise to High; SQL High and Low retain their existing level.
+ */
+export function getEffectiveAlertLevel(
+  sqlTotalScore,
+  maxSmsScore,
+  threshold = DEFAULT_SMS_ESCALATION_THRESHOLD
+) {
+  const sqlAlertLevel = getAlertLevel(sqlTotalScore);
+  const parsedThreshold = typeof threshold === 'number' || (typeof threshold === 'string' && threshold.trim() !== '')
+    ? Number(threshold)
+    : NaN;
+  const effectiveThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+    ? parsedThreshold
+    : DEFAULT_SMS_ESCALATION_THRESHOLD;
+  const hasPositiveOrZeroValidScore = Number.isInteger(maxSmsScore) && maxSmsScore >= 0 && maxSmsScore <= 9;
+
+  if (
+    sqlAlertLevel.value === ALERT_LEVELS.MEDIUM.value &&
+    hasPositiveOrZeroValidScore &&
+    maxSmsScore >= effectiveThreshold
+  ) {
+    return ALERT_LEVELS.HIGH;
+  }
+
+  return sqlAlertLevel;
+}
+
+/**
+ * Add reusable SMS summary fields to driver rows after order filters have run.
+ * `maxSmsScore` is null when no filtered order has a valid scored result.
+ */
+export function addSmsSummaryToDriverGroups(
+  driverGroups = [],
+  assessmentsByCaseKey,
+  { threshold = DEFAULT_SMS_ESCALATION_THRESHOLD } = {}
+) {
+  return driverGroups.map(driver => {
+    const maxSmsScore = getDriverGroupMaxSmsScore(driver, assessmentsByCaseKey);
+    return {
+      ...driver,
+      maxSmsScore,
+      effectiveAlertLevel: driver.orders?.length
+        ? getEffectiveAlertLevel(driver.maxScore, maxSmsScore, threshold)
+        : null
+    };
+  });
+}
+
 export const SMS_PATTERN_LABELS = Object.freeze({
   mau_1: 'STK khớp tên tài xế (+5)',
   mau_2: 'Hội thoại hai chiều xác nhận (+1)',

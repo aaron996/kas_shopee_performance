@@ -34,6 +34,8 @@ import {
   sortDrivers,
   filterDriverGroups,
   filterDriverGroupsByResolutionStatus,
+  buildCodSmsAssessmentMap,
+  addSmsSummaryToDriverGroups,
   getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
@@ -200,13 +202,7 @@ export default function CodSuspicionReport({
       }
 
       if (smsResult.success) {
-        const assessmentMap = new Map();
-        for (const item of smsResult.assessments || []) {
-          if (item?.key) {
-            assessmentMap.set(getCodSmsCaseKey(item.key), item);
-          }
-        }
-        setSmsAssessments(assessmentMap);
+        setSmsAssessments(buildCodSmsAssessmentMap(smsResult.assessments));
       } else {
         setSmsError('Không thể tải mức độ nghi ngờ. Vui lòng thử lại.');
       }
@@ -486,13 +482,14 @@ export default function CodSuspicionReport({
 
   // Filtered driver groups
   const filteredDrivers = useMemo(() => {
-    return filterDriverGroups(allDriverGroups, {
+    const filteredGroups = filterDriverGroups(allDriverGroups, {
       suspicionType,
       warehouse,
       alertLevel,
       searchQuery
     });
-  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery]);
+    return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments);
+  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery, smsAssessments]);
 
   const resolutionCounts = useMemo(() => {
     const driverIdsByStatus = {
