@@ -7573,6 +7573,63 @@ body.dark-mode .prr-scope-chip.highlight {
   opacity: 0.45;
   background: transparent;
 }
+.cod-sms-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.cod-sms-overview__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.cod-sms-overview__title strong {
+  font-size: 0.85rem;
+}
+.cod-sms-overview__title span,
+.cod-sms-overview__note {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+.cod-sms-overview__note--error {
+  color: var(--danger-fg, #a13b2a);
+}
+.cod-sms-overview__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cod-sms-overview__stat {
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+.cod-sms-overview__stat strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+}
+.cod-sms-overview__stat--high,
+.cod-sms-overview__stat--high strong { color: var(--danger-fg, #a13b2a); }
+.cod-sms-overview__stat--high { background: var(--danger-bg, #f7d9d4); }
+.cod-sms-overview__stat--failed,
+.cod-sms-overview__stat--failed strong { color: #991b1b; }
+.cod-sms-overview__stat--failed { background: #fdf2f2; }
+.cod-sms-overview__stat.is-zero {
+  opacity: 0.5;
+  background: transparent;
+}
 .cod-sms-runs__meta {
   display: flex;
   flex-wrap: wrap;

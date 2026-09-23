@@ -770,11 +770,27 @@ export function getSmsScoreBadge(assessment) {
   };
 }
 
-/** Keep the existing two-state SMS label for regular users. */
-export function getSmsSimpleVerdict(assessment) {
-  const isSuspicious = Boolean(assessment && assessment.status === 'scored'
-    && Number(assessment.smsScore ?? assessment.sms_score) > 0);
-  return isSuspicious
-    ? { text: 'Có dấu hiệu nghi ngờ', level: 'high' }
-    : { text: 'Không có dấu hiệu nghi ngờ', level: 'no_evidence' };
+/**
+ * Current SMS scoring state of every order in the snapshot (not of one run):
+ * an order skipped as unchanged in the latest run still counts under the
+ * score it already has.
+ */
+export function summarizeCodSmsAssessments(orders = [], assessmentsByCaseKey = new Map()) {
+  const summary = { total: 0, flagged: 0, zero: 0, failed: 0, unscored: 0, lastScoredAt: null };
+  orders.forEach(order => {
+    summary.total += 1;
+    const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order));
+    const status = assessment?.status;
+    const score = Number(assessment?.smsScore ?? assessment?.sms_score);
+    if (status === 'scored' && score > 0) summary.flagged += 1;
+    else if (status === 'no_evidence' || (status === 'scored' && score === 0)) summary.zero += 1;
+    else if (status === 'failed') summary.failed += 1;
+    else summary.unscored += 1;
+
+    const scoredAt = assessment?.scoredAt ?? assessment?.scored_at;
+    if (scoredAt && (!summary.lastScoredAt || new Date(scoredAt) > new Date(summary.lastScoredAt))) {
+      summary.lastScoredAt = scoredAt;
+    }
+  });
+  return summary;
 }
