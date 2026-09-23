@@ -65,7 +65,7 @@ test('Dev saves and reads the same persisted value; reset returns to 1', async (
 });
 
 test('migration locks table writes and audits the database-derived actor', async () => {
-  const migration = await readFile(new URL('../supabase/migrations/20260923010000_cod_sms_escalation_threshold.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/migrations/20260923060831_cod_sms_escalation_threshold.sql', import.meta.url), 'utf8');
   assert.match(migration, /check \(threshold between 1 and 9\)/i);
   assert.match(migration, /enable row level security/gi);
   assert.match(migration, /revoke all on public\.cod_sms_escalation_config, public\.cod_sms_escalation_config_audit from public, anon, authenticated/i);
