@@ -74,7 +74,7 @@ test('collectCodSmsAssessmentPages rejects incomplete counts, duplicate keys, an
   assert.equal(shortPage.success, false);
   assert.deepEqual(shortPage.assessments, []);
 
-  const duplicatePage = await collectCodSmsAssessmentPages(async ({ offset }) => ({
+  const duplicatePage = await collectCodSmsAssessmentPages(async () => ({
     success: true,
     assessments: [assessment(0)],
     meta: { totalCount: 2 }
