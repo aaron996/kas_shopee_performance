@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot } from 'lucide-react';
+import { Activity, Users, Monitor, ShieldAlert, BarChart2, Download, RefreshCw, Bot, MessageSquare } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import AiOperationsDashboard from './AiOperationsDashboard';
 import LoadingScreen from './LoadingScreen';
+import CodSmsThresholdSettings from './CodSmsThresholdSettings';
 
 const PAGE_SIZE = 1000;
 
@@ -21,7 +22,7 @@ function downloadCsv(filename, headers, rows) {
 }
 
 export default function DevAdminDashboard({ onlineUsers }) {
-  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'access'
+  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'cod-sms' | 'access'
   const [accessLogs, setAccessLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -140,6 +141,15 @@ export default function DevAdminDashboard({ onlineUsers }) {
 
         <button
           type="button"
+          onClick={() => setAdminTab('cod-sms')}
+          aria-current={adminTab === 'cod-sms' ? 'page' : undefined}
+          className={adminTab === 'cod-sms' ? 'nav-btn primary' : 'btn-secondary'}
+        >
+          <MessageSquare size={18} /> CẤU HÌNH COD SMS
+        </button>
+
+        <button
+          type="button"
           onClick={() => setAdminTab('access')}
           style={{
             display: 'flex',
@@ -161,6 +171,8 @@ export default function DevAdminDashboard({ onlineUsers }) {
 
       {adminTab === 'ai-ops' ? (
         <AiOperationsDashboard />
+      ) : adminTab === 'cod-sms' ? (
+        <CodSmsThresholdSettings />
       ) : (
         <>
       {/* Top KPIs */}

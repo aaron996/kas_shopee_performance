@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { collectCodSmsAssessmentPages } from './codSmsAssessmentPagination.js';
+import { buildCodSmsAssessmentMap, getDriverGroupMaxSmsScore } from './codSuspicionProcessor.js';
 
 function assessment(index) {
   return {
@@ -34,6 +35,8 @@ test('collectCodSmsAssessmentPages fetches every page when the exact total excee
     { limit: 500, offset: 0 },
     { limit: 500, offset: 500 }
   ]);
+  const joined = buildCodSmsAssessmentMap(result.assessments);
+  assert.equal(getDriverGroupMaxSmsScore({ orders: [assessment(500).key] }, joined), assessment(500).smsScore);
 });
 
 test('collectCodSmsAssessmentPages returns an empty successful result for zero assessments', async () => {

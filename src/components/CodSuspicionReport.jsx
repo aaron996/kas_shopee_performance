@@ -39,6 +39,7 @@ import {
   getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
+  getOrderEffectiveAlertLevel,
   aggregateOrdersByEndDeliveryDate,
   getCodSmsCaseKey,
   getSmsScoreBadge,
@@ -62,6 +63,7 @@ import {
 } from '../utils/codSuspicionClient';
 import LoadingScreen from './LoadingScreen';
 import ModalDialog from './ui/ModalDialog';
+import { fetchCodSmsThreshold } from '../utils/codSmsThresholdClient';
 
 const TYPE_COLORS = {
   'Gối đầu COD': 'var(--ghn-orange, #f26522)',
@@ -103,6 +105,7 @@ export default function CodSuspicionReport({
   const [rawData, setRawData] = useState([]);
   const [resolutions, setResolutions] = useState(() => new Map());
   const [smsAssessments, setSmsAssessments] = useState(() => new Map());
+  const [smsThreshold, setSmsThreshold] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSmsLoading, setIsSmsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -162,6 +165,7 @@ export default function CodSuspicionReport({
       setRawData([]);
       setResolutions(new Map());
       setSmsAssessments(new Map());
+      setSmsThreshold(null);
       setErrorMsg('');
       setResolutionError('');
       setSmsError('');
@@ -177,12 +181,21 @@ export default function CodSuspicionReport({
     setIsSmsLoading(true);
     setErrorMsg('');
     setSmsError('');
+    setSmsThreshold(null);
     try {
-      const [sourceResult, resolutionResult, smsResult] = await Promise.all([
+      const [sourceResult, resolutionResult, smsResult, thresholdResult] = await Promise.all([
         fetchCodSuspicionData({ forceRefresh }),
         fetchCodSuspicionCaseResolutions(),
-        fetchCodSmsAssessmentsSummary({ limit: 500 })
+        fetchCodSmsAssessmentsSummary({ limit: 500 }),
+        fetchCodSmsThreshold().then(value => ({ success: true, value }), () => ({ success: false }))
       ]);
+      const smsLoadErrors = [];
+      if (thresholdResult.success && Number.isInteger(thresholdResult.value.threshold)
+        && thresholdResult.value.threshold >= 1 && thresholdResult.value.threshold <= 9) {
+        setSmsThreshold(thresholdResult.value.threshold);
+      } else {
+        smsLoadErrors.push('Không thể tải mốc điểm SMS đang áp dụng; tạm hiển thị mức theo SQL.');
+      }
       if (sourceResult.success) {
         setRawData(sourceResult.rows || []);
         setResolutions(new Map(
@@ -204,10 +217,15 @@ export default function CodSuspicionReport({
       if (smsResult.success) {
         setSmsAssessments(buildCodSmsAssessmentMap(smsResult.assessments));
       } else {
-        setSmsError('Không thể tải mức độ nghi ngờ. Vui lòng thử lại.');
+        setSmsAssessments(new Map());
+        smsLoadErrors.push('Không thể tải đầy đủ đánh giá SMS; mức đang hiển thị chỉ dựa trên điểm SQL, chưa phải kết luận SMS.');
       }
+      if (smsLoadErrors.length) setSmsError(`${smsLoadErrors.join(' ')} Vui lòng tải lại.`);
     } catch (err) {
       console.error('Error in CodSuspicionReport loadData:', err);
+      setSmsAssessments(new Map());
+      setSmsThreshold(null);
+      setSmsError('Không thể tải đầy đủ đánh giá SMS và mốc áp dụng; tạm hiển thị mức theo SQL. Vui lòng tải lại.');
       setErrorMsg('Đã xảy ra lỗi khi kết nối Supabase. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -486,10 +504,13 @@ export default function CodSuspicionReport({
       suspicionType,
       warehouse,
       alertLevel,
-      searchQuery
+      searchQuery,
+      assessmentsByCaseKey: smsAssessments,
+      threshold: smsThreshold,
+      useEffectiveAlertLevel: !isDevAdmin && smsThreshold !== null
     });
-    return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments);
-  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery, smsAssessments]);
+    return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments, { threshold: smsThreshold });
+  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery, smsAssessments, smsThreshold, isDevAdmin]);
 
   const resolutionCounts = useMemo(() => {
     const driverIdsByStatus = {
@@ -1363,7 +1384,7 @@ export default function CodSuspicionReport({
             const accordionKey = `${activeResolutionTab}:${driverKey}`;
             const isExpanded = expandedDrivers.has(accordionKey);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
-            const driverAlertLevel = getAlertLevel(driver.maxScore);
+            const driverAlertLevel = isDevAdmin ? getAlertLevel(driver.maxScore) : driver.effectiveAlertLevel || getAlertLevel(driver.maxScore);
 
             return (
               <div
@@ -1385,6 +1406,7 @@ export default function CodSuspicionReport({
                 {/* Driver Summary Header (Accordion Trigger) */}
                 <button
                   type="button"
+                  className="cod-driver-summary-trigger"
                   onClick={() => handleToggleExpandDriver(accordionKey)}
                   aria-expanded={isExpanded}
                   style={{
@@ -1463,6 +1485,14 @@ export default function CodSuspicionReport({
                       </div>
                     </div>
                   </div>
+
+                  {isDevAdmin && (
+                    <span className="cod-driver-sms-summary">
+                      {driver.maxSmsScore == null
+                        ? 'SMS: Chưa có điểm'
+                        : `SMS cao nhất: ${driver.maxSmsScore}/9`}
+                    </span>
+                  )}
 
                   <div
                     className="cod-driver-summary-metrics"
@@ -1569,7 +1599,11 @@ export default function CodSuspicionReport({
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
-                            const orderAlertLevel = getAlertLevel(order.totalScore);
+                            const orderAlertLevel = isDevAdmin
+                              ? getAlertLevel(order.totalScore)
+                              : smsThreshold === null
+                                ? getAlertLevel(order.totalScore)
+                                : getOrderEffectiveAlertLevel(order, smsAssessments, smsThreshold);
                             const smsKey = getCodSmsCaseKey({
                               suspicionType: order.suspicionType,
                               driverId: order.driverId,
