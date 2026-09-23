@@ -17,9 +17,14 @@
 
 const COD_SMS_SUPABASE_URL = 'https://iyjsihwgnzcytbojvoom.supabase.co';
 const COD_SMS_SHEET_NAME = 'goi_dau_COD';
+const COD_SMS_CONFLICTS_SHEET_NAME = 'goi_dau_COD_conflicts';
 const COD_SMS_RPC_NAME = 'sync_kas_cod_suspicion_snapshot';
 const COD_SMS_TRIGGER_HOUR = 8;
 const COD_SMS_TRIGGER_MINUTE = 45;
+const COD_SMS_CONFLICTS_HEADERS = [
+  'Thời gian chạy', 'Batch ID', 'Loại nghi ngờ', 'ID tài xế', 'Mã đơn',
+  'Dòng sheet gây lệch', 'Cột lệch'
+];
 
 // Required deliberately includes every source column currently used for
 // operations/audit or for the SMS scoring pipeline. A renamed/dropped BI alias
@@ -53,7 +58,8 @@ function dryRunGoiDauCodSmsSnapshot() {
     orders_with_sms: snapshot.stats.orders_with_sms,
     orders_without_sms: snapshot.stats.orders_without_sms,
     duplicate_sms_removed: snapshot.stats.duplicate_sms_removed,
-    total_drivers: snapshot.stats.total_drivers
+    total_drivers: snapshot.stats.total_drivers,
+    conflicted_orders_skipped: snapshot.stats.conflicted_orders_skipped
   }));
 }
 
@@ -65,15 +71,47 @@ function syncGoiDauCodSmsSnapshot() {
     new Date(), ss.getSpreadsheetTimeZone(), 'yyyyMMdd_HHmmss'
   );
 
+  if (snapshot.stats.conflicted_orders_skipped > 0) {
+    logConflictsToSheet_(ss, batchId, snapshot.stats.conflicts);
+  }
+
   const response = callCodSmsSnapshotRpc_(snapshot.orders, snapshot.sms_messages, {
     batch_id: batchId,
     notes: 'Đồng bộ Apps Script tab goi_dau_COD, aggregate đơn và SMS',
     source_rows: snapshot.stats.source_rows,
     unique_orders: snapshot.orders.length,
-    unique_sms_messages: snapshot.sms_messages.length
+    unique_sms_messages: snapshot.sms_messages.length,
+    conflicted_orders_skipped: snapshot.stats.conflicted_orders_skipped
   });
 
   Logger.log('Đồng bộ snapshot COD + SMS thành công: ' + JSON.stringify(response));
+  if (snapshot.stats.conflicted_orders_skipped > 0) {
+    Logger.log(
+      'LƯU Ý: ' + snapshot.stats.conflicted_orders_skipped + ' đơn KHÔNG được đồng bộ lần này vì ' +
+      'dữ liệu không nhất quán trong cùng 1 lần chạy BI (khả năng cao datajob Airflow không ổn định, ' +
+      'đã confirm với BI — không tự suy đoán giá trị đúng). Chi tiết đã ghi vào tab "' +
+      COD_SMS_CONFLICTS_SHEET_NAME + '".'
+    );
+  }
+}
+
+/** Append one row per conflicted order into the dedicated log tab (creates it on first use). */
+function logConflictsToSheet_(ss, batchId, conflicts) {
+  let sheet = ss.getSheetByName(COD_SMS_CONFLICTS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(COD_SMS_CONFLICTS_SHEET_NAME);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(COD_SMS_CONFLICTS_HEADERS);
+  }
+
+  const runTimestamp = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  const rows = conflicts.map((conflict) => {
+    const [suspicionType, driverId, orderCode] = conflict.order.split('\u001f');
+    return [runTimestamp, batchId, suspicionType, driverId, orderCode, conflict.sheet_row, conflict.diff];
+  });
+
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, COD_SMS_CONFLICTS_HEADERS.length).setValues(rows);
 }
 
 /** Recreate exactly one daily trigger for this dedicated COD+SMS path. */
@@ -98,7 +136,13 @@ function buildGoiDauCodSmsSnapshot_() {
     throw new Error('Không tìm thấy tab "' + COD_SMS_SHEET_NAME + '".');
   }
 
-  const values = sheet.getDataRange().getValues();
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  // Sheets can silently reformat a numeric cell as a date/time (see
+  // numberOrNull_). getDisplayValues() returns the rendered text of each cell
+  // (what a human/CSV export sees), which is used as a recovery source when
+  // that happens, since BI cannot always clean the export at the origin.
+  const displayValues = dataRange.getDisplayValues();
   if (values.length < 2) {
     throw new Error('Tab "' + COD_SMS_SHEET_NAME + '" trống hoặc chỉ có header.');
   }
@@ -111,25 +155,42 @@ function buildGoiDauCodSmsSnapshot_() {
 
   const ordersByKey = new Map();
   const smsByKey = new Map();
-  const sourceRows = values.slice(1)
-    .filter((row) => row.some((cell) => cell !== '' && cell !== null));
+  // Tab is fully overwritten each run, so a mismatch here is a genuine
+  // data-quality bug in the BI query itself (e.g. a fan-out JOIN), not a
+  // formatting artifact. Silently picking one of the two conflicting values
+  // is unsafe (this feeds a system used for driver disciplinary decisions) —
+  // instead the whole order is excluded from the snapshot and reported, so
+  // one broken order doesn't block every other order from syncing.
+  const conflictedKeys = new Set();
+  const conflicts = [];
+  const sourceRows = [];
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    if (row.some((cell) => cell !== '' && cell !== null)) {
+      sourceRows.push({ row: row, displayRow: displayValues[i], sheetRowNumber: i + 1 });
+    }
+  }
 
-  sourceRows.forEach((row, index) => {
-    const sheetRowNumber = index + 2;
-    const source = rowToObject_(headers, row);
-    const order = normalizeCodOrder_(source, ss.getSpreadsheetTimeZone(), sheetRowNumber);
+  sourceRows.forEach((entry) => {
+    const sheetRowNumber = entry.sheetRowNumber;
+    const source = rowToObject_(headers, entry.row);
+    const displaySource = rowToObject_(headers, entry.displayRow);
+    const order = normalizeCodOrder_(source, displaySource, ss.getSpreadsheetTimeZone(), sheetRowNumber);
     const key = orderKey_(order);
     const stableCore = stableJson_(order);
     const existing = ordersByKey.get(key);
 
     // Every repeated source row represents another SMS for the same order. If
-    // any non-SMS field diverges, stop instead of selecting an arbitrary row.
+    // any non-SMS field diverges, this order's data is unreliable this run —
+    // exclude it (see conflictedKeys comment above) instead of guessing.
     if (existing && existing.stable_core !== stableCore) {
-      throw new Error(
-        'Dòng ' + sheetRowNumber + ' có dữ liệu đơn không khớp với các dòng SMS trước đó: ' + key
-      );
-    }
-    if (!existing) {
+      conflictedKeys.add(key);
+      conflicts.push({
+        order: key,
+        sheet_row: sheetRowNumber,
+        diff: diffOrderFields_(existing.order, order)
+      });
+    } else if (!existing) {
       ordersByKey.set(key, { order: order, stable_core: stableCore });
     }
 
@@ -143,14 +204,29 @@ function buildGoiDauCodSmsSnapshot_() {
     smsByKey.set(smsKey, sms);
   });
 
-  const orders = Array.from(ordersByKey.values()).map((entry) => entry.order);
+  // Drop the conflicted orders entirely (not just the later duplicate row) —
+  // the first-seen value is just as unverified as the one that disagreed with
+  // it, and their SMS rows too, so nothing referencing an excluded order gets
+  // synced.
+  const orders = Array.from(ordersByKey.entries())
+    .filter(([key]) => !conflictedKeys.has(key))
+    .map(([, entry]) => entry.order);
   const smsMessages = Array.from(smsByKey.values())
+    .filter((sms) => !conflictedKeys.has(orderKey_(sms)))
     .sort((a, b) => (
       a.order_code.localeCompare(b.order_code) ||
       String(a.sms_time || '').localeCompare(String(b.sms_time || '')) ||
       a.content.localeCompare(b.content)
     ));
   const ordersWithSms = new Set(smsMessages.map((sms) => orderKey_(sms))).size;
+
+  if (conflicts.length > 0) {
+    Logger.log(
+      'CẢNH BÁO: ' + conflictedKeys.size + ' đơn bị loại khỏi snapshot do dữ liệu không nhất quán ' +
+      'giữa các dòng SMS trong cùng lần chạy (khả năng cao là bug fan-out ở query BI, không phải lỗi ' +
+      'định dạng) — cần báo BI kiểm tra riêng:\n' + JSON.stringify(conflicts, null, 2)
+    );
+  }
 
   return {
     orders: orders,
@@ -160,7 +236,9 @@ function buildGoiDauCodSmsSnapshot_() {
       total_drivers: new Set(orders.map((order) => order.driver_id)).size,
       orders_with_sms: ordersWithSms,
       orders_without_sms: orders.length - ordersWithSms,
-      duplicate_sms_removed: sourceRows.filter((row) => !isBlank_(row[headers.indexOf('SMS - nội dung')])).length - smsMessages.length
+      duplicate_sms_removed: sourceRows.filter((entry) => !isBlank_(entry.row[headers.indexOf('SMS - nội dung')])).length - smsMessages.length,
+      conflicted_orders_skipped: conflictedKeys.size,
+      conflicts: conflicts
     }
   };
 }
@@ -173,14 +251,15 @@ function rowToObject_(headers, row) {
   return source;
 }
 
-function normalizeCodOrder_(source, timezone, sheetRowNumber) {
+function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
   const required = ['Loại nghi ngờ', 'ID tài xế', 'Mã đơn', 'Trạng thái hiện tại'];
   const missing = required.filter((header) => isBlank_(source[header]));
   if (missing.length > 0) {
     throw new Error('Dòng ' + sheetRowNumber + ' thiếu: ' + missing.join(', '));
   }
   const answeredCallCount = integerOrNull_(
-    source['Số cuộc gọi có người nghe'], 'Số cuộc gọi có người nghe', sheetRowNumber
+    source['Số cuộc gọi có người nghe'], 'Số cuộc gọi có người nghe', sheetRowNumber,
+    displaySource['Số cuộc gọi có người nghe']
   );
 
   return {
@@ -191,13 +270,19 @@ function normalizeCodOrder_(source, timezone, sheetRowNumber) {
     driver_resignation_date: dateOrNull_(source['Ngày nghỉ việc (nếu có)'], timezone, sheetRowNumber),
     order_code: requiredText_(source['Mã đơn']),
     order_status: requiredText_(source['Trạng thái hiện tại']),
-    cod_amount: numberOrNull_(source['COD'], 'COD', sheetRowNumber),
+    cod_amount: numberOrNull_(source['COD'], 'COD', sheetRowNumber, displaySource['COD']),
     warehouse_name: textOrNull_(source['Kho giao']),
     first_delivered_date: dateOrNull_(source['Ngày gán giao'], timezone, sheetRowNumber),
     end_delivery_date: dateOrNull_(source['Ngày kết thúc giao'], timezone, sheetRowNumber),
     return_date: dateOrNull_(source['Ngày chuyển hoàn'], timezone, sheetRowNumber),
-    delivery_duration_days: numberOrNull_(source['Tổng thời gian giao (ngày)'], 'Tổng thời gian giao', sheetRowNumber),
-    reschedule_days_count: integerOrNull_(source['Số ngày hẹn giao lại'], 'Số ngày hẹn giao lại', sheetRowNumber),
+    delivery_duration_days: numberOrNull_(
+      source['Tổng thời gian giao (ngày)'], 'Tổng thời gian giao', sheetRowNumber,
+      displaySource['Tổng thời gian giao (ngày)']
+    ),
+    reschedule_days_count: integerOrNull_(
+      source['Số ngày hẹn giao lại'], 'Số ngày hẹn giao lại', sheetRowNumber,
+      displaySource['Số ngày hẹn giao lại']
+    ),
     last_call_log_date: textOrNull_(source['Ngày cuối có call log']),
     signal_count_over_p90: booleanOrFalse_(source['Bất thường call log (so P90 hardcode)'], 'M1', sheetRowNumber),
     answered_call_count: answeredCallCount,
@@ -205,21 +290,43 @@ function normalizeCodOrder_(source, timezone, sheetRowNumber) {
     first_fail_note: textOrNull_(source['Lý do fail ca giao đầu tiên']),
     signal_missing_sop_reason: booleanOrFalse_(source['Thiếu dữ liệu order_fail_reason (M14)'], 'M14', sheetRowNumber),
     signal_reason_conflict: booleanOrFalse_(source['Mâu thuẫn lý do vs duration (M7)'], 'M7', sheetRowNumber),
-    consecutive_attempt_gap_days: numberOrNull_(source['Số ngày cách ca thử giao tiếp theo'], 'Khoảng cách ca thử giao', sheetRowNumber),
+    consecutive_attempt_gap_days: numberOrNull_(
+      source['Số ngày cách ca thử giao tiếp theo'], 'Khoảng cách ca thử giao', sheetRowNumber,
+      displaySource['Số ngày cách ca thử giao tiếp theo']
+    ),
     signal_reschedule_gap_over_2d: booleanOrFalse_(source['Hẹn lại nhưng cách >=2 ngày (M8)'], 'M8', sheetRowNumber),
     signal_fake_call: booleanOrFalse_(source['Call log giả từ lần thử 2 (M9)'], 'M9', sheetRowNumber),
-    success_distance_km: numberOrNull_(source['Khoảng cách GPS lúc thành công (km)'], 'Khoảng cách GPS', sheetRowNumber),
+    success_distance_km: numberOrNull_(
+      source['Khoảng cách GPS lúc thành công (km)'], 'Khoảng cách GPS', sheetRowNumber,
+      displaySource['Khoảng cách GPS lúc thành công (km)']
+    ),
     signal_gps_far: booleanOrFalse_(source['GPS bất thường lúc thành công (M10)'], 'M10', sheetRowNumber),
     signal_gps_duplicate: booleanOrFalse_(source['GPS trùng khớp giữa nhiều đơn (M11)'], 'M11', sheetRowNumber),
     signal_gps_mocked: booleanOrFalse_(source['GPS mocked lúc thành công (M12)'], 'M12', sheetRowNumber),
     signal_call_duplicate: booleanOrFalse_(source['Call log trùng khớp giữa nhiều đơn (M15)'], 'M15', sheetRowNumber),
     signal_fail_reason_clustered: booleanOrFalse_(source['Nhiều đơn cùng lý do fail, cập nhật gần nhau (M16)'], 'M16', sheetRowNumber),
-    total_score: integerOrNull_(source['Điểm tổng nghi vấn'], 'Điểm tổng nghi vấn', sheetRowNumber),
-    avg_call_duration_seconds: numberOrNull_(source['TB thời lượng 1 cuộc gọi (giây)'], 'TB thời lượng 1 cuộc gọi', sheetRowNumber),
-    avg_ring_duration_seconds: numberOrNull_(source['TB thời lượng đổ chuông (giây)'], 'TB thời lượng đổ chuông', sheetRowNumber),
-    call_log_count: integerOrNull_(source['Số lượng call log (đơn này)'], 'Số lượng call log', sheetRowNumber),
-    driver_suspicious_order_count: integerOrNull_(source['so_don_nghi_van_cua_tai_xe'], 'Số đơn nghi vấn tài xế', sheetRowNumber),
-    driver_order_rank: integerOrNull_(source['rn_trong_tai_xe'], 'rn_trong_tai_xe', sheetRowNumber),
+    total_score: integerOrNull_(
+      source['Điểm tổng nghi vấn'], 'Điểm tổng nghi vấn', sheetRowNumber, displaySource['Điểm tổng nghi vấn']
+    ),
+    avg_call_duration_seconds: numberOrNull_(
+      source['TB thời lượng 1 cuộc gọi (giây)'], 'TB thời lượng 1 cuộc gọi', sheetRowNumber,
+      displaySource['TB thời lượng 1 cuộc gọi (giây)']
+    ),
+    avg_ring_duration_seconds: numberOrNull_(
+      source['TB thời lượng đổ chuông (giây)'], 'TB thời lượng đổ chuông', sheetRowNumber,
+      displaySource['TB thời lượng đổ chuông (giây)']
+    ),
+    call_log_count: integerOrNull_(
+      source['Số lượng call log (đơn này)'], 'Số lượng call log', sheetRowNumber,
+      displaySource['Số lượng call log (đơn này)']
+    ),
+    driver_suspicious_order_count: integerOrNull_(
+      source['so_don_nghi_van_cua_tai_xe'], 'Số đơn nghi vấn tài xế', sheetRowNumber,
+      displaySource['so_don_nghi_van_cua_tai_xe']
+    ),
+    driver_order_rank: integerOrNull_(
+      source['rn_trong_tai_xe'], 'rn_trong_tai_xe', sheetRowNumber, displaySource['rn_trong_tai_xe']
+    ),
     driver_qualifies: booleanOrFalse_(source['tai_xe_dat_dieu_kien'], 'tai_xe_dat_dieu_kien', sheetRowNumber),
     call_verification_priority: enumText_(source['Mức ưu tiên gọi xác minh'], ['Cao', 'Trung bình', 'Thấp'], 'Mức ưu tiên gọi xác minh', sheetRowNumber)
   };
@@ -273,6 +380,14 @@ function callCodSmsSnapshotRpc_(orders, smsMessages, snapshotMeta) {
   return body ? JSON.parse(body) : { success: true };
 }
 
+function diffOrderFields_(previousOrder, currentOrder) {
+  const fields = Object.keys(currentOrder);
+  const diffs = fields
+    .filter((field) => stableJson_(previousOrder[field]) !== stableJson_(currentOrder[field]))
+    .map((field) => field + ' (' + stableJson_(previousOrder[field]) + ' vs ' + stableJson_(currentOrder[field]) + ')');
+  return diffs.length > 0 ? diffs.join('; ') : '(không phát hiện cột lệch)';
+}
+
 function orderKey_(row) {
   return [row.suspicion_type, row.driver_id, row.order_code].join('\u001f');
 }
@@ -293,8 +408,29 @@ function textOrNull_(value) {
   return isBlank_(value) ? null : String(value).trim();
 }
 
-function numberOrNull_(value, label, sheetRowNumber) {
+function numberOrNull_(value, label, sheetRowNumber, displayValue) {
   if (isBlank_(value)) return null;
+  // Sheets/BI export can silently reformat a numeric cell as a date/time (e.g.
+  // an inconsistent decimal separator like "30.12" being auto-read as a "dd.mm"
+  // date). Number(Date) still returns a finite epoch-ms value instead of
+  // throwing, so it's rejected here and, since the BI side can't always fix
+  // this at the source, recovered from the cell's rendered display text
+  // (the same text a human or a CSV export would see) as a workaround.
+  if (value instanceof Date) {
+    const recovered = parseLocaleNumberOrNull_(displayValue);
+    if (recovered === null) {
+      throw new Error(
+        'Dòng ' + sheetRowNumber + ': ' + label + ' bị định dạng thành ngày/giờ thay vì số (ô: ' +
+        value + ', hiển thị: "' + displayValue + '") và không tự khôi phục được số. ' +
+        'Hãy sửa lại ô trong sheet (đổi định dạng về số thuần).'
+      );
+    }
+    Logger.log(
+      'Dòng ' + sheetRowNumber + ': ' + label + ' bị Sheets tự đổi thành ngày/giờ — đã tự khôi phục ' +
+      'từ giá trị hiển thị "' + displayValue + '" thành ' + recovered + '.'
+    );
+    return recovered;
+  }
   const number = Number(value);
   if (!Number.isFinite(number)) {
     throw new Error('Dòng ' + sheetRowNumber + ': ' + label + ' không phải số hợp lệ: ' + value);
@@ -302,13 +438,37 @@ function numberOrNull_(value, label, sheetRowNumber) {
   return number;
 }
 
-function integerOrNull_(value, label, sheetRowNumber) {
-  const number = numberOrNull_(value, label, sheetRowNumber);
+function integerOrNull_(value, label, sheetRowNumber, displayValue) {
+  const number = numberOrNull_(value, label, sheetRowNumber, displayValue);
   if (number === null) return null;
   if (!Number.isInteger(number)) {
     throw new Error('Dòng ' + sheetRowNumber + ': ' + label + ' phải là số nguyên: ' + value);
   }
   return number;
+}
+
+// Parses a number from Sheets' rendered display text regardless of which
+// decimal separator was used (VN locale ",": "0,8"; stray "." like "30.12").
+// The LAST "," or "." found is treated as the decimal point, everything
+// before it as thousands grouping — the standard locale-agnostic heuristic.
+// Only safe for values without genuine thousands grouping (a "4.057.500"
+// integer would misparse as 4057.5) — this is only used as a last-resort
+// recovery for cells Sheets corrupted into a Date, which in this sheet are
+// small decimal averages, never large grouped integers like COD amounts.
+function parseLocaleNumberOrNull_(text) {
+  if (isBlank_(text)) return null;
+  const trimmed = String(text).trim();
+  const lastSeparator = Math.max(trimmed.lastIndexOf(','), trimmed.lastIndexOf('.'));
+  if (lastSeparator === -1) {
+    const plain = Number(trimmed.replace(/[^\d-]/g, ''));
+    return Number.isFinite(plain) ? plain : null;
+  }
+  const isNegative = trimmed.trim().charAt(0) === '-';
+  const integerPart = trimmed.slice(0, lastSeparator).replace(/[^\d]/g, '');
+  const fractionPart = trimmed.slice(lastSeparator + 1).replace(/[^\d]/g, '');
+  const combined = (isNegative ? '-' : '') + (integerPart || '0') + (fractionPart ? '.' + fractionPart : '');
+  const number = Number(combined);
+  return Number.isFinite(number) ? number : null;
 }
 
 function booleanOrFalse_(value, label, sheetRowNumber) {
