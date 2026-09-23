@@ -45,7 +45,7 @@ export default function CodSmsThresholdSettings() {
   return (
     <section className="cod-threshold-settings" aria-labelledby="cod-threshold-title">
       <h2 id="cod-threshold-title">Mốc điểm SMS để nâng mức nghi ngờ</h2>
-      <p>Chỉ áp dụng khi mức theo SQL là Trung bình. Đổi mốc không chấm SMS lại hoặc thay điểm đã lưu.</p>
+      <p>Chỉ áp dụng khi mức theo SQL là Vừa. Đổi mốc không chấm SMS lại hoặc thay điểm đã lưu.</p>
       {status === 'loading' && <p role="status">Đang tải mốc đang áp dụng…</p>}
       {status === 'error' && <p role="alert">{message} <button type="button" onClick={load}>Thử lại</button></p>}
       {current && status !== 'error' && status !== 'loading' && (

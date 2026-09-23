@@ -298,7 +298,9 @@ export function filterDriverGroups(driverGroups = [], {
         return driver;
       }
 
-      // 1. Filter orders of this driver
+      // Filter the source orders first. For regular users the alert filter is
+      // applied to the resulting driver case, whose SMS score is the maximum
+      // across these orders. Dev retains the SQL order-level filter.
       const matchingOrders = driver.orders.filter(order => {
         if (suspicionType !== 'ALL' && order.suspicionType !== suspicionType) {
           return false;
@@ -306,16 +308,19 @@ export function filterDriverGroups(driverGroups = [], {
         if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
           return false;
         }
-        const orderLevel = useEffectiveAlertLevel
-          ? getOrderEffectiveAlertLevel(order, assessmentsByCaseKey, threshold)
-          : getAlertLevel(order.totalScore);
-        if (alertLevel !== 'ALL' && orderLevel.value !== alertLevel) {
+        if (!useEffectiveAlertLevel && alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
         }
         return true;
       });
 
       if (matchingOrders.length === 0) return null;
+
+      if (useEffectiveAlertLevel && alertLevel !== 'ALL') {
+        const maxScore = Math.max(...matchingOrders.map(order => order.totalScore), 0);
+        const maxSmsScore = getDriverGroupMaxSmsScore(matchingOrders, assessmentsByCaseKey);
+        if (getEffectiveAlertLevel(maxScore, maxSmsScore, threshold).value !== alertLevel) return null;
+      }
 
       // 2. Check search query against driver ID, driver Name, or matching order codes
       if (cleanSearch) {
@@ -657,13 +662,11 @@ export function addSmsSummaryToDriverGroups(
 ) {
   return driverGroups.map(driver => {
     const maxSmsScore = getDriverGroupMaxSmsScore(driver, assessmentsByCaseKey);
-    const alertPriority = { LOW: 1, MEDIUM: 2, HIGH: 3 };
-    const effectiveAlertLevel = driver.orders?.reduce((highest, order) => {
-      const level = threshold === null
-        ? getAlertLevel(order.totalScore)
-        : getOrderEffectiveAlertLevel(order, assessmentsByCaseKey, threshold);
-      return !highest || alertPriority[level.value] > alertPriority[highest.value] ? level : highest;
-    }, null) ?? null;
+    const effectiveAlertLevel = driver.orders?.length
+      ? threshold === null
+        ? getAlertLevel(driver.maxScore)
+        : getEffectiveAlertLevel(driver.maxScore, maxSmsScore, threshold)
+      : null;
     return {
       ...driver,
       maxSmsScore,
@@ -767,22 +770,11 @@ export function getSmsScoreBadge(assessment) {
   };
 }
 
-/**
- * Simplified read for regular users. Missing, pending and failed assessments
- * are unknown, not a conclusion that the SMS has no suspicious signal.
- */
+/** Keep the existing two-state SMS label for regular users. */
 export function getSmsSimpleVerdict(assessment) {
-  if (!assessment || assessment.status === 'pending') return { text: 'Chưa có kết quả SMS', level: 'pending' };
-  if (assessment.status === 'failed') return { text: 'Không tải được đánh giá SMS', level: 'failed' };
-  if (assessment.status === 'no_evidence') return { text: 'Chưa có SMS để đánh giá', level: 'no_evidence' };
-  const score = assessment.smsScore ?? assessment.sms_score;
-  if (assessment.status !== 'scored' || score === null || score === undefined
-    || (typeof score !== 'number' && typeof score !== 'string')
-    || (typeof score === 'string' && score.trim() === '')
-    || !Number.isInteger(Number(score)) || Number(score) < 0 || Number(score) > 9) {
-    return { text: 'Chưa có kết quả SMS', level: 'pending' };
-  }
-  return Number(score) > 0
+  const isSuspicious = Boolean(assessment && assessment.status === 'scored'
+    && Number(assessment.smsScore ?? assessment.sms_score) > 0);
+  return isSuspicious
     ? { text: 'Có dấu hiệu nghi ngờ', level: 'high' }
     : { text: 'Không có dấu hiệu nghi ngờ', level: 'no_evidence' };
 }
