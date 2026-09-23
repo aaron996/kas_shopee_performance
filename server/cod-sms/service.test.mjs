@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { runAssessmentBatch } from './service.js';
+import { runAssessmentBatch, withLoggedRun } from './service.js';
 
 const config = {
   model: 'gpt-5.6-luna',
@@ -208,4 +208,68 @@ test('migration keeps assessment data server-only and claim RPC security-invoker
   assert.match(sql, /COD_SMS_SERVICE_ROLE_REQUIRED/);
   assert.match(sql, /grant execute[\s\S]*to service_role/i);
   assert.doesNotMatch(sql, /grant (?:select|all)[^;]*to authenticated/i);
+});
+
+test('withLoggedRun records one item per order and closes the run with totals', async () => {
+  const repository = makeMemoryRepository(makeSource([{
+    smsTime: '2026-08-14T03:28:17',
+    recipientType: 'NN',
+    content: 'VP bank 249997803 Nguyễn Văn A'
+  }]));
+  const runs = [];
+  const items = [];
+  repository.createRun = async meta => {
+    runs.push({ id: 'run-a', meta });
+    return 'run-a';
+  };
+  repository.finishRun = async (id, values) => {
+    runs.find(run => run.id === id).finished = values;
+  };
+  repository.recordRunItem = async (runId, assessment, { outcome }) => {
+    items.push({ runId, orderCode: assessment.order_code, outcome, error: assessment.error_message });
+  };
+
+  const { runId, result } = await withLoggedRun(repository, { trigger: 'manual', mode: 'cases' }, id =>
+    runAssessmentBatch({ repository, config, limit: 1, runId: id }, {
+      scoreSource: async () => {
+        const error = new Error('Model trả về dữ liệu không đúng schema chấm điểm SMS (x).');
+        error.code = 'COD_SMS_MODEL_SCHEMA_INVALID';
+        throw error;
+      }
+    }));
+
+  assert.equal(runId, 'run-a');
+  assert.equal(result.summary.failed, 1);
+  assert.deepEqual(items.map(item => [item.runId, item.orderCode, item.outcome]), [['run-a', 'ORDER-1', 'failed']]);
+  assert.match(items[0].error, /\(x\)/);
+  assert.equal(runs[0].finished.status, 'completed');
+  assert.equal(runs[0].finished.totals.failed, 1);
+});
+
+test('run log write failures never break scoring', async () => {
+  const repository = makeMemoryRepository(makeSource([]));
+  repository.createRun = async () => { throw new Error('db down'); };
+  repository.recordRunItem = async () => { throw new Error('must not be called without a run id'); };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const { runId, result } = await withLoggedRun(repository, { trigger: 'cron', mode: 'sweep' }, id =>
+      runAssessmentBatch({ repository, config, limit: 1, runId: id }));
+    assert.equal(runId, null);
+    assert.equal(result.summary.noEvidence, 1);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('withLoggedRun marks the run failed and rethrows when the work throws', async () => {
+  let finished = null;
+  const repository = {
+    createRun: async () => 'run-b',
+    finishRun: async (_id, values) => { finished = values; }
+  };
+  const boom = Object.assign(new Error('Không thể đọc danh sách đơn COD.'), { code: 'COD_SMS_SOURCE_READ_FAILED' });
+  await assert.rejects(withLoggedRun(repository, {}, async () => { throw boom; }), boom);
+  assert.equal(finished.status, 'failed');
+  assert.equal(finished.errorCode, 'COD_SMS_SOURCE_READ_FAILED');
 });

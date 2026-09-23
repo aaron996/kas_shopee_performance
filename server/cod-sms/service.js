@@ -202,6 +202,91 @@ export function createCodSmsRepository(serviceClient) {
         throw databaseError('COD_SMS_ASSESSMENT_READ_FAILED', 'Không thể đọc kết quả chấm điểm SMS.', error);
       }
       return { rows: data ?? [], totalCount: count ?? (data ?? []).length };
+    },
+
+    async createRun({ trigger, mode, triggeredBy = null, triggeredByEmail = null, model, rubricVersion, force }) {
+      const { data, error } = await serviceClient
+        .from('cod_suspicion_sms_runs')
+        .insert({
+          trigger,
+          mode,
+          triggered_by: triggeredBy,
+          triggered_by_email: triggeredByEmail,
+          model,
+          rubric_version: rubricVersion,
+          force
+        })
+        .select('id')
+        .single();
+      if (error || !data?.id) {
+        throw databaseError('COD_SMS_RUN_CREATE_FAILED', 'Không thể tạo batch chấm điểm SMS.', error);
+      }
+      return data.id;
+    },
+
+    async finishRun(runId, { status, totals = {}, errorCode = null, errorMessage = null }) {
+      const { error } = await serviceClient
+        .from('cod_suspicion_sms_runs')
+        .update({
+          status,
+          found: totals.found ?? 0,
+          claimed: totals.claimed ?? 0,
+          scored: totals.scored ?? 0,
+          no_evidence: totals.noEvidence ?? 0,
+          failed: totals.failed ?? 0,
+          skipped_unchanged: totals.skippedUnchanged ?? 0,
+          error_code: errorCode ? String(errorCode).slice(0, 100) : null,
+          error_message: errorMessage ? String(errorMessage).slice(0, 500) : null,
+          finished_at: new Date().toISOString()
+        })
+        .eq('id', runId);
+      if (error) {
+        throw databaseError('COD_SMS_RUN_FINALIZE_FAILED', 'Không thể lưu kết quả batch SMS.', error);
+      }
+    },
+
+    async recordRunItem(runId, assessment, { outcome }) {
+      const { error } = await serviceClient
+        .from('cod_suspicion_sms_run_items')
+        .insert({
+          run_id: runId,
+          suspicion_type: assessment.suspicion_type,
+          driver_id: assessment.driver_id,
+          order_code: assessment.order_code,
+          outcome,
+          sms_score: assessment.sms_score ?? null,
+          model_called: outcome !== 'skipped_unchanged' && assessment.model_called === true,
+          error_code: outcome === 'failed' ? assessment.error_code : null,
+          error_message: outcome === 'failed' ? assessment.error_message : null
+        });
+      if (error) {
+        throw databaseError('COD_SMS_RUN_ITEM_FAILED', 'Không thể ghi log đơn trong batch SMS.', error);
+      }
+    },
+
+    async listRuns({ limit, offset = 0 }) {
+      const { data, error, count } = await serviceClient
+        .from('cod_suspicion_sms_runs')
+        .select('*', { count: 'exact' })
+        .order('started_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (error) {
+        throw databaseError('COD_SMS_RUN_READ_FAILED', 'Không thể đọc lịch sử batch SMS.', error);
+      }
+      return { rows: data ?? [], totalCount: count ?? (data ?? []).length };
+    },
+
+    async listRunItems(runId) {
+      const { data, error } = await serviceClient
+        .from('cod_suspicion_sms_run_items')
+        .select('*')
+        .eq('run_id', runId)
+        .order('id', { ascending: true })
+        .limit(10000);
+      if (error) {
+        throw databaseError('COD_SMS_RUN_READ_FAILED', 'Không thể đọc chi tiết batch SMS.', error);
+      }
+      return data ?? [];
     }
   };
 }
@@ -266,6 +351,82 @@ export function serializeAssessment(row, options = {}) {
   };
 }
 
+export function serializeRun(row) {
+  return {
+    id: row.id,
+    trigger: row.trigger,
+    mode: row.mode,
+    status: row.status,
+    triggeredByEmail: row.triggered_by_email,
+    model: row.model,
+    rubricVersion: row.rubric_version,
+    force: row.force,
+    summary: {
+      found: row.found,
+      claimed: row.claimed,
+      scored: row.scored,
+      noEvidence: row.no_evidence,
+      failed: row.failed,
+      skippedUnchanged: row.skipped_unchanged
+    },
+    error: row.error_code ? { code: row.error_code, message: row.error_message } : null,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at
+  };
+}
+
+export function serializeRunItem(row) {
+  return {
+    key: {
+      suspicionType: row.suspicion_type,
+      driverId: row.driver_id,
+      orderCode: row.order_code
+    },
+    outcome: row.outcome,
+    smsScore: row.sms_score,
+    modelCalled: row.model_called,
+    technicalError: row.error_code ? { code: row.error_code, message: row.error_message } : null,
+    createdAt: row.created_at
+  };
+}
+
+/**
+ * Open a run log row, execute `work(runId)`, then close it with the totals
+ * `work` returns. The log is diagnostic only: failing to write it must never
+ * block or fail scoring, so every log write here is best-effort.
+ */
+export async function withLoggedRun(repository, meta, work) {
+  let runId = null;
+  if (typeof repository.createRun === 'function') {
+    try {
+      runId = await repository.createRun(meta);
+    } catch (error) {
+      console.error('[cod-sms] could not create run log', { code: error?.code });
+    }
+  }
+  const finish = async values => {
+    if (!runId) return;
+    try {
+      await repository.finishRun(runId, values);
+    } catch (error) {
+      console.error('[cod-sms] could not finalize run log', { runId, code: error?.code });
+    }
+  };
+  try {
+    const result = await work(runId);
+    const totals = result?.summary ?? result;
+    await finish({ status: totals?.aborted ? 'aborted' : 'completed', totals });
+    return { runId, result };
+  } catch (error) {
+    await finish({
+      status: 'failed',
+      errorCode: typeof error?.code === 'string' ? error.code : 'COD_SMS_RUN_FAILED',
+      errorMessage: error?.message || 'Batch SMS thất bại.'
+    });
+    throw error;
+  }
+}
+
 export async function runAssessmentBatch(params, dependencies = {}) {
   const {
     repository,
@@ -274,10 +435,23 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     offset = 0,
     cases = [],
     force = false,
+    runId = null,
     signal,
     onProgress
   } = params;
   const score = dependencies.scoreSource ?? scoreSmsSource;
+  const logItem = async (assessment, outcome) => {
+    if (!runId || typeof repository.recordRunItem !== 'function') return;
+    try {
+      await repository.recordRunItem(runId, assessment, { outcome });
+    } catch (error) {
+      console.error('[cod-sms] could not record run item', {
+        runId,
+        orderCode: assessment?.order_code,
+        code: error?.code
+      });
+    }
+  };
   const sources = await repository.loadSources({ limit, offset, cases });
   const rows = [];
   const summary = {
@@ -314,6 +488,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     if (!claim.claimed) {
       summary.skippedUnchanged += 1;
       rows.push(claim.assessment);
+      await logItem(claim.assessment, 'skipped_unchanged');
       emitProgress();
       continue;
     }
@@ -330,6 +505,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       }, 'no_evidence', false, scoredAt));
       summary.noEvidence += 1;
       rows.push(completed);
+      await logItem(completed, 'no_evidence');
       emitProgress();
       continue;
     }
@@ -344,6 +520,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       );
       summary[status === 'scored' ? 'scored' : 'noEvidence'] += 1;
       rows.push(completed);
+      await logItem(completed, status);
     } catch (error) {
       const failure = technicalFailure(error);
       const completed = await repository.complete(claim.assessment.id, claim.run_token, {
@@ -359,6 +536,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       });
       summary.failed += 1;
       rows.push(completed);
+      await logItem(completed, 'failed');
     }
     emitProgress();
   }

@@ -258,59 +258,61 @@ export async function fetchCodSmsAssessmentsSummary({ limit = 500 } = {}) {
   }
 }
 
-/**
- * Fetch a page of the SMS AI scoring history (Dev Admin panel), with
- * server-side pagination and status/driver/order filters. Never requests
- * evidence.
- */
-export async function fetchCodSmsAssessmentsHistory({ limit = 25, offset = 0, status = null, driverId = null, orderCode = null } = {}) {
+async function getCodSmsJson(params, label) {
   try {
     const authHeaders = await getAuthHeader();
-    const parsedLimit = Math.min(Math.max(Number(limit) || 25, 1), 500);
-    const parsedOffset = Math.max(Number(offset) || 0, 0);
-    const params = new URLSearchParams({ limit: String(parsedLimit), offset: String(parsedOffset) });
-    if (status) params.set('status', status);
-    if (driverId) params.set('driver_id', driverId);
-    if (orderCode) params.set('order_code', orderCode);
-    const url = `/api/cod-sms-assessments?${params.toString()}`;
-
     const res = await withTimeout(
-      fetch(url, {
+      fetch(`/api/cod-sms-assessments?${params.toString()}`, {
         headers: {
           ...authHeaders,
           'Accept': 'application/json'
         }
       }),
-      'cod-sms-assessments-history'
+      label
     );
-
     if (!res.ok) {
       let errPayload;
       try { errPayload = await res.json(); } catch { /* ignore */ }
-      return {
-        success: false,
-        error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`,
-        assessments: [],
-        meta: {}
-      };
+      return { success: false, error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})` };
     }
-
-    const data = await res.json();
-    return {
-      success: true,
-      contractVersion: data.contractVersion || '1',
-      assessments: Array.isArray(data.assessments) ? data.assessments : [],
-      meta: data.meta || {}
-    };
+    return { success: true, data: await res.json() };
   } catch (err) {
-    console.error('Failed to fetch COD SMS assessments history:', err);
-    return {
-      success: false,
-      error: err.message || 'UNKNOWN_ERROR',
-      assessments: [],
-      meta: {}
-    };
+    console.error(`Failed to fetch ${label}:`, err);
+    return { success: false, error: err.message || 'UNKNOWN_ERROR' };
   }
+}
+
+/**
+ * Fetch a page of SMS AI scoring runs (cron + manual batches), newest first,
+ * for the Dev Admin history panel. Server rejects non-Dev callers.
+ */
+export async function fetchCodSmsRuns({ limit = 20, offset = 0 } = {}) {
+  const params = new URLSearchParams({
+    view: 'runs',
+    limit: String(Math.min(Math.max(Number(limit) || 20, 1), 100)),
+    offset: String(Math.max(Number(offset) || 0, 0))
+  });
+  const result = await getCodSmsJson(params, 'cod-sms-runs');
+  if (!result.success) return { success: false, error: result.error, runs: [], meta: {} };
+  return {
+    success: true,
+    runs: Array.isArray(result.data.runs) ? result.data.runs : [],
+    meta: result.data.meta || {}
+  };
+}
+
+/**
+ * Fetch every per-order outcome recorded for one run (Dev Admin only).
+ * Never includes SMS evidence.
+ */
+export async function fetchCodSmsRunItems(runId) {
+  const params = new URLSearchParams({ view: 'run_items', run_id: String(runId) });
+  const result = await getCodSmsJson(params, 'cod-sms-run-items');
+  if (!result.success) return { success: false, error: result.error, items: [] };
+  return {
+    success: true,
+    items: Array.isArray(result.data.items) ? result.data.items : []
+  };
 }
 
 /**

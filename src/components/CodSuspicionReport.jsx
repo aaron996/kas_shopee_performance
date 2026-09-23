@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ShieldAlert,
-  RefreshCw,
   ChevronDown,
   AlertTriangle,
   CheckCircle2,
@@ -55,7 +54,6 @@ import {
   uploadCodResolutionEvidence,
   removeCodResolutionEvidence,
   fetchCodSmsAssessmentsSummary,
-  fetchCodSmsAssessmentsHistory,
   fetchCodSmsAssessmentEvidenceCached,
   getCachedCodSmsEvidence,
   invalidateCodSmsEvidenceCache,
@@ -64,6 +62,7 @@ import {
 import LoadingScreen from './LoadingScreen';
 import ModalDialog from './ui/ModalDialog';
 import { fetchCodSmsThreshold } from '../utils/codSmsThresholdClient';
+import CodSmsRunHistoryPanel from './CodSmsRunHistoryPanel';
 
 const TYPE_COLORS = {
   'Gối đầu COD': 'var(--ghn-orange, #f26522)',
@@ -127,13 +126,7 @@ export default function CodSuspicionReport({
   const [manualRunSelectedKeys, setManualRunSelectedKeys] = useState(() => new Map());
   const manualRunAbortRef = useRef(null);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
-  const [historyRows, setHistoryRows] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState('');
-  const [historyOffset, setHistoryOffset] = useState(0);
-  const [historyTotalCount, setHistoryTotalCount] = useState(0);
-  const [historyFilters, setHistoryFilters] = useState({ status: '', driverId: '', orderCode: '' });
-  const HISTORY_PAGE_SIZE = 25;
+  const [smsRunsRefreshKey, setSmsRunsRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
@@ -370,6 +363,7 @@ export default function CodSuspicionReport({
       onProgress: update => setManualRunProgress(update)
     });
     manualRunAbortRef.current = null;
+    setSmsRunsRefreshKey(key => key + 1);
 
     if (!result.success) {
       setManualRunState(result.aborted
@@ -384,34 +378,6 @@ export default function CodSuspicionReport({
 
   const handleStopManualBatch = useCallback(() => {
     manualRunAbortRef.current?.abort();
-  }, []);
-
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
-    setHistoryError('');
-    const result = await fetchCodSmsAssessmentsHistory({
-      limit: HISTORY_PAGE_SIZE,
-      offset: historyOffset,
-      status: historyFilters.status || null,
-      driverId: historyFilters.driverId.trim() || null,
-      orderCode: historyFilters.orderCode.trim() || null
-    });
-    if (result.success) {
-      setHistoryRows(result.assessments);
-      setHistoryTotalCount(result.meta?.totalCount ?? result.assessments.length);
-    } else {
-      setHistoryError(result.error || 'Không thể tải lịch sử chấm điểm SMS AI.');
-    }
-    setHistoryLoading(false);
-  }, [historyOffset, historyFilters]);
-
-  useEffect(() => {
-    if (isDevAdmin && historyPanelOpen) loadHistory();
-  }, [isDevAdmin, historyPanelOpen, loadHistory]);
-
-  const updateHistoryFilter = useCallback((key, value) => {
-    setHistoryOffset(0);
-    setHistoryFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
   const closeManualRunDialog = useCallback(() => {
@@ -436,6 +402,16 @@ export default function CodSuspicionReport({
       resolution: resolutions.get(getCodSuspicionDriverKey(order)) || null
     };
   }), [rawData, resolutions]);
+
+  const driverNameById = useMemo(() => {
+    const names = new Map();
+    for (const order of normalizedOrders) {
+      if (order.driverId && order.driverNameRaw && !names.has(order.driverId)) {
+        names.set(order.driverId, order.driverNameRaw);
+      }
+    }
+    return names;
+  }, [normalizedOrders]);
 
   // Order picker (manual SMS run, mode='cases'): filters the already-loaded
   // orders client-side, no extra API call needed.
@@ -1101,151 +1077,16 @@ export default function CodSuspicionReport({
               type="button"
               className="cod-workflow-action cod-workflow-action--secondary"
               onClick={() => setHistoryPanelOpen(open => !open)}
-              title="Xem lịch sử các lượt AI đọc và chấm điểm SMS"
+              title="Xem lịch sử từng batch AI chấm điểm SMS và kết quả theo đơn"
             >
-              <Search size={15} /> {historyPanelOpen ? 'Ẩn lịch sử chấm SMS' : 'Lịch sử chấm SMS'}
+              <Search size={15} /> {historyPanelOpen ? 'Ẩn lịch sử batch SMS' : 'Lịch sử batch SMS'}
             </button>
           </>
         )}
       </div>
 
       {isDevAdmin && historyPanelOpen && (
-        <div style={{
-          marginBottom: '0.85rem',
-          background: 'var(--card-bg)',
-          borderRadius: '12px',
-          border: '1px solid var(--border)',
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            padding: '0.85rem 1rem',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--surface-hover)',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '0.5rem'
-          }}>
-            <span>LỊCH SỬ CHẤM ĐIỂM SMS AI</span>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontWeight: 400 }}>
-              <select
-                value={historyFilters.status}
-                onChange={e => updateHistoryFilter('status', e.target.value)}
-                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem' }}
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="pending">Đang chờ</option>
-                <option value="scored">Đã chấm</option>
-                <option value="no_evidence">Không có bằng chứng</option>
-                <option value="failed">Lỗi</option>
-              </select>
-              <input
-                type="text"
-                value={historyFilters.driverId}
-                onChange={e => updateHistoryFilter('driverId', e.target.value)}
-                placeholder="ID tài xế"
-                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', width: '110px' }}
-              />
-              <input
-                type="text"
-                value={historyFilters.orderCode}
-                onChange={e => updateHistoryFilter('orderCode', e.target.value)}
-                placeholder="Mã đơn"
-                style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', width: '130px' }}
-              />
-              <button
-                type="button"
-                onClick={loadHistory}
-                disabled={historyLoading}
-                className="cod-workflow-action cod-workflow-action--secondary"
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-              >
-                <RefreshCw size={13} className={historyLoading ? 'is-spinning' : ''} /> Tải lại
-              </button>
-            </div>
-          </div>
-
-          {historyError && (
-            <div style={{ padding: '0.75rem 1rem', color: 'var(--danger-fg, #a13b2a)', fontSize: '0.85rem' }}>
-              {historyError}
-            </div>
-          )}
-
-          <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '0.5rem 1rem' }}>Mã đơn</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Tài xế</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Loại</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Trạng thái</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Điểm</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Model</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Cập nhật</th>
-                  <th style={{ padding: '0.5rem 1rem' }}>Lỗi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyLoading ? (
-                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải...</td></tr>
-                ) : historyRows.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>Không có bản ghi nào phù hợp.</td></tr>
-                ) : historyRows.map(row => (
-                  <tr key={`${row.key?.suspicionType}-${row.key?.driverId}-${row.key?.orderCode}`} style={{ borderTop: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.5rem 1rem', fontFamily: 'var(--font-mono, monospace)' }}>{row.key?.orderCode}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.key?.driverId}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.key?.suspicionType}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.status}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.smsScore ?? '—'}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.model || '—'}</td>
-                    <td style={{ padding: '0.5rem 1rem' }}>{row.updatedAt ? new Date(row.updatedAt).toLocaleString('vi-VN') : '—'}</td>
-                    <td style={{ padding: '0.5rem 1rem', color: row.technicalError ? 'var(--danger-fg, #a13b2a)' : 'inherit' }}>
-                      {row.technicalError?.message || '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.6rem 1rem',
-            borderTop: '1px solid var(--border)',
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)'
-          }}>
-            <span>
-              {historyTotalCount > 0
-                ? `${historyOffset + 1}–${Math.min(historyOffset + HISTORY_PAGE_SIZE, historyTotalCount)} / ${historyTotalCount}`
-                : '0 bản ghi'}
-            </span>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button
-                type="button"
-                disabled={historyLoading || historyOffset === 0}
-                onClick={() => setHistoryOffset(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))}
-                className="cod-workflow-action cod-workflow-action--secondary"
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                disabled={historyLoading || historyOffset + HISTORY_PAGE_SIZE >= historyTotalCount}
-                onClick={() => setHistoryOffset(historyOffset + HISTORY_PAGE_SIZE)}
-                className="cod-workflow-action cod-workflow-action--secondary"
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        </div>
+        <CodSmsRunHistoryPanel driverNameById={driverNameById} refreshKey={smsRunsRefreshKey} />
       )}
 
       {resolutionError && (
