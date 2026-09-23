@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient.js';
+import { COD_SMS_ASSESSMENT_MAX_LIMIT, collectCodSmsAssessmentPages } from './codSmsAssessmentPagination.js';
+export { collectCodSmsAssessmentPages } from './codSmsAssessmentPagination.js';
 
 const PAGE_SIZE = 1000;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -207,42 +209,45 @@ async function getAuthHeader() {
 }
 
 /**
- * Fetch batch summary of COD SMS AI assessments (contract v1).
- * Never requests evidence (include_evidence=false).
+ * Fetch all COD SMS AI assessments using the contract-v1 GET pagination.
+ * Each request stays within the 500-row limit and never requests evidence.
  */
 export async function fetchCodSmsAssessmentsSummary({ limit = 500 } = {}) {
   try {
     const authHeaders = await getAuthHeader();
-    const parsedLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
-    const url = `/api/cod-sms-assessments?limit=${parsedLimit}`;
+    const parsedLimit = Math.min(Math.max(Number(limit) || 200, 1), COD_SMS_ASSESSMENT_MAX_LIMIT);
 
-    const res = await withTimeout(
-      fetch(url, {
-        headers: {
-          ...authHeaders,
-          'Accept': 'application/json'
-        }
-      }),
-      'cod-sms-assessments-summary'
-    );
+    return await collectCodSmsAssessmentPages(async ({ limit: pageLimit, offset }) => {
+      const params = new URLSearchParams({ limit: String(pageLimit), offset: String(offset) });
+      const res = await withTimeout(
+        fetch(`/api/cod-sms-assessments?${params.toString()}`, {
+          headers: {
+            ...authHeaders,
+            'Accept': 'application/json'
+          }
+        }),
+        'cod-sms-assessments-summary'
+      );
 
-    if (!res.ok) {
-      let errPayload;
-      try { errPayload = await res.json(); } catch { /* ignore */ }
+      if (!res.ok) {
+        let errPayload;
+        try { errPayload = await res.json(); } catch { /* ignore */ }
+        return {
+          success: false,
+          error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`,
+          assessments: [],
+          meta: {}
+        };
+      }
+
+      const data = await res.json();
       return {
-        success: false,
-        error: errPayload?.error?.message || `Yêu cầu thất bại (${res.status})`,
-        assessments: []
+        success: true,
+        contractVersion: data.contractVersion || '1',
+        assessments: Array.isArray(data.assessments) ? data.assessments : [],
+        meta: data.meta || {}
       };
-    }
-
-    const data = await res.json();
-    return {
-      success: true,
-      contractVersion: data.contractVersion || '1',
-      assessments: Array.isArray(data.assessments) ? data.assessments : [],
-      meta: data.meta || {}
-    };
+    }, { limit: parsedLimit });
   } catch (err) {
     console.error('Failed to fetch COD SMS assessments summary:', err);
     return {
@@ -642,6 +647,7 @@ export async function runCodSmsAssessmentBatch({ mode = 'all', cases = [], onPro
           .filter(item => item.status === 'failed')
           .map(item => item.key)
           .filter(Boolean)
+          .slice(0, COD_SMS_ASSESSMENT_MAX_LIMIT)
       : [];
 
     let forceRetried = 0;
