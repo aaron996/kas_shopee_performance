@@ -27,6 +27,7 @@ import {
   addSmsSummaryToDriverGroups,
   getSmsScoreBadge,
   summarizeCodSmsAssessments,
+  getDriverSmsLabel,
   formatSmsConfidence,
   SMS_PATTERN_LABELS
 } from './codSuspicionProcessor.js';
@@ -910,13 +911,32 @@ test('summarizeCodSmsAssessments counts the current state of every snapshot orde
     { key: { ...order('F'), driverId: '2' }, status: 'scored', smsScore: 5 }
   ]);
 
-  assert.deepEqual(summarizeCodSmsAssessments(orders, assessments), {
-    total: 7,
-    flagged: 1,
-    zero: 2,
-    failed: 1,
-    unscored: 3,
-    lastScoredAt: '2026-09-23T10:00:00Z'
-  });
+  const summary = summarizeCodSmsAssessments(orders, assessments);
+  const codes = bucket => summary.buckets[bucket].map(entry => entry.order.orderCode);
+  assert.equal(summary.total, 7);
+  assert.equal(summary.maxScore, 7);
+  assert.equal(summary.lastScoredAt, '2026-09-23T10:00:00Z');
+  assert.deepEqual(codes('flagged'), ['A']);
+  assert.deepEqual(codes('zero'), ['B', 'C']);
+  assert.deepEqual(codes('failed'), ['D']);
+  assert.deepEqual(codes('unscored'), ['E', 'F', 'G']);
+});
+
+test('getDriverSmsLabel tells flagged, failed, unscored and all-zero drivers apart', () => {
+  const order = orderCode => ({ suspicionType: 'Gối đầu COD', driverId: '1', orderCode });
+  const label = (rows, codes = rows.map((_, index) => `O${index}`)) => getDriverSmsLabel(
+    summarizeCodSmsAssessments(codes.map(order), buildCodSmsAssessmentMap(
+      rows.map((row, index) => row && { key: order(codes[index]), ...row }).filter(Boolean)
+    ))
+  );
+
+  assert.deepEqual(label([{ status: 'scored', smsScore: 7 }, { status: 'no_evidence', smsScore: 0 }]),
+    { text: 'SMS 7/9 · 1/2 đơn có điểm', level: 'high' });
+  assert.equal(label([{ status: 'scored', smsScore: 2 }]).level, 'medium');
+  assert.equal(label([{ status: 'failed' }, { status: 'no_evidence', smsScore: 0 }]).level, 'failed');
+  assert.deepEqual(label([null, { status: 'no_evidence', smsScore: 0 }]),
+    { text: 'SMS: chưa chấm 1/2 đơn', level: 'unscored' });
+  assert.deepEqual(label([{ status: 'no_evidence', smsScore: 0 }, { status: 'scored', smsScore: 0 }]),
+    { text: 'SMS: 0 điểm', level: 'no_evidence' });
 });
 

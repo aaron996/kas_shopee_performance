@@ -776,21 +776,49 @@ export function getSmsScoreBadge(assessment) {
  * score it already has.
  */
 export function summarizeCodSmsAssessments(orders = [], assessmentsByCaseKey = new Map()) {
-  const summary = { total: 0, flagged: 0, zero: 0, failed: 0, unscored: 0, lastScoredAt: null };
+  const summary = {
+    total: 0,
+    maxScore: null,
+    lastScoredAt: null,
+    buckets: { flagged: [], zero: [], failed: [], unscored: [] }
+  };
   orders.forEach(order => {
     summary.total += 1;
-    const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order));
+    const assessment = assessmentsByCaseKey.get(getCodSmsCaseKey(order)) ?? null;
     const status = assessment?.status;
     const score = Number(assessment?.smsScore ?? assessment?.sms_score);
-    if (status === 'scored' && score > 0) summary.flagged += 1;
-    else if (status === 'no_evidence' || (status === 'scored' && score === 0)) summary.zero += 1;
-    else if (status === 'failed') summary.failed += 1;
-    else summary.unscored += 1;
+    const entry = { order, assessment };
+    if (status === 'scored' && score > 0) {
+      summary.buckets.flagged.push(entry);
+      summary.maxScore = Math.max(summary.maxScore ?? 0, score);
+    } else if (status === 'no_evidence' || (status === 'scored' && score === 0)) {
+      summary.buckets.zero.push(entry);
+    } else if (status === 'failed') {
+      summary.buckets.failed.push(entry);
+    } else {
+      summary.buckets.unscored.push(entry);
+    }
 
     const scoredAt = assessment?.scoredAt ?? assessment?.scored_at;
     if (scoredAt && (!summary.lastScoredAt || new Date(scoredAt) > new Date(summary.lastScoredAt))) {
       summary.lastScoredAt = scoredAt;
     }
   });
+  summary.buckets.flagged.sort((a, b) => Number(b.assessment.smsScore) - Number(a.assessment.smsScore));
   return summary;
+}
+
+/** Driver-card SMS label: the most actionable state across the driver's orders wins. */
+export function getDriverSmsLabel(summary) {
+  const { flagged, zero, failed, unscored } = summary.buckets;
+  if (flagged.length) {
+    return {
+      text: `SMS ${summary.maxScore}/9 · ${flagged.length}/${summary.total} đơn có điểm`,
+      level: summary.maxScore >= 5 ? 'high' : 'medium'
+    };
+  }
+  if (failed.length) return { text: `SMS: lỗi chấm ${failed.length}/${summary.total} đơn`, level: 'failed' };
+  if (unscored.length) return { text: `SMS: chưa chấm ${unscored.length}/${summary.total} đơn`, level: 'unscored' };
+  if (zero.length) return { text: 'SMS: 0 điểm', level: 'no_evidence' };
+  return { text: 'SMS: không có đơn', level: 'unscored' };
 }

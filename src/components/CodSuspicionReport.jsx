@@ -43,6 +43,7 @@ import {
   getCodSmsCaseKey,
   getSmsScoreBadge,
   summarizeCodSmsAssessments,
+  getDriverSmsLabel,
   formatSmsConfidence,
   SMS_PATTERN_LABELS
 } from '../utils/codSuspicionProcessor';
@@ -83,6 +84,13 @@ const USER_RESOLUTION_TABS = [
 ];
 
 const DEV_ONLY_RESOLUTION_TAB = { id: 'non_violation', label: 'Không vi phạm' };
+
+const SMS_OVERVIEW_BUCKETS = [
+  { key: 'flagged', label: 'có điểm SMS > 0', level: 'high' },
+  { key: 'zero', label: 'điểm 0 / không bằng chứng', level: 'no_evidence' },
+  { key: 'failed', label: 'lỗi chấm', level: 'failed' },
+  { key: 'unscored', label: 'chưa chấm', level: 'unscored' }
+];
 
 function getResolutionLabel(resolution) {
   if (resolution?.finding_outcome === 'non_violation') return 'Không vi phạm';
@@ -127,6 +135,7 @@ export default function CodSuspicionReport({
   const [manualRunSelectedKeys, setManualRunSelectedKeys] = useState(() => new Map());
   const manualRunAbortRef = useRef(null);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [smsOverviewBucket, setSmsOverviewBucket] = useState(null);
   const [smsRunsRefreshKey, setSmsRunsRefreshKey] = useState(0);
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
@@ -1110,19 +1119,74 @@ export default function CodSuspicionReport({
             <span className="cod-sms-overview__note cod-sms-overview__note--error">Không tải được kết quả chấm SMS, chưa thể tổng hợp.</span>
           ) : (
             <div className="cod-sms-overview__stats">
-              {[
-                { key: 'flagged', label: 'có điểm SMS > 0', level: 'high' },
-                { key: 'zero', label: 'điểm 0 / không bằng chứng', level: 'no_evidence' },
-                { key: 'failed', label: 'lỗi chấm', level: 'failed' },
-                { key: 'unscored', label: 'chưa chấm', level: 'unscored' }
-              ].map(stat => (
-                <span
-                  key={stat.key}
-                  className={`cod-sms-overview__stat cod-sms-overview__stat--${stat.level}${smsOverview[stat.key] ? '' : ' is-zero'}`}
-                >
-                  <strong>{smsOverview[stat.key]}</strong> {stat.label}
-                </span>
-              ))}
+              {SMS_OVERVIEW_BUCKETS.map(stat => {
+                const count = smsOverview.buckets[stat.key].length;
+                const isOpen = smsOverviewBucket === stat.key;
+                return (
+                  <button
+                    key={stat.key}
+                    type="button"
+                    disabled={count === 0}
+                    aria-expanded={isOpen}
+                    onClick={() => setSmsOverviewBucket(isOpen ? null : stat.key)}
+                    className={`cod-sms-overview__stat cod-sms-overview__stat--${stat.level}${count ? '' : ' is-zero'}${isOpen ? ' is-open' : ''}`}
+                  >
+                    <strong>{count}</strong> {stat.label}
+                    {count > 0 && <ChevronDown size={13} className="cod-sms-overview__chevron" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {smsOverviewBucket && !isSmsLoading && !smsAssessmentsFailed && (
+            <div className="cod-sms-overview__list">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã đơn</th>
+                    <th>Tài xế</th>
+                    <th>Loại</th>
+                    <th>Kho giao</th>
+                    <th>Điểm SMS</th>
+                    <th aria-label="Thao tác" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {smsOverview.buckets[smsOverviewBucket].map(({ order, assessment }) => {
+                    const badge = getSmsScoreBadge(assessment);
+                    return (
+                      <tr key={getCodSmsCaseKey(order)}>
+                        <td className="is-mono">{order.orderCode}</td>
+                        <td>
+                          <span className="is-mono">{order.driverId}</span>
+                          <span className="cod-sms-overview__muted"> · {order.driverName}</span>
+                        </td>
+                        <td>{order.suspicionType}</td>
+                        <td>{order.warehouseName}</td>
+                        <td>
+                          <span className={`cod-sms-badge cod-sms-badge--${badge.level}`}>{badge.text}</span>
+                          {assessment?.technicalError && (
+                            <div className="cod-sms-overview__error">
+                              {assessment.technicalError.message} <code>{assessment.technicalError.code}</code>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="cod-sms-action-btn"
+                            onClick={() => openSmsModal(order, assessment)}
+                            aria-label={`Xem chi tiết SMS cho đơn ${order.orderCode}`}
+                          >
+                            <MessageSquare size={13} />
+                            <span>Chi tiết</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
@@ -1370,13 +1434,14 @@ export default function CodSuspicionReport({
                     </div>
                   </div>
 
-                  {isDevAdmin && (
-                    <span className="cod-driver-sms-summary">
-                      {driver.maxSmsScore == null
-                        ? 'SMS: Chưa có điểm'
-                        : `SMS cao nhất: ${driver.maxSmsScore}/9`}
-                    </span>
-                  )}
+                  {isDevAdmin && (() => {
+                    const smsLabel = getDriverSmsLabel(summarizeCodSmsAssessments(driver.orders, smsAssessments));
+                    return (
+                      <span className={`cod-driver-sms-summary cod-sms-badge--${smsLabel.level}`}>
+                        {smsLabel.text}
+                      </span>
+                    );
+                  })()}
 
                   <div
                     className="cod-driver-summary-metrics"
