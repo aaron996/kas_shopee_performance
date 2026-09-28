@@ -271,7 +271,14 @@ export default function App() {
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
-  const [selectedRegions, setSelectedRegions] = useState(() => initialView.regions === null ? allRegions : initialView.regions.filter(r => allRegions.includes(r)));
+  const [selectedRegions, setSelectedRegions] = useState(() => {
+    if (initialView.regions === null) return allRegions;
+    const saved = initialView.regions.filter(r => allRegions.includes(r));
+    // Sessions saved before "HNO - KA" existed stored the full list explicitly;
+    // treat "every region except the new one" as "Tất cả vùng".
+    const missing = allRegions.filter(r => !saved.includes(r));
+    return missing.length === 1 && missing[0] === 'HNO - KA' ? allRegions : saved;
+  });
 
   const allHubTypes = React.useMemo(() => {
     const types = new Set();
@@ -293,8 +300,8 @@ export default function App() {
   // null follows all available types; an explicit subset (including []) survives sync.
   const [density, setDensity] = useState(initialView.density);
   useEffect(() => {
-    if (hasPickedClient) saveDashboardView(sessionStorage, { client: clientFilter, tab: activeTab, regions: selectedRegions, hubTypes: hubTypeSelection, density });
-  }, [hasPickedClient, clientFilter, activeTab, selectedRegions, hubTypeSelection, density]);
+    if (hasPickedClient) saveDashboardView(sessionStorage, { client: clientFilter, tab: activeTab, regions: selectedRegions.length === allRegions.length ? null : selectedRegions, hubTypes: hubTypeSelection, density });
+  }, [hasPickedClient, clientFilter, activeTab, selectedRegions, allRegions, hubTypeSelection, density]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [report1FocusTarget, setReport1FocusTarget] = useState(null);
 
@@ -614,6 +621,8 @@ export default function App() {
       expandAllHubs,
       selectedRegions,
       isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
+      emptyFilter: allHubTypes.length > 0 && selectedHubTypes.length === 0 ? 'hubTypes' : (selectedRegions.length === 0 ? 'regions' : null),
+      onResetFilters: resetFilters,
       density,
       isFullscreen,
       setIsFullscreen,

@@ -132,6 +132,8 @@ export default function Report1MienVungHub({
   expandAllHubs,
   selectedRegions = [],
   isHubTypeFiltered = false,
+  emptyFilter = null,
+  onResetFilters = null,
   density,
   isFullscreen,
   setIsFullscreen,
@@ -1231,6 +1233,18 @@ export default function Report1MienVungHub({
       </div>
     );
   };
+
+  // An empty Loại Hub / Vùng selection filters every row out — say so instead
+  // of the "no data" notice, which reads like the data source is broken.
+  if (!pD1 && !dD1 && !fD1 && emptyFilter) return (
+    <StatusNotice>
+      <strong>{emptyFilter === 'hubTypes' ? 'Chưa chọn loại Hub nào' : 'Chưa chọn vùng nào'}</strong>
+      <p>Bộ lọc {emptyFilter === 'hubTypes' ? 'Loại Hub' : 'Vùng'} đang bỏ chọn tất cả nên không còn số liệu để hiển thị.</p>
+      {typeof onResetFilters === 'function' && (
+        <button type="button" className="nav-btn-sleek" onClick={onResetFilters}>Chọn lại tất cả</button>
+      )}
+    </StatusNotice>
+  );
 
   if (!pD1 && !dD1 && !fD1) return (
     <StatusNotice>
