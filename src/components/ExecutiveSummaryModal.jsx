@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MessageSquareText, X } from 'lucide-react';
 import { Check, Copy } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
-import { generateExecutiveSummary } from '../utils/dataProcessor';
+import { buildExecutiveSummary, formatExecutiveSummary } from '../utils/executiveSummary';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
 
@@ -11,7 +11,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
 
   if (!isOpen) return null;
 
-  const summaryText = generateExecutiveSummary(pickRows, deliRows, clientFilter);
+  const summaryText = formatExecutiveSummary(buildExecutiveSummary(pickRows, deliRows, clientFilter));
 
   const handleCopy = async () => {
     try {
@@ -61,7 +61,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
 
         <div className="modal-body" style={{ padding: '1.25rem' }}>
           <StatusNotice tone="info" style={{ marginBottom: '1rem' }}>
-            💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có tỷ lệ 1st Pickup / Deli thấp nhất. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
+            💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có tỷ lệ 1st Pickup / Deli thấp nhất. Giao hàng lấy ngày gần nhất có đơn đến hạn (CN không có đơn giao nên sáng thứ 2 so T7). Cùng nội dung với tin nhắn Telegram gửi mỗi sáng. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
           </StatusNotice>
 
           <textarea 

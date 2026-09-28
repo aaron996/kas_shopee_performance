@@ -35,6 +35,15 @@ dashboard itself, so the picture is whatever the dashboard renders.
 The long-lived secret never appears in a URL; only the short-lived token goes
 through the external screenshot service.
 
+## Nhận xét D-1
+
+`GET /api/snapshot-summary?client=SPB&token=…` → `{ text, markdown, sections }`,
+built by src/utils/executiveSummary.js — the same module behind the
+dashboard's "Nhận xét D-1" modal. n8n sends `markdown` (Telegram parse_mode
+Markdown). Each section's D-1 is its latest day with volume: deliveries are
+never due on Sunday, so on Monday Giao hàng compares Saturday with the
+previous Saturday instead of two empty Sundays.
+
 ## URL parameters
 
 | param | values |
