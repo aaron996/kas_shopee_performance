@@ -7,17 +7,38 @@ export function getHubType(row) {
   return row['hub type'] || row['Hub Type'] || row.hub_type || row.Hub_Type || row.hubType || row.HubType || 'Unknown';
 }
 
-// Hub "Key Account Warehouse Ho Chi Minh" (hub_type = KA) sits inside HCM in
-// the raw sheet/Supabase data, but it should be reported under its own
-// "HCM - KA" vùng (same convention as "HCM - GXT"). Reassign region for any
-// HCM row whose hub type is KA so every report groups it correctly.
+const HUB_TYPE_KEYS = ['hub type', 'Hub Type', 'hub_type', 'Hub_Type', 'hubType', 'HubType'];
+
+// Key Account warehouses and the standalone vùng each one is reported as
+// (same convention as "HCM - GXT"). The raw sheet/Supabase data files their
+// rows under whatever region the order came from (HCM, DNB, XBG…), so the vùng
+// is decided by the hub itself. "(HNO) LH Long Biên" is the renamed "Key
+// Account Warehouse Ha Noi" and still arrives as hub_type = BC.
+// Keep in sync with public.get_ai_chat_metric (AI chat backend).
+const KA_HUB_REGIONS = {
+  'key account warehouse ho chi minh': 'HCM - KA',
+  '(hno) lh long biên': 'HNO - KA',
+};
+
+// Fallback for a KA hub not listed above: keep it next to its city.
+const KA_REGION_BY_REGION = { HCM: 'HCM - KA', HNO: 'HNO - KA' };
+
+const normalizeHubName = (name) => String(name || '').normalize('NFC').trim().toLowerCase();
+
+// Tag known KA warehouses as hub type KA and move every KA row into its own
+// KA vùng, so every report groups it as an independent vùng.
 export function reassignKaRegion(rows) {
   if (!rows) return rows;
   return rows.map(r => {
-    if (!r || r.region !== 'HCM') return r;
-    const type = String(getHubType(r)).trim().toUpperCase();
-    if (type === 'KA') {
-      return { ...r, region: 'HCM - KA' };
+    if (!r) return r;
+    const kaHubRegion = KA_HUB_REGIONS[normalizeHubName(r.hub ?? r.deliverywh)];
+    if (kaHubRegion) {
+      const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
+      return { ...r, [typeKey]: 'KA', region: kaHubRegion };
+    }
+    const kaRegion = KA_REGION_BY_REGION[r.region];
+    if (kaRegion && String(getHubType(r)).trim().toUpperCase() === 'KA') {
+      return { ...r, region: kaRegion };
     }
     return r;
   });

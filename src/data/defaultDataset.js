@@ -2,7 +2,7 @@
 // Matches Google Sheet IDs: Pick (1312031199), Deli (940798880), Ca1 (1405399014)
 
 export const MIEN_REGIONS = {
-  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO'],
+  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA'],
   'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB'],
   'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'HCM - KA', 'ĐCL', 'TNB']
 };
@@ -90,7 +90,7 @@ export function createDefaultPickDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = region === 'HCM - KA' ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region.endsWith(' - KA') ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
@@ -151,7 +151,7 @@ export function createDefaultDeliDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = region === 'HCM - KA' ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region.endsWith(' - KA') ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,

@@ -131,6 +131,7 @@ export default function Report1MienVungHub({
   clientFilter,
   expandAllHubs,
   selectedRegions = [],
+  isHubTypeFiltered = false,
   density,
   isFullscreen,
   setIsFullscreen,
@@ -161,15 +162,40 @@ export default function Report1MienVungHub({
   const tableBodyRef = useRef(null);
   const previousRowPositions = useRef(new Map());
 
+  const filteredPick = useMemo(() => {
+    return clientFilter === 'ALL' ? pickRows : pickRows.filter(r => r.client_name === clientFilter);
+  }, [pickRows, clientFilter]);
+
+  const filteredDeli = useMemo(() => {
+    return clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
+  }, [deliRows, clientFilter]);
+
+  const filteredFd = useMemo(() => {
+    return clientFilter === 'ALL' ? fdRows : fdRows.filter(r => r.client_name === clientFilter);
+  }, [fdRows, clientFilter]);
+
+  const previousTableTab = useRef(null);
+
+  // Row positions are stored relative to the <tbody> top so they stay valid
+  // across page scrolls between two commits. That lets filter changes (loại
+  // Hub, vùng, client) — which re-render from props with no chance to capture
+  // beforehand — animate from the positions recorded at the previous commit.
+  const measureRows = (tableBody) => {
+    const baseTop = tableBody.getBoundingClientRect().top;
+    return new Map(
+      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
+        row.dataset.motionId,
+        { row, top: row.getBoundingClientRect().top - baseTop },
+      ]),
+    );
+  };
+
   const captureTableLayout = useCallback(() => {
     const tableBody = tableBodyRef.current;
     if (!tableBody || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     previousRowPositions.current = new Map(
-      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
-        row.dataset.motionId,
-        row.getBoundingClientRect(),
-      ]),
+      [...measureRows(tableBody).entries()].map(([id, { top }]) => [id, top]),
     );
   }, []);
 
@@ -177,44 +203,51 @@ export default function Report1MienVungHub({
     const tableBody = tableBodyRef.current;
     if (!tableBody) return;
 
-    const nextPositions = new Map(
-      [...tableBody.querySelectorAll('tr[data-motion-id]')].map((row) => [
-        row.dataset.motionId,
-        { row, rect: row.getBoundingClientRect() },
-      ]),
-    );
+    // Switching tab mounts a different table — nothing to animate from.
+    const tabChanged = previousTableTab.current !== activeTableTab;
+    previousTableTab.current = activeTableTab;
+
+    const nextPositions = measureRows(tableBody);
     const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    if (!shouldReduceMotion && previousRowPositions.current.size > 0) {
-      nextPositions.forEach(({ row, rect }, id) => {
-        const previousRect = previousRowPositions.current.get(id);
+    if (!shouldReduceMotion && !tabChanged && previousRowPositions.current.size > 0) {
+      const easing = 'cubic-bezier(0.23, 1, 0.32, 1)';
+      nextPositions.forEach(({ row, top }, id) => {
+        const previousTop = previousRowPositions.current.get(id);
 
-        row.getAnimations().forEach((animation) => animation.cancel());
-
-        if (previousRect) {
-          const offsetY = previousRect.top - rect.top;
+        if (previousTop !== undefined) {
+          const offsetY = previousTop - top;
           if (Math.abs(offsetY) > 0.5) {
+            row.getAnimations().forEach((animation) => animation.cancel());
             row.animate(
               [
                 { transform: `translateY(${offsetY}px)` },
                 { transform: 'translateY(0)' },
               ],
-              { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+              { duration: 260, easing },
             );
           }
-        } else if (row.dataset.hubRow === 'true') {
-          row.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 120,
-            easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
-          });
+        } else {
+          row.getAnimations().forEach((animation) => animation.cancel());
+          // Hub rows open under their region; Miền/Vùng rows reappear when a
+          // filter brings their volume back — slide them in slightly as well.
+          row.animate(
+            row.dataset.hubRow === 'true'
+              ? [{ opacity: 0 }, { opacity: 1 }]
+              : [
+                  { opacity: 0, transform: 'translateY(-6px)' },
+                  { opacity: 1, transform: 'translateY(0)' },
+                ],
+            { duration: row.dataset.hubRow === 'true' ? 120 : 240, easing, fill: 'backwards' },
+          );
         }
       });
     }
 
     previousRowPositions.current = new Map(
-      [...nextPositions.entries()].map(([id, { rect }]) => [id, rect]),
+      [...nextPositions.entries()].map(([id, { top }]) => [id, top]),
     );
-  }, [expandedRegions]);
+  }, [expandedRegions, filteredPick, filteredDeli, filteredFd, selectedRegions, isHubTypeFiltered, activeTableTab, density]);
   const theadRef = useRef(null);
   const allRowRef = useRef(null);
   // Height of the sticky <thead> (2 header rows) and of the pinned TOÀN QUỐC
@@ -439,18 +472,6 @@ export default function Report1MienVungHub({
   }, [expandAllHubs, focusTarget, expandAll, collapseAll]);
 
   // Filter rows by client
-  const filteredPick = useMemo(() => {
-    return clientFilter === 'ALL' ? pickRows : pickRows.filter(r => r.client_name === clientFilter);
-  }, [pickRows, clientFilter]);
-
-  const filteredDeli = useMemo(() => {
-    return clientFilter === 'ALL' ? deliRows : deliRows.filter(r => r.client_name === clientFilter);
-  }, [deliRows, clientFilter]);
-
-  const filteredFd = useMemo(() => {
-    return clientFilter === 'ALL' ? fdRows : fdRows.filter(r => r.client_name === clientFilter);
-  }, [fdRows, clientFilter]);
-
   // Extract date list
   const pickDates = useMemo(() => [...new Set(filteredPick.map(r => r.report_date))].sort(), [filteredPick]);
   const deliDates = useMemo(() => [...new Set(filteredDeli.map(r => r.report_date))].sort(), [filteredDeli]);
@@ -892,6 +913,16 @@ export default function Report1MienVungHub({
       return itemsToRender;
     };
 
+    // Hub types differ a lot in volume: narrowing "Loại Hub" leaves many
+    // regions with nothing this week. While a hub-type subset is picked, hide
+    // regions whose WTD volume is 0 so the table only lists regions that carry
+    // those hub types — except the region drilled into from the ranking. With
+    // every hub type selected the full region list stays.
+    const hasWtdVolume = (reg) => weekCur.some(d => (dateEntityMap[`REG_${reg}_${d}`]?.tot || 0) > 0);
+    const isRegionVisible = (reg) => !isHubTypeFiltered || hasWtdVolume(reg) || focusTarget?.region === reg;
+    const hiddenRegionCount = MIEN_ORDER.flatMap(mien => MIEN_REGIONS[mien])
+      .filter(reg => selectedRegions.includes(reg) && !isRegionVisible(reg)).length;
+
     const isHighlighted = highlightedSection === sectionId;
 
     const cellColorStyle = (pct) => isFd
@@ -1006,7 +1037,7 @@ export default function Report1MienVungHub({
 
               {/* 2. MIỀN & VÙNG ROWS */}
               {MIEN_ORDER.map(mien => {
-                const filteredMienRegions = MIEN_REGIONS[mien].filter(r => selectedRegions.includes(r));
+                const filteredMienRegions = MIEN_REGIONS[mien].filter(r => selectedRegions.includes(r) && isRegionVisible(r));
                 if (filteredMienRegions.length === 0) return null;
 
                 const mienStats = calcStats(`MIEN_${mien}`, weekCur);
@@ -1191,6 +1222,9 @@ export default function Report1MienVungHub({
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
               <span>≤ 3% nền trung tính; &gt; 3% chuyển đỏ theo mức độ cao dần.</span>
             </div>
+          )}
+          {hiddenRegionCount > 0 && (
+            <div>* Đã ẩn {hiddenRegionCount} vùng không phát sinh sản lượng WTD với loại Hub đang chọn.</div>
           )}
           <div>{isFd ? '* Kho giao mặc định ẩn, click ▶ để mở các kho giao phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
         </div>

@@ -1,6 +1,7 @@
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
 const REGION_PATTERNS = [
   { re: /\b(hcm\s*-\s*ka)\b/i, region: 'HCM - KA' },
+  { re: /\b(hno\s*-\s*ka|hn\s*-\s*ka)\b/i, region: 'HNO - KA' },
   { re: /\b(hcm|hồ chí minh|tp\.?\s*hcm)\b/i, region: 'HCM' },
   { re: /\b(hà nội|ha noi|hni|hno|hn)\b/i, region: 'HN' },
   { re: /\b(đnb|dnb|đông nam bộ|dong nam bo)\b/i, region: 'ĐNB' },

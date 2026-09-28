@@ -85,6 +85,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       'HCM - GXT': 'Hồ Chí Minh',
       'HCM - KA': 'Hồ Chí Minh',
       'HNO': 'Hà Nội',
+      'HNO - KA': 'Hà Nội',
       'TTB': 'Đà Nẵng',
       'DBB': 'Hải Phòng',
       'DNB': 'Đồng Nai',
