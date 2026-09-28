@@ -31,10 +31,20 @@ test('deli D-1 falls back to the last day with volume (Saturday on a Monday repo
   assert.equal(deliSection.previous.first, 90);
 });
 
-test('client filter applies and zero-volume vùng never count as lowest', () => {
+test('top vùng rank by late orders, not by lowest %', () => {
   const [pickSection] = buildExecutiveSummary(pickRows, deliRows, 'SPB').sections;
   assert.equal(Math.round(pickSection.current.first * 10) / 10, 90);
-  assert.deepEqual(pickSection.worst.map(r => r.region), ['HCM', 'XBG', 'HNO']);
+  // HCM 20 late, XBG 5, HNO 1; TBB (no volume) never ranks, KA (0 late) comes last.
+  assert.deepEqual(pickSection.worst.map(r => [r.region, r.late]), [['HCM', 20], ['XBG', 5], ['HNO', 1]]);
+});
+
+test('a small vùng with a worse % ranks below a big vùng with more late orders', () => {
+  const [section] = buildExecutiveSummary([
+    pick('2026-09-27', 'TBB', 4, 2),
+    pick('2026-09-27', 'HNO', 1000, 900),
+    pick('2026-09-27', 'DBB', 10, 9)
+  ], [], 'SPB').sections;
+  assert.deepEqual(section.worst.map(r => r.region), ['HNO', 'TBB', 'DBB']);
 });
 
 test('text shows each section with its own dates when they differ', () => {
@@ -43,7 +53,8 @@ test('text shows each section with its own dates when they differ', () => {
   assert.match(text, /Lấy hàng \(CN 27\/09\) so với cùng thứ tuần trước \(CN 20\/09\)/);
   assert.match(text, /Giao hàng \(T7 26\/09\) so với cùng thứ tuần trước \(T7 19\/09\)/);
   assert.match(text, /• 1st Deli: 96\.0% so 90\.0% → tăng 6\.0%/);
-  assert.match(text, /• HCM: 1st 80\.0% \| OPR 85\.0%/);
+  assert.match(text, /Top vùng trễ 1st Pickup nhiều nhất \(D-1\):/);
+  assert.match(text, /• HCM: 20 đơn trễ \| 1st 80\.0% \| OPR 85\.0%/);
 });
 
 test('same D-1 for both sections goes in the title line', () => {
@@ -56,7 +67,7 @@ test('markdown bolds headline values and escapes markdown characters', () => {
   const md = formatExecutiveSummaryMarkdown(buildExecutiveSummary([pick('2026-09-27', 'A_B', 10, 9)], [], 'SPB'));
   assert.match(md, /^\*Nhận xét D-1\* \(CN 27\/09\)/);
   assert.match(md, /• 1st Pickup: \*90\.0%\*/);
-  assert.match(md, /• \*A\\_B\*: 1st 90\.0%/);
+  assert.match(md, /• \*A\\_B\*: 1 đơn trễ \| 1st 90\.0%/);
 });
 
 test('no data at all', () => {

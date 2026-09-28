@@ -1,5 +1,7 @@
 // "Nhận xét D-1": D-1 vs the same weekday a week earlier, plus the 3 vùng
-// with the lowest 1st rate on D-1. Shown in ExecutiveSummaryModal and sent
+// with the most late orders on D-1 (orders not on time for 1st Pickup /
+// 1st Deli — absolute count, not the lowest %, so a tiny vùng with a few
+// late orders doesn't outrank the big ones). Shown in ExecutiveSummaryModal and sent
 // as-is by the n8n daily Telegram report (api/snapshot-summary.js), so both
 // always say the same thing.
 import { getWeekdayName } from './dataProcessor.js';
@@ -69,8 +71,8 @@ function buildSection(rows, metrics) {
   });
   const worst = [...regions.entries()]
     .filter(([, v]) => v.total > 0)
-    .map(([region, v]) => ({ region, first: pct(v.first, v.total), second: pct(v.second, v.total) }))
-    .sort((a, b) => a.first - b.first)
+    .map(([region, v]) => ({ region, late: v.total - v.first, first: pct(v.first, v.total), second: pct(v.second, v.total) }))
+    .sort((a, b) => b.late - a.late || a.first - b.first)
     .slice(0, 3);
 
   return { metrics, d1, prev, current: totals(d1), previous: byDate.has(prev) ? totals(prev) : null, worst };
@@ -112,9 +114,9 @@ function renderSummary(summary, { strong, text }) {
       const prevValue = previous ? previous[key] : null;
       lines.push(text(`• ${metrics[key].label}: `) + strong(fmtPct(current[key])) + text(` so ${fmtPct(prevValue)} → ${trend(current[key], prevValue)}`));
     }
-    lines.push(text(`Top vùng ${metrics.first.label} thấp nhất (D-1):`));
+    lines.push(text(`Top vùng trễ ${metrics.first.label} nhiều nhất (D-1):`));
     s.worst.forEach(r => {
-      lines.push(text('• ') + strong(r.region) + text(`: ${metrics.first.short} ${fmtPct(r.first)} | ${metrics.second.short} ${fmtPct(r.second)}`));
+      lines.push(text('• ') + strong(r.region) + text(`: ${r.late.toLocaleString('vi-VN')} đơn trễ | ${metrics.first.short} ${fmtPct(r.first)} | ${metrics.second.short} ${fmtPct(r.second)}`));
     });
   });
   return lines.join('\n');

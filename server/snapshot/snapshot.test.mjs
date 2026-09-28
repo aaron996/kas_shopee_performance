@@ -236,7 +236,7 @@ test('summary endpoint returns the dashboard summary with KA vùng and the deli 
   await handler({ method: 'GET', url: `/api/snapshot-summary?client=SPB&token=${encodeURIComponent(token)}` }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(requests.sort(), ['deli', 'pick']);
-  assert.match(res.body.text, /• HCM - KA: 1st 50\.0% \| OPR 60\.0%/);
+  assert.match(res.body.text, /• HCM - KA: 5 đơn trễ \| 1st 50\.0% \| OPR 60\.0%/);
   assert.match(res.body.markdown, /\*HCM - KA\*/);
   assert.deepEqual(res.body.sections.map(s => s.d1), ['2026-09-27', '2026-09-26']);
 });
