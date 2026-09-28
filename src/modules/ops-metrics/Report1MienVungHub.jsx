@@ -647,7 +647,6 @@ export default function Report1MienVungHub({
     const deliD8 = getD8(dD1, deliDates);
     const fdD8 = getD8(fD1, fdDates);
 
-    const deliComparison = getComparisonDateInfo(dD1, deliDates, 7);
     const fdComparison = getComparisonDateInfo(fD1, fdDates, 7);
     const comparisonNote = (label, comparison) => comparison ? `${label}: ${comparison.d1} vs ${comparison.dComp}` : null;
 
@@ -692,7 +691,7 @@ export default function Report1MienVungHub({
       { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist.vals, historyDates: p1stHist.dates, ref: refP1st },
       { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
       { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, compareNote: comparisonNote('So với D-8', deliComparison), history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
+      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
       { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, compareNote: comparisonNote('So với D-15', fdComparison), history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn' }
     ];
   }, [pD1, dD1, fD1, filteredPick, filteredDeli, filteredFd, pickDates, deliDates, fdDates]);
@@ -1479,21 +1478,29 @@ export default function Report1MienVungHub({
 
       <div className={`density-${density} kpi-tab-container`}>
         <div className="kpi-table-tabs">
-          <button className={`kpi-table-tab ${activeTableTab === 'p1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('p1st')}>
-            1.1 - 1st Pickup
-          </button>
-          <button className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
-            1.2 - OPR
-          </button>
-          <button className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
-            1.3 - 1st Deli
-          </button>
-          <button className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
-            1.4 - ODR
-          </button>
-          <button className={`kpi-table-tab ${activeTableTab === 'fd' ? 'active' : ''}`} onClick={() => setActiveTableTab('fd')}>
-            1.5 - FD
-          </button>
+          {/* 1st Pickup + OPR và 1st Deli + ODR luôn được đọc theo cặp; FD đứng riêng.
+              Mỗi nhóm là một cụm nền nhạt để mắt nhận ra cặp mà không cần đổi màu tab. */}
+          <div className="kpi-tab-group" role="group" aria-label="Nhóm lấy hàng">
+            <button className={`kpi-table-tab ${activeTableTab === 'p1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('p1st')}>
+              1.1 - 1st Pickup
+            </button>
+            <button className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
+              1.2 - OPR
+            </button>
+          </div>
+          <div className="kpi-tab-group" role="group" aria-label="Nhóm giao hàng">
+            <button className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
+              1.3 - 1st Deli
+            </button>
+            <button className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
+              1.4 - ODR
+            </button>
+          </div>
+          <div className="kpi-tab-group" role="group" aria-label="FD">
+            <button className={`kpi-table-tab ${activeTableTab === 'fd' ? 'active' : ''}`} onClick={() => setActiveTableTab('fd')}>
+              1.5 - FD
+            </button>
+          </div>
         </div>
         <div className="kpi-table-content">
           {activeTableTab === 'p1st' && renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
