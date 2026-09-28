@@ -61,7 +61,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
 
         <div className="modal-body" style={{ padding: '1.25rem' }}>
           <StatusNotice tone="info" style={{ marginBottom: '1rem' }}>
-            💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có tỷ lệ 1st Pickup / Deli thấp nhất. Giao hàng lấy ngày gần nhất có đơn đến hạn (CN không có đơn giao nên sáng thứ 2 so T7). Cùng nội dung với tin nhắn Telegram gửi mỗi sáng. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
+            💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có nhiều đơn trễ 1st Pickup / 1st Deli nhất (số đơn tuyệt đối, không xếp theo %). Giao hàng lấy ngày gần nhất có đơn đến hạn (CN không có đơn giao nên sáng thứ 2 so T7). Cùng nội dung với tin nhắn Telegram gửi mỗi sáng. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
           </StatusNotice>
 
           <textarea 

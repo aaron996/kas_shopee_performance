@@ -42,7 +42,10 @@ built by src/utils/executiveSummary.js — the same module behind the
 dashboard's "Nhận xét D-1" modal. n8n sends `markdown` (Telegram parse_mode
 Markdown). Each section's D-1 is its latest day with volume: deliveries are
 never due on Sunday, so on Monday Giao hàng compares Saturday with the
-previous Saturday instead of two empty Sundays.
+previous Saturday instead of two empty Sundays. "Top vùng" lists the 3 vùng
+with the most late orders on D-1 (total − on-time for 1st Pickup / 1st Deli,
+absolute count, ties by lower %), not the lowest % — a small vùng with a
+handful of orders must not outrank the big ones.
 
 ## URL parameters
 
