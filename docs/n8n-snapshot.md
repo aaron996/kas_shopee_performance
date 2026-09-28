@@ -9,15 +9,28 @@ dashboard itself, so the picture is whatever the dashboard renders.
 
 ## Flow
 
+n8n order: Cron → Get Snapshot Token → Read App Summary → Danh sach bang
+can chup → 9 × (Fetch Screenshot) → 9 × send → Only One Item → Build Nhan Xet
+→ send. The summary is fetched before any picture goes out, so the Nhận xét
+message follows the last picture immediately (there used to be a fixed 75s
+Wait node there; photos are sent one by one, each after Telegram confirms the
+previous one, so ordering needs no wait). If the summary call fails the 9
+pictures still go out and only Build Nhan Xet errors.
+
 1. n8n `POST /api/snapshot-token` with `Authorization: Bearer <SNAPSHOT_SECRET>`
    → `{ token, expiresAt }` (valid 30 minutes).
 2. For each table n8n asks the screenshot service
-   (`ws.ahamove.com/pptraas/screenshot?url=…&fullPage=true` — **no `size`**;
-   without `fullPage=true` it only captures a 1280×800 viewport) to open:
+   (`ws.ahamove.com/pptraas/screenshot?url=…&size=1280,100&fullPage=true`) to
+   open the URL below. `fullPage=true` captures the whole page (without it only
+   a 1280×800 viewport); the small `size` height makes the capture end where the
+   content ends instead of padding short tables to 800px.
 
    ```
-   https://kas-shopee-performance.vercel.app/snapshot?report=pick&table=1st&client=SPB&excludeHubTypes=Ahamove&token=<token>
+   https://kas-shopee-performance.vercel.app/snapshot?report=pick&table=1st&client=SPB&token=<token>
    ```
+
+   The scope is the dashboard default (every vùng and hub type, Ahamove
+   included in its vùng, as the dashboard shows it).
 3. `/snapshot` is rewritten (vercel.json) to `api/snapshot-page.js`, which
    checks the token, reads the raw `kas_*_data` rows with the service role (the
    tables are `authenticated`-only and the screenshot browser has no login) and
@@ -53,7 +66,7 @@ handful of orders must not outrank the big ones.
 | --- | --- |
 | `report` + `table` | `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
 | `client` | `SPB` (default) or `SPE`; ignored for Ca1 (source has no client split) |
-| `excludeHubTypes` | comma list, same as unticking those types in "Loại Hub" (the Telegram report excludes `Ahamove`) |
+| `excludeHubTypes` | optional comma list, same as unticking those types in "Loại Hub" (the Telegram report does not use it) |
 | `token` | from `/api/snapshot-token` |
 
 The page sets `<html data-snapshot="ready|error">`; on error it renders the
