@@ -14,7 +14,7 @@ import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCove
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
-import { groupDatesByWeek, getHubType, reassignKaRegion } from './utils/dataProcessor';
+import { groupDatesByWeek, reassignKaRegion, filterRowsByScope, collectHubTypes } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
@@ -281,16 +281,7 @@ export default function App() {
   });
 
   const allHubTypes = React.useMemo(() => {
-    const types = new Set();
-    [...pickRows, ...deliRows, ...ca1Rows, ...fdRows].forEach(r => {
-      const type = getHubType(r);
-      if (type) {
-        types.add(type);
-      }
-    });
-    // Add 'Unknown' if we want it as a fallback, but let's just use what's in data.
-    // If we want a default fallback just in case:
-    return Array.from(types).sort();
+    return collectHubTypes([pickRows, deliRows, ca1Rows, fdRows]);
   }, [pickRows, deliRows, ca1Rows, fdRows]);
 
   // Initial state should be all hub types
@@ -569,19 +560,19 @@ export default function App() {
 
   // Filter datasets based on selectedRegions and selectedHubTypes
   const filteredPickRows = React.useMemo(() => {
-    return pickRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+    return filterRowsByScope(pickRows, selectedRegions, selectedHubTypes);
   }, [pickRows, selectedRegions, selectedHubTypes]);
 
   const filteredDeliRows = React.useMemo(() => {
-    return deliRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+    return filterRowsByScope(deliRows, selectedRegions, selectedHubTypes);
   }, [deliRows, selectedRegions, selectedHubTypes]);
 
   const filteredCa1Rows = React.useMemo(() => {
-    return ca1Rows.filter(r => selectedRegions.includes(r.vung_giao) && selectedHubTypes.includes(getHubType(r)));
+    return filterRowsByScope(ca1Rows, selectedRegions, selectedHubTypes, 'vung_giao');
   }, [ca1Rows, selectedRegions, selectedHubTypes]);
 
   const filteredFdRows = React.useMemo(() => {
-    return fdRows.filter(r => selectedRegions.includes(r.region) && selectedHubTypes.includes(getHubType(r)));
+    return filterRowsByScope(fdRows, selectedRegions, selectedHubTypes);
   }, [fdRows, selectedRegions, selectedHubTypes]);
 
   const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);

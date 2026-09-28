@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
@@ -20,10 +20,22 @@ import 'iframe-resizer/js/iframeResizer.contentWindow.min.js'
 // its own minimal render path instead of the full dashboard shell.
 const isPopupCallback = window.location.pathname === '/auth/popup-callback'
 
+// Same idea for /snapshot: a single bare report table for the n8n Telegram
+// job to screenshot (see src/snapshot/SnapshotPage.jsx). Lazy so the
+// dashboard bundle doesn't grow.
+const isSnapshot = window.location.pathname === '/snapshot'
+const SnapshotPage = lazy(() => import('./snapshot/SnapshotPage.jsx'))
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     {isPopupCallback ? (
       <PopupCallback />
+    ) : isSnapshot ? (
+      <ToastProvider>
+        <Suspense fallback={null}>
+          <SnapshotPage />
+        </Suspense>
+      </ToastProvider>
     ) : (
       <ToastProvider>
         <App />

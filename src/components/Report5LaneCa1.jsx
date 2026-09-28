@@ -9,7 +9,9 @@ import { useToast } from './ui/Toast';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
 
-export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen }) {
+// `onlyLane` is set by the /snapshot page (n8n Telegram report) to render a
+// single lane table.
+export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, setIsFullscreen, onlyLane = null }) {
   const tableRefs = React.useRef({});
   const [copiedLane, setCopiedLane] = useState(null);
   const showToast = useToast();
@@ -442,7 +444,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
       )}
 
       <div className={`density-${density}`}>
-        {lanes.map(lane => renderLaneTable(lane))}
+        {(onlyLane ? [onlyLane] : lanes).map(lane => renderLaneTable(lane))}
       </div>
     </div>
   );
