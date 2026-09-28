@@ -5,6 +5,7 @@ import { packRows, fetchSnapshotRows } from './data.js';
 import { createSnapshotTokenHandler } from '../../api/snapshot-token.js';
 import { createSnapshotDataHandler } from '../../api/snapshot-data.js';
 import { createSnapshotPageHandler } from '../../api/snapshot-page.js';
+import { createSnapshotSummaryHandler } from '../../api/snapshot-summary.js';
 import { embedSnapshotPayload, resolveAppOrigin } from './page.js';
 
 const SECRET = 'test-secret';
@@ -212,4 +213,41 @@ test('snapshot page embeds the error instead of data for a bad token', async () 
   assert.equal(res.statusCode, 401);
   assert.match(embeddedPayload(res.body).error, /Token/);
   assert.equal(reads, 0);
+});
+
+test('summary endpoint returns the dashboard summary with KA vùng and the deli fallback day', async () => {
+  const requests = [];
+  const handler = createSnapshotSummaryHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    createServiceClient: () => ({}),
+    fetchRows: async (_client, request) => {
+      requests.push(request.report);
+      return request.report === 'pick'
+        ? [{ client_name: 'SPB', report_date: '2026-09-27', region: 'HCM', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'KA', mau_pu: 10, ontime_pu_1st: 5, ontime_pu_opr: 6 }]
+        : [
+          { client_name: 'SPB', report_date: '2026-09-26', region: 'HCM', hub: 'BC', hub_type: 'BC', mau_deli: 10, ontime_deli_1st: 9, ontime_deli_odr: 9 },
+          { client_name: 'SPB', report_date: '2026-09-27', region: 'HCM', hub: 'BC', hub_type: 'BC', mau_deli: 0, ontime_deli_1st: 0, ontime_deli_odr: 0 }
+        ];
+    },
+    now: () => NOW
+  });
+  const { token } = issueSnapshotToken(SECRET, NOW);
+  const res = createResponse();
+  await handler({ method: 'GET', url: `/api/snapshot-summary?client=SPB&token=${encodeURIComponent(token)}` }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(requests.sort(), ['deli', 'pick']);
+  assert.match(res.body.text, /• HCM - KA: 1st 50\.0% \| OPR 60\.0%/);
+  assert.match(res.body.markdown, /\*HCM - KA\*/);
+  assert.deepEqual(res.body.sections.map(s => s.d1), ['2026-09-27', '2026-09-26']);
+});
+
+test('summary endpoint needs a valid token', async () => {
+  const handler = createSnapshotSummaryHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    fetchRows: async () => { throw new Error('should not read'); },
+    now: () => NOW
+  });
+  const res = createResponse();
+  await handler({ method: 'GET', url: '/api/snapshot-summary?token=1.x' }, res);
+  assert.equal(res.statusCode, 401);
 });
