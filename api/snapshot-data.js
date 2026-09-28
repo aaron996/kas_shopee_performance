@@ -1,27 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
-import { verifySnapshotToken } from '../server/snapshot/token.js';
-import { SNAPSHOT_CLIENTS, SNAPSHOT_TABLES, fetchSnapshotRows, packRows } from '../server/snapshot/data.js';
+import { fetchSnapshotRows, packRows } from '../server/snapshot/data.js';
+import { readSnapshotConfig, createSnapshotServiceClient, resolveSnapshotRequest } from '../server/snapshot/request.js';
 import { sendJson } from '../server/chat/sse.js';
 
 // Serves the raw report rows to the /snapshot page. That page is opened by an
 // external screenshot service with no Supabase login, and the kas_* tables are
 // readable by `authenticated` only — so this reads them with the service role,
 // gated by a short-lived snapshot token instead of a user session.
+//
+// In production /snapshot is served by api/snapshot-page.js with these rows
+// already embedded; this endpoint is the fallback the page uses when they are
+// not (local dev, debugging).
 export const maxDuration = 60;
 
-function readConfig(env = process.env) {
-  return {
-    secret: env.SNAPSHOT_SECRET?.trim(),
-    supabaseUrl: env.SUPABASE_URL?.trim(),
-    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  };
-}
-
 export function createSnapshotDataHandler(dependencies = {}) {
-  const getConfig = dependencies.readConfig ?? readConfig;
-  const createServiceClient = dependencies.createServiceClient ?? (config => createClient(config.supabaseUrl, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  }));
+  const getConfig = dependencies.readConfig ?? readSnapshotConfig;
+  const createServiceClient = dependencies.createServiceClient ?? createSnapshotServiceClient;
   const fetchRows = dependencies.fetchRows ?? fetchSnapshotRows;
   const now = dependencies.now ?? Date.now;
 
@@ -32,27 +25,15 @@ export function createSnapshotDataHandler(dependencies = {}) {
       return;
     }
     const config = getConfig();
-    if (!config.secret || !config.supabaseUrl || !config.serviceRoleKey) {
-      sendJson(res, 503, { error: { code: 'SNAPSHOT_CONFIG_MISSING', message: 'Chưa cấu hình snapshot trên server.' } });
-      return;
-    }
-
-    const url = new URL(req.url, 'http://localhost');
-    const token = url.searchParams.get('token');
-    const report = url.searchParams.get('report');
-    const clientName = (url.searchParams.get('client') || 'SPB').toUpperCase();
-
-    if (!verifySnapshotToken(config.secret, token, now())) {
-      sendJson(res, 401, { error: { code: 'SNAPSHOT_TOKEN_INVALID', message: 'Token snapshot không hợp lệ hoặc đã hết hạn.' } });
-      return;
-    }
-    if (!Object.hasOwn(SNAPSHOT_TABLES, report || '') || !SNAPSHOT_CLIENTS.includes(clientName)) {
-      sendJson(res, 400, { error: { code: 'SNAPSHOT_INVALID_REQUEST', message: 'report hoặc client không hợp lệ.' } });
+    const request = resolveSnapshotRequest(config, req.url, now());
+    if (request.error) {
+      const { status, ...error } = request.error;
+      sendJson(res, status, { error });
       return;
     }
 
     try {
-      const rows = await fetchRows(createServiceClient(config), { report, clientName });
+      const rows = await fetchRows(createServiceClient(config), request);
       sendJson(res, 200, packRows(rows));
     } catch (error) {
       console.error('Snapshot data read failed:', error);

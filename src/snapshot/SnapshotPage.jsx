@@ -10,13 +10,33 @@ import './snapshot.css';
 // processing pipeline, so the image always matches what the dashboard shows.
 // See docs/n8n-snapshot.md for the URL contract and the n8n side.
 //
-// The screenshot service captures once the network goes idle; the page also
-// sets <html data-snapshot="ready|error"> for anything that wants to wait on it.
+// In production the rows arrive embedded in the HTML (api/snapshot-page.js),
+// so the table is on screen as soon as the scripts run — the screenshot
+// service captures once the network goes quiet and must not race a fetch.
+// Without them (local dev) the page falls back to /api/snapshot-data.
+// <html data-snapshot="ready|error"> marks the outcome.
+function readEmbeddedPayload() {
+  const el = document.getElementById('snapshot-data');
+  if (!el) return null;
+  try {
+    return JSON.parse(el.textContent);
+  } catch {
+    return { error: 'Dữ liệu nhúng không đọc được.' };
+  }
+}
+
+function toState(payload, params) {
+  if (payload?.error) return { status: 'error', message: payload.error };
+  return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes) };
+}
+
 export default function SnapshotPage() {
   const params = useMemo(() => parseSnapshotParams(window.location.search), []);
-  const [state, setState] = useState(() => (
-    params.error ? { status: 'error', message: params.error } : { status: 'loading' }
-  ));
+  const embedded = useMemo(() => readEmbeddedPayload(), []);
+  const [state, setState] = useState(() => {
+    if (params.error) return { status: 'error', message: params.error };
+    return embedded ? toState(embedded, params) : { status: 'loading' };
+  });
 
   useEffect(() => {
     document.documentElement.classList.add('snapshot-html');
@@ -24,7 +44,7 @@ export default function SnapshotPage() {
   }, []);
 
   useEffect(() => {
-    if (params.error) return undefined;
+    if (params.error || embedded) return undefined;
     let cancelled = false;
     const query = new URLSearchParams({ report: params.view.data, client: params.client, token: params.token });
     fetch(`/api/snapshot-data?${query}`)
@@ -34,14 +54,13 @@ export default function SnapshotPage() {
         return body;
       })
       .then(payload => {
-        if (cancelled) return;
-        setState({ status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes) });
+        if (!cancelled) setState(toState(payload, params));
       })
       .catch(error => {
         if (!cancelled) setState({ status: 'error', message: error.message || 'Không tải được dữ liệu.' });
       });
     return () => { cancelled = true; };
-  }, [params]);
+  }, [params, embedded]);
 
   useEffect(() => {
     document.documentElement.dataset.snapshot = state.status;

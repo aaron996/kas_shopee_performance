@@ -4,6 +4,8 @@ import { issueSnapshotToken, verifySnapshotToken, isSnapshotSecret, SNAPSHOT_TOK
 import { packRows, fetchSnapshotRows } from './data.js';
 import { createSnapshotTokenHandler } from '../../api/snapshot-token.js';
 import { createSnapshotDataHandler } from '../../api/snapshot-data.js';
+import { createSnapshotPageHandler } from '../../api/snapshot-page.js';
+import { embedSnapshotPayload, resolveAppOrigin } from './page.js';
 
 const SECRET = 'test-secret';
 const NOW = Date.UTC(2026, 8, 28, 1, 45);
@@ -145,4 +147,69 @@ test('data endpoint returns packed rows for a valid request', async () => {
   await handler({ method: 'GET', url: `/api/snapshot-data?report=deli&client=spb&token=${encodeURIComponent(token)}` }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { columns: ['region', 'mau_deli'], rows: [['HCM', 3]] });
+});
+
+test('embedSnapshotPayload adds an inert JSON block inside <head>', () => {
+  const html = embedSnapshotPayload('<html><head><title>x</title></head><body></body></html>', { hub: '</script><b>' });
+  const match = html.match(/<script type="application\/json" id="snapshot-data">(.*?)<\/script>\n<\/head>/);
+  assert.ok(match);
+  assert.equal(match[1].includes('</script>'), false);
+  assert.deepEqual(JSON.parse(match[1]), { hub: '</script><b>' });
+});
+
+test('resolveAppOrigin only trusts our own hosts', () => {
+  assert.equal(resolveAppOrigin('kas-shopee-performance.vercel.app'), 'https://kas-shopee-performance.vercel.app');
+  assert.equal(resolveAppOrigin('kas-shopee-performance-git-x-aaron996s-projects.vercel.app'), 'https://kas-shopee-performance-git-x-aaron996s-projects.vercel.app');
+  assert.equal(resolveAppOrigin('localhost:5173'), 'http://localhost:5173');
+  assert.equal(resolveAppOrigin('evil.example.com'), 'https://kas-shopee-performance.vercel.app');
+  assert.equal(resolveAppOrigin(undefined), 'https://kas-shopee-performance.vercel.app');
+});
+
+function createHtmlResponse() {
+  return {
+    headers: {},
+    statusCode: 0,
+    setHeader(name, value) { this.headers[name] = value; },
+    end(body) { this.body = body; }
+  };
+}
+
+function embeddedPayload(html) {
+  return JSON.parse(html.match(/id="snapshot-data">(.*?)<\/script>/)[1]);
+}
+
+test('snapshot page embeds the packed rows into index.html', async () => {
+  const origins = [];
+  const handler = createSnapshotPageHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    createServiceClient: () => ({}),
+    fetchRows: async (_client, request) => {
+      assert.deepEqual(request, { report: 'pick', clientName: 'SPB' });
+      return [{ id: 1, region: 'HCM', mau_pu: 2 }];
+    },
+    loadIndexHtml: async origin => { origins.push(origin); return '<html><head></head><body><div id="root"></div></body></html>'; },
+    now: () => NOW
+  });
+  const { token } = issueSnapshotToken(SECRET, NOW);
+  const res = createHtmlResponse();
+  await handler({ url: `/api/snapshot-page?report=pick&table=1st&token=${encodeURIComponent(token)}`, headers: { host: 'kas-shopee-performance.vercel.app' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['Content-Type'], /text\/html/);
+  assert.deepEqual(embeddedPayload(res.body), { columns: ['region', 'mau_pu'], rows: [['HCM', 2]] });
+  assert.deepEqual(origins, ['https://kas-shopee-performance.vercel.app']);
+});
+
+test('snapshot page embeds the error instead of data for a bad token', async () => {
+  let reads = 0;
+  const handler = createSnapshotPageHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    fetchRows: async () => { reads += 1; return []; },
+    loadIndexHtml: async () => '<html><head></head><body></body></html>',
+    now: () => NOW
+  });
+  const res = createHtmlResponse();
+  await handler({ url: '/api/snapshot-page?report=pick&token=1.x', headers: {} }, res);
+  assert.equal(res.statusCode, 401);
+  assert.match(embeddedPayload(res.body).error, /Token/);
+  assert.equal(reads, 0);
 });
