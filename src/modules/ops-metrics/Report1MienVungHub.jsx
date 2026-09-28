@@ -140,7 +140,10 @@ export default function Report1MienVungHub({
   onRetryData,
   onOpenSummary,
   focusTarget = null,
-  onClearFocusTarget = null
+  onClearFocusTarget = null,
+  // Set by the /snapshot page (n8n Telegram report): render only this
+  // metric's table, without the KPI cards, alert strip and tabs.
+  snapshotMetric = null
 }) {
   const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
@@ -1233,6 +1236,20 @@ export default function Report1MienVungHub({
     );
   };
 
+  const metricTables = {
+    p1st: () => renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st'),
+    popr: () => renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr'),
+    d1st: () => renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st'),
+    dodr: () => renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr'),
+    fd: () => renderMetricTable('Mục 1.5: Tỷ lệ hoàn thành FD (FD)', 'fd', false, refFd, 'fd')
+  };
+
+  if (snapshotMetric) return (
+    <div className={`density-${density} kpi-tab-container`}>
+      <div className="kpi-table-content">{metricTables[snapshotMetric]?.()}</div>
+    </div>
+  );
+
   // An empty Loại Hub / Vùng selection filters every row out — say so instead
   // of the "no data" notice, which reads like the data source is broken.
   if (!pD1 && !dD1 && !fD1 && emptyFilter) return (
@@ -1503,11 +1520,7 @@ export default function Report1MienVungHub({
           </div>
         </div>
         <div className="kpi-table-content">
-          {activeTableTab === 'p1st' && renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st')}
-          {activeTableTab === 'popr' && renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr')}
-          {activeTableTab === 'd1st' && renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st')}
-          {activeTableTab === 'dodr' && renderMetricTable('Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)', 'ODR', true, refDOdr, 'dodr')}
-          {activeTableTab === 'fd' && renderMetricTable('Mục 1.5: Tỷ lệ hoàn thành FD (FD)', 'fd', false, refFd, 'fd')}
+          {metricTables[activeTableTab]?.()}
         </div>
       </div>
 

@@ -44,6 +44,22 @@ export function reassignKaRegion(rows) {
   });
 }
 
+// The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
+// `vung_giao` instead of `region`.
+export function filterRowsByScope(rows, regions, hubTypes, regionKey = 'region') {
+  return rows.filter(r => regions.includes(r[regionKey]) && hubTypes.includes(getHubType(r)));
+}
+
+// Every hub type present in the loaded rows — what "Loại Hub: Tất cả" means.
+export function collectHubTypes(rowSets) {
+  const types = new Set();
+  rowSets.forEach(rows => rows.forEach(r => {
+    const type = getHubType(r);
+    if (type) types.add(type);
+  }));
+  return Array.from(types).sort();
+}
+
 export function formatPct(val) {
   if (val === null || val === undefined || isNaN(val)) return '–';
   return val.toFixed(1) + '%';

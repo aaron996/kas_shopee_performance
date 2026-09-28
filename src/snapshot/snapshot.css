@@ -1,0 +1,59 @@
+/* /snapshot page (n8n Telegram report). The screenshot service captures the
+   whole document at a 1280px viewport, so the page grows to the table's full
+   width instead of scrolling it, and nothing may be mid-animation. */
+html.snapshot-html,
+html.snapshot-html body {
+  overflow: visible;
+  background: var(--bg-main);
+}
+
+.snapshot-root {
+  width: max-content;
+  min-width: 100vw;
+  padding: 16px;
+}
+
+.snapshot-root *,
+.snapshot-root *::before,
+.snapshot-root *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.snapshot-scope {
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.snapshot-root .kpi-tab-container {
+  margin-top: 0;
+}
+
+/* No app header above the table and no scrolling: pin sticky offsets to 0
+   so the sticky thead / TOÀN QUỐC row stay in normal flow. */
+.snapshot-root .report1-master-table {
+  --master-table-sticky-top: 0px;
+}
+
+.snapshot-root .mtx-wrap,
+.snapshot-root .report1-master-table {
+  overflow: visible;
+  max-width: none;
+}
+
+/* Copy Ảnh / Tới D-1 do nothing in a picture (!important: they set display
+   inline). */
+.snapshot-root .metric-header button {
+  display: none !important;
+}
+
+.snapshot-error {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--status-danger-fg);
+  border-radius: 8px;
+  color: var(--status-danger-fg);
+  font-weight: 600;
+  background: #fff;
+}
