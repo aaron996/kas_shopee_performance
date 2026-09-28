@@ -613,6 +613,7 @@ export default function App() {
       clientFilter,
       expandAllHubs,
       selectedRegions,
+      isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
       density,
       isFullscreen,
       setIsFullscreen,
