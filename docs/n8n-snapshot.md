@@ -12,18 +12,25 @@ dashboard itself, so the picture is whatever the dashboard renders.
 1. n8n `POST /api/snapshot-token` with `Authorization: Bearer <SNAPSHOT_SECRET>`
    → `{ token, expiresAt }` (valid 30 minutes).
 2. For each table n8n asks the screenshot service
-   (`ws.ahamove.com/pptraas/screenshot?url=…`, **no `size` param** so it
-   captures the full page) to open:
+   (`ws.ahamove.com/pptraas/screenshot?url=…&fullPage=true` — **no `size`**;
+   without `fullPage=true` it only captures a 1280×800 viewport) to open:
 
    ```
    https://kas-shopee-performance.vercel.app/snapshot?report=pick&table=1st&client=SPB&excludeHubTypes=Ahamove&token=<token>
    ```
-3. `/snapshot` (src/snapshot/SnapshotPage.jsx) calls
-   `GET /api/snapshot-data?report=…&client=…&token=…`, which reads the raw
-   `kas_*_data` rows with the service role (the tables are `authenticated`-only
-   and the screenshot browser has no login). The page then runs the dashboard
-   pipeline — `reassignKaRegion`, the Vùng / Loại Hub filter, `Report1MienVungHub`
-   or `Report5LaneCa1` — and renders just that one table.
+3. `/snapshot` is rewritten (vercel.json) to `api/snapshot-page.js`, which
+   checks the token, reads the raw `kas_*_data` rows with the service role (the
+   tables are `authenticated`-only and the screenshot browser has no login) and
+   returns the app's `index.html` with those rows embedded as a JSON block.
+   src/snapshot/SnapshotPage.jsx then runs the dashboard pipeline —
+   `reassignKaRegion`, the Vùng / Loại Hub filter, `Report1MienVungHub` or
+   `Report5LaneCa1` — and renders just that one table.
+
+   The rows must be embedded: pptraas captures once the network has gone
+   quiet, and a data fetch issued after page load (several seconds for the
+   Pick/Deli tables) lost that race and produced blank pictures.
+   `GET /api/snapshot-data` still serves the same rows for local dev, where
+   the page is served by Vite without them.
 
 The long-lived secret never appears in a URL; only the short-lived token goes
 through the external screenshot service.

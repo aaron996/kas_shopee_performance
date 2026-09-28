@@ -10,6 +10,10 @@
   ],
   "rewrites": [
     {
+      "source": "/snapshot",
+      "destination": "/api/snapshot-page"
+    },
+    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
