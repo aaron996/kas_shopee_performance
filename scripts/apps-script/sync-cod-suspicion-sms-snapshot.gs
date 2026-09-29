@@ -8,7 +8,7 @@
  *
  * Yêu cầu trước khi chạy production:
  *   1. Áp dụng migration tạo RPC `sync_kas_cod_suspicion_snapshot` (bản mới nhất
- *      là 20260929090000_cod_suspicion_warehouse_id, có cột warehouse_id).
+ *      là 20260929082541_cod_suspicion_warehouse_id, có cột warehouse_id).
  *   2. Đặt Script Property `SUPABASE_SERVICE_ROLE_KEY`.
  *   3. Không để nhánh COD cũ trong `sync-to-supabase.gs` chạy cùng snapshot.
  *
