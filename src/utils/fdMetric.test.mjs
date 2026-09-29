@@ -217,3 +217,25 @@ test('KPI comparison dates use their actual calendar offsets', () => {
 
   assert.equal(getComparisonDateInfo('2026-09-09', ['2026-09-01', '2026-09-09'], 7), null);
 });
+
+test('getHeatTier steps by points below target on the displayed (rounded) value', async () => {
+  const { getHeatTier } = await import('./dataProcessor.js');
+  assert.equal(getHeatTier(97.2, 97), 0);
+  assert.equal(getHeatTier(96.97, 97), 0); // shows as 97.0% → not red
+  assert.equal(getHeatTier(96.9, 97), 1);
+  assert.equal(getHeatTier(95.0, 97), 1);
+  assert.equal(getHeatTier(94.9, 97), 2);
+  assert.equal(getHeatTier(92.0, 97), 2);
+  assert.equal(getHeatTier(91.9, 97), 3);
+  assert.equal(getHeatTier(null, 97), 0);
+  assert.equal(getHeatTier(90, null), 0);
+});
+
+test('getHigherIsWorseTier keeps FD ≤ threshold neutral and splits the rest in thirds', async () => {
+  const { getHigherIsWorseTier } = await import('./dataProcessor.js');
+  assert.equal(getHigherIsWorseTier(3.0, 3, 9), 0);
+  assert.equal(getHigherIsWorseTier(3.04, 3, 9), 0);
+  assert.equal(getHigherIsWorseTier(4, 3, 9), 1);
+  assert.equal(getHigherIsWorseTier(6, 3, 9), 2);
+  assert.equal(getHigherIsWorseTier(9, 3, 9), 3);
+});
