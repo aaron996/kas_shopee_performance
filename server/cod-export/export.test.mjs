@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCodSuspicionExportRows, EXPORT_HEADERS } from './build.js';
+import { buildCodSuspicionExportRows, EXPORT_HEADERS, rowsToLogRecords } from './build.js';
 import { formatVietnamTimestamp, loadCodSuspicionExport, readCodExportConfig, verifyExportToken } from './service.js';
 import { createCodSuspicionExportHandler } from '../../api/cod-suspicion-export.js';
 
@@ -117,8 +117,9 @@ test('timestamps are written in Vietnam time', () => {
   assert.equal(formatVietnamTimestamp(new Date('2026-09-29T02:15:07Z')), '2026-09-29 09:15:07');
 });
 
-function fakeRepository({ orders = [], assessments = [], nonViolation = [], threshold = 1 } = {}) {
+function fakeRepository({ orders = [], assessments = [], nonViolation = [], threshold = 1, inserted = [] } = {}) {
   return () => ({
+    insertLogRecords: async records => { inserted.push(...records); return records.length; },
     loadOrders: async () => orders,
     loadScoredAssessments: async () => assessments,
     loadNonViolationDrivers: async () => nonViolation,
@@ -150,6 +151,33 @@ test('loadCodSuspicionExport returns headers, rows and freshness for the Apps Sc
   assert.equal(result.generatedAt, '2026-09-29 10:15:00');
   assert.equal(result.lastSmsRun.status, 'completed');
   assert.ok(result.rows.every(row => row[10] === '2026-09-29 10:15:00'));
+  assert.equal(result.newLogRows, null, 'A dry run never writes the log');
+});
+
+test('recordLog writes every exported row to the first-seen log', async () => {
+  const inserted = [];
+  const result = await loadCodSuspicionExport({
+    config,
+    serviceClient: {},
+    createRepository: fakeRepository({ orders: [order({ total_score: 18 }), order({ driver_id: 'D2', order_code: 'LOW' })], inserted }),
+    recordLog: true
+  });
+  assert.equal(result.newLogRows, 1);
+  assert.deepEqual(inserted, [{
+    suspicion_type: GOI, order_code: 'O1', driver_id: 'D1', driver_name: 'Tài xế 1',
+    to_province: 'Hưng Yên', warehouse_id: '22671000', warehouse_name: '(TBI) Phụ Dực',
+    cod_amount: 3772230, end_delivery_date: '2026-09-29', driver_alert_level: 'Cao'
+  }]);
+});
+
+test('log records turn blank export cells into nulls', () => {
+  const [row] = buildCodSuspicionExportRows({
+    orders: [order({ total_score: 18, driver_name: null, to_province: '', warehouse_id: null, cod_amount: null, end_delivery_date: null })]
+  });
+  const [record] = rowsToLogRecords([row]);
+  for (const key of ['driver_name', 'to_province', 'warehouse_id', 'cod_amount', 'end_delivery_date']) {
+    assert.equal(record[key], null, key);
+  }
 });
 
 test('export config requires the API token and Supabase service credentials', () => {
@@ -214,7 +242,18 @@ test('export endpoint returns the contract for an authorized GET and hides inter
   assert.equal(JSON.parse(failed.body).error.code, 'COD_EXPORT_INTERNAL_ERROR');
   assert.doesNotMatch(failed.body, /password/);
 
-  const post = makeRes();
-  await ok({ method: 'POST', headers: {} }, post);
-  assert.equal(post.statusCode, 405);
+  const put = makeRes();
+  await ok({ method: 'PUT', headers: {} }, put);
+  assert.equal(put.statusCode, 405);
+});
+
+test('only POST asks the service to record the log', async () => {
+  const calls = [];
+  const handler = createCodSuspicionExportHandler({
+    readConfig: () => config,
+    loadExport: async options => { calls.push(options.recordLog); return { rows: [] }; }
+  });
+  await handler({ method: 'GET', headers: { authorization: 'Bearer tok' } }, makeRes());
+  await handler({ method: 'POST', headers: { authorization: 'Bearer tok' } }, makeRes());
+  assert.deepEqual(calls, [false, true]);
 });

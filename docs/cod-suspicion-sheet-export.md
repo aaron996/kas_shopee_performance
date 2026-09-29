@@ -7,9 +7,12 @@ spreadsheet under a GHN account. The app only computes the list:
 
 ```
 Apps Script (destination sheet, ~10:15 VN)
-  └─ GET /api/cod-suspicion-export   Authorization: Bearer <COD_EXPORT_API_TOKEN>
+  └─ POST /api/cod-suspicion-export   Authorization: Bearer <COD_EXPORT_API_TOKEN>
        └─ reads Supabase with the service role, returns { headers, rows, ... }
-  └─ writes nghi_ngo_COD (overwrite) + nghi_ngo_COD_log (append new orders)
+       └─ inserts first-seen orders into cod_suspicion_export_log
+  └─ overwrites nghi_ngo_COD
+
+GET on the same endpoint is read-only (the script's dry run).
 ```
 
 ## Selection
@@ -29,18 +32,20 @@ Every snapshot order of a Medium/High driver is exported. Drivers a Dev
 concluded as `non_violation` (for that suspicion type) are excluded. Rows are
 unique per (suspicion type, order code).
 
-## Tabs
+## Outputs
 
-| Tab | Behaviour |
+| Where | Behaviour |
 | --- | --- |
-| `nghi_ngo_COD` | Rewritten every run with the current list. |
-| `nghi_ngo_COD_log` | Append-only. An order is added the first time it appears; later runs never add it again, even when its SMS, call or COD fields change. |
+| Sheet tab `nghi_ngo_COD` | Rewritten every run with the current list. Keep manual notes outside columns A–K; they are cleared. A malformed API response leaves the tab untouched. |
+| Supabase `cod_suspicion_export_log` | One row per (suspicion_type, order_code), inserted the first time the order is pushed (`first_logged_at`) and never updated, even when SMS, call or COD fields change. Server-only (service role). |
 
-Columns: Loại nghi ngờ, Mã đơn, ID tài xế, Tên tài xế, Tỉnh giao, Mã bưu cục
-(`warehouse_id` from "ID kho giao"), Tên bưu cục, Giá trị COD, Ngày kết thúc
-giao, Mức nghi ngờ tài xế, Thời gian đồng bộ (Asia/Ho_Chi_Minh). Both tabs are
-created on first run. Keep manual notes outside columns A–K of the rewritten
-tab; they are cleared. A malformed API response leaves both tabs untouched.
+Sheet columns: Loại nghi ngờ, Mã đơn, ID tài xế, Tên tài xế, Tỉnh giao, Mã bưu
+cục (`warehouse_id` from "ID kho giao"), Tên bưu cục, Giá trị COD, Ngày kết
+thúc giao, Mức nghi ngờ tài xế, Thời gian đồng bộ (Asia/Ho_Chi_Minh). The log
+table stores the same fields plus `driver_alert_level` at first sight.
+
+The 188 orders pushed on 2026-09-29 16:05 (when the log was a sheet tab) were
+backfilled into the table with that timestamp.
 
 ## Schedule
 
