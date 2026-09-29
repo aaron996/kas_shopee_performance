@@ -926,7 +926,7 @@ export default function Report1MienVungHub({
 
     const isHighlighted = highlightedSection === sectionId;
 
-    // Ô dưới target nhận class heat-1..3 (màu + dấu tam giác trong CSS) thay vì
+    // Ô dưới target nhận class heat-1..3 (màu nền theo bậc trong CSS) thay vì
     // inline style: màu chữ cố định theo từng bậc nên luôn đủ tương phản, và
     // stylesheet thắng được nền !important của dòng Tổng/Toàn quốc ở dark mode.
     const heatCell = (pct, ...classes) => {
