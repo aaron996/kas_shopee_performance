@@ -7,7 +7,8 @@
  *   - sms_messages: nhiều dòng / đơn, đã bỏ SMS trùng hoàn toàn
  *
  * Yêu cầu trước khi chạy production:
- *   1. Áp dụng migration tạo RPC `sync_kas_cod_suspicion_snapshot`.
+ *   1. Áp dụng migration tạo RPC `sync_kas_cod_suspicion_snapshot` (bản mới nhất
+ *      là 20260929082541_cod_suspicion_warehouse_id, có cột warehouse_id).
  *   2. Đặt Script Property `SUPABASE_SERVICE_ROLE_KEY`.
  *   3. Không để nhánh COD cũ trong `sync-to-supabase.gs` chạy cùng snapshot.
  *
@@ -31,7 +32,7 @@ const COD_SMS_CONFLICTS_HEADERS = [
 // stops the refresh before it can replace a good snapshot with partial data.
 const COD_SMS_REQUIRED_HEADERS = [
   'Loại nghi ngờ', 'ID tài xế', 'Tên tài xế', 'Trạng thái tài xế',
-  'Ngày nghỉ việc (nếu có)', 'Mã đơn', 'Trạng thái hiện tại', 'COD', 'Kho giao',
+  'Mã đơn', 'Trạng thái hiện tại', 'COD', 'ID kho giao', 'Kho giao',
   'To province', 'Ngày gán giao', 'Ngày kết thúc giao', 'Ngày chuyển hoàn',
   'Tổng thời gian giao (ngày)', 'Số ngày hẹn giao lại',
   'Bất thường call log (so P90 hardcode)', 'Số cuộc gọi có người nghe',
@@ -49,10 +50,14 @@ const COD_SMS_REQUIRED_HEADERS = [
 ];
 
 // Source is nationwide now (was HCM-only), so each order carries its
-// destination province. BI may export the alias with different casing /
-// separators, so any of these spellings maps to the canonical header.
+// destination province. BI has exported it as "To province" and later as
+// "Tỉnh giao", so any of these spellings maps to the canonical header.
 const COD_SMS_PROVINCE_HEADER = 'To province';
-const COD_SMS_PROVINCE_HEADER_ALIASES = ['to province', 'to_province', 'toprovince'];
+const COD_SMS_PROVINCE_HEADER_ALIASES = ['to province', 'to_province', 'toprovince', 'tỉnh giao'];
+
+// BI dropped this column from the current query. Read it when present so an
+// older export still fills driver_resignation_date, otherwise store null.
+const COD_SMS_RESIGNATION_HEADER = 'Ngày nghỉ việc (nếu có)';
 
 /** Build and log the exact snapshot without writing to Supabase. */
 function dryRunGoiDauCodSmsSnapshot() {
@@ -287,10 +292,11 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
     driver_id: requiredText_(source['ID tài xế']),
     driver_name: textOrNull_(source['Tên tài xế']),
     driver_status: textOrNull_(source['Trạng thái tài xế']),
-    driver_resignation_date: dateOrNull_(source['Ngày nghỉ việc (nếu có)'], timezone, sheetRowNumber),
+    driver_resignation_date: dateOrNull_(source[COD_SMS_RESIGNATION_HEADER], timezone, sheetRowNumber),
     order_code: requiredText_(source['Mã đơn']),
     order_status: requiredText_(source['Trạng thái hiện tại']),
     cod_amount: numberOrNull_(source['COD'], 'COD', sheetRowNumber, displaySource['COD']),
+    warehouse_id: idTextOrNull_(source['ID kho giao'], 'ID kho giao', sheetRowNumber),
     warehouse_name: textOrNull_(source['Kho giao']),
     to_province: textOrNull_(source[COD_SMS_PROVINCE_HEADER]),
     first_delivered_date: dateOrNull_(source['Ngày gán giao'], timezone, sheetRowNumber),
@@ -426,6 +432,19 @@ function requiredText_(value) {
 
 function textOrNull_(value) {
   return isBlank_(value) ? null : String(value).trim();
+}
+
+// IDs arrive as numbers (22671000) when the cell is numeric. String() keeps
+// them exact up to 2^53, but a fractional value means the cell was mangled.
+function idTextOrNull_(value, label, sheetRowNumber) {
+  if (isBlank_(value)) return null;
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error('Dòng ' + sheetRowNumber + ': ' + label + ' không phải mã hợp lệ: ' + value);
+    }
+    return String(value);
+  }
+  return String(value).trim();
 }
 
 function numberOrNull_(value, label, sheetRowNumber, displayValue) {

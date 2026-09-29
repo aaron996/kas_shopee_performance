@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { verifyCronSecret, sweepCodSmsSources, runDailyCodSmsBatch, createCodSmsCronHandler } from './cron.js';
+import { ChatError } from '../chat/errors.js';
 
 function makeRes() {
   const res = {
@@ -100,7 +101,8 @@ test('createCodSmsCronHandler rejects requests without a valid Bearer secret bef
 test('createCodSmsCronHandler runs the batch and returns totals for an authorized cron call', async () => {
   const handler = createCodSmsCronHandler({
     cronSecret: 'correct-secret',
-    runDailyBatch: async () => ({ pages: 1, scored: 4, noEvidence: 1, failed: 0 })
+    runDailyBatch: async () => ({ pages: 1, scored: 4, noEvidence: 1, failed: 0 }),
+    runExport: async () => ({ status: 'skipped' })
   });
 
   const req = { method: 'GET', headers: { authorization: 'Bearer correct-secret' } };
@@ -148,4 +150,38 @@ test('createCodSmsCronHandler only allows GET and POST', async () => {
 
   assert.equal(res.statusCode, 405);
   assert.equal(res.headers.Allow, 'GET, POST');
+});
+
+test('createCodSmsCronHandler pushes the COD sheet after scoring and reports both results', async () => {
+  const order = [];
+  const handler = createCodSmsCronHandler({
+    cronSecret: 's',
+    runDailyBatch: async () => { order.push('score'); return { scored: 2 }; },
+    runExport: async () => { order.push('export'); return { status: 'ok', exportedOrders: 7 }; }
+  });
+  const res = makeRes();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer s' } }, res);
+
+  assert.deepEqual(order, ['score', 'export']);
+  const body = JSON.parse(res.body);
+  assert.equal(res.statusCode, 200);
+  assert.equal(body.totals.scored, 2);
+  assert.equal(body.sheetExport.exportedOrders, 7);
+});
+
+test('createCodSmsCronHandler still pushes the COD sheet when scoring fails', async () => {
+  let exported = false;
+  const handler = createCodSmsCronHandler({
+    cronSecret: 's',
+    runDailyBatch: async () => { throw new ChatError('COD_SMS_DISABLED', 'off', 503); },
+    runExport: async () => { exported = true; return { status: 'ok' }; }
+  });
+  const res = makeRes();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer s' } }, res);
+
+  assert.equal(exported, true);
+  assert.equal(res.statusCode, 503);
+  const body = JSON.parse(res.body);
+  assert.equal(body.error.code, 'COD_SMS_DISABLED');
+  assert.equal(body.sheetExport.status, 'ok');
 });

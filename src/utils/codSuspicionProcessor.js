@@ -625,8 +625,9 @@ export function getOrderEffectiveAlertLevel(order, assessmentsByCaseKey, thresho
 
 /**
  * Return the effective alert-level descriptor for a SQL total score and the
- * maximum valid SMS score across the driver's filtered orders. Only SQL
- * Medium can rise to High; SQL High and Low retain their existing level.
+ * maximum valid SMS score across the driver's filtered orders. A score at or
+ * above the threshold raises the SQL level by one step (Low → Medium,
+ * Medium → High); SQL High is already the top level.
  */
 export function getEffectiveAlertLevel(
   sqlTotalScore,
@@ -642,14 +643,9 @@ export function getEffectiveAlertLevel(
     : DEFAULT_SMS_ESCALATION_THRESHOLD;
   const hasPositiveOrZeroValidScore = Number.isInteger(maxSmsScore) && maxSmsScore >= 0 && maxSmsScore <= 9;
 
-  if (
-    sqlAlertLevel.value === ALERT_LEVELS.MEDIUM.value &&
-    hasPositiveOrZeroValidScore &&
-    maxSmsScore >= effectiveThreshold
-  ) {
-    return ALERT_LEVELS.HIGH;
-  }
-
+  if (!hasPositiveOrZeroValidScore || maxSmsScore < effectiveThreshold) return sqlAlertLevel;
+  if (sqlAlertLevel.value === ALERT_LEVELS.LOW.value) return ALERT_LEVELS.MEDIUM;
+  if (sqlAlertLevel.value === ALERT_LEVELS.MEDIUM.value) return ALERT_LEVELS.HIGH;
   return sqlAlertLevel;
 }
 
