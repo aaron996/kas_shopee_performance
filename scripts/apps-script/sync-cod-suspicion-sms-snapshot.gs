@@ -145,10 +145,8 @@ function buildGoiDauCodSmsSnapshot_() {
 
   const dataRange = sheet.getDataRange();
   const values = dataRange.getValues();
-  // Sheets can silently reformat a numeric cell as a date/time (see
-  // numberOrNull_). getDisplayValues() returns the rendered text of each cell
-  // (what a human/CSV export sees), which is used as a recovery source when
-  // that happens, since BI cannot always clean the export at the origin.
+  // Rendered text of each cell, only used to show what a human sees in error
+  // messages when a numeric cell can't be read (see numberOrNull_).
   const displayValues = dataRange.getDisplayValues();
   if (values.length < 2) {
     throw new Error('Tab "' + COD_SMS_SHEET_NAME + '" trống hoặc chỉ có header.');
@@ -432,32 +430,53 @@ function textOrNull_(value) {
 
 function numberOrNull_(value, label, sheetRowNumber, displayValue) {
   if (isBlank_(value)) return null;
-  // Sheets/BI export can silently reformat a numeric cell as a date/time (e.g.
-  // an inconsistent decimal separator like "30.12" being auto-read as a "dd.mm"
-  // date). Number(Date) still returns a finite epoch-ms value instead of
-  // throwing, so it's rejected here and, since the BI side can't always fix
-  // this at the source, recovered from the cell's rendered display text
-  // (the same text a human or a CSV export would see) as a workaround.
+  // Some cells in this tab carry a date format, so Sheets hands back a Date
+  // for what is really a plain number (0 renders as "30.12", 3 as "2.1",
+  // 14.9 as "13.1" 21:36). The number underneath is intact: it's the Sheets
+  // serial (days since 1899-12-30), so convert back instead of guessing from
+  // the rendered text — that guess read "30.12" as 30.12 and made rows of the
+  // same order disagree, which dropped them as conflicts.
   if (value instanceof Date) {
-    const recovered = parseLocaleNumberOrNull_(displayValue);
-    if (recovered === null) {
+    const recovered = sheetsSerialFromDate_(value);
+    if (!Number.isFinite(recovered)) {
       throw new Error(
         'Dòng ' + sheetRowNumber + ': ' + label + ' bị định dạng thành ngày/giờ thay vì số (ô: ' +
         value + ', hiển thị: "' + displayValue + '") và không tự khôi phục được số. ' +
         'Hãy sửa lại ô trong sheet (đổi định dạng về số thuần).'
       );
     }
-    Logger.log(
-      'Dòng ' + sheetRowNumber + ': ' + label + ' bị Sheets tự đổi thành ngày/giờ — đã tự khôi phục ' +
-      'từ giá trị hiển thị "' + displayValue + '" thành ' + recovered + '.'
-    );
-    return recovered;
+    return roundNumber_(recovered);
   }
   const number = Number(value);
   if (!Number.isFinite(number)) {
     throw new Error('Dòng ' + sheetRowNumber + ': ' + label + ' không phải số hợp lệ: ' + value);
   }
-  return number;
+  return roundNumber_(number);
+}
+
+// A Date only keeps millisecond precision (~1e-8 day), so a recovered serial
+// can differ from the same value read as a number in the 9th decimal. Rounding
+// every number to 6 decimals keeps the per-order consistency check exact.
+function roundNumber_(number) {
+  return Math.round(number * 1e6) / 1e6;
+}
+
+function sheetsSerialFromDate_(date) {
+  // Read the wall-clock parts in the spreadsheet time zone (how Sheets
+  // rendered the serial), then measure from the epoch in UTC so historical
+  // offsets such as Saigon's 1899 local mean time don't leak in.
+  const parts = Utilities.formatDate(date, spreadsheetTimeZone_(), 'yyyy|MM|dd|HH|mm|ss|SSS')
+    .split('|').map(Number);
+  const wallClockUtc = Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5], parts[6]);
+  return (wallClockUtc - Date.UTC(1899, 11, 30)) / 86400000;
+}
+
+let cachedSpreadsheetTimeZone_ = null;
+function spreadsheetTimeZone_() {
+  if (!cachedSpreadsheetTimeZone_) {
+    cachedSpreadsheetTimeZone_ = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  }
+  return cachedSpreadsheetTimeZone_;
 }
 
 function integerOrNull_(value, label, sheetRowNumber, displayValue) {
@@ -469,29 +488,6 @@ function integerOrNull_(value, label, sheetRowNumber, displayValue) {
   return number;
 }
 
-// Parses a number from Sheets' rendered display text regardless of which
-// decimal separator was used (VN locale ",": "0,8"; stray "." like "30.12").
-// The LAST "," or "." found is treated as the decimal point, everything
-// before it as thousands grouping — the standard locale-agnostic heuristic.
-// Only safe for values without genuine thousands grouping (a "4.057.500"
-// integer would misparse as 4057.5) — this is only used as a last-resort
-// recovery for cells Sheets corrupted into a Date, which in this sheet are
-// small decimal averages, never large grouped integers like COD amounts.
-function parseLocaleNumberOrNull_(text) {
-  if (isBlank_(text)) return null;
-  const trimmed = String(text).trim();
-  const lastSeparator = Math.max(trimmed.lastIndexOf(','), trimmed.lastIndexOf('.'));
-  if (lastSeparator === -1) {
-    const plain = Number(trimmed.replace(/[^\d-]/g, ''));
-    return Number.isFinite(plain) ? plain : null;
-  }
-  const isNegative = trimmed.trim().charAt(0) === '-';
-  const integerPart = trimmed.slice(0, lastSeparator).replace(/[^\d]/g, '');
-  const fractionPart = trimmed.slice(lastSeparator + 1).replace(/[^\d]/g, '');
-  const combined = (isNegative ? '-' : '') + (integerPart || '0') + (fractionPart ? '.' + fractionPart : '');
-  const number = Number(combined);
-  return Number.isFinite(number) ? number : null;
-}
 
 function booleanOrFalse_(value, label, sheetRowNumber) {
   if (value === true || value === 1) return true;
