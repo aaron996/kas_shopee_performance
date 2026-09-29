@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { timingSafeEqual } from 'node:crypto';
 import { ChatError } from '../chat/errors.js';
 import { DEFAULT_SMS_ESCALATION_THRESHOLD } from '../../src/utils/codSuspicionProcessor.js';
-import { buildCodSuspicionExportRows, EXPORT_HEADERS } from './build.js';
+import { buildCodSuspicionExportRows, EXPORT_HEADERS, rowsToLogRecords } from './build.js';
 
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 50;
@@ -79,6 +79,15 @@ export function createCodExportRepository(serviceClient) {
       if (error) throw new ChatError('COD_EXPORT_THRESHOLD_READ_FAILED', 'Không thể đọc mốc điểm SMS.', 503, { cause: error });
       return data?.threshold ?? DEFAULT_SMS_ESCALATION_THRESHOLD;
     },
+    /** Insert first-seen orders; existing (type, order) rows are left untouched. */
+    async insertLogRecords(records) {
+      if (!records.length) return 0;
+      const { data, error } = await serviceClient.from('cod_suspicion_export_log')
+        .upsert(records, { onConflict: 'suspicion_type,order_code', ignoreDuplicates: true })
+        .select('order_code');
+      if (error) throw new ChatError('COD_EXPORT_LOG_WRITE_FAILED', 'Không thể ghi log export COD.', 503, { cause: error });
+      return data?.length ?? 0;
+    },
     async loadFreshness() {
       const [snapshot, scoring] = await Promise.all([
         serviceClient.from('kas_cod_suspicion_metadata').select('synced_at')
@@ -111,7 +120,9 @@ export function formatVietnamTimestamp(date = new Date()) {
 /**
  * Build the Medium/High COD suspicion order list for the nghi_ngo_COD sheet.
  * The Apps Script bound to the destination spreadsheet pulls this and writes
- * the tabs itself, so no Google credential ever lives on the server.
+ * the tab itself, so no Google credential ever lives on the server. With
+ * `recordLog`, orders never exported before are added to
+ * cod_suspicion_export_log (first-seen only).
  */
 export async function loadCodSuspicionExport(dependencies = {}) {
   const config = dependencies.config ?? readCodExportConfig(dependencies.env ?? process.env);
@@ -129,12 +140,17 @@ export async function loadCodSuspicionExport(dependencies = {}) {
 
   const generatedAt = formatVietnamTimestamp(dependencies.now ?? new Date());
   const rows = buildCodSuspicionExportRows({ orders, assessments, nonViolationDrivers, threshold, syncedAt: generatedAt });
+  // Only the real push records the log; a dry run (GET) stays read-only.
+  const newLogRows = dependencies.recordLog
+    ? await repository.insertLogRecords(rowsToLogRecords(rows))
+    : null;
   return {
     generatedAt,
     threshold,
     ...freshness,
     sourceOrders: orders.length,
     exportedDrivers: new Set(rows.map(row => `${row[0]}\u0000${row[2]}`)).size,
+    newLogRows,
     headers: EXPORT_HEADERS.slice(),
     rows
   };

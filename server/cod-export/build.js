@@ -129,3 +129,23 @@ export function buildCodSuspicionExportRows({
   }
   return rows;
 }
+
+/**
+ * Turn export rows into cod_suspicion_export_log records. The row layout is
+ * EXPORT_HEADERS; blank cells become null so typed columns stay valid.
+ */
+export function rowsToLogRecords(rows = []) {
+  const nullable = value => (value === '' || value === undefined ? null : value);
+  return rows.map(row => ({
+    suspicion_type: row[0],
+    order_code: row[1],
+    driver_id: row[2],
+    driver_name: nullable(row[3]),
+    to_province: nullable(row[4]),
+    warehouse_id: nullable(row[5]),
+    warehouse_name: nullable(row[6]),
+    cod_amount: nullable(row[7]),
+    end_delivery_date: nullable(row[8]),
+    driver_alert_level: row[9]
+  }));
+}
