@@ -3,7 +3,6 @@ import { ChatError, toPublicError } from '../chat/errors.js';
 import { sendJson } from '../chat/sse.js';
 import { readCodSmsConfig, resolveCodSmsModelConfig } from './config.js';
 import { createCodSmsRepository, runAssessmentBatch, withLoggedRun } from './service.js';
-import { runCodSuspicionExportSafely } from '../cod-export/service.js';
 
 // Safety cap on how many pages a single cron run will walk through the
 // source table. At the default maxBatchLimit (<=500/page) this still covers
@@ -124,7 +123,6 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
 export function createCodSmsCronHandler(dependencies = {}) {
   const cronSecret = dependencies.cronSecret ?? process.env.CRON_SECRET;
   const runDailyBatch = dependencies.runDailyBatch ?? runDailyCodSmsBatch;
-  const runExport = dependencies.runExport ?? runCodSuspicionExportSafely;
 
   return async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -143,33 +141,17 @@ export function createCodSmsCronHandler(dependencies = {}) {
         if (!res.writableEnded) controller.abort(new Error('Client disconnected'));
       });
 
-      let totals = null;
-      let scoringError = null;
-      try {
-        totals = await runDailyBatch({
-          signal: controller.signal,
-          env: dependencies.env,
-          readConfig: dependencies.readConfig,
-          createServiceClient: dependencies.createServiceClient,
-          createRepository: dependencies.createRepository,
-          runBatch: dependencies.runBatch,
-          maxPages: dependencies.maxPages
-        });
-      } catch (error) {
-        scoringError = error;
-      }
+      const totals = await runDailyBatch({
+        signal: controller.signal,
+        env: dependencies.env,
+        readConfig: dependencies.readConfig,
+        createServiceClient: dependencies.createServiceClient,
+        createRepository: dependencies.createRepository,
+        runBatch: dependencies.runBatch,
+        maxPages: dependencies.maxPages
+      });
 
-      // Push the nghi_ngo_COD sheet right after scoring so it always reflects
-      // the fresh SMS scores. It also runs when scoring fails or is disabled:
-      // unscored orders then count by their SQL level only.
-      const sheetExport = await runExport({ env: dependencies.env });
-
-      if (scoringError) {
-        const failure = toPublicError(scoringError);
-        sendJson(res, failure.status, { error: { code: failure.code, message: failure.message }, sheetExport });
-        return;
-      }
-      sendJson(res, 200, { contractVersion: '1', cron: true, totals, sheetExport });
+      sendJson(res, 200, { contractVersion: '1', cron: true, totals });
     } catch (error) {
       const failure = toPublicError(error);
       sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });

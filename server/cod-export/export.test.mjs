@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKeyPairSync } from 'node:crypto';
-import { buildCodSuspicionExportRows, EXPORT_HEADERS, selectNewLogRows } from './build.js';
-import { formatVietnamTimestamp, runCodSuspicionExport, runCodSuspicionExportSafely } from './service.js';
-import { fetchAccessToken, parseServiceAccount } from './google-sheets.js';
+import { buildCodSuspicionExportRows, EXPORT_HEADERS } from './build.js';
+import { formatVietnamTimestamp, loadCodSuspicionExport, readCodExportConfig, verifyExportToken } from './service.js';
+import { createCodSuspicionExportHandler } from '../../api/cod-suspicion-export.js';
 
 const GOI = 'Gối đầu COD';
 const RUT = 'Rút ruột';
@@ -114,157 +113,108 @@ test('rows are unique per (type, order) and the higher-level driver wins', () =>
   assert.equal(goi[9], 'Cao');
 });
 
-test('the log keeps the first row of an order even when other fields change later', () => {
-  const existing = [[GOI, 'O1', 'D1', 'cũ']];
-  const rows = [
-    [GOI, 'O1', 'D1', 'mới'],
-    [RUT, 'O1', 'D1', 'mới'],
-    [GOI, 'O2', 'D1', 'mới'],
-    [GOI, 'O2', 'D1', 'trùng trong lượt']
-  ];
-  assert.deepEqual(selectNewLogRows(rows, existing), [rows[1], rows[2]]);
-});
-
 test('timestamps are written in Vietnam time', () => {
   assert.equal(formatVietnamTimestamp(new Date('2026-09-29T02:15:07Z')), '2026-09-29 09:15:07');
 });
-
-function fakeSheets({ sheets = [], log = [] } = {}) {
-  const calls = [];
-  let logValues = log;
-  return {
-    calls,
-    async getSheets() { calls.push(['getSheets']); return sheets; },
-    async batchUpdate(requests) { calls.push(['batchUpdate', requests]); },
-    async getValues(title, a1) { calls.push(['getValues', title, a1]); return logValues; },
-    async updateValues(title, a1, values) { calls.push(['updateValues', title, a1, values]); },
-    async clearValues(title, a1) { calls.push(['clearValues', title, a1]); },
-    async appendValues(title, a1, values) { calls.push(['appendValues', title, a1, values]); logValues = [...logValues, ...values]; }
-  };
-}
 
 function fakeRepository({ orders = [], assessments = [], nonViolation = [], threshold = 1 } = {}) {
   return () => ({
     loadOrders: async () => orders,
     loadScoredAssessments: async () => assessments,
     loadNonViolationDrivers: async () => nonViolation,
-    loadThreshold: async () => threshold
+    loadThreshold: async () => threshold,
+    loadFreshness: async () => ({
+      snapshotSyncedAt: '2026-09-29T01:45:00Z',
+      lastSmsRun: { status: 'completed', startedAt: '2026-09-29T02:00:00Z', finishedAt: '2026-09-29T02:03:00Z' }
+    })
   });
 }
 
-const baseConfig = () => ({
-  supabaseUrl: 'x', supabaseServiceRoleKey: 'x', serviceAccount: {},
-  spreadsheetId: 'sheet', sheetName: 'nghi_ngo_COD', logSheetName: 'nghi_ngo_COD_log'
-});
+const config = { supabaseUrl: 'x', supabaseServiceRoleKey: 'x', apiToken: 'tok' };
 
-test('export creates missing tabs, overwrites the main tab and seeds the log with a header', async () => {
-  const sheets = fakeSheets();
-  const result = await runCodSuspicionExport({
-    readConfig: baseConfig,
+test('loadCodSuspicionExport returns headers, rows and freshness for the Apps Script', async () => {
+  const result = await loadCodSuspicionExport({
+    config,
     serviceClient: {},
-    createRepository: fakeRepository({ orders: [order({ total_score: 18 }), order({ order_code: 'O2' })] }),
-    sheetsClient: sheets,
-    now: new Date('2026-09-29T02:15:00Z')
-  });
-
-  assert.equal(result.status, 'ok');
-  assert.equal(result.exportedOrders, 2);
-  assert.equal(result.newLogRows, 2);
-  const [, addRequests] = sheets.calls.find(call => call[0] === 'batchUpdate');
-  assert.deepEqual(addRequests.map(request => request.addSheet.properties.title), ['nghi_ngo_COD', 'nghi_ngo_COD_log']);
-  const update = sheets.calls.find(call => call[0] === 'updateValues');
-  assert.equal(update[1], 'nghi_ngo_COD');
-  assert.deepEqual(update[3][0], EXPORT_HEADERS);
-  assert.equal(update[3].length, 3);
-  assert.deepEqual(sheets.calls.find(call => call[0] === 'clearValues').slice(1), ['nghi_ngo_COD', 'A4:K']);
-  const append = sheets.calls.find(call => call[0] === 'appendValues');
-  assert.equal(append[1], 'nghi_ngo_COD_log');
-  assert.deepEqual(append[3][0], EXPORT_HEADERS);
-  assert.equal(append[3].length, 3);
-});
-
-test('re-running the export appends nothing new to the log', async () => {
-  const log = [EXPORT_HEADERS.slice(), [GOI, 'O1', 'D1']];
-  const sheets = fakeSheets({
-    sheets: [
-      { sheetId: 1, title: 'nghi_ngo_COD', gridProperties: { rowCount: 1000 } },
-      { sheetId: 2, title: 'nghi_ngo_COD_log', gridProperties: { rowCount: 1000 } }
-    ],
-    log
-  });
-  const result = await runCodSuspicionExport({
-    readConfig: baseConfig,
-    serviceClient: {},
-    createRepository: fakeRepository({ orders: [order({ total_score: 18, cod_amount: 999 })] }),
-    sheetsClient: sheets
-  });
-  assert.equal(result.newLogRows, 0);
-  assert.equal(sheets.calls.some(call => call[0] === 'appendValues'), false);
-  assert.equal(sheets.calls.some(call => call[0] === 'batchUpdate'), false);
-});
-
-test('export grows the main tab grid when the table exceeds its rows', async () => {
-  const sheets = fakeSheets({
-    sheets: [
-      { sheetId: 7, title: 'nghi_ngo_COD', gridProperties: { rowCount: 2 } },
-      { sheetId: 8, title: 'nghi_ngo_COD_log', gridProperties: { rowCount: 1000 } }
-    ]
-  });
-  await runCodSuspicionExport({
-    readConfig: baseConfig,
-    serviceClient: {},
-    createRepository: fakeRepository({ orders: ['A', 'B', 'C'].map(code => order({ order_code: code, total_score: 18 })) }),
-    sheetsClient: sheets
-  });
-  const [, requests] = sheets.calls.find(call => call[0] === 'batchUpdate');
-  assert.deepEqual(requests, [{
-    updateSheetProperties: {
-      properties: { sheetId: 7, gridProperties: { rowCount: 4 } },
-      fields: 'gridProperties.rowCount'
-    }
-  }]);
-});
-
-test('export is skipped without a Google credential and never throws from the safe wrapper', async () => {
-  assert.equal((await runCodSuspicionExport({ env: {} })).status, 'skipped');
-  const failed = await runCodSuspicionExportSafely({
-    readConfig: baseConfig,
-    serviceClient: {},
-    createRepository: () => ({
-      loadOrders: async () => { throw new Error('db down'); },
-      loadScoredAssessments: async () => [],
-      loadNonViolationDrivers: async () => [],
-      loadThreshold: async () => 1
+    createRepository: fakeRepository({
+      orders: [order({ total_score: 18 }), order({ order_code: 'O2' }), order({ driver_id: 'D2', order_code: 'O3' })],
+      threshold: 2
     }),
-    sheetsClient: fakeSheets()
+    now: new Date('2026-09-29T03:15:00Z')
   });
-  assert.equal(failed.status, 'failed');
-  assert.equal(failed.error.code, 'COD_EXPORT_INTERNAL_ERROR');
+  assert.deepEqual(result.headers, EXPORT_HEADERS);
+  assert.deepEqual(codes(result.rows), ['O1', 'O2']);
+  assert.equal(result.exportedDrivers, 1);
+  assert.equal(result.sourceOrders, 3);
+  assert.equal(result.threshold, 2);
+  assert.equal(result.generatedAt, '2026-09-29 10:15:00');
+  assert.equal(result.lastSmsRun.status, 'completed');
+  assert.ok(result.rows.every(row => row[10] === '2026-09-29 10:15:00'));
 });
 
-test('service account JSON restores escaped newlines and signs a JWT token request', async () => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-  const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
-  const account = parseServiceAccount(JSON.stringify({
-    client_email: 'bot@example.iam.gserviceaccount.com',
-    private_key: pem.replace(/\n/g, '\\n')
-  }));
-  assert.equal(account.privateKey, pem);
+test('export config requires the API token and Supabase service credentials', () => {
+  assert.throws(() => readCodExportConfig({ SUPABASE_URL: 'u', SUPABASE_SERVICE_ROLE_KEY: 'k' }), /COD_EXPORT_API_TOKEN/);
+  assert.equal(readCodExportConfig({ SUPABASE_URL: 'u', SUPABASE_SERVICE_ROLE_KEY: 'k', COD_EXPORT_API_TOKEN: ' t ' }).apiToken, 't');
+});
 
-  let request;
-  const token = await fetchAccessToken(account, {
-    now: 1_700_000_000_000,
-    fetchImpl: async (url, init) => {
-      request = { url, init };
-      return new Response(JSON.stringify({ access_token: 'tok' }), { status: 200 });
-    }
+test('export token must match the Bearer header exactly', () => {
+  assert.doesNotThrow(() => verifyExportToken('Bearer tok', 'tok'));
+  for (const header of [undefined, '', 'Bearer to', 'Bearer tokk', 'tok']) {
+    assert.throws(() => verifyExportToken(header, 'tok'), error => error.code === 'COD_EXPORT_UNAUTHORIZED');
+  }
+});
+
+function makeRes() {
+  return {
+    statusCode: null,
+    headers: {},
+    body: null,
+    headersSent: false,
+    writableEnded: false,
+    setHeader(name, value) { this.headers[name] = value; },
+    end(payload) { this.body = payload; this.writableEnded = true; }
+  };
+}
+
+test('export endpoint rejects a wrong token before loading data', async () => {
+  let loaded = false;
+  const handler = createCodSuspicionExportHandler({
+    readConfig: () => config,
+    loadExport: async () => { loaded = true; return {}; }
   });
-  assert.equal(token, 'tok');
-  assert.equal(request.url, 'https://oauth2.googleapis.com/token');
-  const assertion = new URLSearchParams(request.init.body.toString()).get('assertion');
-  const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString());
-  assert.equal(claims.iss, 'bot@example.iam.gserviceaccount.com');
-  assert.equal(claims.scope, 'https://www.googleapis.com/auth/spreadsheets');
-  assert.equal(claims.exp - claims.iat, 3600);
-  assert.throws(() => parseServiceAccount('{}'), /client_email/);
+  const res = makeRes();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer nope' } }, res);
+  assert.equal(res.statusCode, 401);
+  assert.equal(loaded, false);
+});
+
+test('export endpoint returns the contract for an authorized GET and hides internal errors', async () => {
+  const ok = createCodSuspicionExportHandler({
+    readConfig: () => config,
+    loadExport: async () => ({ headers: ['a'], rows: [['1']] })
+  });
+  const res = makeRes();
+  await ok({ method: 'GET', headers: { authorization: 'Bearer tok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), { contractVersion: '1', headers: ['a'], rows: [['1']] });
+
+  const broken = createCodSuspicionExportHandler({
+    readConfig: () => config,
+    loadExport: async () => { throw new Error('db password in message'); }
+  });
+  const failed = makeRes();
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await broken({ method: 'GET', headers: { authorization: 'Bearer tok' } }, failed);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(failed.statusCode, 500);
+  assert.equal(JSON.parse(failed.body).error.code, 'COD_EXPORT_INTERNAL_ERROR');
+  assert.doesNotMatch(failed.body, /password/);
+
+  const post = makeRes();
+  await ok({ method: 'POST', headers: {} }, post);
+  assert.equal(post.statusCode, 405);
 });
