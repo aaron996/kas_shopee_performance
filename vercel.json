@@ -6,6 +6,10 @@
     {
       "path": "/api/cron/cod-sms-score",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/cod-suspicion-export",
+      "schedule": "30 3 * * *"
     }
   ],
   "rewrites": [

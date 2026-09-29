@@ -646,7 +646,7 @@ test('SMS assessment joins never collide across drivers or suspicion types with 
   assert.equal(getDriverGroupMaxSmsScore({ orders: [exactMatch] }, assessments), 9);
 });
 
-test('effective SMS alert uses the configured boundary and preserves SQL High and Low', () => {
+test('effective SMS alert uses the configured boundary and raises Low and Medium one level', () => {
   assert.equal(getEffectiveAlertLevel(15, null).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(15, 0).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(15, 0, 0).value, 'MEDIUM', 'Invalid zero boundary falls back to one');
@@ -655,17 +655,20 @@ test('effective SMS alert uses the configured boundary and preserves SQL High an
   assert.equal(getEffectiveAlertLevel(15, 9, 9).value, 'HIGH');
   assert.equal(getEffectiveAlertLevel(15, 1, 2).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(18, 0).value, 'HIGH', 'SQL High remains High');
-  assert.equal(getEffectiveAlertLevel(14, 9).value, 'LOW', 'SQL Low remains Low');
+  assert.equal(getEffectiveAlertLevel(14, 9).value, 'MEDIUM', 'SQL Low rises to Medium');
+  assert.equal(getEffectiveAlertLevel(14, 0).value, 'LOW', 'A zero SMS score never escalates');
+  assert.equal(getEffectiveAlertLevel(14, null).value, 'LOW', 'Unscored orders keep the SQL level');
 });
 
-test('SQL boundaries and SMS threshold change only Medium by one level', () => {
+test('SQL boundaries and SMS threshold raise Low and Medium by one level', () => {
   for (const [sql, expected] of [[14, 'LOW'], [15, 'MEDIUM'], [17, 'MEDIUM'], [18, 'HIGH']]) {
     assert.equal(getEffectiveAlertLevel(sql, null, 5).value, expected);
   }
   assert.equal(getEffectiveAlertLevel(15, 4, 5).value, 'MEDIUM');
   assert.equal(getEffectiveAlertLevel(15, 5, 5).value, 'HIGH');
   assert.equal(getEffectiveAlertLevel(17, 9, 5).value, 'HIGH');
-  assert.equal(getEffectiveAlertLevel(14, 9, 5).value, 'LOW');
+  assert.equal(getEffectiveAlertLevel(14, 9, 5).value, 'MEDIUM');
+  assert.equal(getEffectiveAlertLevel(14, 4, 5).value, 'LOW');
   assert.equal(getEffectiveAlertLevel(18, 9, 5).value, 'HIGH');
 });
 
@@ -704,7 +707,7 @@ test('regular-user alert filter uses the driver level after warehouse filtering'
   assert.deepEqual(rows.map(order => order.totalScore), [15, 17, 18, 14]);
 });
 
-test('the highest SMS score across a driver group promotes its SQL Medium driver level', () => {
+test('the highest SMS score across a driver group raises the driver level one step', () => {
   const type = 'Gối đầu COD';
   const groups = groupOrdersByDriver([
     normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'LOW', suspicion_type: type, total_score: 14 }),
@@ -717,13 +720,28 @@ test('the highest SMS score across a driver group promotes its SQL Medium driver
   const [driver] = addSmsSummaryToDriverGroups(groups, assessments, { threshold: 5 });
   assert.equal(driver.maxSmsScore, 9);
   assert.equal(driver.effectiveAlertLevel.value, 'HIGH');
-  assert.equal(getOrderEffectiveAlertLevel(driver.orders.find(order => order.orderCode === 'LOW'), assessments, 5).value, 'LOW');
+  assert.equal(getOrderEffectiveAlertLevel(driver.orders.find(order => order.orderCode === 'LOW'), assessments, 5).value, 'MEDIUM');
   assert.equal(filterDriverGroups(groups, {
     alertLevel: 'HIGH', assessmentsByCaseKey: assessments, threshold: 5, useEffectiveAlertLevel: true
   }).length, 1);
   assert.equal(filterDriverGroups(groups, {
     alertLevel: 'MEDIUM', assessmentsByCaseKey: assessments, threshold: 5, useEffectiveAlertLevel: true
   }).length, 0);
+});
+
+test('an SQL Low driver with any order at the SMS threshold rises to Medium', () => {
+  const type = 'Gối đầu COD';
+  const groups = groupOrdersByDriver([
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'A', suspicion_type: type, total_score: 12 }),
+    normalizeSuspicionOrder({ driver_id: 'D1', order_code: 'B', suspicion_type: type, total_score: 14 })
+  ]);
+  const assessments = buildCodSmsAssessmentMap([
+    { key: { suspicionType: type, driverId: 'D1', orderCode: 'A' }, status: 'scored', smsScore: 1 }
+  ]);
+  const [driver] = addSmsSummaryToDriverGroups(groups, assessments, { threshold: 1 });
+  assert.equal(driver.effectiveAlertLevel.value, 'MEDIUM');
+  const [unscored] = addSmsSummaryToDriverGroups(groups, new Map(), { threshold: 1 });
+  assert.equal(unscored.effectiveAlertLevel.value, 'LOW');
 });
 
 test('SMS summary is computed from the filtered order subset and does not change SQL scores', () => {
