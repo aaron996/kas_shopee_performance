@@ -32,8 +32,8 @@ const COD_SMS_CONFLICTS_HEADERS = [
 const COD_SMS_REQUIRED_HEADERS = [
   'Loại nghi ngờ', 'ID tài xế', 'Tên tài xế', 'Trạng thái tài xế',
   'Ngày nghỉ việc (nếu có)', 'Mã đơn', 'Trạng thái hiện tại', 'COD', 'Kho giao',
-  'Ngày gán giao', 'Ngày kết thúc giao', 'Ngày chuyển hoàn',
-  'Tổng thời gian giao (ngày)', 'Số ngày hẹn giao lại', 'Ngày cuối có call log',
+  'To province', 'Ngày gán giao', 'Ngày kết thúc giao', 'Ngày chuyển hoàn',
+  'Tổng thời gian giao (ngày)', 'Số ngày hẹn giao lại',
   'Bất thường call log (so P90 hardcode)', 'Số cuộc gọi có người nghe',
   'Lý do fail ca giao đầu tiên', 'Thiếu dữ liệu order_fail_reason (M14)',
   'Mâu thuẫn lý do vs duration (M7)', 'Số ngày cách ca thử giao tiếp theo',
@@ -48,6 +48,12 @@ const COD_SMS_REQUIRED_HEADERS = [
   'SMS - thời gian', 'SMS - loại người nhận', 'SMS - nội dung'
 ];
 
+// Source is nationwide now (was HCM-only), so each order carries its
+// destination province. BI may export the alias with different casing /
+// separators, so any of these spellings maps to the canonical header.
+const COD_SMS_PROVINCE_HEADER = 'To province';
+const COD_SMS_PROVINCE_HEADER_ALIASES = ['to province', 'to_province', 'toprovince'];
+
 /** Build and log the exact snapshot without writing to Supabase. */
 function dryRunGoiDauCodSmsSnapshot() {
   const snapshot = buildGoiDauCodSmsSnapshot_();
@@ -59,6 +65,7 @@ function dryRunGoiDauCodSmsSnapshot() {
     orders_without_sms: snapshot.stats.orders_without_sms,
     duplicate_sms_removed: snapshot.stats.duplicate_sms_removed,
     total_drivers: snapshot.stats.total_drivers,
+    orders_by_province: snapshot.stats.orders_by_province,
     conflicted_orders_skipped: snapshot.stats.conflicted_orders_skipped
   }));
 }
@@ -147,7 +154,7 @@ function buildGoiDauCodSmsSnapshot_() {
     throw new Error('Tab "' + COD_SMS_SHEET_NAME + '" trống hoặc chỉ có header.');
   }
 
-  const headers = values[0].map((header) => String(header).trim());
+  const headers = values[0].map((header) => canonicalHeader_(String(header).trim()));
   const missingHeaders = COD_SMS_REQUIRED_HEADERS.filter((header) => !headers.includes(header));
   if (missingHeaders.length > 0) {
     throw new Error('Thiếu header bắt buộc: ' + missingHeaders.join(', '));
@@ -234,6 +241,7 @@ function buildGoiDauCodSmsSnapshot_() {
     stats: {
       source_rows: sourceRows.length,
       total_drivers: new Set(orders.map((order) => order.driver_id)).size,
+      orders_by_province: countBy_(orders, (order) => order.to_province || '(trống)'),
       orders_with_sms: ordersWithSms,
       orders_without_sms: orders.length - ordersWithSms,
       duplicate_sms_removed: sourceRows.filter((entry) => !isBlank_(entry.row[headers.indexOf('SMS - nội dung')])).length - smsMessages.length,
@@ -241,6 +249,20 @@ function buildGoiDauCodSmsSnapshot_() {
       conflicts: conflicts
     }
   };
+}
+
+function canonicalHeader_(header) {
+  const normalized = header.toLowerCase().replace(/\s+/g, ' ');
+  return COD_SMS_PROVINCE_HEADER_ALIASES.includes(normalized) ? COD_SMS_PROVINCE_HEADER : header;
+}
+
+function countBy_(items, keyFn) {
+  const counts = {};
+  items.forEach((item) => {
+    const key = keyFn(item);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return counts;
 }
 
 function rowToObject_(headers, row) {
@@ -272,6 +294,7 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
     order_status: requiredText_(source['Trạng thái hiện tại']),
     cod_amount: numberOrNull_(source['COD'], 'COD', sheetRowNumber, displaySource['COD']),
     warehouse_name: textOrNull_(source['Kho giao']),
+    to_province: textOrNull_(source[COD_SMS_PROVINCE_HEADER]),
     first_delivered_date: dateOrNull_(source['Ngày gán giao'], timezone, sheetRowNumber),
     end_delivery_date: dateOrNull_(source['Ngày kết thúc giao'], timezone, sheetRowNumber),
     return_date: dateOrNull_(source['Ngày chuyển hoàn'], timezone, sheetRowNumber),
@@ -283,7 +306,6 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
       source['Số ngày hẹn giao lại'], 'Số ngày hẹn giao lại', sheetRowNumber,
       displaySource['Số ngày hẹn giao lại']
     ),
-    last_call_log_date: textOrNull_(source['Ngày cuối có call log']),
     signal_count_over_p90: booleanOrFalse_(source['Bất thường call log (so P90 hardcode)'], 'M1', sheetRowNumber),
     answered_call_count: answeredCallCount,
     signal_no_listener: answeredCallCount === 0,
