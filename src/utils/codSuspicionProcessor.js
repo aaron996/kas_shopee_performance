@@ -411,7 +411,9 @@ export function computeSuspicionKPIs(driverGroups = []) {
     .slice(0, 10);
 
   return {
-    totalDrivers: driverGroups.length,
+    // Orphan groups carry a saved resolution but no order in today's snapshot,
+    // so they are not drivers that still need verification.
+    totalDrivers: driverGroups.filter(driver => !driver.isOrphan).length,
     totalOrders,
     totalCod,
     typeCounts,

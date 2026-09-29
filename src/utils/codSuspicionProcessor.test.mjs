@@ -885,6 +885,26 @@ test('SMS AI assessment score does not change SQL totalScore, alert levels, driv
   assert.equal(kpis.totalCod, 1500000);
 });
 
+test('computeSuspicionKPIs excludes orphan resolution groups from the driver count', () => {
+  const active = {
+    driverId: 'D01',
+    suspicionType: 'Gối đầu COD',
+    orders: [{ orderCode: 'ORD_01', suspicionType: 'Gối đầu COD', codAmount: 100000, warehouseName: 'Kho A' }]
+  };
+  const orphan = {
+    driverId: 'D99',
+    suspicionType: 'Gối đầu COD',
+    isOrphan: true,
+    resolution: { finding_outcome: 'violation' },
+    orders: []
+  };
+
+  const kpis = computeSuspicionKPIs([active, orphan]);
+  assert.equal(kpis.totalDrivers, 1);
+  assert.equal(kpis.totalOrders, 1);
+  assert.equal(kpis.totalCod, 100000);
+});
+
 test('SMS_PATTERN_LABELS provides human-readable Vietnamese labels for all 5 rubric patterns', () => {
   assert.equal(SMS_PATTERN_LABELS.mau_1, 'STK khớp tên tài xế (+5)');
   assert.equal(SMS_PATTERN_LABELS.mau_2, 'Hội thoại hai chiều xác nhận (+1)');
