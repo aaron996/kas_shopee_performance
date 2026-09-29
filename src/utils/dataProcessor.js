@@ -229,6 +229,39 @@ export function getHigherIsWorseColorStyle(val, threshold, maxVal) {
   };
 }
 
+// Stepped heat tier (0 = đạt, 1–3 = càng xa target càng nặng) cho Report 1.
+// Bậc cố định theo điểm % dưới target thay vì tương đối với min của bảng, để
+// cùng một giá trị luôn ra cùng một màu giữa các ngày. So trên giá trị đã làm
+// tròn 1 chữ số — đúng con số người đọc thấy — nên ô hiện "97.0%" không bao
+// giờ bị tô như trượt target 97%.
+export const HEAT_TIER_STEPS = [2, 5];
+
+export function getHeatTier(val, target) {
+  if (val === null || val === undefined || isNaN(val) || target === null || target === undefined || isNaN(target)) {
+    return 0;
+  }
+  const shown = Math.round(val * 10) / 10;
+  if (shown >= target) return 0;
+  if (shown >= target - HEAT_TIER_STEPS[0]) return 1;
+  if (shown >= target - HEAT_TIER_STEPS[1]) return 2;
+  return 3;
+}
+
+// FD: tỷ lệ càng cao càng tệ, không có target cố định ngoài ngưỡng 3%. Giữ
+// thang tương đối theo max của bảng như trước, chỉ lượng tử hoá thành 3 bậc
+// để dùng chung bảng màu (và độ tương phản) với các chỉ số khác.
+export function getHigherIsWorseTier(val, threshold, maxVal) {
+  if (val === null || val === undefined || isNaN(val) || threshold === null || threshold === undefined || maxVal === null || maxVal === undefined || isNaN(threshold) || isNaN(maxVal)) {
+    return 0;
+  }
+  const shown = Math.round(val * 10) / 10;
+  if (shown <= threshold || maxVal <= threshold) return 0;
+  const ratio = Math.min(1, (shown - threshold) / (maxVal - threshold));
+  if (ratio < 1 / 3) return 1;
+  if (ratio < 2 / 3) return 2;
+  return 3;
+}
+
 export function getFixed3TierColorStyle(val, target) {
   if (val === null || val === undefined || isNaN(val)) {
     return {};

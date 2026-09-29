@@ -1503,8 +1503,6 @@ table.mtx-table thead th.lbl {
 tr.all-row {
   background: #FFF7F2 !important;
   font-weight: 700;
-  border-top: 1px solid var(--ghn-orange);
-  border-bottom: 1px solid var(--ghn-orange);
 }
 
 tr.all-row td.lbl {
@@ -1549,6 +1547,96 @@ th.sep, td.sep {
 table.mtx-table thead th.sep {
   border-left: 1px solid rgba(255, 255, 255, 0.45) !important;
 }
+
+/* ── Report 1: chia khối bằng KHOẢNG TRỐNG, không bằng đường kẻ ──────────
+   Vạch 1px (.sep) chìm mất trên nền heatmap và ở màn hình 125% chỉ còn
+   ~0.8px. Mỗi khối cột (W-1 · tuần hiện tại · WTD · so sánh) mở đầu bằng
+   một khe 6px màu nền thẻ, xuyên qua cả header lẫn thân bảng, nên khối vẫn
+   tách được ngay cả khi hai ô đỏ nằm cạnh nhau. */
+.report1-master-table {
+  --mtx-gutter: var(--surface);
+}
+body.dark-mode .report1-master-table {
+  --mtx-gutter: #131c31;
+}
+.report1-master-table table.mtx-table th.grp-start,
+.report1-master-table table.mtx-table td.grp-start {
+  border-left: 6px solid var(--mtx-gutter) !important;
+}
+
+/* Ranh giới hàng phải vẽ trên <td>: bảng này dùng border-collapse: separate
+   (xem .report1-master-table table.mtx-table), và ở chế độ đó border đặt
+   trên <tr> không bao giờ được vẽ. */
+.report1-master-table tr.grp-row > td {
+  border-top: 2px solid var(--ghn-blue);
+}
+.report1-master-table tr.all-row > td {
+  border-bottom: 2px solid var(--ghn-orange);
+  /* Các ô này sticky: nền của <tr> không đi theo ô khi cuộn, nên ô không có
+     nền riêng sẽ để lộ chữ của hàng đang trượt bên dưới. */
+  background-color: #FFF7F2;
+}
+.report1-master-table td.grp-total-label {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.report1-master-table tr:not(.grp-row):not(.all-row) td.lbl-2 strong {
+  font-weight: 600;
+}
+
+/* ── Heatmap 3 bậc cố định ────────────────────────────────────────────────
+   Bậc theo điểm % dưới target (xem getHeatTier). Chữ luôn TỐI và cùng độ
+   đậm ở mọi bậc (≥5.7:1), nên cột số không còn nhảy trắng/đen, đậm/nhạt.
+   Tam giác nhỏ trước số để trạng thái "dưới target" không chỉ dựa vào màu.
+   Selector đủ nặng để thắng nền !important của dòng Tổng / Toàn quốc. */
+.report1-master-table {
+  --heat-1-bg: #fde8e4;
+  --heat-2-bg: #f8c3ba;
+  --heat-3-bg: #ef9184;
+  --heat-1-fg: #7a1f12;
+  --heat-2-fg: #7a1f12;
+  --heat-3-fg: #5c150b;
+}
+body.dark-mode .report1-master-table {
+  --heat-1-bg: #3a2328;
+  --heat-2-bg: #5a2a2d;
+  --heat-3-bg: #8c3432;
+  --heat-1-fg: #fecaca;
+  --heat-2-fg: #fee2e2;
+  --heat-3-fg: #fff1f0;
+}
+.report1-master-table table.mtx-table tbody tr td.heat,
+body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat {
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+.report1-master-table table.mtx-table tbody tr td.heat-1,
+body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat-1 {
+  background-color: var(--heat-1-bg) !important;
+  color: var(--heat-1-fg) !important;
+}
+.report1-master-table table.mtx-table tbody tr td.heat-2,
+body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat-2 {
+  background-color: var(--heat-2-bg) !important;
+  color: var(--heat-2-fg) !important;
+}
+.report1-master-table table.mtx-table tbody tr td.heat-3,
+body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat-3 {
+  background-color: var(--heat-3-bg) !important;
+  color: var(--heat-3-fg) !important;
+}
+/* Góc gấp 6px ở góc trên-trái, cùng màu chữ: đánh dấu "dưới target" mà
+   không chiếm thêm bề ngang của cột. */
+.report1-master-table table.mtx-table tbody tr td.heat {
+  background-image: linear-gradient(135deg, currentColor 0 6px, transparent 6px) !important;
+  background-repeat: no-repeat !important;
+}
+.table-legend .heat-swatch.heat-1 { background: var(--heat-1-bg, #fde8e4); }
+.table-legend .heat-swatch.heat-2 { background: var(--heat-2-bg, #f8c3ba); }
+.table-legend .heat-swatch.heat-3 { background: var(--heat-3-bg, #ef9184); }
+body.dark-mode .table-legend .heat-swatch.heat-1 { background: #3a2328; }
+body.dark-mode .table-legend .heat-swatch.heat-2 { background: #5a2a2d; }
+body.dark-mode .table-legend .heat-swatch.heat-3 { background: #8c3432; }
 
 /* Legend & Help Footer */
 .table-legend {
@@ -7208,6 +7296,11 @@ body.dark-mode .prr-scope-chip.highlight {
 
 .diff-badge.down {
   color: #dc2626;
+}
+
+/* Chênh lệch làm tròn về 0.0: không tốt không xấu. */
+.diff-badge.flat {
+  color: var(--text-muted);
 }
 
 .rank-diff-pill {

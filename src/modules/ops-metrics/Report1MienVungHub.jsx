@@ -6,7 +6,7 @@ import { ChevronRight, ArrowUp, AlertTriangle, X, Copy, MessageSquareText } from
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getContinuousColorStyle, getHigherIsWorseColorStyle, getWeekNumber, getHubType } from '../../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 
@@ -732,7 +732,6 @@ export default function Report1MienVungHub({
 
     // Aggregate totals by date & entity
     const dateEntityMap = {}; // key: ${entityType}_${entityId}_${dateStr}
-    let tableMinPct = target ?? 100;
     let tableMaxPct = 0;
 
     rows.forEach(r => {
@@ -815,19 +814,17 @@ export default function Report1MienVungHub({
         }
       });
       const pct = tot > 0 ? (ont / tot) * 100 : null;
-      if (pct !== null && pct < tableMinPct) tableMinPct = pct;
       if (pct !== null && pct > tableMaxPct) tableMaxPct = pct;
       return { tot, ont, pct };
     };
 
-    // Calculate Table Min Pct for continuous color interpolation
+    // Table max pct drives the FD tier scale
     MIEN_ORDER.forEach(mien => {
       MIEN_REGIONS[mien].forEach(reg => {
         dateList.forEach(d => {
           const item = dateEntityMap[`REG_${reg}_${d}`];
           if (item && item.tot > 0) {
             const p = (item.ont / item.tot) * 100;
-            if (p < tableMinPct) tableMinPct = p;
             if (p > tableMaxPct) tableMaxPct = p;
           }
         });
@@ -929,9 +926,23 @@ export default function Report1MienVungHub({
 
     const isHighlighted = highlightedSection === sectionId;
 
-    const cellColorStyle = (pct) => isFd
-      ? getHigherIsWorseColorStyle(pct, 3, tableMaxPct)
-      : getContinuousColorStyle(pct, target, tableMinPct);
+    // Ô dưới target nhận class heat-1..3 (màu + dấu tam giác trong CSS) thay vì
+    // inline style: màu chữ cố định theo từng bậc nên luôn đủ tương phản, và
+    // stylesheet thắng được nền !important của dòng Tổng/Toàn quốc ở dark mode.
+    const heatCell = (pct, ...classes) => {
+      const tier = isFd ? getHigherIsWorseTier(pct, 3, tableMaxPct) : getHeatTier(pct, target);
+      const className = [...classes, tier > 0 && `heat heat-${tier}`].filter(Boolean).join(" ");
+      return className ? { className } : {};
+    };
+    // Mỗi khối cột (W-1 / tuần hiện tại / WTD / so sánh) mở đầu bằng .grp-start.
+    // D-1 chỉ mở khối khi nó là ngày duy nhất của tuần (thứ Hai); các ngày khác
+    // nó chỉ cần vạch mảnh .sep để nổi lên trong khối tuần hiện tại.
+    const d1StartClass = weekCur.length > 1 ? "sep" : "grp-start";
+    // Chênh lệch làm tròn về 0.0 là trung tính, không phải "tốt".
+    const diffClass = (diff) => {
+      const shown = Math.round(diff * 10) / 10;
+      return shown > 0 ? "up" : shown < 0 ? "down" : "flat";
+    };
 
     const prevWeekNum = weekPrev.length > 0 ? getWeekNumber(weekPrev[weekPrev.length - 1]) : '';
     const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
@@ -970,22 +981,22 @@ export default function Report1MienVungHub({
                 <th rowSpan="2" className="lbl lbl-1 desktop-only">Miền</th>
                 <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Kho giao' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
-                  <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
+                  <th colSpan={weekPrev.length} className="grp-start">
                     {isFd ? `TUẦN W-2 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}` : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
                 {weekCur.length > 0 && (
-                  <th colSpan={weekCur.length + 1}>
+                  <th colSpan={weekCur.length + 1} className="grp-start">
                     {isFd ? `TUẦN W-1 ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}` : `TUẦN HIỆN TẠI ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}`}
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}
-                <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th colSpan="2" rowSpan="2" className="grp-start" style={{ background: 'var(--action-primary-deep)', verticalAlign: 'middle' }}>
                   WTD (CỘNG DỒN)
                 </th>
                 {/* Best 6W & Sameday */}
-                <th rowSpan="2" className="col-summary" style={{ borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
+                <th rowSpan="2" className="col-summary grp-start" style={{ verticalAlign: 'middle' }}>
                   Tốt nhất<br />6 tuần
                 </th>
                 <th rowSpan="2" className="col-summary" style={{ verticalAlign: 'middle' }}>
@@ -996,13 +1007,13 @@ export default function Report1MienVungHub({
               {/* Row 2: Daily Dates */}
               <tr>
                 {weekPrev.map((d, idx) => (
-                  <th key={d} className={idx === 0 ? 'sep' : ''}>{formatDateLabel(d)}</th>
+                  <th key={d} className={idx === 0 ? 'grp-start' : undefined}>{formatDateLabel(d)}</th>
                 ))}
-                {weekCur.slice(0, -1).map(d => (
-                  <th key={d}>{formatDateLabel(d)}</th>
+                {weekCur.slice(0, -1).map((d, idx) => (
+                  <th key={d} className={idx === 0 ? 'grp-start' : undefined}>{formatDateLabel(d)}</th>
                 ))}
                 {/* D-1 header (merged over 2 cols, replacing % Ontime and Vol D-1) */}
-                <th data-latest-day colSpan="2" style={{ background: 'var(--action-primary-hover)', borderLeft: '1.5px solid rgba(255,255,255,0.4)' }}>
+                <th data-latest-day colSpan="2" className={d1StartClass} style={{ background: 'var(--action-primary-hover)' }}>
                   {formatDateLabel(d1Date)}
                 </th>
               </tr>
@@ -1016,11 +1027,11 @@ export default function Report1MienVungHub({
                 <td colSpan="1" className="lbl lbl-2 all-row-label mobile-only">TOÀN QUỐC</td>
                 {weekPrev.map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
-                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                  return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                 })}
-                {weekCur.slice(0, -1).map(d => {
+                {weekCur.slice(0, -1).map((d, idx) => {
                   const s = calcStats('TQ_TQ', [d]);
-                  return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                  return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                 })}
                 {/* D-1 */}
                 {(() => {
@@ -1028,11 +1039,11 @@ export default function Report1MienVungHub({
                   const wtdS = calcStats('TQ_TQ', weekCur);
                   return (
                     <>
-                      <td className="sep" style={cellColorStyle(d1S.pct)}>{formatPct(d1S.pct)}</td>
+                      <td {...heatCell(d1S.pct, d1StartClass)}>{formatPct(d1S.pct)}</td>
                       <td style={{ fontWeight: 'bold' }}>{formatVol(d1S.tot)}</td>
-                      <td className="sep" style={cellColorStyle(wtdS.pct)}>{formatPct(wtdS.pct)}</td>
+                      <td {...heatCell(wtdS.pct, "grp-start")}>{formatPct(wtdS.pct)}</td>
                       <td style={{ fontWeight: 'bold' }}>{formatVol(wtdS.tot)}</td>
-                      <td>–</td>
+                      <td className="grp-start">–</td>
                       <td>–</td>
                     </>
                   );
@@ -1065,32 +1076,32 @@ export default function Report1MienVungHub({
                 return (
                   <React.Fragment key={mien}>
                     {/* Miền Header Row */}
-                    <tr className="grp-row" data-motion-id={`mien:${mien}`} style={{ borderTop: '2.5px solid var(--ghn-blue)' }}>
+                    <tr className="grp-row" data-motion-id={`mien:${mien}`}>
                       {/* Sticky so the region name stays visible for as long as any of
                           its rows (spanned by rowSpan) are on screen — otherwise it only
                           ever renders on this one row and disappears the moment this row
                           scrolls behind the frozen header, even while its hub rows below
                           are still visible. */}
                       <td rowSpan={totalRowSpan} className="lbl lbl-1 mien-sticky-label desktop-only" style={{ fontWeight: 'bold', verticalAlign: 'top', paddingTop: '0.6rem' }}>{mien}</td>
-                      <td className="lbl lbl-2" style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Tổng {mien}</td>
+                      <td className="lbl lbl-2 grp-total-label">Tổng {mien}</td>
                       {weekPrev.map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
-                        return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                        return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                       })}
-                      {weekCur.slice(0, -1).map(d => {
+                      {weekCur.slice(0, -1).map((d, idx) => {
                         const s = calcStats(`MIEN_${mien}`, [d]);
-                        return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                        return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                       })}
                       {(() => {
                         const d1S = calcStats(`MIEN_${mien}`, [d1Date]);
                         const wtdS = mienStats;
                         return (
                           <>
-                            <td className="sep" style={cellColorStyle(d1S.pct)}>{formatPct(d1S.pct)}</td>
+                            <td {...heatCell(d1S.pct, d1StartClass)}>{formatPct(d1S.pct)}</td>
                             <td>{formatVol(d1S.tot)}</td>
-                            <td className="sep" style={cellColorStyle(wtdS.pct)}>{formatPct(wtdS.pct)}</td>
+                            <td {...heatCell(wtdS.pct, "grp-start")}>{formatPct(wtdS.pct)}</td>
                             <td>{formatVol(wtdS.tot)}</td>
-                            <td>–</td>
+                            <td className="grp-start">–</td>
                             <td>–</td>
                           </>
                         );
@@ -1127,22 +1138,22 @@ export default function Report1MienVungHub({
                             </td>
                             {weekPrev.map((d, idx) => {
                               const s = calcStats(`REG_${reg}`, [d]);
-                              return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                              return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                             })}
-                            {weekCur.slice(0, -1).map(d => {
+                            {weekCur.slice(0, -1).map((d, idx) => {
                               const s = calcStats(`REG_${reg}`, [d]);
-                              return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                              return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                             })}
                             {/* D-1 & WTD */}
-                            <td className="sep" style={cellColorStyle(regD1Pct)}>{formatPct(regD1Pct)}</td>
+                            <td {...heatCell(regD1Pct, d1StartClass)}>{formatPct(regD1Pct)}</td>
                             <td>{formatVol(d1RegData.tot)}</td>
-                            <td className="sep" style={cellColorStyle(regWtd.pct)}>{formatPct(regWtd.pct)}</td>
+                            <td {...heatCell(regWtd.pct, "grp-start")}>{formatPct(regWtd.pct)}</td>
                             <td>{formatVol(regWtd.tot)}</td>
 
                             {/* Best 6W Diff */}
-                            <td>
+                            <td className="grp-start">
                               {diffBest !== null ? (
-                                <span className={`diff-badge ${diffBest >= 0 ? 'up' : 'down'}`}>
+                                <span className={`diff-badge ${diffClass(diffBest)}`}>
                                   {formatDiff(diffBest)}
                                 </span>
                               ) : '–'}
@@ -1151,7 +1162,7 @@ export default function Report1MienVungHub({
                             {/* Sameday Diff */}
                             <td>
                               {diffSame !== null ? (
-                                <span className={`diff-badge ${diffSame >= 0 ? 'up' : 'down'}`}>
+                                <span className={`diff-badge ${diffClass(diffSame)}`}>
                                   {formatDiff(diffSame)}
                                 </span>
                               ) : '–'}
@@ -1183,17 +1194,17 @@ export default function Report1MienVungHub({
                                 </td>
                                 {weekPrev.map((d, idx) => {
                                   const s = calcStats(subItem.statKey, [d]);
-                                  return <td key={d} className={idx === 0 ? 'sep' : ''} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                                  return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                                 })}
-                                {weekCur.slice(0, -1).map(d => {
+                                {weekCur.slice(0, -1).map((d, idx) => {
                                   const s = calcStats(subItem.statKey, [d]);
-                                  return <td key={d} style={cellColorStyle(s.pct)}>{formatPct(s.pct)}</td>;
+                                  return <td key={d} {...heatCell(s.pct, idx === 0 && "grp-start")}>{formatPct(s.pct)}</td>;
                                 })}
-                                <td className="sep" style={cellColorStyle(subD1.pct)}>{formatPct(subD1.pct)}</td>
+                                <td {...heatCell(subD1.pct, d1StartClass)}>{formatPct(subD1.pct)}</td>
                                 <td>{formatVol(subD1.tot)}</td>
-                                <td className="sep" style={cellColorStyle(subWtd.pct)}>{formatPct(subWtd.pct)}</td>
+                                <td {...heatCell(subWtd.pct, "grp-start")}>{formatPct(subWtd.pct)}</td>
                                 <td>{formatVol(subWtd.tot)}</td>
-                                <td>–</td>
+                                <td className="grp-start">–</td>
                                 <td>–</td>
                               </tr>
                             );
@@ -1211,20 +1222,26 @@ export default function Report1MienVungHub({
         <div className="table-legend">
           {target != null ? (
             <div className="legend-items">
-              <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu (Thang liên tục):</span>
+              <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu:</span>
               <div className="legend-item">
                 <div className="legend-box legend-box-good"></div>
-                <span>≥ {target.toFixed(0)}% (Đạt target)</span>
+                <span>≥ {target.toFixed(0)}% (Đạt)</span>
               </div>
-              <div className="legend-item">
-                <div className="legend-box" style={{ background: '#E8362C' }}></div>
-                <span>Thấp nhất thực tế ({tableMinPct.toFixed(1)}%)</span>
-              </div>
+              {[
+                `${(target - HEAT_TIER_STEPS[0]).toFixed(0)}–<${target.toFixed(0)}%`,
+                `${(target - HEAT_TIER_STEPS[1]).toFixed(0)}–<${(target - HEAT_TIER_STEPS[0]).toFixed(0)}%`,
+                `< ${(target - HEAT_TIER_STEPS[1]).toFixed(0)}%`,
+              ].map((label, i) => (
+                <div className="legend-item" key={label}>
+                  <div className={`legend-box heat-swatch heat-${i + 1}`}></div>
+                  <span>{label}</span>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
-              <span>≤ 3% nền trung tính; &gt; 3% chuyển đỏ theo mức độ cao dần.</span>
+              <span>≤ 3% nền trung tính; &gt; 3% chia 3 bậc đỏ theo mức cao nhất của bảng.</span>
             </div>
           )}
           {hiddenRegionCount > 0 && (
