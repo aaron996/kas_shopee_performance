@@ -1587,7 +1587,6 @@ body.dark-mode .report1-master-table {
 /* ── Heatmap 3 bậc cố định ────────────────────────────────────────────────
    Bậc theo điểm % dưới target (xem getHeatTier). Chữ luôn TỐI và cùng độ
    đậm ở mọi bậc (≥5.7:1), nên cột số không còn nhảy trắng/đen, đậm/nhạt.
-   Tam giác nhỏ trước số để trạng thái "dưới target" không chỉ dựa vào màu.
    Selector đủ nặng để thắng nền !important của dòng Tổng / Toàn quốc. */
 .report1-master-table {
   --heat-1-bg: #fde8e4;
@@ -1624,12 +1623,6 @@ body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat-2 {
 body.dark-mode .report1-master-table table.mtx-table tbody tr td.heat-3 {
   background-color: var(--heat-3-bg) !important;
   color: var(--heat-3-fg) !important;
-}
-/* Góc gấp 6px ở góc trên-trái, cùng màu chữ: đánh dấu "dưới target" mà
-   không chiếm thêm bề ngang của cột. */
-.report1-master-table table.mtx-table tbody tr td.heat {
-  background-image: linear-gradient(135deg, currentColor 0 6px, transparent 6px) !important;
-  background-repeat: no-repeat !important;
 }
 .table-legend .heat-swatch.heat-1 { background: var(--heat-1-bg, #fde8e4); }
 .table-legend .heat-swatch.heat-2 { background: var(--heat-2-bg, #f8c3ba); }
