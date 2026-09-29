@@ -524,8 +524,14 @@ export default function CodSuspicionReport({
     );
   }, [filteredDrivers]);
 
+  // Orphan groups (a saved resolution whose driver left today's snapshot) stay
+  // visible in their status tab but are not part of today's flagged cases.
   const totalDriverCaseCount = useMemo(
-    () => new Set(filteredDrivers.map(driver => driver.driverId || driver.driverName)).size,
+    () => new Set(
+      filteredDrivers
+        .filter(driver => !driver.isOrphan)
+        .map(driver => driver.driverId || driver.driverName)
+    ).size,
     [filteredDrivers]
   );
 
