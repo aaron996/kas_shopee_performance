@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseBatchRequest } from './cod-sms-assessments.js';
+import { parseBatchRequest } from '../../api/cod-sms-assessments.js';
 
 const config = { maxBatchLimit: 500, defaultBatchLimit: 25 };
 
