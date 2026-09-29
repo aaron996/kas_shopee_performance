@@ -129,18 +129,3 @@ export function buildCodSuspicionExportRows({
   }
   return rows;
 }
-
-/** Keep only rows whose (type, order) is not already in the log tab. */
-export function selectNewLogRows(rows, existingLogValues = []) {
-  const logged = new Set(
-    existingLogValues
-      .filter(row => Array.isArray(row) && text(row[1]))
-      .map(row => exportOrderKey(row[0], row[1]))
-  );
-  return rows.filter(row => {
-    const key = exportOrderKey(row[0], row[1]);
-    if (logged.has(key)) return false;
-    logged.add(key);
-    return true;
-  });
-}

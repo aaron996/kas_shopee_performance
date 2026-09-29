@@ -1,16 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import { ChatError, toPublicError } from '../chat/errors.js';
+import { timingSafeEqual } from 'node:crypto';
+import { ChatError } from '../chat/errors.js';
 import { DEFAULT_SMS_ESCALATION_THRESHOLD } from '../../src/utils/codSuspicionProcessor.js';
-import { buildCodSuspicionExportRows, EXPORT_HEADERS, selectNewLogRows } from './build.js';
-import { createSheetsClient, fetchAccessToken, parseServiceAccount } from './google-sheets.js';
-
-export const DEFAULT_EXPORT_SPREADSHEET_ID = '1KPxEdtmu-s3yKpjOjJ4yEV1YnIjfTF9qcI0u_4ecCdk';
-export const DEFAULT_EXPORT_SHEET = 'nghi_ngo_COD';
-export const DEFAULT_EXPORT_LOG_SHEET = 'nghi_ngo_COD_log';
+import { buildCodSuspicionExportRows, EXPORT_HEADERS } from './build.js';
 
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 50;
-const LAST_COLUMN = String.fromCharCode('A'.charCodeAt(0) + EXPORT_HEADERS.length - 1);
 
 const ORDER_COLUMNS = [
   'suspicion_type', 'driver_id', 'driver_name', 'order_code', 'to_province',
@@ -19,27 +14,25 @@ const ORDER_COLUMNS = [
 
 function requireEnv(env, key) {
   const value = env[key]?.trim();
-  if (!value) throw new ChatError('COD_EXPORT_CONFIG_MISSING', `Chưa cấu hình ${key} cho export sheet COD.`, 503);
+  if (!value) throw new ChatError('COD_EXPORT_CONFIG_MISSING', `Chưa cấu hình ${key} cho export COD.`, 503);
   return value;
 }
 
-/** Returns null when the Google credential is not set, so callers can skip. */
 export function readCodExportConfig(env = process.env) {
-  const rawServiceAccount = env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!rawServiceAccount) return null;
-  const sheetName = env.COD_EXPORT_SHEET_NAME?.trim() || DEFAULT_EXPORT_SHEET;
-  const logSheetName = env.COD_EXPORT_LOG_SHEET_NAME?.trim() || DEFAULT_EXPORT_LOG_SHEET;
-  if (sheetName === logSheetName) {
-    throw new ChatError('COD_EXPORT_CONFIG_INVALID', 'Tab ghi đè và tab log phải khác nhau.', 503);
-  }
   return {
     supabaseUrl: requireEnv(env, 'SUPABASE_URL'),
     supabaseServiceRoleKey: requireEnv(env, 'SUPABASE_SERVICE_ROLE_KEY'),
-    serviceAccount: parseServiceAccount(rawServiceAccount),
-    spreadsheetId: env.COD_EXPORT_SPREADSHEET_ID?.trim() || DEFAULT_EXPORT_SPREADSHEET_ID,
-    sheetName,
-    logSheetName
+    apiToken: requireEnv(env, 'COD_EXPORT_API_TOKEN')
   };
+}
+
+/** Constant-time check of `Authorization: Bearer <COD_EXPORT_API_TOKEN>`. */
+export function verifyExportToken(authHeader, expectedToken) {
+  const expected = Buffer.from(`Bearer ${expectedToken}`);
+  const actual = Buffer.from(String(authHeader ?? ''));
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    throw new ChatError('COD_EXPORT_UNAUTHORIZED', 'Không có quyền đọc danh sách export COD.', 401);
+  }
 }
 
 async function selectAll(buildQuery, code, message) {
@@ -85,6 +78,23 @@ export function createCodExportRepository(serviceClient) {
         .select('threshold').eq('id', true).maybeSingle();
       if (error) throw new ChatError('COD_EXPORT_THRESHOLD_READ_FAILED', 'Không thể đọc mốc điểm SMS.', 503, { cause: error });
       return data?.threshold ?? DEFAULT_SMS_ESCALATION_THRESHOLD;
+    },
+    async loadFreshness() {
+      const [snapshot, scoring] = await Promise.all([
+        serviceClient.from('kas_cod_suspicion_metadata').select('synced_at')
+          .order('synced_at', { ascending: false }).limit(1).maybeSingle(),
+        serviceClient.from('cod_suspicion_sms_runs').select('status,started_at,finished_at')
+          .order('started_at', { ascending: false }).limit(1).maybeSingle()
+      ]);
+      if (snapshot.error || scoring.error) {
+        throw new ChatError('COD_EXPORT_FRESHNESS_READ_FAILED', 'Không thể đọc thời điểm sync/chấm SMS.', 503);
+      }
+      return {
+        snapshotSyncedAt: snapshot.data?.synced_at ?? null,
+        lastSmsRun: scoring.data
+          ? { status: scoring.data.status, startedAt: scoring.data.started_at, finishedAt: scoring.data.finished_at }
+          : null
+      };
     }
   };
 }
@@ -98,99 +108,34 @@ export function formatVietnamTimestamp(date = new Date()) {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
-/** Create missing tabs and grow the overwrite tab so the full table fits. */
-async function prepareSheets(sheets, { sheetName, logSheetName, neededRows }) {
-  const existing = await sheets.getSheets();
-  const byTitle = new Map(existing.map(sheet => [sheet.title, sheet]));
-  const requests = [];
-  for (const title of [sheetName, logSheetName]) {
-    if (!byTitle.has(title)) requests.push({ addSheet: { properties: { title } } });
-  }
-  const target = byTitle.get(sheetName);
-  if (target && (target.gridProperties?.rowCount ?? 0) < neededRows) {
-    requests.push({
-      updateSheetProperties: {
-        properties: { sheetId: target.sheetId, gridProperties: { rowCount: neededRows } },
-        fields: 'gridProperties.rowCount'
-      }
-    });
-  }
-  if (requests.length) await sheets.batchUpdate(requests);
-  // A tab created just now has the default 1000-row grid.
-  if (!target && neededRows > 1000) {
-    const created = (await sheets.getSheets()).find(sheet => sheet.title === sheetName);
-    await sheets.batchUpdate([{
-      updateSheetProperties: {
-        properties: { sheetId: created.sheetId, gridProperties: { rowCount: neededRows } },
-        fields: 'gridProperties.rowCount'
-      }
-    }]);
-  }
-}
-
 /**
- * Push Medium/High COD suspicion orders to the destination spreadsheet:
- *   - `sheetName` is fully rewritten with the current list.
- *   - `logSheetName` only gains orders whose (type, order code) it has never
- *     seen, so a later change to SMS/call fields never adds a second row.
- * Safe to re-run: both writes are idempotent for the same snapshot.
+ * Build the Medium/High COD suspicion order list for the nghi_ngo_COD sheet.
+ * The Apps Script bound to the destination spreadsheet pulls this and writes
+ * the tabs itself, so no Google credential ever lives on the server.
  */
-export async function runCodSuspicionExport(dependencies = {}) {
-  const env = dependencies.env ?? process.env;
-  const config = (dependencies.readConfig ?? readCodExportConfig)(env);
-  if (!config) {
-    return { status: 'skipped', reason: 'GOOGLE_SERVICE_ACCOUNT_JSON chưa được cấu hình.' };
-  }
-
+export async function loadCodSuspicionExport(dependencies = {}) {
+  const config = dependencies.config ?? readCodExportConfig(dependencies.env ?? process.env);
   const serviceClient = dependencies.serviceClient ?? createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   });
   const repository = (dependencies.createRepository ?? createCodExportRepository)(serviceClient);
-  const [orders, assessments, nonViolationDrivers, threshold] = await Promise.all([
+  const [orders, assessments, nonViolationDrivers, threshold, freshness] = await Promise.all([
     repository.loadOrders(),
     repository.loadScoredAssessments(),
     repository.loadNonViolationDrivers(),
-    repository.loadThreshold()
+    repository.loadThreshold(),
+    repository.loadFreshness()
   ]);
 
-  const syncedAt = formatVietnamTimestamp(dependencies.now ?? new Date());
-  const rows = buildCodSuspicionExportRows({ orders, assessments, nonViolationDrivers, threshold, syncedAt });
-
-  const sheets = dependencies.sheetsClient ?? createSheetsClient({
-    accessToken: await fetchAccessToken(config.serviceAccount),
-    spreadsheetId: config.spreadsheetId
-  });
-
-  const table = [EXPORT_HEADERS.slice(), ...rows];
-  await prepareSheets(sheets, { ...config, neededRows: table.length });
-  await sheets.updateValues(config.sheetName, 'A1', table);
-  await sheets.clearValues(config.sheetName, `A${table.length + 1}:${LAST_COLUMN}`);
-
-  const existingLog = await sheets.getValues(config.logSheetName, `A:${LAST_COLUMN}`);
-  const newLogRows = selectNewLogRows(rows, existingLog.slice(1));
-  const logPayload = existingLog.length ? newLogRows : [EXPORT_HEADERS.slice(), ...newLogRows];
-  if (logPayload.length) await sheets.appendValues(config.logSheetName, 'A1', logPayload);
-
+  const generatedAt = formatVietnamTimestamp(dependencies.now ?? new Date());
+  const rows = buildCodSuspicionExportRows({ orders, assessments, nonViolationDrivers, threshold, syncedAt: generatedAt });
   return {
-    status: 'ok',
-    syncedAt,
+    generatedAt,
     threshold,
+    ...freshness,
     sourceOrders: orders.length,
-    exportedOrders: rows.length,
     exportedDrivers: new Set(rows.map(row => `${row[0]}\u0000${row[2]}`)).size,
-    newLogRows: newLogRows.length
+    headers: EXPORT_HEADERS.slice(),
+    rows
   };
-}
-
-/** Never throws: the SMS cron reports this result next to its own totals. */
-export async function runCodSuspicionExportSafely(dependencies = {}) {
-  try {
-    return await runCodSuspicionExport(dependencies);
-  } catch (error) {
-    console.error('[cod-export] failed', error);
-    const failure = error instanceof ChatError
-      ? toPublicError(error)
-      : { code: 'COD_EXPORT_INTERNAL_ERROR', message: 'Export sheet COD gặp lỗi không xác định.' };
-    return { status: 'failed', error: { code: failure.code, message: failure.message } };
-  }
 }

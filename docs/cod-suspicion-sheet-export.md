@@ -1,7 +1,16 @@
 # COD suspicion sheet export (`nghi_ngo_COD`)
 
-Pushes COD suspicion orders to the destination spreadsheet after the daily SMS
-scoring run.
+Pushes COD suspicion orders to the destination spreadsheet once a day. GHN
+does not allow sharing these sheets outside the domain (service accounts
+included), so the write runs as an Apps Script bound to the destination
+spreadsheet under a GHN account. The app only computes the list:
+
+```
+Apps Script (destination sheet, ~10:15 VN)
+  └─ GET /api/cod-suspicion-export   Authorization: Bearer <COD_EXPORT_API_TOKEN>
+       └─ reads Supabase with the service role, returns { headers, rows, ... }
+  └─ writes nghi_ngo_COD (overwrite) + nghi_ngo_COD_log (append new orders)
+```
 
 ## Selection
 
@@ -31,24 +40,20 @@ Columns: Loại nghi ngờ, Mã đơn, ID tài xế, Tên tài xế, Tỉnh giao
 (`warehouse_id` from "ID kho giao"), Tên bưu cục, Giá trị COD, Ngày kết thúc
 giao, Mức nghi ngờ tài xế, Thời gian đồng bộ (Asia/Ho_Chi_Minh). Both tabs are
 created on first run. Keep manual notes outside columns A–K of the rewritten
-tab; they are cleared.
+tab; they are cleared. A malformed API response leaves both tabs untouched.
 
 ## Schedule
 
-- `/api/cron/cod-sms-score` (02:00 UTC = 09:00 VN) scores SMS, then runs the
-  export in the same invocation, also when scoring fails or is disabled.
-- `/api/cron/cod-suspicion-export` (03:30 UTC) re-runs only the export as a
-  fallback. Both writes are idempotent, so running it twice is harmless. It
-  accepts `Authorization: Bearer <CRON_SECRET>` for manual or n8n calls.
+The SMS cron (`0 2 * * *` UTC) fires somewhere in 09:00–09:59 VN on the Hobby
+plan, so the Apps Script trigger runs at ~10:15 VN. The response carries
+`snapshotSyncedAt` and `lastSmsRun`; the script logs a note if scoring is
+still running.
 
 ## Setup
 
-1. Create a Google Cloud service account, enable the Google Sheets API and
-   download its JSON key.
-2. Share the destination spreadsheet with the key's `client_email` as Editor.
-3. Set `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole JSON) on Vercel. Optional:
-   `COD_EXPORT_SPREADSHEET_ID`, `COD_EXPORT_SHEET_NAME`,
-   `COD_EXPORT_LOG_SHEET_NAME`.
-
-Without `GOOGLE_SERVICE_ACCOUNT_JSON` the export reports `skipped` and the SMS
-cron is unaffected.
+1. Set `COD_EXPORT_API_TOKEN` on Vercel to a long random value and redeploy.
+2. In the destination spreadsheet: Extensions → Apps Script, paste
+   `scripts/apps-script/push-cod-suspicion-sheet.gs`.
+3. Script Properties: `COD_EXPORT_API_TOKEN` with the same value.
+4. Run `dryRunCodSuspicionSheet()`, then `pushCodSuspicionSheet()`, then
+   `createCodSuspicionSheetTrigger()` once.
