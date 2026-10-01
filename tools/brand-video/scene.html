@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>GHN Performance — brand intro scene</title>
+<!--
+  Deterministic 10s scene (1280x720). Everything is a pure function of time:
+  window.render(t) positions every element, so render.mjs can step through
+  frames and ffmpeg can assemble them. Open this file in a browser to scrub:
+  add ?t=4.2 to freeze on a time, or leave empty to play in real time.
+
+  Timeline
+    0.2–2.1  parcels ride routes into the centre
+    1.3–2.8  box assembles (body, lids, tape tail)
+    2.7–3.6  growth arrow draws, head pops, spark burst + shock ring
+    4.5–5.6  icon glides left, GHN letters rise, PERFORMANCE tracks out
+    5.8–7.6  sparkline "performance" draws under the lockup, shine sweep
+    8.0–10   idle loop (period 2s, first and last frame identical)
+-->
+<style>
+  html, body { margin: 0; background: #fff; }
+  svg { display: block; }
+  text { font-family: "Segoe UI", "Noto Sans", "Open Sans", Arial, sans-serif; }
+</style>
+</head>
+<body>
+<svg id="s" width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="iconClip">
+      <polygon points="290,62 415,62 398,155 207,155"/>
+      <polygon points="475,62 600,62 683,155 495,155"/>
+      <path d="M207 175 H683 V490 Q683 540 633 540 H257 Q207 540 207 490 Z"/>
+    </clipPath>
+    <clipPath id="letterClip"><rect x="-4" y="-4" width="108" height="119"/></clipPath>
+    <clipPath id="barClip"><rect x="540" y="516" width="200" height="8" rx="4"/></clipPath>
+    <linearGradient id="edgeFade" x1="120" x2="1160" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".12" stop-color="#fff"/>
+      <stop offset=".88" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="chartMask" maskUnits="userSpaceOnUse" x="0" y="0" width="1280" height="720"><rect width="1280" height="720" fill="url(#edgeFade)"/></mask>
+    <linearGradient id="areaFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F15A22" stop-opacity=".13"/>
+      <stop offset="1" stop-color="#F15A22" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="#fff"/>
+
+  <!-- sparkline backdrop -->
+  <g id="chart" mask="url(#chartMask)">
+    <g id="grid" stroke="#0E1A2E" stroke-opacity=".06" stroke-width="1">
+      <line x1="120" x2="1160" y1="585" y2="585"/>
+      <line x1="120" x2="1160" y1="625" y2="625"/>
+      <line x1="120" x2="1160" y1="665" y2="665"/>
+    </g>
+    <path id="area" fill="url(#areaFade)"/>
+    <path id="line" fill="none" stroke="#F15A22" stroke-opacity=".32" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+    <g id="dots" fill="#F15A22"></g>
+  </g>
+
+  <g id="routes"></g>
+  <circle id="ring" fill="none" stroke="#F15A22" cx="640" cy="340" r="100" opacity="0"/>
+  <circle id="idleRing" fill="none" stroke="#F15A22" stroke-width="2.5" cx="401" cy="350" r="140" opacity="0"/>
+
+  <!-- ICON (coordinates are the logo's own, origin shifted to its centre) -->
+  <g id="icon">
+    <g transform="translate(-445 -301)">
+      <g id="lidL"><polygon fill="#F15A22" points="290,62 415,62 398,155 207,155"/></g>
+      <g id="lidR"><polygon fill="#F15A22" points="475,62 600,62 683,155 495,155"/></g>
+      <g id="body"><path fill="#F15A22" d="M207 175 H683 V490 Q683 540 633 540 H257 Q207 540 207 490 Z"/></g>
+      <g id="tail"><polygon fill="#fff" points="415,175 475,175 475,230 445,208 415,230"/></g>
+      <path id="shaft" fill="none" stroke="#fff" stroke-width="40" stroke-linejoin="miter" stroke-miterlimit="10"
+            d="M305 425 L385 350 L447 410 L600 252" pathLength="1"/>
+      <g id="head"><polygon fill="#fff" points="510,215 634,215 634,338 592,338 592,257 510,257"/></g>
+      <g id="shine" clip-path="url(#iconClip)"><polygon id="shineBand" fill="#fff" fill-opacity=".38" points="-60,40 10,40 -50,560 -120,560"/></g>
+      <g id="sparks" stroke="#F15A22" stroke-width="9" stroke-linecap="round"></g>
+    </g>
+  </g>
+
+  <!-- WORDMARK: GHN as vector letters (lockup units, scaled 1.25) -->
+  <g id="word" transform="translate(612 241.5) scale(1.25)" fill="#0E1A2E" stroke="none">
+    <g clip-path="url(#letterClip)"><g id="lG" fill="none" stroke="#0E1A2E" stroke-width="26" stroke-linejoin="miter" stroke-miterlimit="10">
+      <path d="M96 13 H13 V98 H83 V60 H50"/></g></g>
+    <g transform="translate(112 0)" clip-path="url(#letterClip)"><g id="lH" fill="none" stroke="#0E1A2E" stroke-width="26">
+      <path d="M13 0 V111 M83 0 V111 M13 55.5 H83"/></g></g>
+    <g transform="translate(224 0)" clip-path="url(#letterClip)"><g id="lN">
+      <polygon points="0,111 0,0 26,0 70,70 70,0 96,0 96,111 70,111 26,41 26,111"/></g></g>
+  </g>
+  <text id="perf" x="612" y="458" font-size="50" font-weight="500" fill="#0E1A2E" fill-opacity=".86"
+        textLength="372" lengthAdjust="spacing" opacity="0">PERFORMANCE</text>
+
+  <!-- indeterminate bar (only moves during the idle loop) -->
+  <g id="bar" opacity="0">
+    <rect x="540" y="516" width="200" height="8" rx="4" fill="#0E1A2E" fill-opacity=".08"/>
+    <g clip-path="url(#barClip)"><rect id="barSeg" x="470" y="516" width="84" height="8" rx="4" fill="#F15A22"/></g>
+  </g>
+</svg>
+
+<script>
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const eOut3 = k => 1 - Math.pow(1 - k, 3);
+const eInOut3 = k => (k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const eOutExpo = k => (k === 1 ? 1 : 1 - Math.pow(2, -10 * k));
+const eOutBack = (k, s = 1.70158) => 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2);
+const eInOut2 = k => (k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+
+const tf = (tx, ty, sx, sy, r, cx, cy) =>
+  `translate(${tx} ${ty}) translate(${cx} ${cy}) rotate(${r}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`;
+
+/* ---------- routes + parcels ---------- */
+const END = [640, 340];
+const ROUTES = [
+  [[-60, 90], [300, 60], [420, 300]],
+  [[-60, 640], [260, 700], [440, 420]],
+  [[1340, 80], [980, 40], [860, 280]],
+  [[1340, 650], [1000, 720], [840, 430]],
+  [[420, -60], [470, 150], [580, 230]],
+  [[860, 780], [800, 600], [700, 470]],
+  [[1340, 360], [1100, 330], [900, 350]],
+  [[-60, 370], [160, 400], [400, 330]]
+];
+const routeEls = ROUTES.map(([p0, c1, c2], i) => {
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', `M${p0} C${c1} ${c2} ${END}`);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#F15A22');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('stroke-linecap', 'round');
+  $('routes').appendChild(path);
+  const len = path.getTotalLength();
+  const parcel = document.createElementNS(NS, 'g');
+  parcel.innerHTML = '<rect x="-17" y="-17" width="34" height="34" rx="6" fill="#F15A22"/><rect x="-3" y="-17" width="6" height="34" fill="#fff" fill-opacity=".85"/>';
+  $('routes').appendChild(parcel);
+  return { path, len, parcel, depart: 0.25 + i * 0.09, dur: 1.25 };
+});
+
+/* ---------- sparkline ---------- */
+const PTS = [[120, 655], [260, 632], [380, 644], [520, 612], [640, 626], [780, 596], [900, 608], [1040, 570], [1160, 548]];
+const lineD = 'M' + PTS.map(p => p.join(' ')).join(' L');
+$('line').setAttribute('d', lineD);
+$('area').setAttribute('d', lineD + ' L1160 700 L120 700 Z');
+PTS.forEach(([x, y]) => {
+  const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 4.5);
+  c.setAttribute('fill-opacity', '.4');
+  $('dots').appendChild(c);
+});
+const dotEls = [...$('dots').children];
+
+/* ---------- sparks ---------- */
+const sparkEls = Array.from({ length: 7 }, (_, i) => {
+  const l = document.createElementNS(NS, 'line');
+  $('sparks').appendChild(l);
+  return { l, a: (-82 + i * 13) * Math.PI / 180 };
+});
+
+/* ---------- main ---------- */
+const FINAL = { x: 401, y: 350, s: 0.529 };
+
+window.render = function (t) {
+  /* routes & parcels */
+  routeEls.forEach(r => {
+    const k = seg(t, r.depart, r.depart + r.dur);
+    const draw = eOut3(seg(t, r.depart - 0.1, r.depart + r.dur * 0.7));
+    r.path.setAttribute('stroke-dasharray', `${r.len} ${r.len + 10}`);
+    r.path.setAttribute('stroke-dashoffset', r.len * (1 - draw));
+    r.path.setAttribute('stroke-opacity', (0.3 * (1 - seg(k, 0.55, 1))).toFixed(3));
+    const e = eInOut2(k);
+    const pt = r.path.getPointAtLength(r.len * e);
+    const pt2 = r.path.getPointAtLength(Math.min(r.len, r.len * e + 2));
+    const ang = Math.atan2(pt2.y - pt.y, pt2.x - pt.x) * 180 / Math.PI;
+    const sc = k <= 0 ? 0 : lerp(0.5, 1, eOut3(seg(k, 0, .2))) * (1 - eOut3(seg(k, .82, 1)));
+    r.parcel.setAttribute('transform', `translate(${pt.x} ${pt.y}) rotate(${ang}) scale(${sc})`);
+    r.parcel.setAttribute('opacity', k <= 0 || k >= 1 ? 0 : 1);
+  });
+
+  /* icon parts */
+  const bodyK = eOutBack(seg(t, 1.35, 2.05), 1.3);
+  const bodyOp = seg(t, 1.35, 1.6);
+  $('body').setAttribute('transform', tf(0, lerp(70, 0, bodyK), lerp(.35, 1, bodyK), lerp(.35, 1, bodyK), 0, 445, 357));
+  $('body').setAttribute('opacity', bodyOp);
+
+  const lidK = (a) => eOutBack(seg(t, a, a + 0.6), 1.1);
+  const lk1 = lidK(1.75), lk2 = lidK(1.85);
+  $('lidL').setAttribute('transform', tf(lerp(-80, 0, lk1), lerp(-150, 0, lk1), 1, 1, lerp(-14, 0, lk1), 300, 108));
+  $('lidL').setAttribute('opacity', seg(t, 1.75, 1.95));
+  $('lidR').setAttribute('transform', tf(lerp(80, 0, lk2), lerp(-150, 0, lk2), 1, 1, lerp(14, 0, lk2), 590, 108));
+  $('lidR').setAttribute('opacity', seg(t, 1.85, 2.05));
+
+  const tailK = eOut3(seg(t, 2.35, 2.75));
+  $('tail').setAttribute('transform', tf(0, 0, 1, tailK, 0, 445, 175));
+  $('tail').setAttribute('opacity', tailK > 0 ? 1 : 0);
+
+  const shaftK = eInOut2(seg(t, 2.7, 3.3));
+  $('shaft').setAttribute('stroke-dasharray', '1 2');
+  $('shaft').setAttribute('stroke-dashoffset', 1 - shaftK);
+  $('shaft').setAttribute('opacity', shaftK > 0 ? 1 : 0);
+
+  const headK = eOutBack(seg(t, 3.22, 3.55), 2.2);
+  $('head').setAttribute('transform', tf(0, 0, headK, headK, 0, 600, 250));
+  $('head').setAttribute('opacity', headK > 0 ? 1 : 0);
+
+  /* sparks at arrow head */
+  const sk = seg(t, 3.4, 4.0);
+  sparkEls.forEach(({ l, a }) => {
+    const e = eOut3(sk);
+    const r0 = 34 + 60 * e, r1 = r0 + lerp(34, 4, e);
+    l.setAttribute('x1', 634 + Math.cos(a) * r0); l.setAttribute('y1', 215 + Math.sin(a) * r0);
+    l.setAttribute('x2', 634 + Math.cos(a) * r1); l.setAttribute('y2', 215 + Math.sin(a) * r1);
+    l.setAttribute('opacity', sk > 0 && sk < 1 ? (1 - sk).toFixed(3) : 0);
+  });
+
+  /* icon position: centre → lockup slot */
+  const mv = eInOut3(seg(t, 4.5, 5.6));
+  const bounce = 1 + 0.045 * Math.sin(Math.PI * seg(t, 3.5, 4.05));
+  const ix = lerp(640, FINAL.x, mv), iy = lerp(340, FINAL.y, mv);
+  const is = lerp(0.78, FINAL.s, mv) * bounce;
+  $('icon').setAttribute('transform', `translate(${ix} ${iy}) scale(${is})`);
+
+  /* shine sweep (icon-local x, starts left of the box) */
+  const sh = eInOut2(seg(t, 6.0, 6.9));
+  $('shineBand').setAttribute('transform', `translate(${lerp(120, 900, sh)} 0)`);
+  $('shine').setAttribute('opacity', sh > 0 && sh < 1 ? 1 : 0);
+
+  /* shock ring from the box centre (screen space) */
+  const rk = seg(t, 3.55, 4.6);
+  const ring = $('ring');
+  ring.setAttribute('r', lerp(150, 560, eOut3(rk)));
+  ring.setAttribute('stroke-width', lerp(8, 1, rk));
+  ring.setAttribute('opacity', rk > 0 && rk < 1 ? (0.4 * (1 - rk)).toFixed(3) : 0);
+
+  /* GHN letters */
+  ['lG', 'lH', 'lN'].forEach((id, i) => {
+    const k = eOutExpo(seg(t, 4.95 + i * 0.12, 5.75 + i * 0.12));
+    $(id).setAttribute('transform', `translate(0 ${lerp(125, 0, k)})`);
+  });
+
+  /* PERFORMANCE: tracks out while fading in */
+  const pk = seg(t, 5.55, 6.5);
+  const perf = $('perf');
+  perf.setAttribute('opacity', eOut3(seg(t, 5.55, 6.1)));
+  perf.setAttribute('textLength', lerp(292, 372, eOut3(pk)));
+
+  /* sparkline */
+  const ck = eInOut2(seg(t, 5.8, 7.6));
+  $('line').setAttribute('stroke-dasharray', '1 2');
+  $('line').setAttribute('stroke-dashoffset', 1 - ck);
+  $('line').setAttribute('opacity', ck > 0 ? 1 : 0);
+  $('grid').setAttribute('opacity', eOut3(seg(t, 5.6, 6.6)));
+  $('area').setAttribute('opacity', ck > 0 ? seg(t, 6.8, 7.8) : 0);
+  dotEls.forEach((d, i) => {
+    const at = (i / (PTS.length - 1));
+    d.setAttribute('opacity', ck >= at && ck > 0 ? 1 : 0);
+  });
+
+  /* idle loop (period 2s, starts at 8.0) */
+  const idle = t >= 8;
+  const p = idle ? (((t - 8) / 2) % 1 + 1) % 1 : 0;
+  const ir = $('idleRing');
+  ir.setAttribute('r', lerp(135, 270, eOut3(p)));
+  ir.setAttribute('opacity', idle ? (0.2 * Math.sin(Math.PI * p)).toFixed(4) : 0);
+  $('bar').setAttribute('opacity', eOut3(seg(t, 7.4, 8.0)));
+  $('barSeg').setAttribute('x', idle ? lerp(540 - 84, 740, eInOut2(p)) : 540 - 84);
+};
+
+const q = new URLSearchParams(location.search);
+if (q.has('t')) {
+  window.render(parseFloat(q.get('t')));
+} else {
+  const t0 = performance.now();
+  const tick = () => { window.render(((performance.now() - t0) / 1000)); requestAnimationFrame(tick); };
+  window.render(0); tick();
+}
+</script>
+</body>
+</html>

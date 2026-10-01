@@ -48,7 +48,7 @@ export default function Sidebar({
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
         <button type="button" className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
           <img
-            src="/ghn-logo.png"
+            src="/ghn-icon.svg"
             alt="GHN"
             className="sidebar-logo"
           />

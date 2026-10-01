@@ -191,6 +191,10 @@ button:active:not(:disabled),
   box-shadow: 0 2px 8px rgba(241, 90, 34, 0.4);
   flex-shrink: 0;
   object-fit: contain;
+  /* the logo is negative-space on orange — it needs a white tile on the dark sidebar */
+  background: #fff;
+  padding: 7px;
+  box-sizing: border-box;
 }
 
 .app-sidebar.collapsed .sidebar-logo {

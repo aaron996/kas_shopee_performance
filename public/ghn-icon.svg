@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="205 62 480 478" role="img" aria-label="GHN Performance">
+  <polygon fill="#F15A22" points="290,62 415,62 398,155 207,155"/>
+  <polygon fill="#F15A22" points="475,62 600,62 683,155 495,155"/>
+  <path fill="#F15A22" d="M207 175 H683 V490 Q683 540 633 540 H257 Q207 540 207 490 Z"/>
+  <polygon fill="#fff" points="415,175 475,175 475,230 445,208 415,230"/>
+  <path fill="none" stroke="#fff" stroke-width="40" stroke-miterlimit="10" d="M305 425 L385 350 L447 410 L600 252"/>
+  <polygon fill="#fff" points="510,215 634,215 634,338 592,338 592,257 510,257"/>
+</svg>

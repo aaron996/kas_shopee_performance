@@ -1,0 +1,32 @@
+/* Full-screen brand intro (see BrandSplash.jsx). The video's own background is
+   pure white, so letterboxing on any aspect ratio is seamless. Stays white in
+   dark mode on purpose: it is a brand moment, not an app surface. */
+.brand-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.brand-splash--leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brand-splash__media {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-splash {
+    transition: none;
+  }
+}

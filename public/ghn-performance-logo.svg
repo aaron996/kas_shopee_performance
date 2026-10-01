@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="262 212 762 278" role="img" aria-label="GHN Performance">
+  <g transform="translate(401 350) scale(0.529) translate(-445 -301)">
+    <polygon fill="#F15A22" points="290,62 415,62 398,155 207,155"/>
+    <polygon fill="#F15A22" points="475,62 600,62 683,155 495,155"/>
+    <path fill="#F15A22" d="M207 175 H683 V490 Q683 540 633 540 H257 Q207 540 207 490 Z"/>
+    <polygon fill="#fff" points="415,175 475,175 475,230 445,208 415,230"/>
+    <path fill="none" stroke="#fff" stroke-width="40" stroke-miterlimit="10" d="M305 425 L385 350 L447 410 L600 252"/>
+    <polygon fill="#fff" points="510,215 634,215 634,338 592,338 592,257 510,257"/>
+  </g>
+  <g transform="translate(612 241.5) scale(1.25)" fill="#0E1A2E">
+    <path fill="none" stroke="#0E1A2E" stroke-width="26" stroke-miterlimit="10" d="M96 13 H13 V98 H83 V60 H50"/>
+    <path fill="none" stroke="#0E1A2E" stroke-width="26" transform="translate(112 0)" d="M13 0 V111 M83 0 V111 M13 55.5 H83"/>
+    <polygon transform="translate(224 0)" points="0,111 0,0 26,0 70,70 70,0 96,0 96,111 70,111 26,41 26,111"/>
+  </g>
+  <text x="612" y="458" font-family="Segoe UI, Noto Sans, Open Sans, Arial, sans-serif" font-size="50" font-weight="500" fill="#0E1A2E" fill-opacity=".86" textLength="372" lengthAdjust="spacing">PERFORMANCE</text>
+</svg>
