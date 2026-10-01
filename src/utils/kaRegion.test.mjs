@@ -36,7 +36,7 @@ test('other Long Biên post offices are untouched', () => {
   assert.equal(row, input);
 });
 
-test('CK hubs are tagged hub type CK by name or wh_id, vùng untouched', () => {
+test('CK hubs are tagged hub type CK by name or wh_id; HCM / HNO ones move to their CK vùng', () => {
   const [byName, byId, byIdStr, fd, other, ka] = reassignKaRegion([
     { region: 'HCM', hub: 'BC CK Thủ Đức', hub_type: 'BC' },
     { region: 'HNO', hub: 'BC Cầu Giấy', hub_type: 'BC', wh_id: 23119000 },
@@ -46,7 +46,11 @@ test('CK hubs are tagged hub type CK by name or wh_id, vùng untouched', () => {
     { region: 'HCM', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'KA', wh_id: '23119000' },
   ]);
   assert.equal(getHubType(byName), 'CK');
-  assert.equal(byName.region, 'HCM');
+  assert.equal(byName.region, 'HCM - CK');
+  assert.equal(byId.region, 'HNO - CK');
+  assert.equal(fd.region, 'DNB');
+  assert.equal(other.region, 'HCM');
+  assert.equal(ka.region, 'HCM - KA');
   assert.equal(getHubType(byId), 'CK');
   assert.equal(getHubType(byIdStr), 'CK');
   assert.equal(getHubType(fd), 'CK');
