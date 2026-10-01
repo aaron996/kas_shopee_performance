@@ -38,7 +38,14 @@ export function parseSnapshotParams(search) {
     .map(s => s.trim())
     .filter(Boolean);
 
-  return { view, report, table, client, token, excludeHubTypes };
+  // Opposite of excludeHubTypes: keep ONLY these types (e.g. hubTypes=CK for the
+  // CK-only pictures). Takes precedence over excludeHubTypes when both are set.
+  const onlyHubTypes = (params.get('hubTypes') || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  return { view, report, table, client, token, excludeHubTypes, onlyHubTypes };
 }
 
 export function unpackRows(payload) {
@@ -52,11 +59,14 @@ export function unpackRows(payload) {
 
 // Runs the rows through the same normalisation and Vùng / Loại Hub filter the
 // dashboard applies (App.jsx), with every vùng selected.
-export function scopeSnapshotRows(rows, view, excludeHubTypes = []) {
+export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes = []) {
   const normalized = reassignKaRegion(rows);
   const allHubTypes = collectHubTypes([normalized]);
   const excluded = new Set(excludeHubTypes.map(t => t.toLowerCase()));
-  const hubTypes = allHubTypes.filter(t => !excluded.has(String(t).toLowerCase()));
+  const only = new Set(onlyHubTypes.map(t => t.toLowerCase()));
+  const hubTypes = allHubTypes.filter(t => (only.size > 0
+    ? only.has(String(t).toLowerCase())
+    : !excluded.has(String(t).toLowerCase())));
   const regions = Object.values(MIEN_REGIONS).flat();
   return {
     rows: filterRowsByScope(normalized, regions, hubTypes, view.data === 'ca1' ? 'vung_giao' : 'region'),

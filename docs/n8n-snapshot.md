@@ -67,6 +67,7 @@ handful of orders must not outrank the big ones.
 | `report` + `table` | `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
 | `client` | `SPB` (default) or `SPE`; ignored for Ca1 (source has no client split) |
 | `excludeHubTypes` | optional comma list, same as unticking those types in "Loại Hub" (the Telegram report does not use it) |
+| `hubTypes` | optional comma list, the opposite: keep ONLY these types (`hubTypes=CK` for the CK-only pictures: `pick`/`deli` × `1st`/`opr`/`odr`). Wins over `excludeHubTypes` |
 | `token` | from `/api/snapshot-token` |
 
 The page sets `<html data-snapshot="ready|error">`; on error it renders the
@@ -80,3 +81,13 @@ message in red so a broken picture is obvious in Telegram.
 
 Preview deployments sit behind Vercel SSO, so the screenshot service can only
 reach the production domain.
+
+## Hub type CK
+
+`reassignKaRegion` (src/utils/dataProcessor.js) re-types a Pick/Deli/FD row as
+hub type `CK` when the hub name contains `CK` or its `wh_id` is on the CK
+warehouse list (same rule as the BI query). It shows up as its own entry in
+"Loại Hub"; vùng and hub rows are unchanged. The default pictures still include
+every type, so they are the same as before except CK hubs no longer count under
+BC/DC when a type is unticked. Add the CK-only pictures in n8n with
+`&hubTypes=CK`.

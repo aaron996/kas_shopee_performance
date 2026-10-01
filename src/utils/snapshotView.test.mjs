@@ -47,3 +47,14 @@ test('scopeSnapshotRows filters Ca1 on vung_giao and keeps every hub type by def
   assert.equal(rows.length, 1);
   assert.equal(isHubTypeFiltered, false);
 });
+
+test('hubTypes keeps only those hub types (CK-only pictures), CK split from BC', () => {
+  assert.deepEqual(parseSnapshotParams('?report=pick&table=1st&token=t&hubTypes=ck').onlyHubTypes, ['ck']);
+  const { rows, isHubTypeFiltered } = scopeSnapshotRows([
+    { region: 'HCM', hub: 'BC CK Thủ Đức', hub_type: 'BC' },
+    { region: 'HCM', hub: 'BC Q1', hub_type: 'BC', wh_id: '22490000' },
+    { region: 'HCM', hub: 'BC Q2', hub_type: 'BC', wh_id: '1' }
+  ], SNAPSHOT_VIEWS['pick:1st'], [], ['CK']);
+  assert.deepEqual(rows.map(r => r.hub), ['BC CK Thủ Đức', 'BC Q1']);
+  assert.equal(isHubTypeFiltered, true);
+});
