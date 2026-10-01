@@ -27,7 +27,17 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
-test('App mounts BrandSplash only for a signed-in user and releases it on first sync', () => {
+test('App mounts BrandSplash from the first render for a signed-in user and releases it once data is on screen', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /currentUser && cacheState === 'miss' && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| hasCompletedInitialSync\} \/>/);
+  assert.match(app, /currentUser && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| hasCompletedInitialSync\} \/>/);
+});
+
+test('splash is the first paint: no mount delay, white boot background until React mounts it', () => {
+  const index = read('index.html');
+  const main = read('src/main.jsx');
+  assert.doesNotMatch(splash, /SHOW_DELAY_MS|'idle'/, 'a delay would let the app show through first');
+  assert.match(splash, /useState\(ready \? 'gone' : 'show'\)/);
+  assert.match(index, /html\.boot-white/);
+  assert.match(index, /localStorage\.getItem\('ghn_user'\)/);
+  assert.match(main, /classList\.remove\('boot-white'\)/);
 });

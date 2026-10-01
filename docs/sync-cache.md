@@ -25,19 +25,29 @@ có job sync nào đang chạy.
 Sau mỗi lần sync **Supabase thành công**, snapshot được lưu vào IndexedDB
 (`localStorage` chỉ ~5MB, không đủ; snapshot ~23MB). Khi F5:
 
-1. `probeSyncSnapshot(email)` đọc bản ghi `meta` rất nhỏ (~1ms) để biết có cache
-   dùng được hay không. Trong lúc này `cacheState = 'pending'`.
-2. Có cache (`'hit'`): nạp bản ghi `data` (~80ms), vẽ số ngay qua
-   `applySupabaseRows(snapshot, 'Bộ nhớ đệm')`, đặt `hasCompletedInitialSync` =
-   true. **Không chiếu `BrandSplash`.**
+1. Ngay khung hình đầu tiên, `BrandSplash` đã phủ lên app (người dùng được khôi
+   phục đồng bộ từ `localStorage`, xem [brand-video.md](brand-video.md)).
+2. `loadSyncSnapshot(email)` kiểm tra bản ghi `meta` nhỏ (phiên bản, chủ sở hữu,
+   tuổi, số dòng) rồi nạp bản ghi `data` (~80ms). Hợp lệ thì vẽ số ngay qua
+   `applySupabaseRows(snapshot, 'Bộ nhớ đệm')` và đặt `hasCompletedInitialSync` =
+   true, lúc đó splash mờ dần: với người có cache nó chỉ như một cú fade-in của
+   app, không phải video.
 3. Sync thật vẫn chạy ngầm như bình thường (thanh `sync-progress-bar` + icon xoay
    trên chip freshness). Xong thì số tự đổi, nguồn thành `Supabase`, và cache
    được ghi đè (sau 1.5s, ngoài đường găng vì structured clone ~23MB chặn main
    thread).
-4. Không có cache (`'miss'`): chờ như cũ, `BrandSplash` chiếu.
+4. Không có cache: splash ở lại, lặp đoạn 8–10s của video, cho đến khi sync thật
+   xong.
 
-`BrandSplash` chỉ mount khi `cacheState === 'miss'`, nên khi có cache nó không bao
-giờ chớp lên dù việc đọc cache mất vài trăm ms.
+### Sync lỗi mà số của hôm nay đã có trên màn hình
+
+Nếu lần đồng bộ trước (từ cache hoặc từ sync thật trong phiên) rơi vào **cùng một
+ngày theo giờ Việt Nam** (`isSameVietnamDay`, UTC+7) thì sync lỗi **không hiện
+toast và banner cảnh báo**: chỉ `console.warn`, trạng thái đặt là `cached` (chip
+vẫn có tooltip "đồng bộ gần nhất HH:mm") và tự thử lại ngầm sau 1, 3, 5 phút
+(`failQuietlyIfFreshToday` trong `App.jsx`, tối đa 3 lần; reset khi sync thành
+công). Nếu số trên màn hình là của ngày hôm qua hoặc không có số thì vẫn cảnh báo
+như cũ.
 
 ### Quy tắc an toàn
 
@@ -45,7 +55,7 @@ giờ chớp lên dù việc đọc cache mất vài trăm ms.
 |---|---|
 | Lưu theo email (không phân biệt hoa/thường), kiểm tra khi đọc | Máy dùng chung không lộ số của người khác |
 | `clearSyncSnapshot()` khi đăng xuất và khi `handleResetDefaultData` | Số liệu không sống lâu hơn phiên của chủ nó |
-| Tối đa 24h (`SYNC_CACHE_MAX_AGE_MS`); snapshot "từ tương lai" (lệch đồng hồ >5 phút) bị bỏ | Số quá cũ không đáng làm placeholder, khi đó chiếu splash |
+| Tối đa 24h (`SYNC_CACHE_MAX_AGE_MS`); snapshot "từ tương lai" (lệch đồng hồ >5 phút) bị bỏ | Số quá cũ không đáng làm placeholder, khi đó splash ở lại chờ sync thật |
 | `SYNC_CACHE_VERSION` | **Tăng khi đổi dạng dòng dữ liệu** để bỏ cache cũ |
 | Cache đọc trễ không ghi đè sync thật (`liveSyncDoneRef`) | Tránh số cũ đè số mới |
 | Chỉ cache đường Supabase, không cache đường fallback Google Sheet CSV | Fallback thiếu leadtime/FD, sẽ làm hỏng cache |

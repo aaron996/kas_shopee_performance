@@ -7,7 +7,7 @@ import {
   SYNC_CACHE_VERSION,
   buildSyncMeta,
   isSyncMetaUsable,
-  probeSyncSnapshot,
+  isSameVietnamDay,
   loadSyncSnapshot,
   saveSyncSnapshot,
   clearSyncSnapshot
@@ -36,7 +36,6 @@ test('a snapshot without Pick and Deli rows is not usable', () => {
 });
 
 test('without IndexedDB (node, private windows) every call degrades quietly', async () => {
-  assert.equal(await probeSyncSnapshot('a@ghn.vn'), null);
   assert.equal(await loadSyncSnapshot('a@ghn.vn'), null);
   assert.equal(await saveSyncSnapshot('a@ghn.vn', payload), false);
   assert.equal(await clearSyncSnapshot(), false);
@@ -44,9 +43,24 @@ test('without IndexedDB (node, private windows) every call degrades quietly', as
 
 test('App restores the cache without overwriting live data, and clears it on logout/reset', () => {
   const app = readFileSync(resolve(process.cwd(), 'src/App.jsx'), 'utf8');
-  assert.match(app, /if \(liveSyncDoneRef\.current\) return;\s*\n\s*applySupabaseRows\(snapshot, 'Bộ nhớ đệm'\)/);
+  assert.match(app, /!snapshot \|\| liveSyncDoneRef\.current\) return;\s*\n\s*applySupabaseRows\(snapshot, 'Bộ nhớ đệm'\)/);
   assert.match(app, /liveSyncDoneRef\.current = true;/);
   assert.match(app, /await clearSyncSnapshot\(\);\s*\n\s*await supabase\.auth\.signOut\(\)/);
   assert.match(app, /void clearSyncSnapshot\(\);/);
-  assert.match(app, /cacheState === 'miss' && <BrandSplash/, 'splash must never flash when a cache hit is pending');
+  assert.doesNotMatch(app, /cacheState/, 'the splash must not wait on an async cache probe');
+});
+
+test('isSameVietnamDay compares calendar days in UTC+7, not UTC', () => {
+  // 17:30Z on 30/9 is 00:30 on 1/10 in Vietnam.
+  assert.equal(isSameVietnamDay('2026-09-30T17:30:00Z', '2026-10-01T05:00:00Z'), true);
+  assert.equal(isSameVietnamDay('2026-09-30T16:30:00Z', '2026-10-01T05:00:00Z'), false);
+  assert.equal(isSameVietnamDay('nope', '2026-10-01T05:00:00Z'), false);
+});
+
+test('a failed sync stays quiet only when numbers saved for today are already on screen', () => {
+  const app = readFileSync(resolve(process.cwd(), 'src/App.jsx'), 'utf8');
+  assert.match(app, /failQuietlyIfFreshToday/);
+  assert.match(app, /else if \(!failQuietlyIfFreshToday\(/, 'toast + banner skipped for the Google Sheet fallback failure');
+  assert.match(app, /if \(!failQuietlyIfFreshToday\(error\)\) setSyncStatus/);
+  assert.match(app, /\[60_000, 180_000, 300_000\]\[retry\.count\]/);
 });

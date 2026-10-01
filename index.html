@@ -6,6 +6,11 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Returning users get the full-white brand splash (BrandSplash.jsx) as the first thing
+         painted; keep the page white until React has mounted it, instead of flashing the
+         app's pastel-blue canvas first. main.jsx removes the class. -->
+    <style>html.boot-white, html.boot-white body { background: #fff !important; }</style>
+    <script>try { if (localStorage.getItem('ghn_user')) document.documentElement.classList.add('boot-white'); } catch (e) {}</script>
     <title>GHN KAS — Báo Cáo Điều Hành Shopee</title>
     
     <!-- Open Graph / Social Share Preview Meta Tags (Zalo, Telegram, Facebook, iMessage) -->

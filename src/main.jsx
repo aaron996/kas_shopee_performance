@@ -43,3 +43,9 @@ createRoot(document.getElementById('root')).render(
     )}
   </StrictMode>,
 )
+
+// index.html keeps the page white (html.boot-white) until React has painted the
+// brand splash; hand the background back to the app once that layer is in place.
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  document.documentElement.classList.remove('boot-white');
+}));
