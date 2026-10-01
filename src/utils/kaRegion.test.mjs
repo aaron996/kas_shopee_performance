@@ -35,3 +35,21 @@ test('other Long Biên post offices are untouched', () => {
   const [row] = reassignKaRegion([input]);
   assert.equal(row, input);
 });
+
+test('CK hubs are tagged hub type CK by name or wh_id, vùng untouched', () => {
+  const [byName, byId, byIdStr, fd, other, ka] = reassignKaRegion([
+    { region: 'HCM', hub: 'BC CK Thủ Đức', hub_type: 'BC' },
+    { region: 'HNO', hub: 'BC Cầu Giấy', hub_type: 'BC', wh_id: 23119000 },
+    { region: 'HNO', hub: 'BC Đống Đa', hub_type: 'DC', wh_id: ' 2533 ' },
+    { region: 'DNB', deliverywh: 'Kho X', hub_type: 'BC', wh_id: '22962001' },
+    { region: 'HCM', hub: 'BC Q1', hub_type: 'BC', wh_id: '999' },
+    { region: 'HCM', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'KA', wh_id: '23119000' },
+  ]);
+  assert.equal(getHubType(byName), 'CK');
+  assert.equal(byName.region, 'HCM');
+  assert.equal(getHubType(byId), 'CK');
+  assert.equal(getHubType(byIdStr), 'CK');
+  assert.equal(getHubType(fd), 'CK');
+  assert.equal(getHubType(other), 'BC');
+  assert.equal(getHubType(ka), 'KA');
+});

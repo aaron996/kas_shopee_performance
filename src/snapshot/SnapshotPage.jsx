@@ -27,7 +27,7 @@ function readEmbeddedPayload() {
 
 function toState(payload, params) {
   if (payload?.error) return { status: 'error', message: payload.error };
-  return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes) };
+  return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes, params.onlyHubTypes) };
 }
 
 export default function SnapshotPage() {
@@ -75,14 +75,15 @@ export default function SnapshotPage() {
     );
   }
 
-  const { view, client, excludeHubTypes } = params;
+  const { view, client, excludeHubTypes, onlyHubTypes } = params;
   const isCa1 = view.data === 'ca1';
   const dates = [...new Set(state.rows.map(r => (isCa1 ? r.ngay : r.report_date)))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(dates);
   const scope = [
     isCa1 ? 'Nguồn Ca 1 (không tách Client)' : `${SNAPSHOT_CLIENT_LABELS[client]} (${client})`,
     d1Date && `D-1: ${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}`,
-    excludeHubTypes.length > 0 && `Không gồm Hub ${excludeHubTypes.join(', ')}`
+    onlyHubTypes.length > 0 && `Chỉ Hub ${onlyHubTypes.join(', ')}`,
+    onlyHubTypes.length === 0 && excludeHubTypes.length > 0 && `Không gồm Hub ${excludeHubTypes.join(', ')}`
   ].filter(Boolean).join(' · ');
 
   return (

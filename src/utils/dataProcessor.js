@@ -25,8 +25,35 @@ const KA_REGION_BY_REGION = { HCM: 'HCM - KA', HNO: 'HNO - KA' };
 
 const normalizeHubName = (name) => String(name || '').normalize('NFC').trim().toLowerCase();
 
+// "CK" hubs, reported as their own Loại Hub (hub type) — same rule as the BI
+// query: warehouse name contains "CK" (case-sensitive, like SQL LIKE) or the
+// wh_id is on this list. Only the hub type changes; the vùng and the hub rows
+// stay where they are.
+const CK_WAREHOUSE_IDS = new Set([
+  23119000, 23133000, 22991000, 23102000, 23063000, 22490000, 23047000,
+  22990000, 22878000, 22928000, 20513000, 22888000, 23199000, 22615000,
+  22612000, 22985000, 23120000, 22424000, 22966000, 23164000, 22619000,
+  23027000, 22974000, 23067000, 22962001, 22750000, 23017000, 22517001,
+  22543000, 22913001, 22530000, 22520001, 22437001, 22494000, 22494001,
+  23146000, 23088000, 22499000, 22370001, 2533, 21296003, 23118000,
+  23011000, 21485000, 22367001, 23109000, 20124000, 22409001, 22586001,
+  22498001, 22484000, 22975001, 22604000, 23123000, 23098000, 23152000,
+  23155000
+]);
+
+export const CK_HUB_TYPE = 'CK';
+
+export function isCkHub(row) {
+  if (!row) return false;
+  const name = String(row.hub ?? row.deliverywh ?? '');
+  if (name.includes('CK')) return true;
+  const whId = String(row.wh_id ?? '').trim();
+  return /^\d+$/.test(whId) && CK_WAREHOUSE_IDS.has(Number(whId));
+}
+
 // Tag known KA warehouses as hub type KA and move every KA row into its own
-// KA vùng, so every report groups it as an independent vùng.
+// KA vùng, so every report groups it as an independent vùng. Then tag CK hubs
+// with hub type CK (KA wins: a KA warehouse is never re-typed).
 export function reassignKaRegion(rows) {
   if (!rows) return rows;
   return rows.map(r => {
@@ -39,6 +66,10 @@ export function reassignKaRegion(rows) {
     const kaRegion = KA_REGION_BY_REGION[r.region];
     if (kaRegion && String(getHubType(r)).trim().toUpperCase() === 'KA') {
       return { ...r, region: kaRegion };
+    }
+    if (isCkHub(r)) {
+      const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
+      return { ...r, [typeKey]: CK_HUB_TYPE };
     }
     return r;
   });
