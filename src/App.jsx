@@ -21,7 +21,7 @@ import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
-import { probeSyncSnapshot, loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot } from './utils/syncCache.js';
+import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay } from './utils/syncCache.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
@@ -327,12 +327,13 @@ export default function App() {
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
-  // Stale-while-revalidate (see utils/syncCache.js). 'pending' while we check IndexedDB
-  // for a usable snapshot, 'hit' when one exists (numbers show instantly, no splash),
-  // 'miss' when the user has to wait for the first live sync (splash plays).
-  const [cacheState, setCacheState] = useState(LOCAL_PREVIEW_USER ? 'miss' : 'pending');
+  // Stale-while-revalidate: see utils/syncCache.js and docs/sync-cache.md.
   // True once a LIVE sync has landed — a late cache read must never overwrite fresher data.
   const liveSyncDoneRef = React.useRef(false);
+  // Quiet background retries after a failed sync when today's numbers are already on screen.
+  const lastSyncedAtRef = React.useRef(null);
+  const quietRetryRef = React.useRef({ count: 0, timer: null });
+  const syncFnRef = React.useRef(null);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -427,6 +428,22 @@ export default function App() {
   }, []);
 
   const syncRequestRef = React.useRef(false);
+  // A failed sync is not worth a warning when today's numbers (from the cache or an
+  // earlier sync this session) are already on screen: stay quiet and retry in the background.
+  const failQuietlyIfFreshToday = useCallback((reason) => {
+    const synced = lastSyncedAtRef.current;
+    if (!synced || !isSameVietnamDay(synced)) return false;
+    console.warn('Background data sync failed; keeping the numbers already saved for today.', reason);
+    setSyncStatus({ kind: 'cached', source: 'Bộ nhớ đệm', text: 'Đang dùng dữ liệu đã lưu hôm nay; sẽ tự thử cập nhật lại.' });
+    const retry = quietRetryRef.current;
+    if (retry.count < 3) {
+      window.clearTimeout(retry.timer);
+      retry.timer = window.setTimeout(() => syncFnRef.current?.(), [60_000, 180_000, 300_000][retry.count]);
+      retry.count += 1;
+    }
+    return true;
+  }, []);
+
   const handleSyncLiveSheet = useCallback(async () => {
     if (LOCAL_PREVIEW_USER) {
       setSyncStatus({ kind: 'default', source: 'Local preview', text: 'Local preview không gọi Supabase hoặc Google Sheet.' });
@@ -445,6 +462,8 @@ export default function App() {
     if (supaRes.success) {
       applySupabaseRows(supaRes, 'Supabase');
       liveSyncDoneRef.current = true;
+      window.clearTimeout(quietRetryRef.current.timer);
+      quietRetryRef.current.count = 0;
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       setLastSyncedAt(new Date());
@@ -465,7 +484,7 @@ export default function App() {
       if (res.ca1Data) setCa1Rows(normalizeRows(res.ca1Data));
       setSyncStatus({ kind: 'live', source: 'Google Sheet', text: 'Đã đồng bộ từ Google Sheet' });
       setLastSyncedAt(new Date());
-    } else {
+    } else if (!failQuietlyIfFreshToday({ supabase: supaRes.error, googleSheet: res.error })) {
       if (res.error === 'FILE_PRIVATE') {
         if (currentUser && currentUser.isDevAdmin) {
           showToast('Chưa có dữ liệu Supabase (chưa chạy Apps Script sync) và Google Sheet cũng không còn public. Xem docs/google-sheet-supabase-sync.md để cài Apps Script, hoặc dùng "Quản Lý Nguồn Dữ Liệu" để upload CSV thủ công.', { tone: 'warning', title: 'Chưa có dữ liệu live', duration: 9000 });
@@ -488,28 +507,31 @@ export default function App() {
     }
     } catch (error) {
       console.error('Unexpected data sync failure:', error);
-      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trước đó được giữ nguyên; vui lòng thử lại.' });
+      if (!failQuietlyIfFreshToday(error)) setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trước đó được giữ nguyên; vui lòng thử lại.' });
     } finally {
       syncRequestRef.current = false;
       setIsSyncing(false);
       setHasCompletedInitialSync(true);
     }
-  }, [currentUser, showToast, applySupabaseRows]);
+  }, [currentUser, showToast, applySupabaseRows, failQuietlyIfFreshToday]);
+
+  useEffect(() => {
+    syncFnRef.current = handleSyncLiveSheet;
+  }, [handleSyncLiveSheet]);
+
+  useEffect(() => () => window.clearTimeout(quietRetryRef.current.timer), []);
+
+  useEffect(() => {
+    lastSyncedAtRef.current = lastSyncedAt;
+  }, [lastSyncedAt]);
 
   // Restore the last good snapshot right away; the live sync (below) then refreshes it.
   useEffect(() => {
     if (LOCAL_PREVIEW_USER || !currentUser?.email) return undefined;
     let cancelled = false;
-    setCacheState('pending');
     (async () => {
-      const meta = await probeSyncSnapshot(currentUser.email);
-      if (cancelled) return;
-      if (!meta) { setCacheState('miss'); return; }
-      setCacheState('hit');
       const snapshot = await loadSyncSnapshot(currentUser.email);
-      if (cancelled) return;
-      if (!snapshot) { setCacheState('miss'); return; }
-      if (liveSyncDoneRef.current) return;
+      if (cancelled || !snapshot || liveSyncDoneRef.current) return;
       applySupabaseRows(snapshot, 'Bộ nhớ đệm');
       setLastSyncedAt(new Date(snapshot.savedAt));
       setHasCompletedInitialSync(true);
@@ -724,7 +746,7 @@ export default function App() {
       />
 
       {/* Brand intro over the very first data sync of the session (10–15s). */}
-      {currentUser && cacheState === 'miss' && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
+      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
 
       {/* Background refresh preserves only data actually loaded in this session. */}
       {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}

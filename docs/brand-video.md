@@ -57,13 +57,18 @@ Lưu ý khi chỉnh `scene.html`:
 
 ## `BrandSplash` (`src/components/BrandSplash.jsx`)
 
-Splash toàn màn hình phủ lên lần sync dữ liệu **đầu tiên** của phiên, khi không có
-cache (xem [sync-cache.md](sync-cache.md)).
+Splash toàn màn hình phủ lên lần tải dữ liệu **đầu tiên** của phiên. Có cache thì
+nó chỉ tồn tại ~0.5s (xem [sync-cache.md](sync-cache.md)).
 
-- Mount khi `currentUser && cacheState === 'miss'`; `ready` =
-  `hasCompletedInitialSync` (hoặc tab `dev-admin`).
-- Trễ 350ms mới hiện (`SHOW_DELAY_MS`): sync xong nhanh hơn thì không bao giờ hiện,
-  không chớp.
+- **Là thứ đầu tiên được vẽ.** `currentUser` được khôi phục đồng bộ từ
+  `localStorage` nên `App` mount `<BrandSplash>` ngay ở lần render đầu tiên, phủ
+  trắng toàn màn hình (z-index 9999) lên dashboard; không có độ trễ hiện (trước
+  đây là 350ms + chờ đọc IndexedDB nên app lọt ra một thoáng). `ready` =
+  `hasCompletedInitialSync` (hoặc tab `dev-admin`); nếu `ready` ngay từ đầu (local
+  preview) thì không hiện.
+- Trước khi React mount, `index.html` giữ nền trắng (`html.boot-white`, bật bằng
+  script inline nếu có `ghn_user` trong `localStorage`) để không lóe màu xanh
+  pastel của app; `main.jsx` gỡ class sau khi splash đã vào DOM.
 - Phát tới giây 10 rồi `requestAnimationFrame` tua về giây 8 để lặp tiếp cho đến
   khi dữ liệu về (không dùng thuộc tính `loop` vì chỉ lặp một đoạn).
 - `ready` thì mờ dần 0.4s (`LEAVE_MS`) rồi gỡ khỏi DOM.

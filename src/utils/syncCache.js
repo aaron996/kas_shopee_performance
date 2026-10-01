@@ -7,7 +7,7 @@
 // runs quietly in the background (see handleSyncLiveSheet in App.jsx).
 //
 // Layout: one object store, two records written in one transaction —
-//   'meta' (tiny; lets App decide "cache or splash?" in a few ms)
+//   'meta' (tiny: version / owner / savedAt / row counts, validated before the big read)
 //   'data' (the raw rows exactly as fetchSupabaseSheetSync returned them).
 //
 // Every function here is best-effort: IndexedDB can be unavailable (private
@@ -25,6 +25,16 @@ const META_KEY = 'meta';
 const DATA_KEY = 'data';
 // Tolerate small client clock drift, but not a snapshot "from the future".
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+import { getVietnamBusinessDay } from './dashboardState.js';
+
+/** True when both instants fall on the same calendar day in Vietnam (UTC+7). */
+export function isSameVietnamDay(a, b = new Date()) {
+  const x = new Date(a);
+  const y = new Date(b);
+  if (Number.isNaN(x.getTime()) || Number.isNaN(y.getTime())) return false;
+  return getVietnamBusinessDay(x) === getVietnamBusinessDay(y);
+}
 
 const normaliseEmail = (email) => String(email || '').trim().toLowerCase();
 
@@ -88,16 +98,6 @@ async function withStore(mode, run) {
     return result;
   } finally {
     db.close();
-  }
-}
-
-/** Fast check (reads only the tiny meta record). Returns the meta when usable, else null. */
-export async function probeSyncSnapshot(email) {
-  try {
-    const meta = await withStore('readonly', (store) => settle(store.get(META_KEY)));
-    return isSyncMetaUsable(meta, { email }) ? meta : null;
-  } catch {
-    return null;
   }
 }
 
