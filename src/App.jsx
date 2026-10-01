@@ -274,10 +274,12 @@ export default function App() {
   const [selectedRegions, setSelectedRegions] = useState(() => {
     if (initialView.regions === null) return allRegions;
     const saved = initialView.regions.filter(r => allRegions.includes(r));
-    // Sessions saved before "HNO - KA" existed stored the full list explicitly;
-    // treat "every region except the new one" as "Tất cả vùng".
+    // Sessions saved before the "HNO - KA" / "HCM - CK" / "HNO - CK" vùng existed
+    // stored the full list explicitly; treat "every region except the new ones"
+    // as "Tất cả vùng".
+    const NEWER_REGIONS = ['HNO - KA', 'HCM - CK', 'HNO - CK'];
     const missing = allRegions.filter(r => !saved.includes(r));
-    return missing.length === 1 && missing[0] === 'HNO - KA' ? allRegions : saved;
+    return missing.length > 0 && missing.every(r => NEWER_REGIONS.includes(r)) ? allRegions : saved;
   });
 
   const allHubTypes = React.useMemo(() => {

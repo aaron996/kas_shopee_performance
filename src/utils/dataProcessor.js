@@ -25,10 +25,10 @@ const KA_REGION_BY_REGION = { HCM: 'HCM - KA', HNO: 'HNO - KA' };
 
 const normalizeHubName = (name) => String(name || '').normalize('NFC').trim().toLowerCase();
 
-// "CK" hubs, reported as their own Loại Hub (hub type) — same rule as the BI
-// query: warehouse name contains "CK" (case-sensitive, like SQL LIKE) or the
-// wh_id is on this list. Only the hub type changes; the vùng and the hub rows
-// stay where they are.
+// "CK" hubs, reported as their own Loại Hub (hub type) and, in HCM / HNO, as
+// their own vùng ("HCM - CK" / "HNO - CK", like the KA vùng) — same rule as the
+// BI query: warehouse name contains "CK" (case-sensitive, like SQL LIKE) or the
+// wh_id is on this list. A CK hub outside HCM / HNO only gets the hub type.
 const CK_WAREHOUSE_IDS = new Set([
   23119000, 23133000, 22991000, 23102000, 23063000, 22490000, 23047000,
   22990000, 22878000, 22928000, 20513000, 22888000, 23199000, 22615000,
@@ -42,6 +42,7 @@ const CK_WAREHOUSE_IDS = new Set([
 ]);
 
 export const CK_HUB_TYPE = 'CK';
+const CK_REGION_BY_REGION = { HCM: 'HCM - CK', HNO: 'HNO - CK' };
 
 export function isCkHub(row) {
   if (!row) return false;
@@ -53,7 +54,8 @@ export function isCkHub(row) {
 
 // Tag known KA warehouses as hub type KA and move every KA row into its own
 // KA vùng, so every report groups it as an independent vùng. Then tag CK hubs
-// with hub type CK (KA wins: a KA warehouse is never re-typed).
+// with hub type CK and move the HCM / HNO ones into their CK vùng (KA wins: a
+// KA warehouse is never re-typed).
 export function reassignKaRegion(rows) {
   if (!rows) return rows;
   return rows.map(r => {
@@ -69,7 +71,7 @@ export function reassignKaRegion(rows) {
     }
     if (isCkHub(r)) {
       const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
-      return { ...r, [typeKey]: CK_HUB_TYPE };
+      return { ...r, [typeKey]: CK_HUB_TYPE, region: CK_REGION_BY_REGION[r.region] ?? r.region };
     }
     return r;
   });

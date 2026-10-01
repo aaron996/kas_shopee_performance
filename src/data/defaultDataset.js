@@ -2,9 +2,9 @@
 // Matches Google Sheet IDs: Pick (1312031199), Deli (940798880), Ca1 (1405399014)
 
 export const MIEN_REGIONS = {
-  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA'],
+  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA', 'HNO - CK'],
   'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB'],
-  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'HCM - KA', 'ĐCL', 'TNB']
+  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'HCM - KA', 'HCM - CK', 'ĐCL', 'TNB']
 };
 
 export const MIEN_ORDER = ['Miền Bắc', 'Miền Trung', 'Miền Nam'];
