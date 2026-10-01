@@ -1,18 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Solid GHN Orange Background -->
-  <rect width="64" height="64" rx="12" fill="#F15A22" />
-  
-  <!-- Upward Trendline Shadow -->
-  <path d="M10 40 L26 24 L38 32 L54 14" fill="none" stroke="#002E54" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M42 14 H54 V26" fill="none" stroke="#002E54" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-
-  <!-- Upward Trendline Arrow (Bright White) -->
-  <path d="M10 40 L26 24 L38 32 L54 14" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M42 14 H54 V26" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
-
-  <!-- Speed Truck Silhouette (Dark Navy) -->
-  <path d="M12 26h20v10H12z" fill="#002E54" />
-  <path d="M32 30h8l5 6v0H32z" fill="#002E54" />
-  <circle cx="18" cy="36" r="3" fill="#FFFFFF" />
-  <circle cx="37" cy="36" r="3" fill="#FFFFFF" />
+  <rect width="64" height="64" rx="14" fill="#fff"/>
+  <svg x="8" y="8" width="48" height="48" viewBox="205 62 480 478">
+    <polygon fill="#F15A22" points="290,62 415,62 398,155 207,155"/>
+    <polygon fill="#F15A22" points="475,62 600,62 683,155 495,155"/>
+    <path fill="#F15A22" d="M207 175 H683 V490 Q683 540 633 540 H257 Q207 540 207 490 Z"/>
+    <polygon fill="#fff" points="415,175 475,175 475,230 445,208 415,230"/>
+    <path fill="none" stroke="#fff" stroke-width="40" stroke-miterlimit="10" d="M305 425 L385 350 L447 410 L600 252"/>
+    <polygon fill="#fff" points="510,215 634,215 634,338 592,338 592,257 510,257"/>
+  </svg>
 </svg>

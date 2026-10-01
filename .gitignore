@@ -25,3 +25,6 @@ output/playwright/
 *.njsproj
 *.sln
 *.sw?
+
+# brand-video render scratch
+tools/brand-video/.frames/

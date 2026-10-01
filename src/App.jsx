@@ -20,6 +20,7 @@ import { supabase } from './utils/supabaseClient';
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
+import BrandSplash from './components/BrandSplash.jsx';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
@@ -680,6 +681,9 @@ export default function App() {
         isOpen={!!currentUser && !hasPickedClient}
         onSelect={handleClientPick}
       />
+
+      {/* Brand intro over the very first data sync of the session (10–15s). */}
+      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
 
       {/* Background refresh preserves only data actually loaded in this session. */}
       {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}
