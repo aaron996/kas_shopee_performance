@@ -1,9 +1,16 @@
-﻿import { authenticateRequest } from '../server/chat/auth.js';
+import { authenticateRequest } from '../server/chat/auth.js';
 import { readChatConfig } from '../server/chat/config.js';
 import { toPublicError } from '../server/chat/errors.js';
 import { sendJson } from '../server/chat/sse.js';
 import { consumeSuggestionQuota } from '../server/chat/suggestion-quota.js';
+import { generateSmartSuggestions } from '../server/chat/smart-suggestions.js';
 import { buildDynamicSuggestions, getFallbackSuggestions } from '../src/utils/chatSuggestions.js';
+import OpenAI from 'openai';
+
+function createSuggestionModel(config) {
+  if (!config?.openaiApiKey || !config.suggestionModelEnabled) return null;
+  return new OpenAI({ apiKey: config.openaiApiKey, timeout: 8000, maxRetries: 0 });
+}
 
 export function createSuggestionsHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readChatConfig;
@@ -11,6 +18,8 @@ export function createSuggestionsHandler(dependencies = {}) {
   const consumeQuota = dependencies.consumeQuota ?? consumeSuggestionQuota;
   const buildSuggestions = dependencies.buildSuggestions ?? buildDynamicSuggestions;
   const getFallback = dependencies.getFallback ?? getFallbackSuggestions;
+  const buildSmartSuggestions = dependencies.buildSmartSuggestions ?? generateSmartSuggestions;
+  const createModel = dependencies.createModel ?? createSuggestionModel;
 
   return async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -21,7 +30,7 @@ export function createSuggestionsHandler(dependencies = {}) {
 
     try {
       const config = getConfig();
-      const { user, serviceClient } = await authenticate(req.headers.authorization, config);
+      const { user, userClient, serviceClient } = await authenticate(req.headers.authorization, config);
 
       let activeTab = 'report1';
       let client = 'SPB';
@@ -64,13 +73,28 @@ export function createSuggestionsHandler(dependencies = {}) {
         return;
       }
 
-      const result = buildSuggestions({
-        activeTab,
-        client,
-        regions,
-        hubTypes,
-        seed: quotaResult.count
-      });
+      // Prefer questions grounded in the caller's live data; templates are the safety net.
+      let result = null;
+      try {
+        result = await buildSmartSuggestions({
+          userClient,
+          openai: createModel(config),
+          config,
+          screenContext: { activeTab, client, regions, hubTypes },
+          seed: quotaResult.count
+        });
+      } catch {
+        result = null;
+      }
+      if (!result?.suggestions?.length) {
+        result = {
+          ...buildSuggestions({ activeTab, client, regions, hubTypes, seed: quotaResult.count }),
+          basis: 'template'
+        };
+      }
+      if (!result.placeholder) {
+        result.placeholder = getFallback(activeTab).placeholder;
+      }
 
       sendJson(res, 200, {
         quotaExceeded: false,

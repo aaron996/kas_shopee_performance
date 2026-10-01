@@ -5524,6 +5524,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-welcome-mark { width: 42px; height: 42px; margin: 0 auto 0.85rem; }
 .chat-welcome h3 { color: var(--text-primary); font: 700 1.04rem/1.2 var(--font-heading); }
 .chat-welcome > p { margin: 0.5rem 0 1rem; color: var(--text-secondary); font-size: 0.82rem; line-height: 1.5; }
+.chat-welcome > .chat-suggestions-basis { margin: 0.35rem 0 0.75rem; font-size: 0.74rem; color: var(--text-secondary); }
 .chat-suggestions { display: flex; flex-direction: column; gap: 0.45rem; text-align: left; }
 .chat-suggestions button {
   padding: 0.6rem 0.7rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-control);

@@ -119,6 +119,11 @@ function DataScopeBlock({ sources }) {
   );
 }
 
+function formatSuggestionDate(dateStr) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr || '');
+  return match ? `${match[3]}/${match[2]}` : dateStr;
+}
+
 export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -177,7 +182,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           if (body.quotaExceeded) {
             setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
           } else if (body.suggestions) {
-            const nextData = { placeholder: body.placeholder, suggestions: body.suggestions };
+            const nextData = {
+              placeholder: body.placeholder,
+              suggestions: body.suggestions,
+              dataAsOf: body.basis === 'template' ? null : body.dataAsOf ?? null
+            };
             lastDynamicRef.current = nextData;
             clientCacheRef.current.set(cacheKey, nextData);
             setSuggestionData(nextData);
@@ -463,6 +472,9 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
+            {suggestionData.dataAsOf && (
+              <p className="chat-suggestions-basis">Gợi ý theo số liệu ngày {formatSuggestionDate(suggestionData.dataAsOf)}</p>
+            )}
             <div className="chat-suggestions">
               {suggestionData.suggestions.map(question => (
                 <button type="button" key={question} onClick={() => submitQuestion(question)}>{question}</button>
