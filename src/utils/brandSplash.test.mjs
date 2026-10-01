@@ -29,5 +29,5 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
 
 test('App mounts BrandSplash only for a signed-in user and releases it on first sync', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /currentUser && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| hasCompletedInitialSync\} \/>/);
+  assert.match(app, /currentUser && cacheState === 'miss' && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| hasCompletedInitialSync\} \/>/);
 });

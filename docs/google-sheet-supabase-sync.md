@@ -1,5 +1,8 @@
 # Đồng bộ Google Sheet → Supabase (thay cho link CSV public)
 
+> Phía app: snapshot Supabase gần nhất được cache vào IndexedDB để F5 hiện số ngay
+> và sync ngầm, xem [sync-cache.md](sync-cache.md).
+
 ## Vì sao cần đổi
 
 App trước đây đọc data bằng cách gọi thẳng link CSV export của Google Sheet

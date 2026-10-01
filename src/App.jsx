@@ -21,6 +21,7 @@ import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
+import { probeSyncSnapshot, loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot } from './utils/syncCache.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
@@ -326,6 +327,13 @@ export default function App() {
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
+  // Stale-while-revalidate (see utils/syncCache.js). 'pending' while we check IndexedDB
+  // for a usable snapshot, 'hit' when one exists (numbers show instantly, no splash),
+  // 'miss' when the user has to wait for the first live sync (splash plays).
+  const [cacheState, setCacheState] = useState(LOCAL_PREVIEW_USER ? 'miss' : 'pending');
+  // True once a LIVE sync has landed — a late cache read must never overwrite fresher data.
+  const liveSyncDoneRef = React.useRef(false);
+
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   // Listen for Supabase Authentication State changes. Dev access comes from
@@ -395,7 +403,28 @@ export default function App() {
     setLastSyncedAt(null);
     setSyncStatus({ kind: 'default', source: 'Chưa tải', text: 'Đã xóa dữ liệu trên phiên này. Tải lại để lấy dữ liệu vận hành.' });
     setHasCompletedInitialSync(false);
+    liveSyncDoneRef.current = false;
+    void clearSyncSnapshot();
   };
+
+  // Shared by the live sync and the cache restore so both paint identically.
+  const applySupabaseRows = useCallback((res, sourceLabel) => {
+    setPickRows(normalizeRows(res.pickData));
+    setDeliRows(normalizeRows(res.deliData));
+    setDataSources(prev => ({
+      pick: sourceLabel,
+      deli: sourceLabel,
+      ca1: res.ca1Data ? sourceLabel : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)`,
+      fd: res.fdData ? sourceLabel : `${(prev.fd || 'Chưa tải').replace(' (chưa cập nhật)', '')} (chưa cập nhật)`
+    }));
+    if (res.ca1Data) setCa1Rows(normalizeRows(res.ca1Data));
+    if (res.leadtimeData) {
+      setLeadtimeRows(res.leadtimeData);
+      setLeadtimeSource('supabase');
+      setLeadtimeSyncedAt(res.updatedAt || null);
+    }
+    if (res.fdData) setFdRows(normalizeRows(res.fdData));
+  }, []);
 
   const syncRequestRef = React.useRef(false);
   const handleSyncLiveSheet = useCallback(async () => {
@@ -414,24 +443,13 @@ export default function App() {
     // see docs/google-sheet-supabase-sync.md).
     const supaRes = await fetchSupabaseSheetSync();
     if (supaRes.success) {
-      setPickRows(normalizeRows(supaRes.pickData));
-      setDeliRows(normalizeRows(supaRes.deliData));
-      setDataSources(prev => ({
-        pick: 'Supabase',
-        deli: 'Supabase',
-        ca1: supaRes.ca1Data ? 'Supabase' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)`,
-        fd: supaRes.fdData ? 'Supabase' : `${(prev.fd || 'Chưa tải').replace(' (chưa cập nhật)', '')} (chưa cập nhật)`
-      }));
-      if (supaRes.ca1Data) setCa1Rows(normalizeRows(supaRes.ca1Data));
-      if (supaRes.leadtimeData) {
-        setLeadtimeRows(supaRes.leadtimeData);
-        setLeadtimeSource('supabase');
-        setLeadtimeSyncedAt(supaRes.updatedAt || null);
-      }
-      if (supaRes.fdData) setFdRows(normalizeRows(supaRes.fdData));
+      applySupabaseRows(supaRes, 'Supabase');
+      liveSyncDoneRef.current = true;
       setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       setLastSyncedAt(new Date());
+      // Persist off the critical path: structured-cloning ~20MB blocks the main thread.
+      if (currentUser?.email) window.setTimeout(() => { void saveSyncSnapshot(currentUser.email, supaRes); }, 1500);
       return;
     }
 
@@ -466,17 +484,38 @@ export default function App() {
         );
       }
       console.error('Live data sync failed:', { supabase: supaRes.error, googleSheet: res.error });
-      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Nếu có số liệu bên dưới, đó là bản đã tải trước đó trong phiên này.' });
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Nếu có số liệu bên dưới, đó là bản đã lưu từ lần tải trước.' });
     }
     } catch (error) {
       console.error('Unexpected data sync failure:', error);
-      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trong phiên này được giữ nguyên; vui lòng thử lại.' });
+      setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trước đó được giữ nguyên; vui lòng thử lại.' });
     } finally {
       syncRequestRef.current = false;
       setIsSyncing(false);
       setHasCompletedInitialSync(true);
     }
-  }, [currentUser, showToast]);
+  }, [currentUser, showToast, applySupabaseRows]);
+
+  // Restore the last good snapshot right away; the live sync (below) then refreshes it.
+  useEffect(() => {
+    if (LOCAL_PREVIEW_USER || !currentUser?.email) return undefined;
+    let cancelled = false;
+    setCacheState('pending');
+    (async () => {
+      const meta = await probeSyncSnapshot(currentUser.email);
+      if (cancelled) return;
+      if (!meta) { setCacheState('miss'); return; }
+      setCacheState('hit');
+      const snapshot = await loadSyncSnapshot(currentUser.email);
+      if (cancelled) return;
+      if (!snapshot) { setCacheState('miss'); return; }
+      if (liveSyncDoneRef.current) return;
+      applySupabaseRows(snapshot, 'Bộ nhớ đệm');
+      setLastSyncedAt(new Date(snapshot.savedAt));
+      setHasCompletedInitialSync(true);
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.email, applySupabaseRows]);
 
   const autoRefreshBusinessDayRef = React.useRef(null);
 
@@ -556,8 +595,10 @@ export default function App() {
 
   const handleLogout = async () => {
     if (LOCAL_PREVIEW_USER) return;
+    await clearSyncSnapshot();
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
+    liveSyncDoneRef.current = false;
     setCurrentUser(null);
   };
 
@@ -683,7 +724,7 @@ export default function App() {
       />
 
       {/* Brand intro over the very first data sync of the session (10–15s). */}
-      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
+      {currentUser && cacheState === 'miss' && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
 
       {/* Background refresh preserves only data actually loaded in this session. */}
       {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}
