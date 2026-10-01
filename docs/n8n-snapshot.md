@@ -86,8 +86,8 @@ reach the production domain.
 
 `reassignKaRegion` (src/utils/dataProcessor.js) re-types a Pick/Deli/FD row as
 hub type `CK` when the hub name contains `CK` or its `wh_id` is on the CK
-warehouse list (same rule as the BI query). It shows up as its own entry in
-"Loại Hub"; vùng and hub rows are unchanged. The default pictures still include
-every type, so they are the same as before except CK hubs no longer count under
-BC/DC when a type is unticked. Add the CK-only pictures in n8n with
-`&hubTypes=CK`.
+warehouse list (same rule as the BI query). In HCM and HNO those rows also move
+into their own vùng, `HCM - CK` / `HNO - CK` (same idea as `HCM - KA`), listed in
+`MIEN_REGIONS`, so the normal pictures show them with no n8n change. A CK hub in
+another region only gets the hub type. `hubTypes=CK` still works if a CK-only
+picture is ever wanted.

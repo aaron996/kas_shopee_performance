@@ -56,5 +56,6 @@ test('hubTypes keeps only those hub types (CK-only pictures), CK split from BC',
     { region: 'HCM', hub: 'BC Q2', hub_type: 'BC', wh_id: '1' }
   ], SNAPSHOT_VIEWS['pick:1st'], [], ['CK']);
   assert.deepEqual(rows.map(r => r.hub), ['BC CK Thủ Đức', 'BC Q1']);
+  assert.deepEqual(rows.map(r => r.region), ['HCM - CK', 'HCM - CK']);
   assert.equal(isHubTypeFiltered, true);
 });
