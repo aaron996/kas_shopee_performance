@@ -57,23 +57,32 @@ Lưu ý khi chỉnh `scene.html`:
 
 ## `BrandSplash` (`src/components/BrandSplash.jsx`)
 
-Splash toàn màn hình phủ lên lần tải dữ liệu **đầu tiên** của phiên. Có cache thì
-nó chỉ tồn tại ~0.5s (xem [sync-cache.md](sync-cache.md)).
+Splash toàn màn hình phủ lên lần tải dữ liệu **live đầu tiên của mỗi lần mở/reload
+app**. Mục đích của intro là để người dùng có gì đó xem trong lúc chờ số mới, nên
+cache IndexedDB (xem [sync-cache.md](sync-cache.md)) **không** làm splash biến mất
+sớm: nó chạy cho tới khi sync live xong, hoặc người dùng bấm **Bỏ qua**.
 
 - **Là thứ đầu tiên được vẽ.** `currentUser` được khôi phục đồng bộ từ
   `localStorage` nên `App` mount `<BrandSplash>` ngay ở lần render đầu tiên, phủ
   trắng toàn màn hình (z-index 9999) lên dashboard; không có độ trễ hiện (trước
   đây là 350ms + chờ đọc IndexedDB nên app lọt ra một thoáng). `ready` =
-  `hasCompletedInitialSync` (hoặc tab `dev-admin`); nếu `ready` ngay từ đầu (local
-  preview) thì không hiện.
+  `liveSyncSettled` (lần sync live đầu tiên đã kết thúc, thành công hay lỗi; hoặc
+  tab `dev-admin`); nếu `ready` ngay từ đầu (local preview) thì không hiện.
+- **Luôn chạy trọn 10s** (`MIN_SHOW_MS` = độ dài video): sync xong sớm thì intro
+  vẫn chạy hết rồi mới mờ; sync lâu hơn thì lặp đoạn 8–10s. Muốn vào sớm, người
+  dùng bấm "Bỏ qua".
+- **Nút "Bỏ qua →"** ở góc dưới phải (`brand-splash__skip`), hiện mờ dần sau 0.7s
+  để không tranh sự chú ý với những khung hình đầu. Bấm thì splash mờ dần ngay;
+  app hiện số từ cache nếu có, nếu không thì hiện skeleton của `LoadingScreen`
+  trong lúc sync chạy tiếp. Nền nút luôn sáng vì splash luôn trắng.
 - Trước khi React mount, `index.html` giữ nền trắng (`html.boot-white`, bật bằng
   script inline nếu có `ghn_user` trong `localStorage`) để không lóe màu xanh
   pastel của app; `main.jsx` gỡ class sau khi splash đã vào DOM.
 - Phát tới giây 10 rồi `requestAnimationFrame` tua về giây 8 để lặp tiếp cho đến
   khi dữ liệu về (không dùng thuộc tính `loop` vì chỉ lặp một đoạn).
-- `ready` thì mờ dần 0.4s (`LEAVE_MS`) rồi gỡ khỏi DOM.
+- `ready` (và đã đủ `MIN_SHOW_MS`) thì mờ dần 0.4s (`LEAVE_MS`) rồi gỡ khỏi DOM.
 - Hiện logo tĩnh (`ghn-performance-logo.svg`) khi: `prefers-reduced-motion`,
   autoplay bị chặn, hoặc video lỗi.
 - z-index 9999 như `LoadingScreen` cũ; nền luôn trắng kể cả dark mode (là khoảnh
   khắc thương hiệu, không phải bề mặt app).
-- `LoadingScreen` (sprite) vẫn dùng cho các spinner nhỏ trong từng khu vực.
+- Trạng thái chờ trong app dùng chung một skeleton: xem [loading-states.md](loading-states.md).

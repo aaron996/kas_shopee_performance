@@ -6,7 +6,7 @@ import { getModule } from './moduleRegistry.jsx';
 function ModuleSurface({ module, runtime, onBackToOverview }) {
   const Surface = module.surface;
   const content = (
-    <Suspense fallback={<LoadingScreen text={module.loadingText || `Đang mở ${module.label}...`} option={4} />}>
+    <Suspense fallback={<LoadingScreen variant="page" />}>
       <Surface {...runtime} />
     </Suspense>
   );

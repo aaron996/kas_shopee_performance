@@ -3,30 +3,45 @@ import './LoadingScreen.css';
 import { getLoadingOverlayConfig } from '../utils/loadingOverlay.js';
 
 /**
- * Unified application-wide loading overlay.
- * Displays exclusively the running character frame animation.
- * Conforms strictly to zero visible text (no headings, status copy, percentages, or hints).
- * Accessibility is handled via ARIA status semantics and screen-reader labels.
+ * The one loading state for every tab: a skeleton shaped like the content that is
+ * about to arrive. `variant="page"` stands in for a whole report (KPI tiles, chart,
+ * table); `variant="block"` for a card, section or modal region.
+ * Zero visible text — accessibility is carried by the ARIA status semantics.
  */
-export default function LoadingScreen({
-  fullScreen = true,
-  option = 4,
-  // Accepted for backwards compatibility with existing callers, but explicitly NOT rendered as visible text
-  text = 'Đang tải dữ liệu...'
-}) {
-  const config = getLoadingOverlayConfig({ fullScreen, option, text });
+export default function LoadingScreen({ variant = 'block' }) {
+  const config = getLoadingOverlayConfig({ variant });
+  const rows = Array.from({ length: config.rowCount }, (_, i) => i);
 
   return (
     <div
-      className={config.overlayClass}
+      className={config.className}
       role={config.role}
       aria-live={config.ariaLive}
       aria-busy={config.ariaBusy}
       aria-label={config.ariaLabel}
       tabIndex={config.tabIndex}
     >
-      <div className={config.contentClass}>
-        <div className={config.spriteClass} aria-hidden={config.spriteAriaHidden} />
+      {config.kpiCount > 0 && (
+        <div className="loading-skeleton__kpis" aria-hidden="true">
+          {Array.from({ length: config.kpiCount }, (_, i) => (
+            <div className="loading-skeleton__kpi" key={i}>
+              <span className="loading-skeleton__bar loading-skeleton__bar--label" />
+              <span className="loading-skeleton__bar loading-skeleton__bar--value" />
+            </div>
+          ))}
+        </div>
+      )}
+      {config.hasChart && <div className="loading-skeleton__chart loading-skeleton__bar" aria-hidden="true" />}
+      <div className="loading-skeleton__table" aria-hidden="true">
+        <span className="loading-skeleton__bar loading-skeleton__bar--title" />
+        {rows.map(i => (
+          <div className="loading-skeleton__row" key={i}>
+            <span className="loading-skeleton__bar loading-skeleton__bar--name" />
+            <span className="loading-skeleton__bar loading-skeleton__bar--cell" />
+            <span className="loading-skeleton__bar loading-skeleton__bar--cell" />
+            <span className="loading-skeleton__bar loading-skeleton__bar--cell" />
+          </div>
+        ))}
       </div>
     </div>
   );

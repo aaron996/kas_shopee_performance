@@ -316,13 +316,16 @@ export default function App() {
     });
   }, []);
 
-  const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
   // Gates the single unified loading animation over the report area. Only the
   // very first sync attempt of the session blocks the view — later background
   // refreshes never re-show it, so previously loaded numbers stay on screen
   // (see the lastSyncedAt comment below).
   const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(!!LOCAL_PREVIEW_USER);
+  // True once the first LIVE sync attempt of the session has finished (success or
+  // failure). The cache restore does not count: the brand intro is there to cover
+  // the wait for fresh data, so it keeps playing over a cache hit.
+  const [liveSyncSettled, setLiveSyncSettled] = useState(!!LOCAL_PREVIEW_USER);
   // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
   // chỉ tab Leadtime có "syncedAt" riêng). Không dùng cho việc chặn UI: sync
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
@@ -452,7 +455,6 @@ export default function App() {
     }
     if (syncRequestRef.current) return;
     syncRequestRef.current = true;
-    setIsSyncing(true);
     setSyncStatus({ kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
     try {
 
@@ -465,7 +467,6 @@ export default function App() {
       liveSyncDoneRef.current = true;
       window.clearTimeout(quietRetryRef.current.timer);
       quietRetryRef.current.count = 0;
-      setIsSyncing(false);
       setSyncStatus({ kind: 'live', source: 'Supabase live', text: 'Đã đồng bộ từ Supabase' });
       setLastSyncedAt(new Date());
       // Persist off the critical path: structured-cloning ~20MB blocks the main thread.
@@ -476,7 +477,6 @@ export default function App() {
     // Fallback: the old direct-CSV approach, kept for sheets that are still
     // publicly link-shared (e.g. a dev/test sheet set via Data Source Manager).
     const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA');
-    setIsSyncing(false);
 
     if (res.success) {
       setPickRows(normalizeRows(res.pickData));
@@ -511,8 +511,8 @@ export default function App() {
       if (!failQuietlyIfFreshToday(error)) setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trước đó được giữ nguyên; vui lòng thử lại.' });
     } finally {
       syncRequestRef.current = false;
-      setIsSyncing(false);
       setHasCompletedInitialSync(true);
+      setLiveSyncSettled(true);
     }
   }, [currentUser, showToast, applySupabaseRows, failQuietlyIfFreshToday]);
 
@@ -748,11 +748,8 @@ export default function App() {
         onSelect={handleClientPick}
       />
 
-      {/* Brand intro over the very first data sync of the session (10–15s). */}
-      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || hasCompletedInitialSync} />}
-
-      {/* Background refresh preserves only data actually loaded in this session. */}
-      {isSyncing && <div className="sync-progress-bar" aria-hidden="true" />}
+      {/* Brand intro over the first live data sync of every load (10–15s); skippable. */}
+      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || liveSyncSettled} />}
 
       {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
       <CommandPalette
@@ -822,7 +819,7 @@ export default function App() {
           <main className="main-content">
             {activeTab !== 'dev-admin' && !hasCompletedInitialSync ? (
               <div className="main-content-initial-loading">
-                <LoadingScreen fullScreen={false} />
+                <LoadingScreen variant="page" />
               </div>
             ) : (
               <>

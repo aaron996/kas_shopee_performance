@@ -23,13 +23,25 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
   assert.match(splash, /playsInline/);
   assert.match(splash, /prefers-reduced-motion: reduce/);
   assert.match(splash, /ghn-performance-logo\.svg/);
-  assert.doesNotMatch(splash, /<(p|h[1-6]|button|span)\b/i, 'no visible copy');
+  assert.doesNotMatch(splash, /<(p|h[1-6])\b/i, 'no headings or paragraphs; the only copy is the skip button');
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
-test('App mounts BrandSplash from the first render for a signed-in user and releases it once data is on screen', () => {
+test('App mounts BrandSplash from the first render and releases it only when the LIVE sync settles (not on cache restore)', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /currentUser && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| hasCompletedInitialSync\} \/>/);
+  assert.match(app, /currentUser && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| liveSyncSettled\} \/>/);
+  assert.match(app, /setLiveSyncSettled\(true\)/);
+  const cacheRestore = app.slice(app.indexOf('loadSyncSnapshot(currentUser.email)'), app.indexOf('autoRefreshBusinessDayRef = '));
+  assert.doesNotMatch(cacheRestore, /setLiveSyncSettled/, 'a cache hit must not dismiss the intro');
+});
+
+test('splash has a skip button, a minimum display time, and a gentle reveal', () => {
+  assert.match(splash, /className=\{`brand-splash__skip/);
+  assert.match(splash, /Bỏ qua/);
+  assert.match(splash, /onClick=\{\(\) => setPhase\('leaving'\)\}/);
+  assert.match(splash, /MIN_SHOW_MS = \d+/);
+  assert.match(css, /\.brand-splash__skip--visible/);
+  assert.match(css, /min-height:\s*44px/, 'touch target');
 });
 
 test('splash is the first paint: no mount delay, white boot background until React mounts it', () => {
