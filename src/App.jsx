@@ -670,6 +670,9 @@ export default function App() {
     ...(['home', 'report1'].includes(activeTab) && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
+  // Tabs that load their own data and never read the report rows: they must not wait
+  // behind (or stack a second skeleton on top of) the report sync.
+  const ownsItsData = activeTab === 'dev-admin' || activeTab === 'cod-suspicion';
   const runtimeByModule = {
     report1: {
       pickRows: filteredPickRows,
@@ -817,13 +820,13 @@ export default function App() {
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
-            {activeTab !== 'dev-admin' && !hasCompletedInitialSync ? (
+            {!ownsItsData && !hasCompletedInitialSync ? (
               <div className="main-content-initial-loading">
                 <LoadingScreen variant="page" />
               </div>
             ) : (
               <>
-                {activeTab !== 'dev-admin' && syncStatus.kind === 'error' && <div className="report-data-context">
+                {!ownsItsData && syncStatus.kind === 'error' && <div className="report-data-context">
                   <StatusNotice tone="warning">
                     {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
                   </StatusNotice>
