@@ -1,3 +1,5 @@
+import AnimatedIcon from './components/ui/AnimatedIcon';
+import IconInteractions from './components/ui/IconInteractions';
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -25,7 +27,6 @@ import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
-import { Activity } from 'lucide-react';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -181,7 +182,7 @@ export default function App() {
 
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
   // Command palette: Cmd/Ctrl+K từ bất kỳ đâu trong app, trừ khi đang gõ vào
@@ -653,7 +654,7 @@ export default function App() {
   const { d1Date: fdD1Date } = groupDatesByWeek(fdDates);
   const fdD1DateFormatted = fdD1Date ? `${fdD1Date.slice(8, 10)}/${fdD1Date.slice(5, 7)}/${fdD1Date.slice(0, 4)}` : '';
 
-  const canExport = activeTab === 'report1' ? scopedPick.length + scopedDeli.length + scopedFd.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
+  const canExport = ['home', 'report1'].includes(activeTab) ? scopedPick.length + scopedDeli.length + scopedFd.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
   const compositeCoverage = formatCompositeCoverage({
     opsRows: [...scopedPick, ...scopedDeli],
     fdRows: scopedFd,
@@ -666,7 +667,7 @@ export default function App() {
     'Loại Hub đã chọn': selectedHubTypes.join(' | ') || 'Không chọn loại Hub',
     'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}; FD: ${dataSources.fd || 'Chưa tải'}`,
     'Khoảng dữ liệu': compositeCoverage,
-    ...(activeTab === 'report1' && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
+    ...(['home', 'report1'].includes(activeTab) && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
   const runtimeByModule = {
@@ -731,8 +732,10 @@ export default function App() {
     },
     'dev-admin': { onlineUsers }
   };
+  runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1 };
   return (
     <div className="app-container">
+      <IconInteractions />
       {/* Authentication Protection Modal */}
       <AuthModal
         isOpen={!currentUser}
@@ -794,7 +797,7 @@ export default function App() {
             setSelectedHubTypes={setSelectedHubTypes}
             onResetFilters={resetFilters}
             d1DateFormatted={d1DateFormatted}
-            fdD1DateFormatted={activeTab === 'report1' ? fdD1DateFormatted : ''}
+            fdD1DateFormatted={['home', 'report1'].includes(activeTab) ? fdD1DateFormatted : ''}
             syncStatus={syncStatus}
             lastSyncedAt={lastSyncedAt}
             onOpenSummary={() => setIsSummaryOpen(true)}
@@ -833,7 +836,7 @@ export default function App() {
                   runtimeByModule={runtimeByModule}
                   currentUser={currentUser}
                   warmModuleIds={hasOpenedCodTab ? ['cod-suspicion'] : []}
-                  onBackToOverview={() => setActiveTab('report1')}
+                  onBackToOverview={() => setActiveTab('home')}
                 />
               </>
             )}
@@ -842,7 +845,6 @@ export default function App() {
           {/* Mobile Bottom Navigation Bar */}
           <nav className="mobile-bottom-nav">
             {navigationModules('mobile', currentUser).map(module => {
-              const Icon = module.icon;
               return (
                 <button
                   key={module.id}
@@ -850,19 +852,11 @@ export default function App() {
                   aria-current={activeTab === module.id ? 'page' : undefined}
                   onClick={() => setActiveTab(module.id)}
                 >
-                  <Icon size={18} />
+                  <AnimatedIcon name={module.motionIcon} size={18} />
                   <span>{module.mobileLabel}</span>
                 </button>
               );
             })}
-
-            <button
-              className="mobile-nav-item"
-              onClick={() => setIsSummaryOpen(true)}
-            >
-              <Activity size={18} />
-              <span>Tóm tắt</span>
-            </button>
           </nav>
 
           {/* Executive D-1 vs D-8 Summary Modal */}
@@ -892,7 +886,8 @@ export default function App() {
               onOpen={() => setIsChatOpen(true)}
               onClose={() => setIsChatOpen(false)}
               screenContext={{
-                activeTab,
+                // Overview shares the OPS data contract accepted by the chat API.
+                activeTab: activeTab === 'home' ? 'report1' : activeTab,
                 client: clientFilter,
                 regions: selectedRegions,
                 hubTypes: hubTypeSelection

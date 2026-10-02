@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { ArrowRightLeft, Clock, Layers, ShieldAlert, Sparkles, Truck } from 'lucide-react';
+import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck } from 'lucide-react';
 import { MODULE_IDS } from './moduleIds.js';
 
 // The registry is the single source of truth for a report module's identity,
@@ -7,16 +7,25 @@ import { MODULE_IDS } from './moduleIds.js';
 // is shared scope, not module-owned state.
 export const moduleRegistry = Object.freeze([
   {
+    id: 'home', label: 'Tổng quan', mobileLabel: 'Tổng quan', icon: LayoutDashboard, motionIcon: 'LayoutDashboard', description: 'KPI, Hub cần ưu tiên và xu hướng vận hành',
+    group: 'overview', navigation: { sidebar: true, commandPalette: true, mobile: true },
+    surface: lazy(() => import('./ops-metrics/OperationsOverview.jsx'))
+  },
+  {
     id: 'report1',
-    label: 'OPS metric',
-    mobileLabel: 'OPS metric',
-    icon: Layers,
+    motionIcon: 'ChartNoAxesColumnIncreasing',
+    description: 'Tra cứu chỉ số theo Toàn quốc, Miền, Vùng và Hub',
+    label: 'Chi tiết Vùng/Hub',
+    mobileLabel: 'Vùng/Hub',
+    icon: ChartNoAxesColumnIncreasing,
     group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     surface: lazy(() => import('./ops-metrics/Report1MienVungHub.jsx'))
   },
   {
     id: 'report5',
+    motionIcon: 'ArrowRightLeft',
+    description: 'Ca 1 theo lane vận hành',
     label: '% Ca 1 theo lane',
     mobileLabel: '% Ca 1',
     icon: ArrowRightLeft,
@@ -26,6 +35,8 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report3',
+    motionIcon: 'Clock',
+    description: 'Leadtime theo từng chặng · Đang phát triển',
     label: 'Leadtime từng chặng',
     mobileLabel: 'Leadtime',
     icon: Clock,
@@ -39,6 +50,8 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report-insight',
+    motionIcon: 'Sparkles',
+    description: 'Phân tích biến động KPI · Đang phát triển',
     label: 'Insight',
     mobileLabel: 'Insight',
     icon: Sparkles,
@@ -52,6 +65,8 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'cod-suspicion',
+    motionIcon: 'ShieldAlert',
+    description: 'Kiểm tra đơn COD và trạng thái xử lý',
     label: 'Đơn nghi vấn COD',
     mobileLabel: 'Nghi vấn COD',
     icon: ShieldAlert,
@@ -64,6 +79,8 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'ranking',
+    motionIcon: 'Truck',
+    description: 'Xếp hạng hiệu suất vận hành',
     label: 'BXH Performance',
     mobileLabel: 'BXH Xe',
     icon: Truck,
@@ -99,6 +116,7 @@ export const navigationModules = (surface, currentUser) => moduleRegistry
   .filter(module => !module.requiresAuth || currentUser);
 
 export const MODULE_GROUP_LABELS = Object.freeze({
+  overview: 'Điều hành',
   'ka-performance-metrics': 'KA performance metrics',
   'operation-insights': 'Operation insights'
 });

@@ -1,128 +1,15 @@
+import SelectionIndicator from '../../components/ui/SelectionIndicator';
+import OperationsHome from './OperationsHome';
+import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
-import AnimatedNumber from '../../components/ui/AnimatedNumber';
 import * as htmlToImage from 'html-to-image';
-import { ChevronRight, ArrowUp, AlertTriangle, X, Copy, MessageSquareText } from 'lucide-react';
+import { ChevronRight, ArrowUp, X, Copy } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
-
-function SparklineChart({ card, isGood }) {
-  const [hoverIndex, setHoverIndex] = useState(null);
-
-  if (!card.history || card.history.length < 2) {
-    return <div style={{ height: '2px', background: isGood ? '#0F6E56' : '#A13B2A', width: '100%', marginTop: '18px' }} />;
-  }
-
-  const h = card.history;
-  const dates = card.historyDates || [];
-  const actualMin = Math.min(...h);
-  const actualMax = Math.max(...h);
-  const diff = actualMax - actualMin;
-  const padding = Math.max(diff * 0.4, 5);
-
-  const min = card.target != null ? Math.min(actualMin - padding, card.target - 2) : actualMin - padding;
-  const max = card.target != null ? Math.max(actualMax + padding, card.target + 2) : actualMax + padding;
-  const range = max - min || 1;
-
-  const coords = h.map((val, idx) => {
-    const x = (idx / (h.length - 1)) * 100;
-    const y = 100 - ((val - min) / range) * 100;
-    return { x, y, val, date: dates[idx] };
-  });
-
-  let pathD = `M ${coords[0].x},${coords[0].y}`;
-  for (let i = 0; i < coords.length - 1; i++) {
-    const p0 = coords[i];
-    const p1 = coords[i + 1];
-    const cx = (p0.x + p1.x) / 2;
-    pathD += ` C ${cx},${p0.y} ${cx},${p1.y} ${p1.x},${p1.y}`;
-  }
-
-  const areaD = `${pathD} L 100,100 L 0,100 Z`;
-  const targetY = card.target != null ? 100 - ((card.target - min) / range) * 100 : null;
-  const lastPt = coords[coords.length - 1];
-
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const pctX = (mouseX / rect.width) * 100;
-
-    let closestIdx = 0;
-    let minDist = Infinity;
-    coords.forEach((pt, idx) => {
-      const dist = Math.abs(pt.x - pctX);
-      if (dist < minDist) {
-        minDist = dist;
-        closestIdx = idx;
-      }
-    });
-    setHoverIndex(closestIdx);
-  };
-
-  const activePt = hoverIndex !== null ? coords[hoverIndex] : null;
-
-  return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {activePt && (
-        <div style={{
-          position: 'absolute',
-          top: '-32px',
-          left: `${Math.min(Math.max(activePt.x, 18), 82)}%`,
-          transform: 'translateX(-50%)',
-          background: '#0f172a',
-          color: '#fff',
-          padding: '3px 8px',
-          borderRadius: '6px',
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
-          zIndex: 25,
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          {activePt.date ? formatDateLabel(activePt.date).replace('\n', ' ') : ''}: <span style={{ color: isGood ? '#34d399' : '#f87171' }}>{activePt.val.toFixed(1)}%</span>
-        </div>
-      )}
-      <svg
-        width="100%"
-        height="100%"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-        style={{ overflow: 'visible', cursor: 'crosshair' }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIndex(null)}
-      >
-        <defs>
-          <linearGradient id={`spark-grad-${card.id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={isGood ? '#0F6E56' : '#A13B2A'} stopOpacity="0.0" />
-          </linearGradient>
-        </defs>
-
-        {targetY !== null && targetY >= 0 && targetY <= 100 && (
-          <line x1="0" y1={targetY} x2="100" y2={targetY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" style={{ transition: 'y1 0.6s ease, y2 0.6s ease' }} />
-        )}
-        <path d={areaD} fill={`url(#spark-grad-${card.id})`} style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), fill 0.6s ease' }} />
-        <path d={pathD} fill="none" stroke={isGood ? '#0F6E56' : '#A13B2A'} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'd 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.6s ease' }} />
-
-        <circle cx={lastPt.x} cy={lastPt.y} r="3" fill={isGood ? '#0F6E56' : '#A13B2A'} style={{ transition: 'cx 0.6s ease, cy 0.6s ease, fill 0.6s ease' }} />
-
-        {activePt && (
-          <>
-            <line x1={activePt.x} y1="0" x2={activePt.x} y2="100" stroke="#64748b" strokeWidth="1" strokeDasharray="2,2" vectorEffect="non-scaling-stroke" />
-            <circle cx={activePt.x} cy={activePt.y} r="4" fill="#38bdf8" stroke="#fff" strokeWidth="1.5" />
-          </>
-        )}
-      </svg>
-    </div>
-  );
-}
-
 
 export default function Report1MienVungHub({
   pickRows,
@@ -138,27 +25,24 @@ export default function Report1MienVungHub({
   isFullscreen,
   setIsFullscreen,
   onRetryData,
-  onOpenSummary,
   focusTarget = null,
   onClearFocusTarget = null,
   // Set by the /snapshot page (n8n Telegram report): render only this
   // metric's table, without the KPI cards, alert strip and tabs.
-  snapshotMetric = null
+  snapshotMetric = null,
+  overview = false,
+  onOpenOps
 }) {
-  const [alertsParent] = useAutoAnimate();
   const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState(() => {
     return focusTarget?.region ? { [focusTarget.region]: true } : {};
   });
   const [showHomeBtn, setShowHomeBtn] = useState(false);
-  const [showStickyBar, setShowStickyBar] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
   const [activeTableTab, setActiveTableTab] = useState(() => {
     return focusTarget?.metricKey || 'p1st';
   });
-  const [activeKpiCard, setActiveKpiCard] = useState(0);
 
-  const kpiCarouselRef = useRef(null);
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
   const refD1st = useRef(null);
@@ -267,7 +151,6 @@ export default function Report1MienVungHub({
   useEffect(() => {
     const handleScroll = () => {
       setShowHomeBtn(window.scrollY > 300);
-      setShowStickyBar(window.scrollY > 450);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -336,36 +219,15 @@ export default function Report1MienVungHub({
     if (ref && ref.current) {
       // Keep the selected section clear of the navbar and the visible KPI bar.
       const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height || 52;
-      const stickyOffset = headerHeight + (showStickyBar ? 66 : 24);
+      const stickyOffset = headerHeight + 24;
       const y = ref.current.getBoundingClientRect().top + window.scrollY - stickyOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
-  }, [showStickyBar]);
+  }, []);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  // Mobile KPI carousel <-> pager dots. Derived from scrollLeft rather than
-  // tracked as separate state so a swipe, a dot tap and a resize can't drift
-  // out of sync. Measures the first card instead of assuming a width, since
-  // the card is a percentage of a viewport-dependent container.
-  const handleKpiScroll = useCallback((e) => {
-    const el = e.currentTarget;
-    const first = el.firstElementChild;
-    if (!first) return;
-    const step = first.getBoundingClientRect().width + parseFloat(getComputedStyle(el).columnGap || 0);
-    if (!step) return;
-    const idx = Math.round(el.scrollLeft / step);
-    setActiveKpiCard((prev) => (prev === idx ? prev : idx));
-  }, []);
-
-  const scrollToKpiCard = useCallback((idx) => {
-    const el = kpiCarouselRef.current;
-    const target = el?.children?.[idx];
-    if (!el || !target) return;
-    el.scrollTo({ left: target.offsetLeft - el.offsetLeft, behavior: 'smooth' });
-  }, []);
 
   const toggleRegion = (regKey) => {
     captureTableLayout();
@@ -417,9 +279,9 @@ export default function Report1MienVungHub({
 
   // When focusTarget changes (e.g. from drill-down), auto-expand its region and switch active table tab
   useEffect(() => {
-    if (!focusTarget?.region) return;
+    if (!focusTarget) return;
     const { region, metricKey } = focusTarget;
-    setExpandedRegions(prev => ({ ...prev, [region]: true }));
+    if (region) setExpandedRegions(prev => ({ ...prev, [region]: true }));
     if (metricKey) {
       setActiveTableTab(metricKey);
     }
@@ -556,12 +418,6 @@ export default function Report1MienVungHub({
     return hubLateList.sort((a, b) => b.late - a.late).slice(0, 4);
   }, [pD1, dD1, filteredPick, filteredDeli]);
 
-  const handleRiskChipClick = (chip) => {
-    // Expand region
-    setExpandedRegions(prev => ({ ...prev, [chip.region]: true }));
-    // Scroll to metric table section
-    scrollToRef(chip.ref, chip.sectionId);
-  };
 
   // Export Matrix Data to CSV
   const handleExportCSV = (context) => {
@@ -961,16 +817,16 @@ export default function Report1MienVungHub({
             onClick={() => handleCopyImage(sectionRef, title)}
             className="btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--ghn-blue-dark)', border: '1px solid var(--border-strong)', background: 'var(--surface-hover)', borderRadius: '6px' }}
-            title="Copy bảng này thành ảnh"
+            aria-label="Copy bảng này thành ảnh" data-tooltip="Copy bảng thành ảnh" title={snapshotMetric ? 'Copy bảng này thành ảnh' : undefined}
           >
-            <Copy size={13} /> Copy Ảnh
+            <>{snapshotMetric ? <><Copy size={13} /> Copy Ảnh</> : <AnimatedIcon name="Copy" size={18} />}</>
           </button>
-          <button type="button" className="btn-secondary jump-latest-day" disabled={!d1Date} onClick={() => {
+          <button type="button" className="btn-secondary jump-latest-day" aria-label={`Tới ${isFd ? 'D-8' : 'D-1'}`} data-tooltip={`Tới ${isFd ? 'D-8' : 'D-1'}`} disabled={!d1Date} onClick={() => {
             const scroller = sectionRef.current?.querySelector('.report1-master-table');
             const latest = scroller?.querySelector('[data-latest-day]');
             const sticky = scroller?.querySelector('th.lbl-2');
             if (scroller && latest) scroller.scrollTo({ left: scroller.scrollLeft + latest.getBoundingClientRect().left - scroller.getBoundingClientRect().left - (sticky?.getBoundingClientRect().width || 0) - 8, behavior: 'instant' });
-          }}>Tới {isFd ? 'D-8' : 'D-1'}</button>
+          }}>{snapshotMetric ? <>Tới {isFd ? 'D-8' : 'D-1'}</> : <AnimatedIcon name="ArrowRightToLine" size={18} />}</button>
         </div>
 
         <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px`, '--allrow-h': `${allRowHeight}px` }}>
@@ -1287,30 +1143,10 @@ export default function Report1MienVungHub({
     </StatusNotice>
   );
 
-  return (
-    <div className={`${isFullscreen ? 'fullscreen-mode-active' : ''} ${showStickyBar ? 'has-sticky-kpi' : ''}`}>
-      {/* Sticky Mini KPI Top Bar */}
-      {showStickyBar && (
-        <div className="sticky-kpi-bar">
-          <div className="sticky-kpi-bar-inner">
-            <span className="sticky-title">KPI Nationwide:</span>
-            {kpiCards.map(card => {
-              const hasTarget = card.target != null;
-              const isGood = hasTarget ? card.d1.pct >= card.target : card.id !== 'fd';
-              const isFdEmpty = card.id === 'fd' && (!card.d1 || card.d1.pct === null || card.d1.tot === 0);
-              return (
-                <button key={card.id} className="sticky-kpi-item" onClick={() => scrollToRef(card.ref, card.id)}>
-                  <span className="name">{card.title}</span>
-                  <span className={`pct ${hasTarget ? (isGood ? 'good' : 'bad') : ''}`}>
-                    {isFdEmpty ? '–' : formatPct(card.d1.pct)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+  if (overview) return <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} />;
 
+  return (
+    <div className={`ops-workspace ${isFullscreen ? 'fullscreen-mode-active' : ''}`}>
       {/* Floating Exit Fullscreen Button */}
       {isFullscreen && (
         <button
@@ -1353,190 +1189,44 @@ export default function Report1MienVungHub({
         </div>
       )}
 
-      {/* Top Split Dashboard (Layout 2: Card-Based) */}
-      <div className="top-split-dashboard">
-
-        {/* Left: KPI Overview */}
-        <div className="top-split-left">
-          <div className="kpi-cards-header-glass">
-            <span className="kpi-header-title">
-              <span className="kpi-header-accent"></span>
-              TỔNG QUAN D-1 <span className="kpi-header-scope">· Nationwide</span>
-            </span>
-            <span className="kpi-header-context">
-              <button type="button" className="kpi-comment-button" onClick={onOpenSummary} title="Mở nhận xét D-1">
-                <MessageSquareText size={15} />
-                <span>Nhận xét D-1</span>
-              </button>
-            </span>
-          </div>
-          <div className="kpi-cards-container" ref={kpiCarouselRef} onScroll={handleKpiScroll}>
-            {kpiCards.map((card, idx) => {
-              const isFd = card.id === 'fd';
-              const isFdEmpty = isFd && (!card.d1 || card.d1.pct === null || card.d1.tot === 0);
-              const hasD8 = card.d8 && card.d8.pct !== null;
-              const hasD1 = card.d1 && card.d1.pct !== null;
-              const diff = (hasD1 && hasD8) ? card.d1.pct - card.d8.pct : null;
-              const lateVol = card.d1.tot - card.d1.ont;
-              const hasTarget = card.target != null;
-              const isGood = hasTarget ? card.d1.pct >= card.target : !isFd;
-
-              return (
-                <button type="button"
-                  key={card.id}
-                  className={`kpi-card ${isFdEmpty ? 'kpi-card-empty' : ''}`}
-                  style={{ '--card-index': idx }}
-                  onClick={() => scrollToRef(card.ref, card.id)}
-                >
-                  <div className="kpi-card-title">
-                    <span>
-                      {card.title}
-                      {isFd && !isFdEmpty && fD1 && pD1 && fD1 !== pD1 && (
-                        <span style={{ fontSize: '0.68rem', fontWeight: 500, marginLeft: '6px', color: 'var(--text-muted)' }}>
-                          ({formatDateLabel(fD1).replace('\n', ' ')})
-                        </span>
-                      )}
-                    </span>
-                    {hasTarget && (
-                      <span className={`kpi-card-target ${isGood ? 'good' : 'bad'}`}>≥{card.target}%</span>
-                    )}
-                  </div>
-                  {isFdEmpty ? (
-                    <div className="kpi-card-empty-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
-                      <div className="kpi-card-main">
-                        <span className="kpi-card-pct" style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                          Chưa có dữ liệu FD
-                        </span>
-                      </div>
-                      <div className="kpi-card-chart" style={{ opacity: 0.3 }}>
-                        <div style={{ height: '2px', background: 'var(--border-subtle)', width: '100%', marginTop: '18px' }} />
-                      </div>
-                      <div className="kpi-card-stats">
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>–</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="kpi-card-main">
-                        <AnimatedNumber
-                          value={card.d1.pct}
-                          format={v => formatPct(v)}
-                          className={`kpi-card-pct ${hasTarget && isGood ? 'good' : ''}`}
-                        />
-                        {diff !== null ? (
-                          <AnimatedNumber
-                            value={diff}
-                            format={v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`}
-                            className={`kpi-card-diff ${isFd ? (diff >= 0 ? 'down' : 'up') : (diff >= 0 ? 'up' : 'down')}`}
-                          />
-                        ) : (
-                          <span className="kpi-card-diff">–</span>
-                        )}
-                      </div>
-
-                      {card.compareNote && diff !== null && (
-                        <div className="kpi-card-compare-note">{card.compareNote}</div>
-                      )}
-
-                      {/* Visual sparkline */}
-                      <div className="kpi-card-chart">
-                        <SparklineChart card={card} isGood={isGood} />
-                      </div>
-
-                      <div className="kpi-card-stats">
-                        <AnimatedNumber value={card.d1.tot} format={v => `${formatVol(Math.round(v))} đơn`} />
-                        <AnimatedNumber
-                          value={card.subStatLabel ? card.d1.ont : lateVol}
-                          format={v => `${formatVol(Math.round(v))} ${card.subStatLabel || 'trễ'}`}
-                          className={card.subStatLabel ? '' : 'late'}
-                        />
-                      </div>
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Pager dots for the mobile carousel (hidden on desktop, where all
-              cards are visible at once). */}
-          {kpiCards.length > 1 && (
-            <div className="kpi-carousel-dots">
-              {kpiCards.map((card, idx) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  className={`kpi-carousel-dot ${idx === activeKpiCard ? 'active' : ''}`}
-                  onClick={() => scrollToKpiCard(idx)}
-                  aria-label={`Xem ${card.title}`}
-                  aria-current={idx === activeKpiCard}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Full-width alert strip (mockup: horizontal scrollable row of hub chips) */}
-      <div className="alert-strip-sleek">
-        <div className="risk-alert-title-sleek">
-          <AlertTriangle size={16} className="risk-alert-icon-sleek" />
-          <span>CẦN CAN THIỆP D-1</span>
-        </div>
-
-        {riskAlertHubs.length > 0 ? (
-          <div className="risk-chips-list-sleek" ref={alertsParent}>
-            {riskAlertHubs.map((chip, idx) => (
-              <button
-                key={`${chip.hub}_${idx}`}
-                type="button"
-                className="risk-chip-sleek"
-                onClick={() => handleRiskChipClick(chip)}
-                title={`Nhấp để mở rộng Vùng ${chip.region} và cuộn tới hàng ${chip.hub}`}
-              >
-                <b className="risk-chip-hub-sleek">{chip.hub}</b>
-                <span className="risk-chip-metric-sleek">{chip.metric}</span>
-                <b className="risk-chip-pct-sleek">{chip.pct.toFixed(1)}%</b>
-                <span className="risk-chip-late-sleek">-{formatVol(chip.late)} đơn trễ</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="risk-chips-empty-sleek">
-            Không có Hub phát sinh đơn trễ dưới target trong dữ liệu 1st Pickup/1st Deli đang chọn.
-          </div>
-        )}
-      </div>
-
+      <div className="workspace-heading detail-workspace-heading"><div><h1>Chi tiết Vùng/Hub</h1></div></div>
 
       <div className={`density-${density} kpi-tab-container`}>
-        <div className="kpi-table-tabs">
+        <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
+          const current = tabs.indexOf(event.target);
+          if (current < 0) return;
+          event.preventDefault();
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[next].focus(); tabs[next].click();
+        }}>
+          <SelectionIndicator value={activeTableTab} selector='[aria-selected="true"]' />
           {/* 1st Pickup + OPR và 1st Deli + ODR luôn được đọc theo cặp; FD đứng riêng.
               Mỗi nhóm là một cụm nền nhạt để mắt nhận ra cặp mà không cần đổi màu tab. */}
           <div className="kpi-tab-group" role="group" aria-label="Nhóm lấy hàng">
-            <button className={`kpi-table-tab ${activeTableTab === 'p1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('p1st')}>
-              1.1 - 1st Pickup
+            <button role="tab" id="ops-tab-p1st" aria-selected={activeTableTab === 'p1st'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'p1st' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'p1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('p1st')}>
+              1st Pickup
             </button>
-            <button className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
-              1.2 - OPR
+            <button role="tab" id="ops-tab-popr" aria-selected={activeTableTab === 'popr'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'popr' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
+              OPR
             </button>
           </div>
           <div className="kpi-tab-group" role="group" aria-label="Nhóm giao hàng">
-            <button className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
-              1.3 - 1st Deli
+            <button role="tab" id="ops-tab-d1st" aria-selected={activeTableTab === 'd1st'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'd1st' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
+              1st Deli
             </button>
-            <button className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
-              1.4 - ODR
+            <button role="tab" id="ops-tab-dodr" aria-selected={activeTableTab === 'dodr'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'dodr' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'dodr' ? 'active' : ''}`} onClick={() => setActiveTableTab('dodr')}>
+              ODR
             </button>
           </div>
           <div className="kpi-tab-group" role="group" aria-label="FD">
-            <button className={`kpi-table-tab ${activeTableTab === 'fd' ? 'active' : ''}`} onClick={() => setActiveTableTab('fd')}>
-              1.5 - FD
+            <button role="tab" id="ops-tab-fd" aria-selected={activeTableTab === 'fd'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'fd' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'fd' ? 'active' : ''}`} onClick={() => setActiveTableTab('fd')}>
+              FD
             </button>
           </div>
         </div>
-        <div className="kpi-table-content">
+        <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
           {metricTables[activeTableTab]?.()}
         </div>
       </div>

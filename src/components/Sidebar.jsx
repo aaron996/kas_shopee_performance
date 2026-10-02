@@ -1,7 +1,7 @@
 import React from 'react';
-import { LogOut, Search, UserCheck, ShieldCheck } from 'lucide-react';
-import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide';
-import { MorphIcon } from 'morphicons/react';
+import { LogOut, UserCheck, ShieldCheck } from 'lucide-react';
+import SelectionIndicator from './ui/SelectionIndicator';
+import AnimatedIcon from './ui/AnimatedIcon';
 import { navigationModules, MODULE_GROUP_LABELS } from '../modules/moduleRegistry.jsx';
 
 export default function Sidebar({
@@ -16,6 +16,7 @@ export default function Sidebar({
   onOpenPalette
 }) {
   const handleHomeClick = () => {
+    setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -29,16 +30,18 @@ export default function Sidebar({
   const UserInfo = currentUser?.isDevAdmin ? 'button' : 'div';
 
   const renderTabButton = (tab) => {
-    const Icon = tab.icon;
     return (
       <button
         key={tab.id}
+        aria-label={tab.label}
+        data-tooltip={tab.label}
+        data-tooltip-detail={tab.description}
         aria-current={activeTab === tab.id ? 'page' : undefined}
         className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
         onClick={() => setActiveTab(tab.id)}
       >
-        <Icon size={18} />
-        <span title={tab.label}>{tab.label}</span>
+        <AnimatedIcon name={tab.motionIcon} />
+        <span className="nav-label">{tab.label}</span>
       </button>
     );
   };
@@ -46,7 +49,7 @@ export default function Sidebar({
   return (
     <aside id="app-sidebar" className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
-        <button type="button" className="sidebar-brand" onClick={handleHomeClick} title="Trở về đầu trang">
+        <button type="button" className="sidebar-brand" onClick={handleHomeClick} aria-label="Tổng quan GHN">
           <img
             src="/ghn-icon.svg"
             alt="GHN"
@@ -58,17 +61,18 @@ export default function Sidebar({
           </div>
         </button>
 
-        {/* Sidebar Toggle Button at Top Right */}
+        {/* Keep the navigation control aligned directly beneath the brand. */}
         <button
           type="button"
-          className="sidebar-toggle-btn top-toggle"
+          className="sidebar-toggle-btn below-logo-toggle"
           onClick={onToggleCollapse}
-          title={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
-          aria-label={isCollapsed ? "Mở rộng Sidebar" : "Thu gọn Sidebar"}
+          data-tooltip={isCollapsed ? "Mở rộng điều hướng" : "Thu gọn điều hướng"}
+          aria-label={isCollapsed ? "Mở rộng điều hướng" : "Thu gọn điều hướng"}
           aria-controls="app-sidebar"
           aria-expanded={!isCollapsed}
         >
-          <MorphIcon icon={isCollapsed ? ChevronRight : ChevronLeft} size={18} reducedMotion="user" />
+          <AnimatedIcon name={isCollapsed ? "PanelLeftOpen" : "PanelLeftClose"} />
+          {!isCollapsed && <span>Thu gọn điều hướng</span>}
         </button>
       </div>
 
@@ -77,17 +81,18 @@ export default function Sidebar({
           type="button"
           className="sidebar-command-search"
           onClick={onOpenPalette}
-          title="Tìm toàn hệ thống (Cmd/Ctrl+K)"
+          data-tooltip="Tìm toàn hệ thống" data-tooltip-detail="Tìm báo cáo, Hub và đơn hàng · Ctrl K"
           aria-label="Tìm toàn hệ thống"
         >
-          <Search size={17} aria-hidden="true" />
-          <span>Tìm toàn hệ thống</span>
+          <AnimatedIcon name="Search" />
+          <span>Tìm kiếm</span>
           <kbd className="sidebar-command-kbd">Ctrl K</kbd>
         </button>
       </div>
 
       {/* Navigation */}
       <nav className="sidebar-nav">
+        <SelectionIndicator value={activeTab} collapsed={isCollapsed} />
         {groupOrder.map(group => (
           <div key={group} className="sidebar-nav-group">
             <div className="sidebar-nav-group-title">{MODULE_GROUP_LABELS[group] || group}</div>
@@ -124,10 +129,10 @@ export default function Sidebar({
           type="button"
           className="sidebar-footer-btn"
           onClick={() => setIsDarkMode(!isDarkMode)}
-          title={isDarkMode ? 'Giao diện Sáng' : 'Giao diện Tối'}
+          aria-label={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'} data-tooltip={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'}
           aria-pressed={isDarkMode}
         >
-          <MorphIcon icon={isDarkMode ? Sun : Moon} size={18} reducedMotion="user" />
+          <AnimatedIcon name={isDarkMode ? "Sun" : "Moon"} />
           <span>{isDarkMode ? 'Sáng' : 'Tối'}</span>
         </button>
 

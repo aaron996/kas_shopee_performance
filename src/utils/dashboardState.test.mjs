@@ -16,7 +16,7 @@ test('embed scope overrides remembered client without resetting other choices', 
 });
 test('invalid storage and forbidden report fall back safely', () => {
   assert.equal(readDashboardView(storage('{broken')).hasPickedClient, false);
-  assert.equal(readDashboardView(storage('{"tab":"dev-admin"}')).tab, 'report1');
+  assert.equal(readDashboardView(storage('{"tab":"dev-admin"}')).tab, 'home');
   assert.equal(readDashboardView({ getItem() { throw Error('blocked'); } }).hubTypes, null);
 });
 test('all hub types remains a sentinel; intentionally empty is preserved', () => {
@@ -35,4 +35,10 @@ test('CSV escapes quotes, newlines and spreadsheet formula prefixes', () => {
   assert.equal(csvCell('Hub "A",\nB'), '"Hub ""A"",\nB"');
   assert.equal(csvCell('=1+1'), '"\'=1+1"');
   assert.equal(appendCsvContext(['Metric', 'Pickup'], { Client: 'SPE', Nguồn: 'Supabase' }), 'Metric,"Client","Nguồn"\r\nPickup,"SPE","Supabase"');
+});
+
+test('home is the new entry while saved OPS views remain restorable', () => {
+  assert.equal(readDashboardView(storage(null)).tab, 'home');
+  assert.equal(readDashboardView(storage('{"tab":"home","client":"SPB"}')).tab, 'home');
+  assert.equal(readDashboardView(storage('{"tab":"report1","regions":[]}')).tab, 'report1');
 });

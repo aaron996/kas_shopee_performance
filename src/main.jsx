@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './styles/operations-motion.css'
 import App from './App.jsx'
 import PopupCallback from './components/PopupCallback.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
