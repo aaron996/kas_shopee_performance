@@ -1,111 +1,97 @@
-/* Unified Loading Overlay */
-.loading-overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(4px);
-  outline: none;
-  /* Anti-flicker delay: 150ms before becoming visible to prevent micro-flashes on fast loads */
-  animation: loadingOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
-}
-
-.loading-overlay--fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-}
-
-.loading-overlay--contained {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  border-radius: inherit;
-  min-height: 120px;
-}
-
-body.dark-mode .loading-overlay {
-  background-color: rgba(15, 23, 42, 0.88);
-}
-
-.loading-content {
+/* Skeleton loading state (see LoadingScreen.jsx). Shapes mirror the real layout so
+   the page does not jump when data lands; one slow shimmer sweeps all of them in
+   sync (a single moving highlight reads as "working", not as decoration). */
+.loading-skeleton {
+  --sk-base: var(--border-subtle, #dce9f7);
+  --sk-glow: var(--surface-subtle, #f2f7fd);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  outline: none;
+  /* Anti-flicker: stay invisible for 150ms so fast loads never flash a skeleton. */
+  animation: loadingSkeletonIn 0.25s ease-out 150ms both;
 }
 
-.loading-sprite {
-  width: 140px;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.loading-skeleton--page { padding: 0.25rem 0 1rem; }
+.loading-skeleton--block { padding: 1rem; }
 
-.loading-overlay--contained .loading-sprite {
-  width: 100px;
-  height: 100px;
-}
-
-.sprite-option-4 {
-  background-image: url('/loading_sprite.jpg');
-  background-size: 400% 400%; /* 4x4 grid of 16 frames */
+.loading-skeleton__bar {
+  display: block;
+  height: 0.75rem;
+  border-radius: 6px;
+  background-color: var(--sk-base);
+  background-image: linear-gradient(100deg, transparent 30%, var(--sk-glow) 50%, transparent 70%);
+  background-size: 250% 100%;
   background-repeat: no-repeat;
-  animation: playSprite 0.8s step-end infinite;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  background-color: #f1f5f9;
+  background-position: 150% 0;
+  animation: loadingSkeletonSweep 1.6s ease-in-out infinite;
 }
 
-body.dark-mode .sprite-option-4 {
-  background-color: #1e293b;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+.loading-skeleton__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
 }
 
-@keyframes loadingOverlayFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.loading-skeleton__kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface-default, #fff);
+  border: 1px solid var(--border-subtle, #dce9f7);
+  border-radius: var(--radius-control, 10px);
 }
 
-@keyframes playSprite {
-  0.00% { background-position: 0% 0%; }
-  6.25% { background-position: 33.333% 0%; }
-  12.50% { background-position: 66.666% 0%; }
-  18.75% { background-position: 100% 0%; }
-  
-  25.00% { background-position: 0% 33.333%; }
-  31.25% { background-position: 33.333% 33.333%; }
-  37.50% { background-position: 66.666% 33.333%; }
-  43.75% { background-position: 100% 33.333%; }
-  
-  50.00% { background-position: 0% 66.666%; }
-  56.25% { background-position: 33.333% 66.666%; }
-  62.50% { background-position: 66.666% 66.666%; }
-  68.75% { background-position: 100% 66.666%; }
-  
-  75.00% { background-position: 0% 100%; }
-  81.25% { background-position: 33.333% 100%; }
-  87.50% { background-position: 66.666% 100%; }
-  93.75% { background-position: 100% 100%; }
-  
-  100.00% { background-position: 0% 0%; }
+.loading-skeleton__bar--label { width: 55%; }
+.loading-skeleton__bar--value { width: 38%; height: 1.5rem; }
+
+.loading-skeleton__chart {
+  height: clamp(120px, 22vh, 220px);
+  border-radius: var(--radius-control, 10px);
 }
 
-/* Reduced motion preference */
+.loading-skeleton__table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: var(--surface-default, #fff);
+  border: 1px solid var(--border-subtle, #dce9f7);
+  border-radius: var(--radius-control, 10px);
+}
+
+.loading-skeleton__bar--title { width: 30%; height: 0.9rem; }
+
+.loading-skeleton__row {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+.loading-skeleton__bar--name { width: 70%; }
+.loading-skeleton__bar--cell { width: 55%; }
+
+@media (max-width: 640px) {
+  .loading-skeleton__row { grid-template-columns: 2fr 1fr 1fr; }
+  .loading-skeleton__row .loading-skeleton__bar--cell:last-child { display: none; }
+}
+
+@keyframes loadingSkeletonIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes loadingSkeletonSweep {
+  to { background-position: -50% 0; }
+}
+
+/* Reduced motion: keep the placeholder shapes, drop the sweep. */
 @media (prefers-reduced-motion: reduce) {
-  .loading-overlay {
+  .loading-skeleton { animation: none; }
+  .loading-skeleton__bar {
     animation: none;
-    opacity: 1;
-    transition: none;
-  }
-
-  .sprite-option-4 {
-    animation: none !important;
-    background-position: 0% 0% !important;
+    background-image: none;
   }
 }

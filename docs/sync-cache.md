@@ -30,14 +30,15 @@ Sau mỗi lần sync **Supabase thành công**, snapshot được lưu vào Inde
 2. `loadSyncSnapshot(email)` kiểm tra bản ghi `meta` nhỏ (phiên bản, chủ sở hữu,
    tuổi, số dòng) rồi nạp bản ghi `data` (~80ms). Hợp lệ thì vẽ số ngay qua
    `applySupabaseRows(snapshot, 'Bộ nhớ đệm')` và đặt `hasCompletedInitialSync` =
-   true, lúc đó splash mờ dần: với người có cache nó chỉ như một cú fade-in của
-   app, không phải video.
-3. Sync thật vẫn chạy ngầm như bình thường (thanh `sync-progress-bar` + icon xoay
-   trên chip freshness). Xong thì số tự đổi, nguồn thành `Supabase`, và cache
+   true, nên app **đã sẵn sàng bên dưới** splash. Splash vẫn chạy tiếp: nó chờ
+   `liveSyncSettled` (sync live đầu tiên xong), không chờ cache. Người dùng có thể
+   bấm "Bỏ qua" để vào xem ngay số đã lưu.
+3. Sync thật chạy song song. Xong thì số tự đổi, nguồn thành `Supabase`, và cache
    được ghi đè (sau 1.5s, ngoài đường găng vì structured clone ~23MB chặn main
-   thread).
-4. Không có cache: splash ở lại, lặp đoạn 8–10s của video, cho đến khi sync thật
-   xong.
+   thread). Header chỉ đổi chữ/chấm trạng thái ("Đang đồng bộ dữ liệu"); không còn
+   thanh tiến độ hay icon xoay.
+4. Không có cache: splash (hoặc nếu đã bỏ qua thì skeleton) ở lại cho tới khi sync
+   thật xong.
 
 ### Sync lỗi mà số của hôm nay đã có trên màn hình
 

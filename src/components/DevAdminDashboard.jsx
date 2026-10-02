@@ -212,7 +212,7 @@ export default function DevAdminDashboard({ onlineUsers }) {
         <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
           {isLoading ? (
             <div style={{ position: 'relative', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LoadingScreen fullScreen={false} />
+              <LoadingScreen />
             </div>
           ) : loadError ? (
             <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '2rem' }}>{loadError}</div>
@@ -302,7 +302,7 @@ export default function DevAdminDashboard({ onlineUsers }) {
           <div style={{ padding: '1rem', height: '400px', overflowY: 'auto' }}>
             {isLoading ? (
               <div style={{ position: 'relative', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <LoadingScreen fullScreen={false} />
+                <LoadingScreen />
               </div>
             ) : loadError ? (
               <div style={{ textAlign: 'center', color: 'var(--status-danger-fg)', padding: '3rem 1rem' }}>{loadError}</div>

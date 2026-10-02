@@ -11,15 +11,20 @@ import './BrandSplash.css';
  *  - It is the FIRST thing painted: App mounts it in the very first render
  *    (the signed-in user is restored synchronously from localStorage), as an
  *    opaque white layer above the app, so the dashboard never shows through.
- *  - `ready` flips true when data is on screen (cache restore or live sync):
- *    the splash fades out (400ms). With a cache hit that is ~100ms, so it reads
- *    as a soft fade-in of the app rather than a video.
+ *  - `ready` flips true when the first LIVE sync has settled (a cache restore does
+ *    not count — the intro exists to cover the wait for fresh data). The splash
+ *    then fades out (400ms), but never before MIN_SHOW_MS so a fast sync does not
+ *    flash the video.
+ *  - "Bỏ qua" (bottom-right) lets the user enter the app early; the app then shows
+ *    the cached numbers, or the skeleton loading state, while the sync finishes.
  *  - prefers-reduced-motion, or a blocked/failed autoplay, shows the static
  *    logo instead of the video.
  */
 export const LOOP_START = 8;
 export const LOOP_END = 10;
 const LEAVE_MS = 400;
+const MIN_SHOW_MS = 10000;
+const SKIP_DELAY_MS = 700;
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -29,13 +34,21 @@ export default function BrandSplash({ ready }) {
   // show → (ready) → leaving → gone.  Already-ready at mount (e.g. local preview) skips it.
   const [phase, setPhase] = useState(ready ? 'gone' : 'show');
   const [useStatic, setUseStatic] = useState(prefersReducedMotion);
+  const [minElapsed, setMinElapsed] = useState(false);
+  const [skipVisible, setSkipVisible] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
-    if (phase !== 'show' || !ready) return undefined;
+    const minTimer = setTimeout(() => setMinElapsed(true), MIN_SHOW_MS);
+    const skipTimer = setTimeout(() => setSkipVisible(true), SKIP_DELAY_MS);
+    return () => { clearTimeout(minTimer); clearTimeout(skipTimer); };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'show' || !ready || !minElapsed) return undefined;
     setPhase('leaving');
     return undefined;
-  }, [phase, ready]);
+  }, [phase, ready, minElapsed]);
 
   useEffect(() => {
     if (phase !== 'leaving') return undefined;
@@ -92,6 +105,16 @@ export default function BrandSplash({ ready }) {
           <source src="/brand-intro.mp4" type="video/mp4" />
           <source src="/brand-intro.webm" type="video/webm" />
         </video>
+      )}
+      {phase === 'show' && (
+        <button
+          type="button"
+          className={`brand-splash__skip${skipVisible ? ' brand-splash__skip--visible' : ''}`}
+          onClick={() => setPhase('leaving')}
+          tabIndex={skipVisible ? 0 : -1}
+        >
+          Bỏ qua <span aria-hidden="true">→</span>
+        </button>
       )}
     </div>
   );

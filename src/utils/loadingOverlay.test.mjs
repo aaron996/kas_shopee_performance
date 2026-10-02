@@ -4,61 +4,52 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getLoadingOverlayConfig } from './loadingOverlay.js';
 
+const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
+
 test('getLoadingOverlayConfig provides accessible attributes and no visible text', () => {
-  const fullscreenConfig = getLoadingOverlayConfig({
-    fullScreen: true,
-    option: 4,
-    text: 'Đang tải dữ liệu...'
-  });
+  const page = getLoadingOverlayConfig({ variant: 'page' });
+  assert.equal(page.className, 'loading-skeleton loading-skeleton--page');
+  assert.equal(page.role, 'status');
+  assert.equal(page.ariaLive, 'polite');
+  assert.equal(page.ariaBusy, 'true');
+  assert.equal(page.ariaLabel, 'Đang tải dữ liệu');
+  assert.equal(page.hasChart, true);
+  assert.ok(page.kpiCount > 0);
+  assert.equal(page.hasVisibleText, false, 'Skeleton must not have visible text');
 
-  assert.equal(fullscreenConfig.overlayClass, 'loading-overlay loading-overlay--fullscreen');
-  assert.equal(fullscreenConfig.role, 'status');
-  assert.equal(fullscreenConfig.ariaLive, 'polite');
-  assert.equal(fullscreenConfig.ariaBusy, 'true');
-  assert.equal(fullscreenConfig.ariaLabel, 'Đang tải dữ liệu');
-  assert.equal(fullscreenConfig.spriteClass, 'loading-sprite sprite-option-4');
-  assert.equal(fullscreenConfig.spriteAriaHidden, 'true');
-  assert.equal(fullscreenConfig.hasVisibleText, false, 'Overlay must not have visible text');
-
-  const containedConfig = getLoadingOverlayConfig({
-    fullScreen: false
-  });
-  assert.equal(containedConfig.overlayClass, 'loading-overlay loading-overlay--contained');
-  assert.equal(containedConfig.hasVisibleText, false);
+  const block = getLoadingOverlayConfig();
+  assert.equal(block.className, 'loading-skeleton loading-skeleton--block');
+  assert.equal(block.hasChart, false);
+  assert.equal(block.kpiCount, 0);
+  assert.equal(block.hasVisibleText, false);
 });
 
-test('LoadingScreen.jsx source strictly excludes any text nodes or paragraphs', () => {
-  const jsxPath = resolve(process.cwd(), 'src/components/LoadingScreen.jsx');
-  const jsxContent = readFileSync(jsxPath, 'utf8');
-
-  // Verify no text elements in JSX template
-  assert.doesNotMatch(jsxContent, /<p\b/i, 'Must not render paragraph tags');
-  assert.doesNotMatch(jsxContent, /<h[1-6]\b/i, 'Must not render heading tags');
-  assert.doesNotMatch(jsxContent, /<button\b/i, 'Must not render button/CTA tags');
-  assert.doesNotMatch(jsxContent, /loading-text/, 'Must not contain loading-text class');
-  assert.doesNotMatch(jsxContent, /\{text\}/, 'Must not output {text} prop to DOM');
-
-  // Verify presence of sprite element and accessibility
-  assert.match(jsxContent, /spriteClass/, 'Must render character sprite');
-  assert.match(jsxContent, /role=\{config\.role\}/, 'Must assign role="status"');
-  assert.match(jsxContent, /aria-label=\{config\.ariaLabel\}/, 'Must assign aria-label');
+test('LoadingScreen.jsx renders only structural placeholders', () => {
+  const jsx = read('src/components/LoadingScreen.jsx');
+  assert.doesNotMatch(jsx, /<p\b/i, 'Must not render paragraph tags');
+  assert.doesNotMatch(jsx, /<h[1-6]\b/i, 'Must not render heading tags');
+  assert.doesNotMatch(jsx, /<button\b/i, 'Must not render button/CTA tags');
+  assert.doesNotMatch(jsx, /\{text\}/, 'Must not output text to the DOM');
+  assert.doesNotMatch(jsx, /sprite/i, 'The running-character sprite is gone');
+  assert.match(jsx, /role=\{config\.role\}/);
+  assert.match(jsx, /aria-label=\{config\.ariaLabel\}/);
 });
 
-test('LoadingScreen.css enforces anti-flicker delay, reduced-motion, and contained variants', () => {
-  const cssPath = resolve(process.cwd(), 'src/components/LoadingScreen.css');
-  const cssContent = readFileSync(cssPath, 'utf8');
+test('LoadingScreen.css: anti-flicker delay, shimmer, reduced motion, no spinner/sprite', () => {
+  const css = read('src/components/LoadingScreen.css');
+  assert.match(css, /150ms/, 'must delay the first paint to avoid micro-flashes');
+  assert.match(css, /@keyframes\s+loadingSkeletonSweep/);
+  assert.match(css, /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)/);
+  assert.match(css, /\.loading-skeleton--page/);
+  assert.match(css, /\.loading-skeleton--block/);
+  assert.doesNotMatch(css, /playSprite|loading_sprite|rotate\(/);
+});
 
-  // Anti-flicker delay: 150ms before becoming visible
-  assert.match(cssContent, /150ms/, 'CSS must include delay threshold to prevent micro-flashes on fast loads');
-  assert.match(cssContent, /@keyframes\s+loadingOverlayFadeIn/, 'CSS must define fade-in animation');
-
-  // Reduced motion: halts sprite animation and displays static initial frame
-  assert.match(cssContent, /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)/, 'CSS must handle prefers-reduced-motion');
-  assert.match(cssContent, /background-position:\s*0%\s*0%/, 'Reduced motion must show static first frame');
-
-  // Contained variant styling
-  assert.match(cssContent, /\.loading-overlay--contained/, 'CSS must define contained overlay variant');
-
-  // No text classes in CSS
-  assert.doesNotMatch(cssContent, /\.loading-text\b/, 'CSS must not define .loading-text styles');
+test('legacy loading chrome is gone', () => {
+  const app = read('src/App.jsx');
+  const index = read('src/index.css');
+  const motion = read('src/styles/operations-motion.css');
+  assert.doesNotMatch(app, /sync-progress-bar|isSyncing/);
+  assert.doesNotMatch(index, /sync-progress/);
+  assert.doesNotMatch(motion, /\.is-loading \.animated-icon/);
 });

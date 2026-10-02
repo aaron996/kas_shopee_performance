@@ -1298,7 +1298,7 @@ export default function CodSuspicionReport({
               overflow: 'hidden'
             }}
           >
-            <LoadingScreen fullScreen={false} />
+            <LoadingScreen />
           </div>
         ) : visibleDrivers.length === 0 ? (
           <div
@@ -1918,7 +1918,7 @@ export default function CodSuspicionReport({
                           <>
                             {evidenceState.isLoading && (
                               <div className="cod-sms-modal__evidence-loading">
-                                <LoadingScreen fullScreen={false} />
+                                <LoadingScreen />
                               </div>
                             )}
 

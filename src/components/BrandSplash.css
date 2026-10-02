@@ -25,8 +25,46 @@
   display: block;
 }
 
+/* Skip: quiet pill in the bottom-right corner, fades in after a beat so it does
+   not compete with the opening frames. Light surface because the splash is
+   always white, even in dark mode. */
+.brand-splash__skip {
+  position: absolute;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border: 1px solid #d5dde8;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.brand-splash__skip--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.brand-splash__skip:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.brand-splash__skip:focus-visible {
+  outline: 2px solid #f26522;
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .brand-splash {
+  .brand-splash,
+  .brand-splash__skip {
     transition: none;
   }
 }
