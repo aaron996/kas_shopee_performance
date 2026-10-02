@@ -27,7 +27,7 @@ export function readDashboardView(storage, search = '') {
   return {
     client: validClient(queryClient) ? queryClient : validClient(saved.client) ? saved.client : 'SPB',
     hasPickedClient: validClient(queryClient) || validClient(saved.client),
-    tab: REPORTS.includes(saved.tab) ? saved.tab : 'report1',
+    tab: REPORTS.includes(saved.tab) ? saved.tab : 'home',
     regions: Array.isArray(saved.regions) ? saved.regions.filter(v => typeof v === 'string') : null,
     hubTypes: Array.isArray(saved.hubTypes) ? saved.hubTypes.filter(v => typeof v === 'string') : null,
     density: saved.density === 'compact' ? 'compact' : 'comfortable',

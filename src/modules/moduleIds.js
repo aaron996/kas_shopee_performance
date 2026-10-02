@@ -1,6 +1,7 @@
 // This is deliberately framework-free: URL/session persistence and tests can
 // depend on the module contract without pulling React or lazy chunks into Node.
 export const MODULE_IDS = Object.freeze([
+  'home',
   'report1',
   'ranking',
   'report5',

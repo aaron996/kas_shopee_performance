@@ -177,7 +177,7 @@ export default function DataSourceManagerModal({
             <input
               type="text"
               className="filter-input"
-              style={{ flex: 1, fontFamily: 'monospace' }}
+              style={{ flex: 1, fontFamily: 'var(--font-mono)' }}
               value={customSheetId}
               onChange={e => setCustomSheetId(e.target.value)}
               placeholder="Google Spreadsheet ID..."

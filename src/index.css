@@ -15,6 +15,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Native controls otherwise fall back to the browser's UI font. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-heading);
+}
+
 :focus-visible {
   outline: 2px solid var(--action-primary);
   outline-offset: 2px;

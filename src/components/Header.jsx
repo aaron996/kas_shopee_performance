@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, CheckSquare, Download, Filter, Layers, LogOut, MapPin, MessageSquareText, RefreshCw, Rows3, Search, ShieldCheck, Square, Warehouse } from 'lucide-react';
-import { Maximize2, Minimize2, Moon, Sun } from 'lucide';
-import { MorphIcon } from 'morphicons/react';
+import { AlertTriangle, Filter, LogOut, ShieldCheck, Warehouse } from 'lucide-react';
+import IconButton from './ui/IconButton';
+import HeaderPopover from './ui/HeaderPopover';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
 export default function Header({
@@ -12,66 +12,14 @@ export default function Header({
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
   onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses
 }) {
-  // Vùng/Loại Hub chỉ áp cho dữ liệu grain hub (Report 1/2). Tab Leadtime
-  // (grain tỉnh-tỉnh), tab Insight (nationwide, nối cả 2 grain), và tab Đơn nghi vấn COD
-  // đều không bị 2 bộ lọc này tác động — ẩn đi để tránh hiểu nhầm.
-  const hideRegionHubFilters = activeTab === 'report3' || activeTab === 'report-insight' || activeTab === 'cod-suspicion';
-  const [isRegionMenuOpen, setIsRegionMenuOpen] = useState(false);
-  const [isHubTypeMenuOpen, setIsHubTypeMenuOpen] = useState(false);
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  const regionMenuRef = useRef(null);
-  const hubTypeMenuRef = useRef(null);
+  const hideRegionHubFilters = ['report3', 'report-insight', 'cod-suspicion'].includes(activeTab);
+  const [popover, setPopover] = useState(null);
   const headerRef = useRef(null);
-
   const allRegions = useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (regionMenuRef.current && !regionMenuRef.current.contains(event.target)) {
-        setIsRegionMenuOpen(false);
-      }
-      if (hubTypeMenuRef.current && !hubTypeMenuRef.current.contains(event.target)) {
-        setIsHubTypeMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleToggleRegion = (region) => {
-    if (selectedRegions.includes(region)) {
-      setSelectedRegions(selectedRegions.filter(r => r !== region));
-    } else {
-      setSelectedRegions([...selectedRegions, region]);
-    }
-  };
-
-  const handleToggleAllRegions = () => {
-    if (selectedRegions.length === allRegions.length) {
-      setSelectedRegions([]);
-    } else {
-      setSelectedRegions([...allRegions]);
-    }
-  };
-
-  const handleToggleHubType = (type) => {
-    if (selectedHubTypes.includes(type)) {
-      setSelectedHubTypes(selectedHubTypes.filter(t => t !== type));
-    } else {
-      setSelectedHubTypes([...selectedHubTypes, type]);
-    }
-  };
-
-  const handleToggleAllHubTypes = () => {
-    if (selectedHubTypes.length === allHubTypes.length) {
-      setSelectedHubTypes([]);
-    } else {
-      setSelectedHubTypes([...allHubTypes]);
-    }
-  };
-  const supportsExport = activeTab === 'report1' || activeTab === 'report5';
+  const supportsExport = ['home', 'report1', 'report5'].includes(activeTab);
   const exportCsv = () => window.dispatchEvent(new CustomEvent('export-csv', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
+  useEffect(() => { setPopover(null); }, [activeTab]);
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
@@ -79,109 +27,43 @@ export default function Header({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(header);
-    return () => {
-      observer.disconnect();
-      document.documentElement.style.removeProperty('--app-header-height');
-    };
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty('--app-header-height'); };
   }, []);
-
   const lastSyncedLabel = useMemo(() => {
     if (!lastSyncedAt) return null;
     const date = lastSyncedAt instanceof Date ? lastSyncedAt : new Date(lastSyncedAt);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }, [lastSyncedAt]);
-
   const hasDistinctFdDate = Boolean(fdD1DateFormatted && d1DateFormatted && fdD1DateFormatted !== d1DateFormatted);
   const isLoading = syncStatus?.kind === 'loading';
-  const isHealthy = syncStatus?.kind === 'live' || syncStatus?.kind === 'default';
-  const freshnessTitle = syncStatus?.kind === 'error'
-    ? 'Chưa tải được dữ liệu mới — bấm để thử lại'
-    : `Dữ liệu ${hasDistinctFdDate ? `OPS tới ${d1DateFormatted}, FD tới ${fdD1DateFormatted}` : `tới D-1${d1DateFormatted ? ` (${d1DateFormatted})` : ''}`}${lastSyncedLabel ? `, đồng bộ gần nhất ${lastSyncedLabel}` : ''}. Bấm để tải lại.`;
-
-  const syncIcon = isLoading
-    ? <RefreshCw size={15} className="is-spinning" />
-    : isHealthy
-      ? <Check size={15} />
-      : <RefreshCw size={15} />;
-
-  return (
-    <header ref={headerRef} className={`navbar app-header ${isMobileFiltersOpen ? 'mobile-filters-open' : ''}`}>
-      <div className="mobile-header-row">
-        <div className="mobile-header-title">
-          <strong>BCĐH Shopee</strong>
-          <span>Dữ liệu tới {d1DateFormatted || 'đang cập nhật'}{hasDistinctFdDate ? ` (FD: ${fdD1DateFormatted})` : ''}</span>
-        </div>
-        <div className="mobile-header-actions">
-          <button className="mobile-icon-btn" onClick={onRetryData} disabled={isLoading} title={freshnessTitle} aria-label={freshnessTitle}>{syncIcon}</button>
-          <button className="mobile-icon-btn" onClick={onOpenSummary} title="Nhận xét D-1" aria-label="Nhận xét D-1"><MessageSquareText size={18} /></button>
-          <button className="mobile-icon-btn" onClick={onOpenPalette} title="Tìm toàn hệ thống" aria-label="Tìm toàn hệ thống"><Search size={18} /></button>
-          {supportsExport && <button className="mobile-icon-btn mobile-primary-action" onClick={exportCsv} disabled={!canExport} title={exportLabel} aria-label={exportLabel}><Download size={18} /></button>}
-          <button className={`mobile-filter-trigger ${isMobileFiltersOpen ? 'active' : ''}`} onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)} aria-expanded={isMobileFiltersOpen}>
-            <Filter size={18} /> <span>Bộ lọc</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="filter-group-sleek">
-        <div className="header-scope">
-          {activeTab !== 'report5' && activeTab !== 'cod-suspicion' && (
-            <div className="hdr-field">
-              <Filter size={14} className="filter-icon" />
-              <span className="hdr-field-label">Client:</span>
-              <select
-                className="filter-select-sleek"
-                aria-label="Client"
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value)}
-              >
-                <option value="SPB">SPB</option>
-                <option value="SPE">SPE</option>
-                <option value="ALL">Toàn Bộ (SPB + SPE)</option>
-              </select>
-            </div>
-          )}
-
-          {!hideRegionHubFilters && (
-            <div className="custom-dropdown" ref={regionMenuRef}>
-              <button
-                type="button"
-                className={`dropdown-toggle-sleek ${selectedRegions.length !== allRegions.length ? 'is-filtered' : ''}`}
-                onClick={() => setIsRegionMenuOpen(!isRegionMenuOpen)}
-                aria-expanded={isRegionMenuOpen}
-                aria-controls="region-filter-menu"
-                title={selectedRegions.length === allRegions.length ? 'Đã chọn tất cả vùng' : `Đã chọn ${selectedRegions.length} vùng`}
-              >
-                <MapPin size={14} />
-                <span>{selectedRegions.length === allRegions.length ? 'Tất Cả Vùng' : `Vùng (${selectedRegions.length})`}</span>
-              </button>
-
-              {isRegionMenuOpen && (
-                <div className="dropdown-menu" id="region-filter-menu">
-                  <button type="button" className="dropdown-header" onClick={handleToggleAllRegions} aria-pressed={selectedRegions.length === allRegions.length}>
-                    {selectedRegions.length === allRegions.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
-                    <span style={{ fontWeight: 600 }}>Chọn tất cả vùng</span>
-                  </button>
-                  <div className="dropdown-divider"></div>
-
-                  <div className="dropdown-scroll-area">
-                    {Object.keys(MIEN_REGIONS).map(mien => (
-                      <div key={mien} className="dropdown-section">
-                        <div className="dropdown-section-title">{mien}</div>
-                        {MIEN_REGIONS[mien].map(reg => (
-                          <button type="button" key={reg} className="dropdown-item" onClick={() => handleToggleRegion(reg)} aria-pressed={selectedRegions.includes(reg)}>
-                            {selectedRegions.includes(reg) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
-                            <span>{reg}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
+  const syncSummary = isLoading ? 'Đang đồng bộ dữ liệu' : syncStatus?.kind === 'error' ? 'Chưa tải được dữ liệu mới' : `Dữ liệu tới ${d1DateFormatted || 'chưa xác định'}`;
+  const toggle = (value, selected, setter) => setter(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
+  const regionSummary = selectedRegions.length === allRegions.length ? 'Tất cả vùng' : selectedRegions.length ? `${selectedRegions.length}/${allRegions.length} vùng được chọn` : 'Chưa chọn vùng nào';
+  const hubSummary = selectedHubTypes.length === allHubTypes.length ? 'Tất cả loại Hub' : selectedHubTypes.length ? `${selectedHubTypes.length}/${allHubTypes.length} loại Hub được chọn` : 'Chưa chọn loại Hub nào';
+  const sharedPopover = { state: popover, setState: setPopover };
+  return <header ref={headerRef} className="navbar app-header compact-header">
+    <div className="compact-mobile-brand"><strong>BCĐH Shopee</strong><div className="compact-mobile-settings">
+      <IconButton icon={isDarkMode ? 'Sun' : 'Moon'} label={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'} onClick={() => setIsDarkMode(!isDarkMode)} />
+      {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" aria-label="Dev Admin" onClick={() => setActiveTab('dev-admin')}><ShieldCheck size={18} /></button>}
+      <button className="nav-btn-sleek icon-btn" aria-label="Đăng xuất" onClick={onLogout}><LogOut size={18} /></button>
+    </div></div>
+    <div className="compact-header-toolbar">
+      {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
+        {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter} badge={clientFilter === 'ALL' ? undefined : '•'}>
+          <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{[['SPB', 'SPB'], ['SPE', 'SPE'], ['ALL', 'Toàn bộ · SPB + SPE']].map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
+        </HeaderPopover>}
+        {!hideRegionHubFilters && <>
+          <HeaderPopover {...sharedPopover} name="region" icon="MapPin" label="Vùng" summary={regionSummary} badge={selectedRegions.length === allRegions.length ? undefined : selectedRegions.length}>
+            <label className="scope-option scope-select-all"><input type="checkbox" checked={selectedRegions.length === allRegions.length} onChange={() => setSelectedRegions(selectedRegions.length === allRegions.length ? [] : [...allRegions])} /><span>Chọn tất cả vùng</span></label>
+            <div className="scope-options-scroll">{Object.entries(MIEN_REGIONS).map(([mien, regions]) => <fieldset key={mien} className="scope-options"><legend>{mien}</legend>{regions.map(region => <label key={region} className="scope-option"><input type="checkbox" checked={selectedRegions.includes(region)} onChange={() => toggle(region, selectedRegions, setSelectedRegions)} /><span>{region}</span></label>)}</fieldset>)}</div>
+          </HeaderPopover>
+          <HeaderPopover {...sharedPopover} name="hub" icon="Warehouse" label="Loại Hub" summary={hubSummary} badge={selectedHubTypes.length === allHubTypes.length ? undefined : selectedHubTypes.length}>
+            <label className="scope-option scope-select-all"><input type="checkbox" checked={selectedHubTypes.length === allHubTypes.length} onChange={() => setSelectedHubTypes(selectedHubTypes.length === allHubTypes.length ? [] : [...allHubTypes])} /><span>Chọn tất cả loại Hub</span></label>
+            <div className="scope-options-scroll">{allHubTypes.map(type => <label key={type} className="scope-option"><input type="checkbox" checked={selectedHubTypes.includes(type)} onChange={() => toggle(type, selectedHubTypes, setSelectedHubTypes)} /><span>{type}</span></label>)}</div>
+            <button className="popover-text-action" type="button" onClick={onResetFilters}>Đặt lại Vùng và Loại Hub</button>
+          </HeaderPopover>
+        </>}
+      </div>}
           {activeTab === 'cod-suspicion' && (
             <div className="header-cod-filters" aria-label="Bộ lọc đơn nghi vấn COD">
               <div className="hdr-field">
@@ -214,74 +96,18 @@ export default function Header({
             </div>
           )}
 
-          {!hideRegionHubFilters && (
-            <div className="custom-dropdown" ref={hubTypeMenuRef}>
-              <button
-                type="button"
-                className={`dropdown-toggle-sleek ${selectedHubTypes.length !== allHubTypes.length ? 'is-filtered' : ''}`}
-                onClick={() => setIsHubTypeMenuOpen(!isHubTypeMenuOpen)}
-                aria-expanded={isHubTypeMenuOpen}
-                aria-controls="hub-type-filter-menu"
-                title={selectedHubTypes.length === allHubTypes.length ? 'Đã chọn tất cả loại Hub' : `Đã chọn ${selectedHubTypes.length} loại Hub`}
-              >
-                <Layers size={14} />
-                <span>{selectedHubTypes.length === allHubTypes.length ? 'Tất Cả Loại Hub' : `Loại Hub (${selectedHubTypes.length})`}</span>
-              </button>
-
-              {isHubTypeMenuOpen && (
-                <div className="dropdown-menu" id="hub-type-filter-menu">
-                  <button type="button" className="dropdown-header" onClick={handleToggleAllHubTypes} aria-pressed={selectedHubTypes.length === allHubTypes.length}>
-                    {selectedHubTypes.length === allHubTypes.length ? <CheckSquare size={16} className="chk-icon" /> : <Square size={16} className="chk-icon" />}
-                    <span style={{ fontWeight: 600 }}>Chọn tất cả loại</span>
-                  </button>
-                  <div className="dropdown-divider"></div>
-
-                  <div className="dropdown-scroll-area">
-                    {allHubTypes.map(type => (
-                      <button type="button" key={type} className="dropdown-item" onClick={() => handleToggleHubType(type)} aria-pressed={selectedHubTypes.includes(type)}>
-                        {selectedHubTypes.includes(type) ? <CheckSquare size={15} className="chk-icon" /> : <Square size={15} className="chk-icon" />}
-                        <span style={{ fontWeight: 500 }}>{type}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="header-actions">
-          <button type="button" className={`freshness-chip ${syncStatus?.kind === 'error' ? 'is-error' : ''}`} onClick={onRetryData} disabled={isLoading} title={freshnessTitle}>
-            {syncIcon}
-            <span>
-              Dữ liệu tới <strong>{d1DateFormatted || '...'}</strong>
-              {hasDistinctFdDate && (
-                <small className="freshness-sub" style={{ marginLeft: '4px', opacity: 0.85 }}>
-                  (FD: {fdD1DateFormatted})
-                </small>
-              )}
-            </span>
-            {lastSyncedLabel && <span className="freshness-sub">· đồng bộ {lastSyncedLabel}</span>}
-          </button>
-          <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} title={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} aria-pressed={density === 'compact'}>
-            <Rows3 size={16} />
-          </button>
-          <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setIsFullscreen(!isFullscreen)} title={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'} aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'} aria-pressed={isFullscreen}><MorphIcon icon={isFullscreen ? Minimize2 : Maximize2} size={16} reducedMotion="user" /></button>
-          {supportsExport && <button className="nav-btn-sleek primary" onClick={exportCsv} disabled={!canExport} title={exportLabel}><Download size={15} /> <span>Xuất CSV</span></button>}
-          <div className="mobile-only-controls">
-            <button type="button" className="nav-btn-sleek icon-btn" onClick={() => setIsDarkMode(!isDarkMode)} title={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'} aria-label={isDarkMode ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} aria-pressed={isDarkMode}><MorphIcon icon={isDarkMode ? Sun : Moon} size={16} reducedMotion="user" /></button>
-            {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" onClick={() => setActiveTab('dev-admin')} title="Dev Admin" aria-label="Dev Admin"><ShieldCheck size={16} /></button>}
-            <button className="nav-btn-sleek icon-btn" onClick={onLogout} title="Đăng xuất" aria-label="Đăng xuất"><LogOut size={16} /></button>
-          </div>
-        </div>
+      <div className="compact-header-actions">
+        <HeaderPopover {...sharedPopover} name="sync" icon="RefreshCw" label="Đồng bộ dữ liệu" summary={syncSummary} align="right" status={isLoading ? 'is-loading' : syncStatus?.kind === 'error' ? 'is-error' : 'is-current'}>
+          <dl className="sync-details"><div><dt>{hasDistinctFdDate ? 'Pickup/Giao tới' : 'Dữ liệu tới'}</dt><dd>{d1DateFormatted || 'Chưa có dữ liệu'}</dd></div>{hasDistinctFdDate && <div><dt>FD tới</dt><dd>{fdD1DateFormatted}</dd></div>}<div><dt>Đồng bộ gần nhất</dt><dd>{lastSyncedLabel || 'Chưa xác định'}</dd></div></dl>
+          {syncStatus?.kind === 'error' && <p className="sync-error-note">Chưa tải được dữ liệu mới. Bạn có thể thử đồng bộ lại.</p>}
+          <button type="button" className="nav-btn-sleek popover-sync-action" onClick={onRetryData} disabled={isLoading}>{isLoading ? 'Đang đồng bộ…' : 'Đồng bộ ngay'}</button>
+        </HeaderPopover>
+        <IconButton icon="MessageSquareText" label="Nhận xét D-1" onClick={onOpenSummary} />
+        <IconButton icon="Search" label="Tìm toàn hệ thống" detail="Tìm báo cáo, Hub và đơn hàng · Ctrl K" onClick={onOpenPalette} />
+        <IconButton className="desktop-header-action" icon="Rows3" label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} aria-pressed={density === 'compact'} />
+        <IconButton className="desktop-header-action" icon={isFullscreen ? 'Minimize2' : 'Maximize2'} label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'} onClick={() => setIsFullscreen(!isFullscreen)} aria-pressed={isFullscreen} />
+        {supportsExport && <IconButton className="primary" icon="Download" label={exportLabel} disabled={!canExport} onClick={exportCsv} />}
       </div>
-      {isMobileFiltersOpen && <div className="mobile-export-actions">
-        {!hideRegionHubFilters && <button type="button" className="nav-btn-sleek" onClick={onResetFilters}>Đặt lại bộ lọc</button>}
-        {supportsExport && <>
-          <span>{exportContext?.['Phạm vi Client']} · {exportContext?.['Khoảng dữ liệu']}</span>
-          <button type="button" className="nav-btn-sleek primary" disabled={!canExport} onClick={exportCsv} title={exportLabel}><Download size={16} /> Xuất CSV</button>
-        </>}
-      </div>}
-    </header>
-  );
+    </div>
+  </header>;
 }
