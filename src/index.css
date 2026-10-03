@@ -7988,7 +7988,7 @@ body.dark-mode .prr-scope-chip.highlight {
 .date-field-trigger svg { flex: none; color: var(--text-muted); }
 .date-field-trigger .is-placeholder { color: var(--text-muted); }
 
-.msd-panel, .date-panel { position: fixed; z-index: 10000; display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 14px 34px -14px rgba(20, 60, 100, 0.32), 0 2px 8px rgba(20, 60, 100, 0.08); overflow: hidden; }
+.msd-panel, .date-panel { position: fixed; z-index: 100000; display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 14px 34px -14px rgba(20, 60, 100, 0.32), 0 2px 8px rgba(20, 60, 100, 0.08); overflow: hidden; }
 .msd-search { display: flex; align-items: center; gap: 8px; margin: 8px 8px 0; padding: 0 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-muted); }
 .msd-search:focus-within { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }
 .msd-search input { flex: 1; min-width: 0; padding: 0.4rem 0; border: 0; outline: 0; background: transparent; color: var(--text-main); font: inherit; font-size: .84rem; }
