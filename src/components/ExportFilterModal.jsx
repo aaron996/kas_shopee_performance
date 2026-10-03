@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import ModalDialog from './ui/ModalDialog';
+import MultiSelectDropdown from './ui/MultiSelectDropdown';
+import DateField from './ui/DateField';
+
+const DAY_MS = 86400000;
+const shiftIso = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
 // Multi-select filter dialog shown before a CSV download.
 // fields: [{ key, label, options: [{ value, label }], initial?: string[] }]
@@ -11,7 +16,6 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
   const [selection, setSelection] = useState(initialSelection);
   const [from, setFrom] = useState(dateRange?.min || '');
   const [to, setTo] = useState(dateRange?.max || '');
-  const [search, setSearch] = useState({});
   const [wasOpen, setWasOpen] = useState(false);
 
   // Re-seed defaults (header scope / latest data range) each time the dialog opens.
@@ -20,7 +24,6 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
     setSelection(initialSelection);
     setFrom(dateRange?.min || '');
     setTo(dateRange?.max || '');
-    setSearch({});
   } else if (!isOpen && wasOpen) {
     setWasOpen(false);
   }
@@ -28,47 +31,44 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
   const filters = { selection, from, to };
   const count = isOpen ? countRows(filters) : 0;
   const setField = (key, values) => setSelection(prev => ({ ...prev, [key]: values }));
-  const toggle = (key, value) => {
-    const current = selection[key] || [];
-    setField(key, current.includes(value) ? current.filter(v => v !== value) : [...current, value]);
-  };
+  const dateInvalid = Boolean(from && to && from > to);
+
+  const presets = dateRange ? [
+    { label: '7 ngày gần nhất', from: shiftIso(dateRange.max, -6) < dateRange.min ? dateRange.min : shiftIso(dateRange.max, -6) },
+    { label: '30 ngày gần nhất', from: shiftIso(dateRange.max, -29) < dateRange.min ? dateRange.min : shiftIso(dateRange.max, -29) },
+    { label: 'Toàn bộ', from: dateRange.min }
+  ].filter((p, i, all) => all.findLastIndex(q => q.from === p.from) === i) : []; // short data windows collapse presets onto the same range
 
   return <ModalDialog isOpen={isOpen} onClose={onClose} titleId="export-filter-title" className="export-filter-card">
     <div className="export-filter-header">
       <h3 id="export-filter-title"><Download size={18} /> {title}</h3>
-      <button type="button" className="modal-close" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
+      <button type="button" className="export-filter-close" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
     </div>
     <div className="export-filter-body">
-      {dateRange && <fieldset className="export-filter-group">
-        <legend>Khoảng ngày</legend>
+      {dateRange && <section className="export-filter-group" aria-labelledby="export-filter-date">
+        <h4 id="export-filter-date">Khoảng ngày</h4>
         <div className="export-filter-dates">
-          <label>Từ <input type="date" value={from} min={dateRange.min} max={to || dateRange.max} onChange={e => setFrom(e.target.value)} /></label>
-          <label>Đến <input type="date" value={to} min={from || dateRange.min} max={dateRange.max} onChange={e => setTo(e.target.value)} /></label>
+          <DateField label="Từ ngày" value={from} min={dateRange.min} max={to || dateRange.max} onChange={setFrom} />
+          <span className="export-filter-date-sep" aria-hidden="true">→</span>
+          <DateField label="Đến ngày" value={to} min={from || dateRange.min} max={dateRange.max} onChange={setTo} />
         </div>
-      </fieldset>}
-      {fields.map(field => {
-        const selected = selection[field.key] || [];
-        const q = (search[field.key] || '').trim().toLowerCase();
-        const visible = q ? field.options.filter(o => String(o.label).toLowerCase().includes(q)) : field.options;
-        const allSelected = selected.length === field.options.length;
-        return <fieldset key={field.key} className="export-filter-group">
-          <legend>{field.label} <span className="export-filter-count">{selected.length}/{field.options.length}</span></legend>
-          <div className="export-filter-tools">
-            {field.options.length > 8 && <input type="search" placeholder={`Tìm ${field.label.toLowerCase()}…`} value={search[field.key] || ''} onChange={e => setSearch(prev => ({ ...prev, [field.key]: e.target.value }))} />}
-            <button type="button" className="popover-text-action" onClick={() => setField(field.key, allSelected ? [] : field.options.map(o => o.value))}>{allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button>
-          </div>
-          <div className="export-filter-options">
-            {visible.map(o => <label key={o.value} className="export-filter-chip"><input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(field.key, o.value)} /><span>{o.label}</span></label>)}
-            {visible.length === 0 && <span className="export-filter-empty">Không có kết quả</span>}
-          </div>
-        </fieldset>;
-      })}
+        <div className="export-filter-presets">
+          {presets.map(p => <button key={p.label} type="button" className={`export-filter-preset ${from === p.from && to === dateRange.max ? 'is-active' : ''}`} onClick={() => { setFrom(p.from); setTo(dateRange.max); }}>{p.label}</button>)}
+        </div>
+        {dateInvalid && <p className="export-filter-error" role="alert">Ngày bắt đầu phải trước ngày kết thúc.</p>}
+      </section>}
+      <div className="export-filter-fields">
+        {fields.map(field => <div key={field.key} className="export-filter-group">
+          <h4>{field.label}</h4>
+          <MultiSelectDropdown label={field.label} options={field.options} value={selection[field.key] || []} onChange={values => setField(field.key, values)} placeholder={`Tìm ${field.label.toLowerCase()}…`} />
+        </div>)}
+      </div>
     </div>
     <div className="export-filter-footer">
-      <span>{count.toLocaleString('vi-VN')} dòng sẽ được tải</span>
+      <span className={count === 0 ? 'is-empty' : ''}>{count === 0 ? 'Không có dòng nào khớp bộ lọc' : `${count.toLocaleString('vi-VN')} dòng sẽ được tải`}</span>
       <div>
         <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
-        <button type="button" className="nav-btn primary" disabled={count === 0} onClick={() => { onConfirm(filters); onClose(); }}><Download size={14} /> Tải CSV</button>
+        <button type="button" className="btn-primary-sleek" disabled={count === 0 || dateInvalid} onClick={() => { onConfirm(filters); onClose(); }}><Download size={14} /> Tải CSV</button>
       </div>
     </div>
   </ModalDialog>;
