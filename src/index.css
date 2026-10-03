@@ -7953,3 +7953,22 @@ body.dark-mode .prr-scope-chip.highlight {
     width: 100%;
   }
 }
+
+/* Export filter dialog (ExportFilterModal) */
+.export-filter-card { max-width: 640px; }
+.export-filter-header, .export-filter-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border, rgba(128,128,128,.25)); }
+.export-filter-footer { border-bottom: 0; border-top: 1px solid var(--border, rgba(128,128,128,.25)); font-size: .85rem; }
+.export-filter-footer > div { display: flex; gap: 8px; }
+.export-filter-header h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.05rem; }
+.export-filter-body { overflow: auto; padding: 12px 18px; display: grid; gap: 14px; }
+.export-filter-group { border: 0; margin: 0; padding: 0; min-width: 0; }
+.export-filter-group legend { font-weight: 600; font-size: .85rem; padding: 0 0 6px; }
+.export-filter-count { font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
+.export-filter-dates { display: flex; gap: 12px; flex-wrap: wrap; }
+.export-filter-dates label { display: flex; align-items: center; gap: 6px; font-size: .85rem; }
+.export-filter-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.export-filter-tools input[type="search"] { flex: 1; min-width: 0; padding: 6px 8px; }
+.export-filter-options { display: flex; flex-wrap: wrap; gap: 6px; max-height: 160px; overflow: auto; overscroll-behavior: contain; }
+.export-filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border, rgba(128,128,128,.3)); font-size: .82rem; cursor: pointer; }
+.export-filter-chip:has(input:checked) { background: var(--info-box-bg); }
+.export-filter-empty { font-size: .82rem; color: var(--text-secondary); }

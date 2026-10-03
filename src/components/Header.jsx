@@ -17,7 +17,7 @@ export default function Header({
   const headerRef = useRef(null);
   const allRegions = useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
   const supportsExport = ['home', 'report1', 'report5'].includes(activeTab);
-  const exportCsv = () => window.dispatchEvent(new CustomEvent('export-csv', { detail: exportContext }));
+  const exportCsv = () => window.dispatchEvent(new CustomEvent('open-export-dialog', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
   useEffect(() => { setPopover(null); }, [activeTab]);
   useEffect(() => {
