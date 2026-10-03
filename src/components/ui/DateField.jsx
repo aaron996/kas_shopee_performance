@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -23,6 +24,7 @@ export default function DateField({ label, value, onChange, min, max }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
+  const panel = useRef(null);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState({ y: 0, m: 0 });
   const [panelStyle, setPanelStyle] = useState(null);
@@ -48,8 +50,8 @@ export default function DateField({ label, value, onChange, min, max }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const onPointerDown = event => { if (!root.current?.contains(event.target)) close(); };
-    const onScrollOrResize = event => { if (!root.current?.contains(event.target)) close(); };
+    const onPointerDown = event => { if (!root.current?.contains(event.target) && !panel.current?.contains(event.target)) close(); };
+    const onScrollOrResize = event => { if (!root.current?.contains(event.target) && !panel.current?.contains(event.target)) close(); };
     document.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('resize', onScrollOrResize);
     window.addEventListener('scroll', onScrollOrResize, true);
@@ -86,7 +88,7 @@ export default function DateField({ label, value, onChange, min, max }) {
       <span className={value ? '' : 'is-placeholder'}>{value ? formatIsoVi(value) : 'dd/mm/yyyy'}</span>
       <CalendarDays size={15} aria-hidden="true" />
     </button>
-    {open && panelStyle && <div id={id} className="date-panel" role="dialog" aria-label={`Chọn ${label.toLowerCase()}`} style={panelStyle}>
+    {open && panelStyle && createPortal(<div ref={panel} id={id} className="date-panel" role="dialog" aria-label={`Chọn ${label.toLowerCase()}`} style={panelStyle}>
       <div className="date-panel-head">
         <button type="button" className="date-nav" aria-label="Tháng trước" disabled={!canGoPrev} onClick={() => shiftMonth(-1)}><ChevronLeft size={16} /></button>
         <strong>Tháng {view.m + 1}/{view.y}</strong>
@@ -105,6 +107,6 @@ export default function DateField({ label, value, onChange, min, max }) {
         {min && <button type="button" className="msd-link" onClick={() => { onChange(min); close(true); }}>Ngày đầu có dữ liệu</button>}
         {max && <button type="button" className="msd-link" onClick={() => { onChange(max); close(true); }}>Ngày mới nhất</button>}
       </div>
-    </div>}
+    </div>, document.body)}
   </div>;
 }
