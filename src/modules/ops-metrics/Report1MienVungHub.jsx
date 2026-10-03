@@ -426,9 +426,9 @@ export default function Report1MienVungHub({
   // Export Matrix Data to CSV, filtered by the export dialog.
   const EXPORT_METRICS = ['Pickup', 'Deli', 'FD'];
   const exportSources = useMemo(() => [
-    ...pickRows.map(r => ({ metric: 'Pickup', r, hub: r.hub })),
-    ...deliRows.map(r => ({ metric: 'Deli', r, hub: r.hub })),
-    ...fdRows.map(r => ({ metric: 'FD', r, hub: r.deliverywh || '' }))
+    ...pickRows.map(r => ({ metric: 'Pickup', r, hub: r.hub, hubType: getHubType(r) })),
+    ...deliRows.map(r => ({ metric: 'Deli', r, hub: r.hub, hubType: getHubType(r) })),
+    ...fdRows.map(r => ({ metric: 'FD', r, hub: r.deliverywh || '', hubType: getHubType(r) }))
   ], [pickRows, deliRows, fdRows]);
   const exportFields = useMemo(() => {
     const uniq = (fn) => [...new Set(exportSources.map(fn).filter(Boolean))].sort().map(v => ({ value: v, label: v }));
@@ -437,6 +437,7 @@ export default function Report1MienVungHub({
       { key: 'client', label: 'Client', options: clients, initial: clientFilter === 'ALL' ? undefined : [clientFilter] },
       { key: 'metric', label: 'Loại chỉ số', options: EXPORT_METRICS.map(v => ({ value: v, label: v })) },
       { key: 'region', label: 'Vùng', options: uniq(x => x.r.region) },
+      { key: 'hubType', label: 'Loại hub (WH type)', options: uniq(x => x.hubType) },
       { key: 'hub', label: 'Hub / Kho giao', options: uniq(x => x.hub) }
     ];
   }, [exportSources, clientFilter]);
@@ -444,23 +445,24 @@ export default function Report1MienVungHub({
     const d = exportSources.map(x => x.r.report_date).filter(Boolean).sort();
     return d.length ? { min: d[0], max: d[d.length - 1] } : null;
   }, [exportSources]);
-  const selectExportRows = ({ selection, from, to }) => exportSources.filter(({ metric, r, hub }) =>
+  const selectExportRows = ({ selection, from, to }) => exportSources.filter(({ metric, r, hub, hubType }) =>
     (selection.client || []).includes(r.client_name) &&
     (selection.metric || []).includes(metric) &&
     (selection.region || []).includes(r.region) &&
+    (selection.hubType || []).includes(hubType) &&
     (selection.hub || []).includes(hub) &&
     (!from || r.report_date >= from) && (!to || r.report_date <= to));
 
   const handleExportCSV = (filters) => {
     const rows = selectExportRows(filters);
     if (!rows.length) return;
-    const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
+    const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Loại hub', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
-    rows.forEach(({ metric, r, hub }) => {
+    rows.forEach(({ metric, r, hub, hubType }) => {
       const tot = metric === 'Pickup' ? getRowVal(r, 'mau_pu') : metric === 'Deli' ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_fd');
       const ont = metric === 'Pickup' ? getRowVal(r, 'ontime_pu_1st') : metric === 'Deli' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'fd_hoan_thanh');
       const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push([metric, r.client_name || '', r.region, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+      csvRows.push([metric, r.client_name || '', r.region, hubType, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
     const context = {
@@ -469,7 +471,8 @@ export default function Report1MienVungHub({
       'Client đã chọn': filters.selection.client.join(' | '),
       'Loại chỉ số đã chọn': filters.selection.metric.join(' | '),
       'Vùng đã chọn': filters.selection.region.length === exportFields[2].options.length ? 'Tất cả' : filters.selection.region.join(' | '),
-      'Hub đã chọn': filters.selection.hub.length === exportFields[3].options.length ? 'Tất cả' : `${filters.selection.hub.length} hub`
+      'Loại hub đã chọn': filters.selection.hubType.length === exportFields[3].options.length ? 'Tất cả' : filters.selection.hubType.join(' | '),
+      'Hub đã chọn': filters.selection.hub.length === exportFields[4].options.length ? 'Tất cả' : `${filters.selection.hub.length} hub`
     };
     const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, context)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

@@ -161,6 +161,11 @@ Partial corners are valid only when the shape expresses containment or attachmen
 - **Focus:** Cyan border plus a visible focus ring.
 - **Error / Disabled:** Error uses the semantic danger pair; a disabled field must remain distinguishable from a loading or empty field.
 
+### Dropdowns & Date Fields
+- **Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection ("Tất cả (19)", "HCM, HNO +2"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.
+- **Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type="date">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.
+- **Overlay:** Popovers are `position: fixed` (not clipped by a scrolling modal body) and close on outside click, scroll of the page behind, and Escape without closing the surrounding modal.
+
 ### Navigation
 - **Style:** The desktop sidebar is the only persistent dark navy shell. Its exposed edge may use the documented partial `24px` radius; internal controls still use the shared control/pill roles.
 - **State:** Active navigation uses a clear cyan/orange accent and text contrast; mobile navigation follows the same semantic active state.
