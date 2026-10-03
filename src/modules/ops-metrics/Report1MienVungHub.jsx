@@ -10,6 +10,7 @@ import { appendCsvContext, csvCell } from '../../utils/dashboardState';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
+import ExportFilterModal from '../../components/ExportFilterModal';
 
 export default function Report1MienVungHub({
   pickRows,
@@ -225,6 +226,9 @@ export default function Report1MienVungHub({
     }
   }, []);
 
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportContextRef = useRef(null);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -249,10 +253,10 @@ export default function Report1MienVungHub({
   }, [captureTableLayout]);
 
   useEffect(() => {
-    const handleExportEvent = (event) => handleExportCSV(event.detail);
-    window.addEventListener('export-csv', handleExportEvent);
-    return () => window.removeEventListener('export-csv', handleExportEvent);
-  });
+    const handleExportEvent = (event) => { exportContextRef.current = event.detail; setIsExportOpen(true); };
+    window.addEventListener('open-export-dialog', handleExportEvent);
+    return () => window.removeEventListener('open-export-dialog', handleExportEvent);
+  }, []);
 
   // Command palette "nhảy tới vùng": mở rộng đúng vùng đó rồi cuộn tới bảng
   // 1st Pickup (mục đầu tiên) — cùng cơ chế handleRiskChipClick đã dùng cho
@@ -419,41 +423,62 @@ export default function Report1MienVungHub({
   }, [pD1, dD1, filteredPick, filteredDeli]);
 
 
-  // Export Matrix Data to CSV
-  const handleExportCSV = (context) => {
-    if (!filteredPick.length && !filteredDeli.length && !filteredFd.length) return;
-    const headers = ['Nghiệp vụ', 'Vùng', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
+  // Export Matrix Data to CSV, filtered by the export dialog.
+  const EXPORT_METRICS = ['Pickup', 'Deli', 'FD'];
+  const exportSources = useMemo(() => [
+    ...pickRows.map(r => ({ metric: 'Pickup', r, hub: r.hub })),
+    ...deliRows.map(r => ({ metric: 'Deli', r, hub: r.hub })),
+    ...fdRows.map(r => ({ metric: 'FD', r, hub: r.deliverywh || '' }))
+  ], [pickRows, deliRows, fdRows]);
+  const exportFields = useMemo(() => {
+    const uniq = (fn) => [...new Set(exportSources.map(fn).filter(Boolean))].sort().map(v => ({ value: v, label: v }));
+    const clients = uniq(x => x.r.client_name);
+    return [
+      { key: 'client', label: 'Client', options: clients, initial: clientFilter === 'ALL' ? undefined : [clientFilter] },
+      { key: 'metric', label: 'Loại chỉ số', options: EXPORT_METRICS.map(v => ({ value: v, label: v })) },
+      { key: 'region', label: 'Vùng', options: uniq(x => x.r.region) },
+      { key: 'hub', label: 'Hub / Kho giao', options: uniq(x => x.hub) }
+    ];
+  }, [exportSources, clientFilter]);
+  const exportDateRange = useMemo(() => {
+    const d = exportSources.map(x => x.r.report_date).filter(Boolean).sort();
+    return d.length ? { min: d[0], max: d[d.length - 1] } : null;
+  }, [exportSources]);
+  const selectExportRows = ({ selection, from, to }) => exportSources.filter(({ metric, r, hub }) =>
+    (selection.client || []).includes(r.client_name) &&
+    (selection.metric || []).includes(metric) &&
+    (selection.region || []).includes(r.region) &&
+    (selection.hub || []).includes(hub) &&
+    (!from || r.report_date >= from) && (!to || r.report_date <= to));
+
+  const handleExportCSV = (filters) => {
+    const rows = selectExportRows(filters);
+    if (!rows.length) return;
+    const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
-
-    filteredPick.forEach(r => {
-      const tot = getRowVal(r, 'mau_pu');
-      const ont = getRowVal(r, 'ontime_pu_1st');
+    rows.forEach(({ metric, r, hub }) => {
+      const tot = metric === 'Pickup' ? getRowVal(r, 'mau_pu') : metric === 'Deli' ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_fd');
+      const ont = metric === 'Pickup' ? getRowVal(r, 'ontime_pu_1st') : metric === 'Deli' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'fd_hoan_thanh');
       const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push(['Pickup', r.region, r.hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+      csvRows.push([metric, r.client_name || '', r.region, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
-    filteredDeli.forEach(r => {
-      const tot = getRowVal(r, 'mau_deli', 'mau_del');
-      const ont = getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st');
-      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push(['Deli', r.region, r.hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
-    });
-
-    filteredFd.forEach(r => {
-      const tot = getRowVal(r, 'mau_fd');
-      const ont = getRowVal(r, 'fd_hoan_thanh');
-      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push(['FD', r.region, r.deliverywh || '', r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
-    });
-
+    const context = {
+      ...(exportContextRef.current || {}),
+      'Khoảng ngày tải': `${filters.from || ''} → ${filters.to || ''}`,
+      'Client đã chọn': filters.selection.client.join(' | '),
+      'Loại chỉ số đã chọn': filters.selection.metric.join(' | '),
+      'Vùng đã chọn': filters.selection.region.length === exportFields[2].options.length ? 'Tất cả' : filters.selection.region.join(' | '),
+      'Hub đã chọn': filters.selection.hub.length === exportFields[3].options.length ? 'Tất cả' : `${filters.selection.hub.length} hub`
+    };
     const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, context)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GHN_Shopee_Performance_${clientFilter}_${pD1 || dD1 || fD1 || 'all-data'}.csv`;
+    link.download = `GHN_Shopee_Performance_${filters.from || 'all'}_${filters.to || 'data'}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    showToast('Đã tạo CSV theo Client, vùng và loại Hub đang chọn; phạm vi và nguồn có trong file.', { tone: 'success' });
+    showToast(`Đã tạo CSV (${rows.length.toLocaleString('vi-VN')} dòng) theo bộ lọc đã chọn.`, { tone: 'success' });
   };
 
   // KPI Cards Data Calculation
@@ -1230,6 +1255,8 @@ export default function Report1MienVungHub({
           {metricTables[activeTableTab]?.()}
         </div>
       </div>
+
+      <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV} />
 
       {showHomeBtn && (
         <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">

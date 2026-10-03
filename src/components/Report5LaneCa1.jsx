@@ -8,6 +8,7 @@ import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 import { useToast } from './ui/Toast';
 import StatusNotice from './ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../utils/dashboardState';
+import ExportFilterModal from './ExportFilterModal';
 
 // `onlyLane` is set by the /snapshot page (n8n Telegram report) to render a
 // single lane table.
@@ -46,35 +47,51 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
   const dates = useMemo(() => [...new Set(ca1Rows.map(r => r.ngay))].sort(), [ca1Rows]);
   const { weekPrev, weekCurrent, d1Date } = useMemo(() => groupDatesByWeek(dates), [dates]);
 
-  // Single export entry point: the header's "Xuất CSV" button dispatches
-  // `export-csv`; there is deliberately no in-tab duplicate of this button.
-  const handleExportCSV = useCallback((event) => {
-    if (ca1Rows.length === 0) return;
+  // Single export entry point: the header's download button dispatches
+  // `open-export-dialog`; the dialog's filters then drive the CSV.
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportContextRef = React.useRef(null);
+  const exportFields = useMemo(() => {
+    const uniq = (fn) => [...new Set(ca1Rows.map(fn).filter(Boolean))].sort().map(v => ({ value: v, label: v }));
+    return [
+      { key: 'lane', label: 'Lane', options: uniq(r => r.lane) },
+      { key: 'region', label: 'Vùng giao', options: uniq(r => r.vung_giao) }
+    ];
+  }, [ca1Rows]);
+  const exportDateRange = useMemo(() => dates.length ? { min: dates[0], max: dates[dates.length - 1] } : null, [dates]);
+  const selectExportRows = useCallback(({ selection, from, to }) => ca1Rows.filter(r =>
+    (selection.lane || []).includes(r.lane) && (selection.region || []).includes(r.vung_giao) &&
+    (!from || r.ngay >= from) && (!to || r.ngay <= to)), [ca1Rows]);
+
+  const handleExportCSV = (filters) => {
+    const rows = selectExportRows(filters);
+    if (rows.length === 0) return;
     const headers = ['Lane', 'Vung Giao', 'Ngay', 'Tong Don', 'Don Hub Giao Ca 1', '% Ca 1'];
     const csvRows = [headers.join(',')];
 
-    const escapeCsv = csvCell;
-    ca1Rows.forEach(r => {
+    rows.forEach(r => {
       const tot = Number(r.tong_don) || 0;
       const ca1 = Number(r.don_hub_giao_ca1) || 0;
       const pct = tot > 0 ? ((ca1 / tot) * 100).toFixed(2) : '0';
-      csvRows.push([escapeCsv(r.lane), escapeCsv(r.vung_giao), escapeCsv(r.ngay), tot, ca1, `${pct}%`].join(','));
+      csvRows.push([csvCell(r.lane), csvCell(r.vung_giao), csvCell(r.ngay), tot, ca1, `${pct}%`].join(','));
     });
 
-    const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, event?.detail)], { type: 'text/csv;charset=utf-8;' });
+    const context = { ...(exportContextRef.current || {}), 'Khoảng ngày tải': `${filters.from || ''} → ${filters.to || ''}`, 'Lane đã chọn': filters.selection.lane.join(' | ') };
+    const blob = new Blob(['\uFEFF' + appendCsvContext(csvRows, context)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GHN_Shopee_Ca1_Lane_Matrix_${d1Date || 'all-data'}.csv`;
+    link.download = `GHN_Shopee_Ca1_Lane_Matrix_${filters.from || 'all'}_${filters.to || 'data'}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    showToast('Đã tạo CSV Ca 1 theo vùng/loại Hub đang chọn. Nguồn Ca 1 không phân tách Client.', { tone: 'success' });
-  }, [ca1Rows, d1Date, showToast]);
+    showToast(`Đã tạo CSV Ca 1 (${rows.length.toLocaleString('vi-VN')} dòng) theo bộ lọc đã chọn.`, { tone: 'success' });
+  };
 
   React.useEffect(() => {
-    window.addEventListener('export-csv', handleExportCSV);
-    return () => window.removeEventListener('export-csv', handleExportCSV);
-  }, [handleExportCSV]);
+    const open = (event) => { exportContextRef.current = event.detail; setIsExportOpen(true); };
+    window.addEventListener('open-export-dialog', open);
+    return () => window.removeEventListener('open-export-dialog', open);
+  }, []);
 
   // Split weekCurrent into days up to D-2 and D-1 separately (matching 4 chỉ số layout)
   const weekCurBeforeD1 = useMemo(() => weekCurrent.slice(0, -1), [weekCurrent]);
@@ -426,6 +443,7 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
 
   return (
     <div className={isFullscreen ? 'fullscreen-mode-active' : ''}>
+      <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV} />
       {/* Floating Exit Fullscreen Button */}
       {isFullscreen && (
         <button 
