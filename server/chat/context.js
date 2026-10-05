@@ -25,6 +25,9 @@ export function toPublicSource(toolName, result) {
     if (result.params.p_date_from && !scope.dateFrom) scope.dateFrom = result.params.p_date_from;
     if (result.params.p_date_to && !scope.dateTo) scope.dateTo = result.params.p_date_to;
     if (result.params.p_grain && !scope.grain) scope.grain = result.params.p_grain;
+    if (result.params.p_lane && !scope.lane) scope.lane = result.params.p_lane;
+    if (result.params.p_from_province && !scope.fromProvince) scope.fromProvince = result.params.p_from_province;
+    if (result.params.p_to_province && !scope.toProvince) scope.toProvince = result.params.p_to_province;
     if (result.params.p_regions && !scope.regions) {
       scope.regions = result.params.p_regions.filter(r => r !== '__NO_MATCH__');
     }

@@ -6,7 +6,7 @@ import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import { canRetry, formatDataScope } from '../utils/chatRetry';
-import { getFallbackSuggestions } from '../utils/chatSuggestions';
+import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
 
 function createRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -136,8 +136,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
-  const [suggestionData, setSuggestionData] = useState(() => getFallbackSuggestions(screenContext?.activeTab || 'report1'));
-  const lastDynamicRef = useRef(null);
+  const [suggestionData, setSuggestionData] = useState(null);
+  const suggestionScopeKey = JSON.stringify({ activeTab: screenContext?.activeTab || 'report1', client: screenContext?.client || 'SPB', regions: screenContext?.regions ?? null, hubTypes: screenContext?.hubTypes ?? null });
+  const suggestionContext = useMemo(() => JSON.parse(suggestionScopeKey), [suggestionScopeKey]);
+  const fallbackSuggestions = useMemo(() => getFallbackSuggestions(suggestionContext.activeTab, suggestionContext), [suggestionContext]);
+  const visibleSuggestions = suggestionData?.cacheKey === suggestionScopeKey ? suggestionData : fallbackSuggestions;
   const clientCacheRef = useRef(new Map());
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
@@ -146,25 +149,22 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const abortRef = useRef(null);
 
   useEffect(() => {
-    if (messages.length > 0 || pending || failedRequest) return;
+    if (!isOpen || messages.length > 0 || pending || failedRequest) return;
+    const cacheKey = suggestionScopeKey;
 
-    const activeTab = screenContext?.activeTab || 'report1';
-    const client = screenContext?.client || 'SPB';
-    const regionsKey = Array.isArray(screenContext?.regions) ? screenContext.regions.join(',') : 'all';
-    const hubTypesKey = Array.isArray(screenContext?.hubTypes) ? screenContext.hubTypes.join(',') : 'all';
-    const cacheKey = `${activeTab}:${client}:${regionsKey}:${hubTypesKey}`;
-
-    if (clientCacheRef.current.has(cacheKey)) {
-      setSuggestionData(clientCacheRef.current.get(cacheKey));
+    const cached = clientCacheRef.current.get(cacheKey);
+    if (cached && Date.now() - cached.at < 10 * 60 * 1000) {
+      setSuggestionData(cached.data);
       return;
     }
 
     let isCancelled = false;
+    const controller = new AbortController();
     async function loadSuggestions() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token || isCancelled) {
-          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+          if (!isCancelled) setSuggestionData({ ...fallbackSuggestions, cacheKey });
           return;
         }
 
@@ -174,36 +174,37 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({ screenContext })
+          body: JSON.stringify({ screenContext: suggestionContext }),
+          signal: controller.signal
         });
 
         if (res.ok && !isCancelled) {
           const body = await res.json();
           if (body.quotaExceeded) {
-            setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+            setSuggestionData({ ...fallbackSuggestions, cacheKey });
           } else if (body.suggestions) {
             const nextData = {
-              placeholder: body.placeholder,
-              suggestions: body.suggestions,
+              ...body,
+              context: suggestionContext,
+              cacheKey,
               dataAsOf: body.basis === 'template' ? null : body.dataAsOf ?? null
             };
-            lastDynamicRef.current = nextData;
-            clientCacheRef.current.set(cacheKey, nextData);
+            clientCacheRef.current.set(cacheKey, { at: Date.now(), data: nextData });
             setSuggestionData(nextData);
           }
         } else if (!isCancelled) {
-          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+          setSuggestionData({ ...fallbackSuggestions, cacheKey });
         }
       } catch {
         if (!isCancelled) {
-          setSuggestionData(lastDynamicRef.current || getFallbackSuggestions(activeTab));
+          setSuggestionData({ ...fallbackSuggestions, cacheKey });
         }
       }
     }
 
     loadSuggestions();
-    return () => { isCancelled = true; };
-  }, [screenContext, messages.length, pending, failedRequest]);
+    return () => { isCancelled = true; controller.abort(); };
+  }, [isOpen, suggestionScopeKey, suggestionContext, fallbackSuggestions, messages.length, pending, failedRequest]);
 
   // Clean up legacy localStorage keys once
   useEffect(() => {
@@ -245,6 +246,8 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
 
   const history = useMemo(() => messages.slice(-20).map(({ role, content }) => ({ role, content })), [messages]);
   const isStreaming = Boolean(pending);
+  const followupSuggestions = useMemo(() => buildFollowupSuggestions(messages.at(-1)), [messages]);
+  const suggestionsDisabled = isStreaming || Boolean(quota && !quota.isUnlimited && quota.remainingTurns <= 0);
   const mascotState = getMascotState({
     isOpen,
     error,
@@ -269,7 +272,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       window.cancelAnimationFrame(frame);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, mascotHidden]);
 
   useEffect(() => {
     if (!messages.length && !pending && !error && !failedRequest) {
@@ -278,7 +281,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
-  }, [messages, pending, error, failedRequest, status, isOpen]);
+  }, [messages, pending, error, failedRequest, status, isOpen, followupSuggestions]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -310,7 +313,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     window.requestAnimationFrame(() => (mascotHidden ? revealRef.current : launcherRef.current)?.focus());
   };
 
-  const submitQuestion = async (question, query = null, displayQuestion = question) => {
+  const submitQuestion = async (question, query = null, displayQuestion = question, context = screenContext) => {
     const normalizedQuestion = question.trim();
     if (!normalizedQuestion || abortRef.current) return;
 
@@ -336,7 +339,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
 
       const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
       if (query) requestBody.query = query;
-      if (screenContext) requestBody.screenContext = screenContext;
+      if (context) requestBody.screenContext = context;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -385,7 +388,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       const assistantContent = answer.trim() || interaction.prompt;
       setMessages(current => [...current,
         { role: 'user', content: displayQuestion },
-        { role: 'assistant', content: assistantContent, sources, interaction }
+        { role: 'assistant', content: assistantContent, sources, interaction, requestQuestion: normalizedQuestion, screenContext: context }
       ]);
       setPending(null);
       setStatus(null);
@@ -403,6 +406,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         question: normalizedQuestion,
         query,
         displayQuestion,
+        screenContext: context,
         isQuotaExceeded: Boolean(isQuota)
       });
       setAnnouncement(wasAborted ? 'Đã dừng trả lời.' : 'Chưa thể trả lời. Vui lòng thử lại.');
@@ -414,8 +418,8 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const retryStatus = canRetry(failedRequest, quota);
   const handleRetry = () => {
     if (!failedRequest || isStreaming || !retryStatus.allowed) return;
-    const { question, query, displayQuestion } = failedRequest;
-    submitQuestion(question, query, displayQuestion);
+    const { question, query, displayQuestion, screenContext: context } = failedRequest;
+    submitQuestion(question, query, displayQuestion, context);
   };
 
   const handleSubmit = event => {
@@ -432,6 +436,15 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     )));
     submitQuestion(message.question, query, message.summary);
   };
+
+  const renderSuggestions = data => (
+    <div className="chat-suggestions">
+      {(data.items || data.suggestions.map(question => ({ id: question, label: question, question }))).map(item => (
+        <button type="button" key={item.id} disabled={suggestionsDisabled}
+          onClick={() => submitQuestion(item.question, null, item.question, data.context || screenContext)}>{item.label}</button>
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -472,14 +485,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
-            {suggestionData.dataAsOf && (
-              <p className="chat-suggestions-basis">Gợi ý theo số liệu ngày {formatSuggestionDate(suggestionData.dataAsOf)}</p>
-            )}
-            <div className="chat-suggestions">
-              {suggestionData.suggestions.map(question => (
-                <button type="button" key={question} onClick={() => submitQuestion(question)}>{question}</button>
-              ))}
-            </div>
+            <p className="chat-suggestions-basis">{visibleSuggestions.scopeLabel}
+              {visibleSuggestions.dataAsOf && <> · Dữ liệu đến {formatSuggestionDate(visibleSuggestions.dataAsOf)}</>}
+            </p>
+            {renderSuggestions(visibleSuggestions)}
           </div>
         )}
 
@@ -502,6 +511,14 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
             {message.role === 'assistant' && <DataScopeBlock sources={message.sources} />}
           </article>
         ))}
+
+        {messages.length > 0 && !pending && !failedRequest && !error && followupSuggestions && (
+          <div className="chat-followups" aria-label="Gợi ý hỏi tiếp">
+            <p className="chat-followups-title">Tìm hiểu tiếp</p>
+            <p className="chat-suggestions-basis">{followupSuggestions.scopeLabel} · Theo kỳ vừa tra cứu</p>
+            {renderSuggestions(followupSuggestions)}
+          </div>
+        )}
 
         {pending && (
           <>
@@ -564,7 +581,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
               submitQuestion(draft);
             }
           }}
-          placeholder={suggestionData.placeholder}
+          placeholder={followupSuggestions?.placeholder || visibleSuggestions.placeholder}
           rows={2}
           disabled={isStreaming}
         />
