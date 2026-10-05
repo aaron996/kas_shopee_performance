@@ -7,7 +7,7 @@ const PANEL_MAX_HEIGHT = 320;
 // Multi-select with a searchable checklist in a popover. The panel is
 // position:fixed so it is not clipped by a scrolling modal body.
 // options: [{ value, label }]; value: string[]; onChange(string[]).
-export default function MultiSelectDropdown({ label, options, value, onChange, searchable, placeholder = 'Tìm…' }) {
+export default function MultiSelectDropdown({ label, options, value, onChange, searchable, placeholder = 'Tìm…', singleSelect = false }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
@@ -18,18 +18,19 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
 
   const showSearch = searchable ?? options.length > 6;
   const selected = useMemo(() => new Set(value), [value]);
-  const q = query.trim().toLowerCase();
-  const visible = useMemo(() => q ? options.filter(o => String(o.label).toLowerCase().includes(q)) : options, [options, q]);
+  const normalize = text => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const q = normalize(query.trim());
+  const visible = useMemo(() => q ? options.filter(o => normalize(o.label).includes(q)) : options, [options, q]);
   const allSelected = options.length > 0 && value.length === options.length;
   const visibleAllSelected = visible.length > 0 && visible.every(o => selected.has(o.value));
 
   const summary = useMemo(() => {
     if (options.length === 0) return 'Không có dữ liệu';
     if (value.length === 0) return 'Chưa chọn';
-    if (allSelected) return `Tất cả (${options.length})`;
+    if (allSelected && !singleSelect) return `Tất cả (${options.length})`;
     const names = options.filter(o => selected.has(o.value)).map(o => o.label);
     return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-  }, [options, value, allSelected, selected]);
+  }, [options, value, allSelected, selected, singleSelect]);
 
   const place = () => {
     const rect = trigger.current?.getBoundingClientRect();
@@ -70,7 +71,12 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
 
   useEffect(() => { if (open && showSearch) searchRef.current?.focus(); }, [open, showSearch]);
 
-  const toggle = (v) => onChange(selected.has(v) ? value.filter(x => x !== v) : [...value, v]);
+  const toggle = (v) => {
+    if (singleSelect) {
+      onChange([v]);
+      close(true);
+    } else onChange(selected.has(v) ? value.filter(x => x !== v) : [...value, v]);
+  };
   const toggleVisible = () => {
     const visibleValues = new Set(visible.map(o => o.value));
     onChange(visibleAllSelected ? value.filter(v => !visibleValues.has(v)) : [...new Set([...value, ...visible.map(o => o.value)])]);
@@ -82,7 +88,7 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
       close(true);
     }
   }}>
-    <button ref={trigger} type="button" className={`msd-trigger ${open ? 'is-open' : ''} ${value.length > 0 && !allSelected ? 'is-filtered' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={`${label}: ${summary}`} disabled={options.length === 0} onClick={() => open ? close() : setOpen(true)}>
+    <button ref={trigger} type="button" className={`msd-trigger ${open ? 'is-open' : ''} ${value.length > 0 && !allSelected && (!singleSelect || value[0] !== 'ALL') ? 'is-filtered' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={`${label}: ${summary}`} disabled={options.length === 0} onClick={() => open ? close() : setOpen(true)}>
       <span className="msd-summary">{summary}</span>
       <ChevronDown size={16} className="msd-chevron" aria-hidden="true" />
     </button>
@@ -91,18 +97,18 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
         <Search size={14} aria-hidden="true" />
         <input ref={searchRef} type="text" value={query} placeholder={placeholder} aria-label={`Tìm ${label.toLowerCase()}`} onChange={e => setQuery(e.target.value)} />
       </label>}
-      <div className="msd-bulk">
+      {!singleSelect && <div className="msd-bulk">
         <button type="button" className="msd-link" disabled={visible.length === 0} onClick={toggleVisible}>
           {q ? (visibleAllSelected ? 'Bỏ chọn kết quả' : `Chọn ${visible.length} kết quả`) : (allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả')}
         </button>
         <span>{value.length}/{options.length} đã chọn</span>
-      </div>
-      <ul className="msd-list" role="listbox" aria-multiselectable="true" aria-label={label}>
+      </div>}
+      <ul className="msd-list" role="listbox" aria-multiselectable={!singleSelect} aria-label={label}>
         {visible.map(o => {
           const on = selected.has(o.value);
           return <li key={o.value} role="option" aria-selected={on}>
             <label className={`msd-option ${on ? 'is-on' : ''}`}>
-              <input type="checkbox" checked={on} onChange={() => toggle(o.value)} />
+              <input type={singleSelect ? 'radio' : 'checkbox'} name={singleSelect ? id : undefined} checked={on} onChange={() => toggle(o.value)} />
               <span className="msd-box" aria-hidden="true">{on && <Check size={12} strokeWidth={3} />}</span>
               <span className="msd-option-label">{o.label}</span>
             </label>

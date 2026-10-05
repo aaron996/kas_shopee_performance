@@ -101,6 +101,8 @@ export default function CodSuspicionReport({
   active = true,
   filters,
   onAvailableWarehouses,
+  onAvailableProvinces,
+  onSearchChange,
   canManageResolutions = false,
   isDevAdmin = false,
   userEmail = '',
@@ -139,7 +141,7 @@ export default function CodSuspicionReport({
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
-  const { suspicionType = 'ALL', warehouse = 'ALL', alertLevel = 'ALL', searchQuery = '' } = filters || {};
+  const { suspicionType = 'ALL', warehouse = 'ALL', province = 'ALL', searchQuery = '' } = filters || {};
 
   // Accordion expanded state: Set of driverId
   const [expandedDrivers, setExpandedDrivers] = useState(new Set());
@@ -485,19 +487,24 @@ export default function CodSuspicionReport({
     onAvailableWarehouses?.(availableWarehouses);
   }, [availableWarehouses, onAvailableWarehouses]);
 
+  const availableProvinces = useMemo(() => Array.from(new Set(normalizedOrders.map(order => order.toProvince))).sort((a, b) => a.localeCompare(b, 'vi')), [normalizedOrders]);
+  useEffect(() => {
+    onAvailableProvinces?.(availableProvinces);
+  }, [availableProvinces, onAvailableProvinces]);
+
   // Filtered driver groups
   const filteredDrivers = useMemo(() => {
     const filteredGroups = filterDriverGroups(allDriverGroups, {
       suspicionType,
       warehouse,
-      alertLevel,
+      province,
       searchQuery,
       assessmentsByCaseKey: smsAssessments,
       threshold: smsThreshold,
       useEffectiveAlertLevel: !isDevAdmin && smsThreshold !== null
     });
     return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments, { threshold: smsThreshold });
-  }, [allDriverGroups, suspicionType, warehouse, alertLevel, searchQuery, smsAssessments, smsThreshold, isDevAdmin]);
+  }, [allDriverGroups, suspicionType, warehouse, province, searchQuery, smsAssessments, smsThreshold, isDevAdmin]);
 
   const smsOverview = useMemo(
     () => summarizeCodSmsAssessments(normalizedOrders, smsAssessments),
@@ -1116,6 +1123,13 @@ export default function CodSuspicionReport({
         )}
       </div>
 
+      <label className="cod-driver-search">
+        <Search size={18} aria-hidden="true" />
+        <span className="sr-only">Tìm tài xế hoặc mã đơn</span>
+        <input type="search" value={searchQuery} placeholder="Tìm tên / ID tài xế hoặc mã đơn…"
+          onChange={event => onSearchChange?.(event.target.value)} />
+      </label>
+
       {isDevAdmin && (
         <section className="cod-sms-overview" aria-label="Tổng quan chấm điểm SMS AI">
           <div className="cod-sms-overview__title">
@@ -1313,7 +1327,7 @@ export default function CodSuspicionReport({
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
               {!dataEnabled
                 ? 'Đăng nhập qua Supabase để tìm và mở hồ sơ tài xế hoặc mã đơn theo quyền được cấp.'
-                : suspicionType !== 'ALL' || warehouse !== 'ALL' || alertLevel !== 'ALL' || searchQuery
+                : suspicionType !== 'ALL' || warehouse !== 'ALL' || province !== 'ALL' || searchQuery
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : activeResolutionTab === 'resolved'
                   ? 'Bao gồm các trường hợp có vi phạm đang xử lý hoặc đã xử lý theo chế tài.'

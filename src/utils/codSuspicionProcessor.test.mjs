@@ -1,5 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+test('province and warehouse filters keep only intersecting orders and recompute driver totals', () => {
+  const orders = [
+    { driver_id: '1', driver_name: 'An', order_code: 'A', to_province: 'Hà Nội', warehouse_name: 'Kho A', total_score: 20, cod_amount: 100 },
+    { driver_id: '1', driver_name: 'An', order_code: 'B', to_province: 'Hải Phòng', warehouse_name: 'Kho B', total_score: 30, cod_amount: 200 },
+    { driver_id: '2', driver_name: 'Bình', order_code: 'C', warehouse_name: 'Kho A', total_score: 15, cod_amount: 50 }
+  ].map(normalizeSuspicionOrder);
+  const groups = groupOrdersByDriver(orders);
+  const filtered = filterDriverGroups(groups, { province: 'Hà Nội', warehouse: 'Kho A', searchQuery: 'A' });
+  assert.equal(filtered.length, 1);
+  assert.deepEqual(filtered[0].orders.map(order => order.orderCode), ['A']);
+  assert.equal(filtered[0].totalCod, 100);
+  assert.equal(filtered[0].maxScore, 20);
+  assert.equal(filterDriverGroups(groups, { province: 'Hà Nội', warehouse: 'Kho B' }).length, 0);
+  assert.equal(filterDriverGroups(groups, { province: 'Chưa rõ tỉnh thành' })[0].driverId, '2');
+  assert.equal(filterDriverGroups(groups, { province: 'Hà Nội', searchQuery: 'B' }).length, 0);
+  const orphan = { isOrphan: true, driverId: '3', driverName: 'C', suspicionType: 'Gối đầu COD', orders: [] };
+  assert.equal(filterDriverGroups([orphan], { province: 'Hà Nội' }).length, 0);
+  assert.equal(filterDriverGroups([orphan], { warehouse: 'Kho A' }).length, 1);
+  assert.equal(filterDriverGroups([orphan]).length, 1);
+});
 import { readFile } from 'node:fs/promises';
 import {
   STRONG_SIGNALS,
