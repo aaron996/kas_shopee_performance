@@ -6706,6 +6706,7 @@ body.dark-mode .prr-scope-chip.highlight {
   position: relative;
   width: 100%;
   height: 340px;
+  container-type: inline-size;
   border-radius: var(--radius-control);
   border: 1px solid #334155;
   background: #0f172a;
@@ -6716,67 +6717,72 @@ body.dark-mode .prr-scope-chip.highlight {
   position: absolute;
   left: 0.6rem;
   bottom: 0.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.7rem;
   color: #cbd5e1;
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(15, 23, 42, 0.78);
   padding: 0.1rem 0.45rem;
   border-radius: var(--radius-pill);
-  pointer-events: none;
 }
 
+.prr-3d-table-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #7dd3fc;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.prr-3d-table-link:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+/* Phones: a canvas that fits the screen (the table stays close) and tighter controls. */
+@media (max-width: 640px) {
+  .prr-scene3d {
+    height: clamp(280px, 58dvh, 400px);
+  }
+}
+
+@container (max-width: 560px) {
+  .prr-3d-controls {
+    left: 0.5rem;
+    justify-content: flex-start;
+    bottom: 1.9rem;
+  }
+
+  .prr-3d-controls .seg-btn,
+  .prr-replay-btn {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .prr-3d-caption span {
+    display: none;
+  }
+}
+
+/* OrbitControls sets touch-action: none on its canvas (and resets it on reconnect) and react-three-fiber
+   sets it on the canvas wrapper, which makes a tall canvas swallow page scrolling on touch screens. pan-y lets a vertical swipe scroll the page;
+   a horizontal drag still orbits and a two-finger pinch still zooms. !important beats the inline style. */
+.prr-scene3d canvas,
+.prr-scene3d > div {
+  touch-action: pan-y !important;
+}
+
+/* 2D overlay canvas for the labels (drawn by LabelProjector); never takes pointer events */
 .prr-3d-labels {
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-}
-
-/* One projected overlay label; LabelProjector sets transform + visibility every frame. */
-.prr-3d-label {
-  position: absolute;
-  left: 0;
-  top: 0;
-  visibility: hidden;
-  white-space: nowrap;
-  z-index: 1;
-}
-
-.prr-3d-label.is-selected {
-  z-index: 2;
-}
-
-.prr-3d-label.is-hover {
-  z-index: 3;
-}
-
-.prr-3d-label .prr-truck-tag--3d {
-  position: static;
-  bottom: auto;
-}
-
-.prr-3d-label.is-selected .prr-truck-tag--3d {
-  border-color: #38bdf8;
-}
-
-.prr-3d-checkpoint {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid;
-  border-radius: var(--radius-pill);
-  padding: 0.15rem 0.55rem;
-  user-select: none;
-}
-
-.prr-3d-lane-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #e2e8f0;
-  background: rgba(51, 65, 85, 0.9);
-  border-radius: 4px;
-  padding: 0.05rem 0.4rem;
-  user-select: none;
 }
 
 .prr-3d-controls {
@@ -6788,6 +6794,14 @@ body.dark-mode .prr-scope-chip.highlight {
   justify-content: flex-end;
   gap: 0.4rem;
   z-index: 5;
+}
+
+/* The shared segmented-control colour (text-secondary on surface-subtle) is 4.4:1 in the light theme and
+   4.0:1 in the dark theme, just under WCAG AA for this text size. Inside the 3D scene the inactive
+   option uses the primary text colour (>= 8:1 in both themes); the active option is still marked by its
+   raised pill. */
+.prr-3d-controls .prr-segmented-limit .seg-btn:not(.active):not(:disabled) {
+  color: var(--text-primary);
 }
 
 .prr-scene3d:focus-visible {
@@ -6813,51 +6827,6 @@ body.dark-mode .prr-scope-chip.highlight {
 .prr-replay-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.prr-3d-replay-badge {
-  position: absolute;
-  top: 0.6rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: var(--radius-pill);
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  color: #f8fafc;
-  font-size: 0.74rem;
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 6;
-}
-
-.prr-3d-replay-badge .replay-date {
-  transition: opacity var(--duration-fast) var(--ease-snappy);
-}
-
-.prr-3d-replay-badge[data-phase="from"] .replay-date.to,
-.prr-3d-replay-badge[data-phase="to"] .replay-date.from {
-  opacity: 0.45;
-}
-
-.prr-3d-replay-badge .replay-track {
-  position: relative;
-  width: 7rem;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(148, 163, 184, 0.3);
-  overflow: hidden;
-}
-
-.prr-3d-replay-badge .replay-fill {
-  position: absolute;
-  inset: 0;
-  background: #38bdf8;
-  transform-origin: left center;
-  transform: scaleX(var(--replay-progress, 0));
 }
 
 .prr-3d-sr {

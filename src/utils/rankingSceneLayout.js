@@ -13,14 +13,14 @@ export const START_GATE_FRACTION = 0.015; // intake gate, just before the first 
 export const SLA_FRACTION = 0.93; // SLA gate just past the last truck slot (0.88)
 export const LANE_ORDER = [0, 2, 1, 3];
 export const MIN_ROAD_LENGTH = 36;
-export const MAX_ROAD_LENGTH = 320;
+export const MAX_ROAD_LENGTH = 1400; // ~1,200 Hubs without same-lane overlap (D-1 has ~1,170 Hubs)
 // Lanes alternate, so same-lane neighbours are 4 slots apart (>= ~5 units at this density).
 export const LENGTH_PER_TRUCK = 1.6;
 
 export const MAX_REGION_LANES = 6;
 export const OTHER_REGION_LABEL = 'Khác';
 export const MIN_TRUCK_GAP = 3.4; // a truck is ~3 long
-export const MAX_REGION_ROAD_LENGTH = 640;
+export const MAX_REGION_ROAD_LENGTH = 2400;
 const OTHER_KEY = '__other__';
 
 /** Road length (world units) that keeps trucks readable for `count` trucks. */
