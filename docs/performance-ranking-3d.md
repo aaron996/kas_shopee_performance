@@ -13,7 +13,7 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | 2 | Tương tác: chọn xe, nhãn, camera bám xe, làn theo Vùng, bàn phím | Xong |
 | 3 | Replay D-8 → D-1 và chuyển cảnh khi đổi KPI/bộ lọc | Xong |
 | 4 | Hiệu năng, mobile, đường lui, tiếp cận | Xong |
-| 5 | Hoàn thiện hình ảnh và tài liệu | Chưa làm |
+| 5 | Hoàn thiện hình ảnh và tài liệu | Xong |
 
 ## Kiến trúc Sprint 0
 
@@ -26,6 +26,7 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | `labelOverlay.js` | Đo và vẽ nhãn xe, nhãn checkpoint, nhãn làn, chip Replay lên canvas 2D phủ trên cảnh |
 | `utils/sceneLabelStyle.js` | Bảng màu nhãn + hàm tính độ tương phản WCAG (có test `sceneLabelStyle.test.mjs`) |
 | `SceneErrorBoundary.jsx` | Bắt lỗi tải chunk 3D / lỗi render để rơi về 2D |
+| `utils/sceneThemes.js` | Màu cảnh theo theme sáng/tối (trời, nền, nhựa đường, cây, biển báo, đèn) và vị trí cây/biển báo (`computeRoadside`). Có test `sceneThemes.test.mjs` |
 | `TruckTag.jsx` | Nhãn xe dùng chung cho 2D và 3D (`.prr-truck-tag*`) |
 | `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`, `computeReplayFrames`, `computeTransitionFrames`, easing. Có test `rankingSceneLayout.test.mjs` |
 | `utils/sceneCapability.js` | Hàm thuần: `detectWebGL2(createCanvas)`, `pickDefaultSceneMode(...)`. Có test `sceneCapability.test.mjs` |
@@ -511,3 +512,97 @@ bàn phím, làn theo Vùng, "Tất cả") và bộ kiểm tra Replay/chuyển c
 tra Sprint 4 (đường lui, rò tài nguyên, chạm/mobile) đạt hết trừ mục bộ nhớ JS nêu trên.
 Ảnh: `docs/evidence/ranking-3d-sprint4/` (desktop sáng/tối, "Tất cả" 1.167 xe, làn theo Vùng, mobile
 sáng/tối, cảnh mobile).
+
+## Hoàn thiện hình ảnh (Sprint 5)
+
+Quyết định chốt với người phụ trách: **giữ xe dựng bằng khối hình học** (không dùng `.glb`) và **chưa mở
+BXH cho người dùng thường** (module `ranking` vẫn `requiresDevAdmin`; `moduleRegistry.jsx` không đổi).
+
+### Những gì đã thêm
+
+- **Nền theo theme** (`sceneThemes.js`). Bầu trời là một texture gradient 2×256 (`scene.background`) và
+  sương mù (`fog`) bắt đầu xa hơn đường, nên xe không bị nhạt màu; nền đất là vật liệu không đổ sáng, mờ dần
+  vào màu chân trời. Camera mặc định nhìn xuống đường nên ít khi thấy trời; chỉ khi xoay thấp xuống gần ngang
+  mới thấy chân trời. Theme sáng: nền xanh xám nhạt, nhựa đường `#4b5a6e`; theme tối: nền navy `#0d1626`.
+  Ánh sáng (bán cầu + đèn định hướng) cũng đổi theo theme. Màu cảnh đọc lại khi `<body>` đổi class `dark-mode`.
+- **Cây và biển báo ven đường**, low-poly, đứng ở **phía xa** của đường (phía đối diện camera) để không bao giờ
+  che xe hay nhãn. Cây thấp, màu dịu (xanh xám) để cam GHN và vàng SLA vẫn là màu nổi nhất. Vị trí xác định
+  (hàm băm theo chỉ số), không đổi giữa các lần vẽ. Chỉ 4 `InstancedMesh` (thân, tán, cột, biển) bất kể số lượng.
+- **Logo GHN trên thùng xe**: hai decal (hai bên thùng) dùng chung một texture 128×128 vẽ từ `/ghn-icon.svg`
+  (cùng file với sidebar). Nếu tải ảnh lỗi thì decal chỉ trong suốt, cảnh vẫn dùng được.
+- **Huy hiệu hạng 1–3** trên nóc thùng: đĩa vàng `#f5b800`, bạc `#b8c4d0`, đồng `#a0522d` (cùng sắc với vương miện
+  của `DeliveryTruckIcon` 2D; bạc sáng hơn cho đủ tương phản trên nền tối). Một `InstancedMesh` tối đa 3 thể
+  hiện, chạy theo xe khi Replay. Nhãn của xe hạng 1–3 có viền cùng màu huy hiệu.
+- **Không có yếu tố đua xe F1**: không cờ caro, không bục podium, không vạch xuất phát/đích kiểu đua. Cổng
+  "Điểm tiếp nhận & điều phối" và "Mốc chuẩn SLA" là cổng vận hành.
+- Chi phí: thêm 8 `InstancedMesh` nhỏ (4 ven đường, 2 decal, 1 huy hiệu, nhưng decal tính vào bộ phận xe); sau thay
+  đổi, xoay camera vẫn 143 fps (CPU ×1) / 91 fps (CPU ×4) với 120 Hub, 141 fps với 1.167 Hub trên GPU thật (dev).
+
+### Rà soát bằng skill impeccable (critique + polish)
+
+Bối cảnh: bề mặt Operate (đọc nhanh và chính xác quan trọng hơn trang trí), hệ thống thị giác có sẵn là
+nguồn chuẩn (DESIGN.md "GHN KAS Operations"; chưa có PRODUCT.md nên chỉ chỉnh trong phạm vi hẹp). Đánh giá
+chạy tách biệt: (A) nhận xét thiết kế từ ảnh chụp 8 trạng thái (sáng/tối × tổng quan/chân trời/bám xe/mobile) bởi
+một agent chỉ đọc; (B) `impeccable detect` trên mã. **(B) không có phát hiện nào trong mã mới**; 7 cảnh báo
+chống mẫu đều ở các dòng CSS có sẵn từ trước (`border-left` dày, `transition: width/padding`) ngoài phạm vi.
+
+Kết luận của (A): cảnh ~60% mang bản sắc GHN (decal, sọc cam, cổng cam/vàng/cyan) và ~40% giống demo 3D chung
+chung (cây xanh bão hoà, biển báo xanh nổi giữa đường, đĩa huy hiệu phẳng). Đã xử lý:
+
+| Phát hiện | Xử lý |
+|---|---|
+| Cây che xe/nhãn, quá to và quá xanh | Chỉ đặt ở phía xa, nhỏ lại ~35%, đổi sang xanh xám dịu |
+| Biển báo giữa đường trông như chướng ngại | Chuyển sang phía xa cùng cây |
+| Huy hiệu hạng khó đọc, đồng trùng sắc cam của decal | Đổi màu (vàng/bạc/đồng đậm hơn), thêm viền cùng màu cho nhãn hạng 1–3 |
+| Nền tối nuốt thùng xe | Nâng nền `#0d1626` và màu thùng `#2d3b50` |
+| KPI luôn một màu, không mang trạng thái | Chữ KPI trên nhãn xanh/đỏ theo đạt mục tiêu (≥ 4,5:1, đã có test màu) |
+| Hạng 2–4 không có nhãn ở tổng quan; cổng SLA mất nhãn | Hạng 1–3 luôn được ưu tiên nhãn; nhãn cổng ưu tiên cao hơn nhãn Top 10 còn lại |
+| Nhãn nằm dưới nút/chú thích | Dải 34 px dưới cùng luôn trống nhãn |
+| Đường chỉ chiếm ~60% bề ngang, thừa chiều cao | Khung hình sát hơn (phần dọc 11 → 8,5); trên canvas hẹp chỉ khung phần đầu đường (phía hạng 1), phần còn lại xoay/chụm để xem |
+| Trạng thái đang chọn của nút yếu | Gạch chân cam GHN dưới tuỳ chọn đang chọn |
+| Nút Replay giống nhãn, không có phân cấp | Có biểu tượng ▶, viền cyan 1,5 px, cách xa hai nút trạng thái |
+| "Bám xe" bị khoá quá mờ | Độ mờ khoá 0,45 → 0,6 (tooltip đã có) |
+| Mobile: canvas cao nhưng thừa chỗ trống | Chiều cao `clamp(240px, 44dvh, 340px)` |
+
+**Chưa làm theo đề xuất (và lý do):** chip `+n` giữ nguyên dấu `+`/`-` vì phải khớp cột "Δ Hạng" của bảng và nhãn
+2D; chưa thêm số hạng trên nóc thùng (cần thêm một lớp văn bản 3D, nhãn đã có số hạng); chưa đổi thùng sang màu
+trắng ngà (đổi nhận diện xe so với 2D); ngưỡng "vàng" (sát mục tiêu) cho KPI cần định nghĩa nghiệp vụ, hiện chỉ
+có đạt/chưa đạt; chưa đặt lại màu điểm báo cyan của header (ngoài phạm vi).
+
+### Cách thêm một KPI mới
+
+1. Thêm một mục vào `SUPPORTED_KPIS` trong `utils/performanceRanking.js` (`id`, `label`, `shortLabel`, `isDeli`,
+   `defaultTarget`) và định nghĩa cách lấy tử số/mẫu số cho KPI đó ở cùng file (cột nguồn trong dòng dữ liệu).
+   Mục tiêu có thể đến từ `TARGET_KPIS[label]` trong `data/defaultDataset.js`.
+2. Không cần sửa gì ở cảnh 3D hay 2D: cả hai nhận `sceneTrucks` đã xếp hạng, `metricLabel` và `target` từ
+   `calculatePerformanceRanking()`; tab chọn KPI và chú giải được dựng từ `SUPPORTED_KPIS`.
+3. Thêm test cho KPI mới vào `utils/performanceRanking.test.mjs` (xếp hạng, nhóm đối soát chung, `deltaRank`).
+4. Kiểm tra bằng Replay và chuyển cảnh khi đổi sang KPI mới (hạng trong nhóm đối soát phải cho `deltaRank` hợp lý).
+
+### Kích thước bundle cuối
+
+Build hiện tại (`npm run build`): `RoadScene3D-*.js` **961,7 kB (258,8 kB gzip)**, chỉ tải ở chế độ 3D;
+`PerformanceRoadRanking-*.js` 26,2 kB (7,6 kB gzip); `index-*.js` 719,2 kB (224,7 kB gzip) gần như không đổi
+so với trước dự án (704,9 kB lúc đầu, phần chênh do các thay đổi khác trên `main`). Chế độ 2D không tải chunk three.
+So với Sprint 0: chunk 3D 912,6 → 961,7 kB (+49 kB) cho toàn bộ cảnh, tương tác, Replay, nhãn canvas, ven đường.
+
+### Giới hạn đã biết (tổng hợp)
+
+- Xe dựng bằng khối hình học, không phải mô hình thiết kế riêng.
+- Mặc định 2D/3D theo `hardwareConcurrency > 4`; nhiều điện thoại mạnh mở thẳng 3D. Chưa thử trên điện thoại và
+  máy ở hub thật (xem số đo ở Sprint 4: máy phát triển + mô phỏng).
+- "Tất cả" với 1.167 xe: mỗi xe chỉ vài điểm ảnh ở toàn cảnh; dùng zoom, bám xe và bảng.
+- Không GPU + "Tất cả": chậm (15 fps xoay); nên dùng Top 10/20 hoặc 2D.
+- Mỗi thay đổi DOM trên trang tốn một lần vẽ lại cả trang vì bảng ~1.200 dòng (hitch khi bấm Replay); ảo hoá
+  bảng nằm ngoài phạm vi.
+- Bộ nhớ JS tăng ~6–7 MB mỗi lần quay lại tab BXH, cả ở 2D (chưa tìm nguyên nhân gốc).
+- Replay dùng hạng trong nhóm đối soát chung và xấp xỉ quãng chạy khi chỉ hiện Top N (hướng luôn đúng).
+- Nhãn trên canvas là trang trí đối với trình đọc màn hình; số liệu đầy đủ ở bảng.
+- Cảnh 3D luôn dùng nền sáng/tối theo theme nhưng cảnh 2D vẫn là khung tối cố định như trước (giữ nguyên 2D).
+- Nếu sau này đưa BXH vào `/snapshot` (n8n/Telegram) thì phải dùng `RoadScene2D` (trình duyệt ngầm không vẽ được WebGL).
+
+### Kiểm tra Sprint 5
+
+Playwright + Chrome (GPU thật), dữ liệu tổng hợp: bộ kiểm tra tương tác (Sprint 2), Replay/chuyển cảnh (Sprint 3),
+đường lui/rò tài nguyên/chạm (Sprint 4) và độ tương phản nút điều khiển chạy lại sau các thay đổi, đều đạt.
+Ảnh: `docs/evidence/ranking-3d-sprint5/` (sáng/tối × tổng quan, chân trời, bám xe hạng 1; mobile sáng/tối).

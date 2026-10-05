@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
+import { computeRoadside } from '../../utils/sceneThemes.js';
 import {
   REPLAY_ARROWS_MS,
   easeInOutCubic,
@@ -10,11 +11,14 @@ import {
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 
-const CARGO = '#1e293b';
+const CARGO = '#2d3b50'; // lighter than the old slate-800 so cargo separates from the dark ground
 const DARK = '#0f172a';
 const GHN_ORANGE = '#f15a22';
 const ARROW_UP = '#34d399';
 const ARROW_DOWN = '#f87171';
+// Roof badges for ranks 1-3 (same hues as the 2D DeliveryTruckIcon crown; silver is lighter for contrast).
+const BADGE_COLORS = ['#f5b800', '#b8c4d0', '#a0522d'];
+const LOGO_URL = '/ghn-icon.svg';
 
 // Truck facing +x, ~3 long, ~1.3 wide. `color: 'status'` is tinted per truck
 // (meets target / below target); `basic` parts are unlit so the theme token
@@ -28,6 +32,9 @@ const TRUCK_PARTS = [
   { key: 'beacon', geo: 'box', args: [0.5, 0.08, 0.9], position: [1.0, 1.28, 0], color: 'status', basic: true },
   { key: 'lightL', geo: 'box', args: [0.06, 0.14, 0.22], position: [1.47, 0.55, 0.42], color: '#fef08a', basic: true },
   { key: 'lightR', geo: 'box', args: [0.06, 0.14, 0.22], position: [1.47, 0.55, -0.42], color: '#fef08a', basic: true },
+  // GHN mark on both cargo sides (texture drawn once from /ghn-icon.svg)
+  { key: 'logoL', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, 0.655], color: '#ffffff', basic: true, logo: true },
+  { key: 'logoR', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, -0.655], rotation: [0, Math.PI, 0], color: '#ffffff', basic: true, logo: true },
   // 3 axles; a cylinder spans the body width so each reads as a wheel on both sides
   { key: 'axle1', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK },
   { key: 'axle2', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-0.2, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK },
@@ -65,6 +72,7 @@ const _euler = new THREE.Euler();
 const _scale = new THREE.Vector3(1, 1, 1);
 const _pos = new THREE.Vector3();
 const _arrowColor = new THREE.Color();
+const _upAxis = new THREE.Vector3(0, 1, 0);
 
 const noRaycast = () => {};
 
@@ -74,9 +82,11 @@ function pickedId(e, items) {
 }
 
 /** One InstancedMesh for a truck part. Registers itself (mesh + material) with the fleet. */
-function FleetPart({ part, index, count, alphaArray, register, castShadow }) {
+function FleetPart({ part, index, count, alphaArray, register, castShadow, logoTexture }) {
   const geometry = useMemo(() => {
-    const g = part.geo === 'cyl' ? new THREE.CylinderGeometry(...part.args) : new THREE.BoxGeometry(...part.args);
+    const g = part.geo === 'cyl'
+      ? new THREE.CylinderGeometry(...part.args)
+      : part.geo === 'plane' ? new THREE.PlaneGeometry(...part.args) : new THREE.BoxGeometry(...part.args);
     g.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alphaArray, 1));
     return g;
   }, [part, alphaArray]);
@@ -100,7 +110,9 @@ function FleetPart({ part, index, count, alphaArray, register, castShadow }) {
       frustumCulled={false}
       raycast={noRaycast}
     >
-      {part.basic
+      {part.logo
+        ? <meshBasicMaterial {...materialProps} map={logoTexture} toneMapped={false} depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
+        : part.basic
         ? <meshBasicMaterial {...materialProps} color={color} />
         : <meshStandardMaterial {...materialProps} color={color} roughness={0.7} metalness={0.1} />}
     </instancedMesh>
@@ -173,6 +185,35 @@ export function TruckFleet({
   const alphaArray = useMemo(() => new Float32Array(count).fill(1), [count]);
   const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
+  const badgeGeometry = useMemo(() => new THREE.CylinderGeometry(0.4, 0.4, 0.1, 20), []);
+  useEffect(() => () => badgeGeometry.dispose(), [badgeGeometry]);
+  const badgeMesh = useRef(null);
+
+  // The GHN mark: drawn once from the app icon (same file as the sidebar), shared by both decals.
+  const logoTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancelled) return;
+      const canvas = logoTexture.image;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.drawImage(image, 0, 0, 128, 128);
+      logoTexture.needsUpdate = true;
+      invalidate();
+    };
+    image.src = LOGO_URL; // if it fails the decals simply stay transparent
+    return () => { cancelled = true; logoTexture.dispose(); };
+  }, [logoTexture, invalidate]);
 
   const meshes = useRef([]);
   const itemsRef = useRef(items);
@@ -282,6 +323,24 @@ export function TruckFleet({
       if (arrows.instanceColor) arrows.instanceColor.needsUpdate = true;
     }
 
+    // Gold / silver / bronze badge on the roof of ranks 1-3.
+    const badges = badgeMesh.current;
+    if (badges) {
+      let shown = 0;
+      for (let i = 0; i < count && shown < BADGE_COLORS.length; i++) {
+        const rank = items[i].item ? items[i].item.rank : null;
+        if (items[i].ghost || !(rank >= 1 && rank <= 3)) continue;
+        _quat.identity();
+        _matrix.compose(_pos.set(xs[i] - 0.45, 1.66 + ys[i], zs[i]), _quat, _scale);
+        badges.setMatrixAt(shown, _matrix);
+        badges.setColorAt(shown, _arrowColor.set(BADGE_COLORS[rank - 1]));
+        shown++;
+      }
+      badges.count = shown;
+      badges.instanceMatrix.needsUpdate = true;
+      if (badges.instanceColor) badges.instanceColor.needsUpdate = true;
+    }
+
     // The directional light never moves: re-render the shadow map only when trucks do.
     gl.shadowMap.needsUpdate = true;
 
@@ -332,12 +391,16 @@ export function TruckFleet({
           alphaArray={alphaArray}
           register={register}
           castShadow={castShadow}
+          logoTexture={logoTexture}
         />
       ))}
       <mesh visible={false} raycast={pickRaycast} {...pickHandlers}>
         <boxGeometry args={[0.1, 0.1, 0.1]} />
         <meshBasicMaterial />
       </mesh>
+      <instancedMesh ref={badgeMesh} args={[badgeGeometry, undefined, BADGE_COLORS.length]} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial color="#ffffff" />
+      </instancedMesh>
       <instancedMesh ref={arrowMesh} args={[arrowGeometry, undefined, Math.max(1, count)]} frustumCulled={false}>
         <meshBasicMaterial color="#ffffff" />
       </instancedMesh>
@@ -361,7 +424,7 @@ export function SelectionRing({ id, x, z, positionsRef }) {
 }
 
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
-export function Road({ roadLength, laneCount, laneWidth, sceneBackground }) {
+export function Road({ roadLength, laneCount, laneWidth, theme }) {
   const roadWidth = laneCount * laneWidth + 0.6;
   const dashRef = useRef(null);
   const invalidate = useThree((s) => s.invalidate);
@@ -391,24 +454,96 @@ export function Road({ roadLength, laneCount, laneWidth, sceneBackground }) {
   const edgeZ = roadWidth / 2 + 0.25;
   return (
     <group>
-      {/* unlit ground in the background colour: no visible horizon band */}
+      {/* ground: unlit, fades into the sky colour through the scene fog, so there is no horizon band */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
         <planeGeometry args={[roadLength * 4 + 400, 600]} />
-        <meshBasicMaterial color={sceneBackground} />
+        <meshBasicMaterial color={theme.ground} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[roadLength + 6, roadWidth]} />
-        <meshStandardMaterial color="#334155" roughness={0.95} />
+        <meshStandardMaterial color={theme.asphalt} roughness={0.95} />
       </mesh>
       {[edgeZ, -edgeZ].map((z) => (
         <mesh key={z} position={[0, 0.05, z]}>
           <boxGeometry args={[roadLength + 6, 0.1, 0.5]} />
-          <meshStandardMaterial color="#64748b" />
+          <meshStandardMaterial color={theme.shoulder} />
         </mesh>
       ))}
       <instancedMesh key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false}>
         <boxGeometry args={[2, 0.01, 0.1]} />
-        <meshBasicMaterial color="#cbd5e1" />
+        <meshBasicMaterial color={theme.dash} />
+      </instancedMesh>
+      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} />
+    </group>
+  );
+}
+
+/**
+ * Low-poly trees and road signs along both shoulders. Four instanced meshes in total (trunks,
+ * canopies, sign poles, sign plates), so the draw-call cost does not depend on how many there are.
+ * Positions are deterministic (see computeRoadside).
+ */
+function Roadside({ roadLength, roadWidth, theme }) {
+  const trunkRef = useRef(null);
+  const canopyRef = useRef(null);
+  const poleRef = useRef(null);
+  const plateRef = useRef(null);
+  const invalidate = useThree((s) => s.invalidate);
+  const { trees, signs } = useMemo(() => computeRoadside(roadLength, roadWidth), [roadLength, roadWidth]);
+
+  useLayoutEffect(() => {
+    const color = new THREE.Color();
+    const trunk = trunkRef.current;
+    const canopy = canopyRef.current;
+    if (trunk && canopy) {
+      trees.forEach((t, i) => {
+        _quat.setFromAxisAngle(_upAxis, (i * 2.399) % (Math.PI * 2));
+        _matrix.compose(_pos.set(t.x, 0.4 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        trunk.setMatrixAt(i, _matrix);
+        _matrix.compose(_pos.set(t.x, 1.6 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        canopy.setMatrixAt(i, _matrix);
+        canopy.setColorAt(i, color.set(theme.treeCanopy[t.tint % theme.treeCanopy.length]));
+      });
+      trunk.instanceMatrix.needsUpdate = true;
+      canopy.instanceMatrix.needsUpdate = true;
+      if (canopy.instanceColor) canopy.instanceColor.needsUpdate = true;
+    }
+    const pole = poleRef.current;
+    const plate = plateRef.current;
+    if (pole && plate) {
+      signs.forEach((sg, i) => {
+        _quat.identity();
+        _matrix.compose(_pos.set(sg.x, 1.3, sg.z), _quat, _scale.set(1, 1, 1));
+        pole.setMatrixAt(i, _matrix);
+        // the plate faces the road
+        _quat.setFromAxisAngle(_upAxis, sg.side > 0 ? Math.PI : 0);
+        _matrix.compose(_pos.set(sg.x, 2.55, sg.z), _quat, _scale.set(1, 1, 1));
+        plate.setMatrixAt(i, _matrix);
+      });
+      pole.instanceMatrix.needsUpdate = true;
+      plate.instanceMatrix.needsUpdate = true;
+    }
+    _scale.set(1, 1, 1);
+    invalidate();
+  }, [trees, signs, theme, invalidate]);
+
+  return (
+    <group>
+      <instancedMesh key={`t-${trees.length}`} ref={trunkRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
+        <cylinderGeometry args={[0.13, 0.18, 0.8, 6]} />
+        <meshStandardMaterial color={theme.treeTrunk} flatShading />
+      </instancedMesh>
+      <instancedMesh key={`c-${trees.length}`} ref={canopyRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
+        <coneGeometry args={[0.8, 2.0, 7]} />
+        <meshStandardMaterial color="#ffffff" flatShading roughness={0.9} />
+      </instancedMesh>
+      <instancedMesh key={`p-${signs.length}`} ref={poleRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
+        <cylinderGeometry args={[0.07, 0.07, 2.6, 6]} />
+        <meshStandardMaterial color={theme.signPole} />
+      </instancedMesh>
+      <instancedMesh key={`s-${signs.length}`} ref={plateRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
+        <boxGeometry args={[1.1, 0.75, 0.08]} />
+        <meshStandardMaterial color={theme.signPlate} />
       </instancedMesh>
     </group>
   );
@@ -443,6 +578,7 @@ const LABEL_PADDING = 4;
 const NEAR_RANGE_FACTOR = 2.5; // far-label cutoff = camera-to-target distance * this
 const MIN_NEAR_RANGE = 30;
 const COMPACT_WIDTH = 560; // canvas narrower than this: compact labels
+const BOTTOM_RESERVED = 34; // px kept free of labels (caption + controls row)
 
 /**
  * Projects 3D anchor points to screen space and draws the labels on a 2D overlay canvas
@@ -514,7 +650,8 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
     const target = controls && controls.target;
     const nearRange = Math.max(MIN_NEAR_RANGE, (target ? camera.position.distanceTo(target) : 0) * NEAR_RANGE_FACTOR);
 
-    const placed = [];
+    // The bottom strip holds the caption and the controls: labels never sit under them.
+    const placed = [{ l: 0, r: size.width, t: size.height - BOTTOM_RESERVED, b: size.height }];
     const debug = [];
     for (const label of order) {
       const followed = label.followId ? positionsRef.current.get(label.followId) : null;
