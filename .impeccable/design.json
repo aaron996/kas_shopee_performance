@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T06:54:03.472Z",
+  "generatedAt": "2026-10-05T12:18:32.768Z",
   "title": "Design System: GHN KAS Operations",
   "extensions": {
     "colorMeta": {
@@ -356,7 +356,14 @@
         "name": "desktop-wide",
         "value": "1200px"
       }
-    ]
+    ],
+    "componentGuidance": {
+      "Dropdowns & Date Fields": [
+        "**Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection (\"Tất cả (19)\", \"HCM, HNO +2\"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.",
+        "**Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type=\"date\">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.",
+        "**Overlay:** Popovers are `position: fixed` (not clipped by a scrolling modal body) and close on outside click, scroll of the page behind, and Escape without closing the surrounding modal."
+      ]
+    }
   },
   "components": [
     {
@@ -414,6 +421,22 @@
       "description": "The fixed navigation shell; its partial radius is an attachment exception, not a card radius.",
       "html": "<nav class=\"ds-sidebar\"><strong>GHN KAS</strong><button>Dashboard</button></nav>",
       "css": ".ds-sidebar { display: grid; gap: .65rem; width: 190px; padding: 1rem; border-radius: 0 24px 24px 0; background: var(--action-primary-deep); color: var(--text-on-brand); font: .85rem var(--font-sans); } .ds-sidebar button { padding: .5rem; border: 0; border-radius: var(--radius-control); background: rgba(255,255,255,.1); color: inherit; text-align: left; cursor: pointer; } .ds-sidebar button:hover { background: rgba(255,255,255,.2); } .ds-sidebar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Multi-select Trigger",
+      "kind": "button",
+      "refersTo": "input-field",
+      "description": "**Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection (\"Tất cả (19)\", \"HCM, HNO +2\"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.",
+      "html": "<div class=\"msd\"><button class=\"msd-trigger\" type=\"button\"><span class=\"msd-summary\">HCM, HNO +2</span></button></div>",
+      "css": ".msd, .date-field { position: relative; min-width: 0; }\n.msd-trigger, .date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.msd-trigger:hover:not(:disabled), .date-field-trigger:hover { border-color: var(--ghn-blue); }\n.msd-trigger.is-open, .date-field-trigger.is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.msd-trigger.is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.msd-trigger.is-open .msd-chevron { transform: rotate(180deg); }\n.date-field-trigger svg { flex: none; color: var(--text-muted); }\n.date-field-trigger .is-placeholder { color: var(--text-muted); }"
+    },
+    {
+      "name": "Date Field Trigger",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "**Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type=\"date\">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.",
+      "html": "<div class=\"date-field\"><button class=\"date-field-trigger\" type=\"button\" aria-label=\"Ngày báo cáo: 05/10/2026\"><span>05/10/2026</span></button></div>",
+      "css": ".msd, .date-field { position: relative; min-width: 0; }\n.msd-trigger, .date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.msd-trigger:hover:not(:disabled), .date-field-trigger:hover { border-color: var(--ghn-blue); }\n.msd-trigger.is-open, .date-field-trigger.is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.msd-trigger.is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.msd-trigger.is-open .msd-chevron { transform: rotate(180deg); }\n.date-field-trigger svg { flex: none; color: var(--text-muted); }\n.date-field-trigger .is-placeholder { color: var(--text-muted); }"
     }
   ],
   "narrative": {

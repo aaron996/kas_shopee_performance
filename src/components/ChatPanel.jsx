@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, Eye, EyeOff, LoaderCircle, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
+import { Database, Eye, EyeOff, LoaderCircle, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
@@ -67,10 +67,13 @@ function DataScopeBlock({ sources }) {
   if (!sources?.length) return null;
   const uniqueSources = Array.from(
     new Map(sources.map(source => [source.evidenceId || `${source.tool}-${source.dataAsOf}`, source])).values()
-  );
+  ).filter(source => source.scope || source.dataAsOf || source.syncedAt);
+  if (!uniqueSources.length) return null;
 
   return (
-    <div className="chat-data-scope-container" aria-label="Phạm vi dữ liệu đã truy vấn">
+    <details className="chat-data-details">
+      <summary>Chi tiết dữ liệu</summary>
+      <div className="chat-data-scope-container" aria-label="Phạm vi dữ liệu đã truy vấn">
       {uniqueSources.map(source => {
         const formatted = formatDataScope(source);
         if (!formatted) return null;
@@ -83,9 +86,6 @@ function DataScopeBlock({ sources }) {
                 <Database size={13} aria-hidden="true" />
                 <span>Phạm vi dữ liệu</span>
               </span>
-              {formatted.evidenceId && (
-                <span className="chat-source-chip" title="Mã bằng chứng dữ liệu">{formatted.evidenceId}</span>
-              )}
             </div>
             <div className="chat-data-scope-grid">
               {formatted.scopeDesc && (
@@ -116,7 +116,8 @@ function DataScopeBlock({ sources }) {
           </div>
         );
       })}
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -134,6 +135,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const [failedRequest, setFailedRequest] = useState(null);
   const [quota, setQuota] = useState(null);
   const [focused, setFocused] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
@@ -261,8 +263,18 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   useEffect(() => {
     if (!isOpen) return undefined;
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
     const handleKeyDown = event => {
       if (event.key === 'Escape') {
+        if (event.defaultPrevented) return;
+        if (isExpanded) {
+          setIsExpanded(false);
+          return;
+        }
         abortRef.current?.abort();
         onClose();
         window.requestAnimationFrame(() => (mascotHidden ? revealRef.current : launcherRef.current)?.focus());
@@ -270,10 +282,9 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(frame);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose, mascotHidden]);
+  }, [isOpen, onClose, mascotHidden, isExpanded]);
 
   useEffect(() => {
     if (!messages.length && !pending && !error && !failedRequest) {
@@ -465,7 +476,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         onContextMenu={event => { event.preventDefault(); setMascotVisibility(false); }}
         title="Hiện Trợ lý KAS" aria-label="Hiện Trợ lý KAS"><Eye size={16} /> Hiện trợ lý</button>
     </div>}
-    {isOpen && <section id="kas-chat-panel" className="chat-panel" role="dialog" aria-labelledby="chat-panel-title">
+    {isOpen && <section id="kas-chat-panel" className={`chat-panel${isExpanded ? ' chat-panel--expanded' : ''}`} role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
         <div className="chat-panel-title">
           <span className="chat-mascot-avatar"><Mascot state={mascotState} active={isOpen} /></span>
@@ -475,6 +486,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="chat-icon-button" onClick={() => setIsExpanded(current => !current)}
+            title={isExpanded ? 'Thu gọn cửa sổ' : 'Mở rộng cửa sổ'}
+            aria-label={isExpanded ? 'Thu gọn cửa sổ' : 'Mở rộng cửa sổ'} aria-pressed={isExpanded}>
+            {isExpanded ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+          </button>
           <button type="button" className="chat-icon-button" onClick={closePanel} title="Đóng trợ lý" aria-label="Đóng trợ lý">
             <X size={18} />
           </button>
@@ -486,9 +502,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
             <h3>Hỏi dữ liệu KAS</h3>
-            <p className="chat-suggestions-basis">{visibleSuggestions.scopeLabel}
-              {visibleSuggestions.dataAsOf && <> · Dữ liệu đến {formatSuggestionDate(visibleSuggestions.dataAsOf)}</>}
-            </p>
+            {visibleSuggestions.dataAsOf && <p className="chat-suggestions-basis">Dữ liệu đến {formatSuggestionDate(visibleSuggestions.dataAsOf)}</p>}
             {renderSuggestions(visibleSuggestions)}
           </div>
         )}
@@ -516,7 +530,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         {messages.length > 0 && !pending && !failedRequest && !error && followupSuggestions && (
           <div className="chat-followups" aria-label="Gợi ý hỏi tiếp">
             <p className="chat-followups-title">Tìm hiểu tiếp</p>
-            <p className="chat-suggestions-basis">{followupSuggestions.scopeLabel} · Theo kỳ vừa tra cứu</p>
             {renderSuggestions(followupSuggestions)}
           </div>
         )}
