@@ -130,7 +130,7 @@ dải đèn trên nóc cabin, màu lấy từ token `--status-success-fg` (đạ
 `<body>` đổi class (theme sáng/tối). Nền cảnh luôn tối `#0f172a`, giống khối 2D.
 
 - ≤ 30 xe: mỗi xe là một `group` mesh.
-- \> 30 xe: mỗi bộ phận là một `InstancedMesh` (màu từng xe qua `instanceColor`).
+- Trên 30 xe: mỗi bộ phận là một `InstancedMesh` (màu từng xe qua `instanceColor`).
   Vì `InstancedMesh` không đổi số lượng tại chỗ nên `key` có kèm số xe.
 - Vạch kẻ đứt gộp vào một `InstancedMesh`.
 
