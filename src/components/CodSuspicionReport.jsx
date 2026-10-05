@@ -105,6 +105,8 @@ export default function CodSuspicionReport({
   onSearchChange,
   canManageResolutions = false,
   isDevAdmin = false,
+  canViewCodAdvanced = isDevAdmin,
+  role = isDevAdmin ? 'dev' : 'user',
   userEmail = '',
   dataEnabled = true,
   focusTarget = null,
@@ -160,8 +162,20 @@ export default function CodSuspicionReport({
   useEffect(() => {
     return () => {
       activeSmsRequestRef.current?.controller?.abort();
+      manualRunAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    activeSmsRequestRef.current?.controller?.abort();
+    activeSmsRequestRef.current = null;
+    invalidateCodSmsEvidenceCache();
+    setSmsDetailModal(null);
+    setEvidenceState({ isLoading: false, error: null, evidence: null });
+    setHistoryPanelOpen(false);
+    setManualRunDialogOpen(false);
+    manualRunAbortRef.current?.abort();
+  }, [role, userEmail]);
 
   // Fetch data
   const loadData = useCallback(async ({ forceRefresh = false } = {}) => {
@@ -189,7 +203,7 @@ export default function CodSuspicionReport({
     setSmsThreshold(null);
     try {
       const [sourceResult, resolutionResult, smsResult, thresholdResult] = await Promise.all([
-        fetchCodSuspicionData({ forceRefresh }),
+        fetchCodSuspicionData({ forceRefresh, userEmail, role }),
         fetchCodSuspicionCaseResolutions(),
         fetchCodSmsAssessmentsSummary({ limit: 500 }),
         fetchCodSmsThreshold().then(value => ({ success: true, value }), () => ({ success: false }))
@@ -216,7 +230,7 @@ export default function CodSuspicionReport({
           setResolutionError('Không thể tải trạng thái xử lý. Vui lòng thử lại trước khi thao tác.');
         }
       } else {
-        setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev Admin kiểm tra nguồn dữ liệu.');
+        setErrorMsg('Không thể tải dữ liệu đơn nghi vấn. Vui lòng thử lại hoặc báo Dev kiểm tra nguồn dữ liệu.');
       }
 
       if (smsResult.success) {
@@ -238,10 +252,10 @@ export default function CodSuspicionReport({
       setIsLoading(false);
       setIsSmsLoading(false);
     }
-  }, [dataEnabled]);
+  }, [dataEnabled, userEmail, role]);
 
   const loadEvidenceForModal = useCallback(async (order, { forceRefresh = false } = {}) => {
-    if (!isDevAdmin || !order) return;
+    if (!canViewCodAdvanced || !order) return;
     const caseKey = getCodSmsCaseKey(order);
 
     // Cancel previous in-flight fetch to prevent race condition
@@ -259,7 +273,8 @@ export default function CodSuspicionReport({
         driverId: order.driverId,
         orderCode: order.orderCode,
         userEmail,
-        isDevAdmin
+        isDevAdmin,
+        role
       });
       if (cached?.assessment) {
         setEvidenceState({
@@ -280,6 +295,7 @@ export default function CodSuspicionReport({
         orderCode: order.orderCode,
         userEmail,
         isDevAdmin,
+        role,
         forceRefresh,
         signal: controller.signal
       });
@@ -316,17 +332,18 @@ export default function CodSuspicionReport({
         evidence: null
       });
     }
-  }, [isDevAdmin, userEmail]);
+  }, [canViewCodAdvanced, isDevAdmin, role, userEmail]);
 
   const openSmsModal = useCallback((order, assessment) => {
     setSmsDetailModal({ order, assessment });
-    if (isDevAdmin && assessment && (assessment.status === 'scored' || assessment.evidenceRestricted)) {
+    if (canViewCodAdvanced && assessment && (assessment.status === 'scored' || assessment.evidenceRestricted)) {
       const cached = getCachedCodSmsEvidence({
         suspicionType: order.suspicionType,
         driverId: order.driverId,
         orderCode: order.orderCode,
         userEmail,
-        isDevAdmin
+        isDevAdmin,
+        role
       });
       if (cached?.assessment) {
         if (activeSmsRequestRef.current?.controller) {
@@ -348,7 +365,7 @@ export default function CodSuspicionReport({
       activeSmsRequestRef.current = null;
       setEvidenceState({ isLoading: false, error: null, evidence: null });
     }
-  }, [isDevAdmin, userEmail, loadEvidenceForModal]);
+  }, [canViewCodAdvanced, isDevAdmin, role, userEmail, loadEvidenceForModal]);
 
   const closeSmsModal = useCallback(() => {
     if (activeSmsRequestRef.current?.controller) {
@@ -501,10 +518,10 @@ export default function CodSuspicionReport({
       searchQuery,
       assessmentsByCaseKey: smsAssessments,
       threshold: smsThreshold,
-      useEffectiveAlertLevel: !isDevAdmin && smsThreshold !== null
+      useEffectiveAlertLevel: !canViewCodAdvanced && smsThreshold !== null
     });
     return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments, { threshold: smsThreshold });
-  }, [allDriverGroups, suspicionType, warehouse, province, searchQuery, smsAssessments, smsThreshold, isDevAdmin]);
+  }, [allDriverGroups, suspicionType, warehouse, province, searchQuery, smsAssessments, smsThreshold, canViewCodAdvanced]);
 
   const smsOverview = useMemo(
     () => summarizeCodSmsAssessments(normalizedOrders, smsAssessments),
@@ -545,15 +562,15 @@ export default function CodSuspicionReport({
   );
 
   const resolutionTabs = useMemo(
-    () => canManageResolutions ? [...USER_RESOLUTION_TABS, DEV_ONLY_RESOLUTION_TAB] : USER_RESOLUTION_TABS,
-    [canManageResolutions]
+    () => canViewCodAdvanced ? [...USER_RESOLUTION_TABS, DEV_ONLY_RESOLUTION_TAB] : USER_RESOLUTION_TABS,
+    [canViewCodAdvanced]
   );
 
   useEffect(() => {
-    if (!canManageResolutions && activeResolutionTab === 'non_violation') {
+    if (!canViewCodAdvanced && activeResolutionTab === 'non_violation') {
       setActiveResolutionTab('pending');
     }
-  }, [activeResolutionTab, canManageResolutions]);
+  }, [activeResolutionTab, canViewCodAdvanced]);
 
   useEffect(() => {
     if (!focusTarget || isLoading) return;
@@ -568,10 +585,10 @@ export default function CodSuspicionReport({
       : targetDriver.resolution.finding_outcome === 'non_violation'
         ? 'non_violation'
         : 'resolved';
-    if (nextTab !== 'non_violation' || canManageResolutions) {
+    if (nextTab !== 'non_violation' || canViewCodAdvanced) {
       setActiveResolutionTab(nextTab);
     }
-  }, [canManageResolutions, filteredDrivers, focusTarget, isLoading]);
+  }, [canViewCodAdvanced, filteredDrivers, focusTarget, isLoading]);
 
   useEffect(() => {
     if (!focusTarget || isLoading) return undefined;
@@ -1101,16 +1118,16 @@ export default function CodSuspicionReport({
           })}
         </div>
 
-        {isDevAdmin && (
+        {canViewCodAdvanced && (
           <>
-            <button
+            {isDevAdmin && <button
               type="button"
               className="cod-workflow-action cod-workflow-action--secondary"
               onClick={() => setManualRunDialogOpen(true)}
               title="Chạy thủ công một lượt chấm điểm SMS AI cho toàn bộ đơn mới hoặc đã thay đổi"
             >
               <Play size={15} /> Chạy chấm điểm SMS thủ công
-            </button>
+            </button>}
             <button
               type="button"
               className="cod-workflow-action cod-workflow-action--secondary"
@@ -1130,7 +1147,7 @@ export default function CodSuspicionReport({
           onChange={event => onSearchChange?.(event.target.value)} />
       </label>
 
-      {isDevAdmin && (
+      {canViewCodAdvanced && (
         <section className="cod-sms-overview" aria-label="Tổng quan chấm điểm SMS AI">
           <div className="cod-sms-overview__title">
             <strong>Tổng quan chấm điểm SMS AI</strong>
@@ -1218,7 +1235,7 @@ export default function CodSuspicionReport({
         </section>
       )}
 
-      {isDevAdmin && historyPanelOpen && (
+      {canViewCodAdvanced && historyPanelOpen && (
         <CodSmsRunHistoryPanel driverNameById={driverNameById} refreshKey={smsRunsRefreshKey} />
       )}
 
@@ -1228,7 +1245,7 @@ export default function CodSuspicionReport({
         </div>
       )}
 
-      {isDevAdmin && smsError && (
+      {canViewCodAdvanced && smsError && (
         <div
           role="alert"
           style={{
@@ -1332,7 +1349,7 @@ export default function CodSuspicionReport({
                 : activeResolutionTab === 'resolved'
                   ? 'Bao gồm các trường hợp có vi phạm đang xử lý hoặc đã xử lý theo chế tài.'
                   : activeResolutionTab === 'non_violation'
-                    ? 'Chỉ Dev Admin thấy các trường hợp đã được kết luận không vi phạm.'
+                    ? 'Dev và Admin thấy các trường hợp đã được kết luận không vi phạm.'
                     : 'Hệ thống không ghi nhận đơn nào cần xác minh trong kỳ kiểm tra.'}
             </div>
           </div>
@@ -1342,7 +1359,7 @@ export default function CodSuspicionReport({
             const accordionKey = `${activeResolutionTab}:${driverKey}`;
             const isExpanded = expandedDrivers.has(accordionKey);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
-            const driverAlertLevel = isDevAdmin ? getAlertLevel(driver.maxScore) : driver.effectiveAlertLevel || getAlertLevel(driver.maxScore);
+            const driverAlertLevel = canViewCodAdvanced ? getAlertLevel(driver.maxScore) : driver.effectiveAlertLevel || getAlertLevel(driver.maxScore);
 
             return (
               <div
@@ -1444,7 +1461,7 @@ export default function CodSuspicionReport({
                     </div>
                   </div>
 
-                  {isDevAdmin && (() => {
+                  {canViewCodAdvanced && (() => {
                     const smsLabel = getDriverSmsLabel(summarizeCodSmsAssessments(driver.orders, smsAssessments));
                     return (
                       <span className={`cod-driver-sms-summary cod-sms-badge--${smsLabel.level}`}>
@@ -1532,7 +1549,7 @@ export default function CodSuspicionReport({
                       <table
                         style={{
                           width: '100%',
-                          minWidth: isDevAdmin ? '920px' : '750px',
+                          minWidth: canViewCodAdvanced ? '920px' : '750px',
                           borderCollapse: 'collapse',
                           fontSize: '0.82rem',
                           color: 'var(--text-main)'
@@ -1546,7 +1563,7 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
-                            {isDevAdmin && (
+                            {canViewCodAdvanced && (
                               <>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
@@ -1556,7 +1573,7 @@ export default function CodSuspicionReport({
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
-                            const orderAlertLevel = isDevAdmin
+                            const orderAlertLevel = canViewCodAdvanced
                               ? getAlertLevel(order.totalScore)
                               : smsThreshold === null
                                 ? getAlertLevel(order.totalScore)
@@ -1619,7 +1636,7 @@ export default function CodSuspicionReport({
                                   </span>
                                 </td>
 
-                                {isDevAdmin && (
+                                {canViewCodAdvanced && (
                                   <>
                                     {/* Điểm SMS (AI) */}
                                     <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1892,13 +1909,13 @@ export default function CodSuspicionReport({
                       <strong>Bằng chứng SMS nguyên văn</strong>
                     </div>
 
-                    {!isDevAdmin ? (
+                    {!canViewCodAdvanced ? (
                       <div className="cod-sms-modal__evidence-notice">
                         <div className="cod-sms-modal__notice-icon">
                           <ShieldAlert size={18} />
                         </div>
                         <div>
-                          <div className="cod-sms-modal__notice-title">Bằng chứng SMS chỉ dành cho Dev Admin</div>
+                          <div className="cod-sms-modal__notice-title">Bằng chứng SMS chỉ dành cho Dev và Admin</div>
                           <div className="cod-sms-modal__notice-desc">
                             Nội dung tin nhắn SMS nguyên văn được giới hạn quyền truy cập theo quy định bảo vệ dữ liệu nội bộ.
                           </div>

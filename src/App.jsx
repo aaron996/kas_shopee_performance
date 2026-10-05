@@ -1,3 +1,4 @@
+import { getAppPermissions } from './utils/appRoles';
 import AnimatedIcon from './components/ui/AnimatedIcon';
 import IconInteractions from './components/ui/IconInteractions';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -86,7 +87,7 @@ export default function App() {
           // even though the underlying data stays protected by Supabase RLS.
           return {
             ...parsed,
-            isDevAdmin: false
+            ...getAppPermissions('user')
           };
         }
       }
@@ -350,7 +351,10 @@ export default function App() {
     }
 
     let disposed = false;
+    let sessionGeneration = 0;
     const applySession = async (session) => {
+      if (disposed) return;
+      const request = ++sessionGeneration;
       if (session?.user?.email) {
         const email = session.user.email.toLowerCase();
         if (isAllowedEmail(email)) {
@@ -359,11 +363,11 @@ export default function App() {
             .select('role')
             .eq('email', email)
             .maybeSingle();
-          if (disposed) return;
+          if (disposed || request !== sessionGeneration) return;
           const userObj = {
             email,
             name: email.split('@')[0],
-            isDevAdmin: !roleError && roleRow?.role === 'dev',
+            ...getAppPermissions(roleError ? 'user' : roleRow?.role),
             supabaseUser: session.user
           };
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
@@ -383,10 +387,17 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => applySession(session));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void applySession(session);
+      setTimeout(() => { if (!disposed) void applySession(session); }, 0);
     });
 
+    const refreshRole = () => {
+      if (document.visibilityState === 'visible') void supabase.auth.getSession().then(({ data: { session } }) => applySession(session));
+    };
+    const roleRefreshTimer = window.setInterval(refreshRole, 60000);
+    window.addEventListener('focus', refreshRole);
     return () => {
+      clearInterval(roleRefreshTimer);
+      window.removeEventListener('focus', refreshRole);
       disposed = true;
       subscription.unsubscribe();
     };
@@ -729,13 +740,15 @@ export default function App() {
       onSearchChange: searchQuery => setCodSuspicionFilters(previous => ({ ...previous, searchQuery })),
       canManageResolutions: Boolean(currentUser?.isDevAdmin),
       isDevAdmin: Boolean(currentUser?.isDevAdmin),
+      canViewCodAdvanced: Boolean(currentUser?.canViewCodAdvanced),
+      role: currentUser?.role || 'user',
       userEmail: currentUser?.email,
       dataEnabled: !currentUser?.localPreview,
       focusTarget: codSearchFocus,
       onFocusTargetHandled: () => setCodSearchFocus(null),
       onClearSearch: clearCodSearch
     },
-    'dev-admin': { onlineUsers }
+    'dev-admin': { onlineUsers, currentUser }
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1 };
   return (

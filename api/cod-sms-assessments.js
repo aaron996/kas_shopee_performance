@@ -1,4 +1,4 @@
-import { authenticateRequest, hasDevAdminRole } from '../server/chat/auth.js';
+import { authenticateRequest, hasDevAdminRole, canViewCodAdvanced } from '../server/chat/auth.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { sendJson, startSse, sendSse } from '../server/chat/sse.js';
 import { readCodSmsConfig, resolveCodSmsModelConfig } from '../server/cod-sms/config.js';
@@ -142,6 +142,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readCodSmsConfig;
   const authenticate = dependencies.authenticate ?? authenticateRequest;
   const authorizeDev = dependencies.authorizeDev ?? hasDevAdminRole;
+  const authorizeAdvanced = dependencies.authorizeAdvanced ?? canViewCodAdvanced;
   const makeRepository = dependencies.createRepository ?? createCodSmsRepository;
   const runBatch = dependencies.runBatch ?? runAssessmentBatch;
   const resolveModelConfig = dependencies.resolveModelConfig ?? resolveCodSmsModelConfig;
@@ -164,11 +165,11 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       if (req.method === 'GET') {
         const request = parseGetRequest(req);
         const isDev = await authorizeDev(auth.userClient, auth.user);
+        const canReadAdvanced = isDev || await authorizeAdvanced(auth.userClient, auth.user);
         if (request.view !== 'assessments') {
-          // Run logs expose model names and technical error detail — the
-          // scoring method — so they are Dev Admin only, like evidence.
-          if (!isDev) {
-            throw new ChatError('COD_SMS_RUNS_FORBIDDEN', 'Chỉ Dev Admin được xem lịch sử batch SMS.', 403);
+          // Run logs and raw evidence are read-only advanced COD views.
+          if (!canReadAdvanced) {
+            throw new ChatError('COD_SMS_RUNS_FORBIDDEN', 'Chỉ Dev và Admin được xem lịch sử batch SMS.', 403);
           }
           if (request.view === 'runs') {
             const { rows, totalCount } = await repository.listRuns(request);
@@ -188,7 +189,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
           }
           return;
         }
-        if (request.includeEvidence && !isDev) {
+        if (request.includeEvidence && !canReadAdvanced) {
           throw new ChatError(
             'COD_SMS_EVIDENCE_FORBIDDEN',
             'Bạn không có quyền xem bằng chứng SMS nguyên văn.',
@@ -198,7 +199,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
         const { rows, totalCount } = await repository.list(request);
         sendJson(res, 200, {
           contractVersion: '1',
-          assessments: rows.map(row => serializeAssessment(row, { ...request, includeDetails: isDev })),
+          assessments: rows.map(row => serializeAssessment(row, { ...request, includeDetails: canReadAdvanced })),
           meta: {
             count: rows.length,
             totalCount,
@@ -210,7 +211,7 @@ export function createCodSmsAssessmentsHandler(dependencies = {}) {
       }
 
       if (!await authorizeDev(auth.userClient, auth.user)) {
-        throw new ChatError('COD_SMS_BATCH_FORBIDDEN', 'Chỉ Dev Admin được chạy batch SMS.', 403);
+        throw new ChatError('COD_SMS_BATCH_FORBIDDEN', 'Chỉ Dev được chạy batch SMS.', 403);
       }
       const modelOverride = await resolveModelConfig(auth.serviceClient, process.env);
       config = { ...config, ...modelOverride };

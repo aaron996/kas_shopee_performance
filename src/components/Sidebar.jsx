@@ -149,7 +149,7 @@ export default function Sidebar({
             {groupedTabs.filter(tab => tab.group === group).map(renderTabButton)}
           </div>
         ))}
-        {/* Mobile ONLY Dev Admin Button */}
+        {/* Mobile ONLY Dev Button */}
         {currentUser?.isDevAdmin && (
           <button
             className={`sidebar-nav-item mobile-only ${activeTab === 'dev-admin' ? 'active' : ''}`}
@@ -157,7 +157,7 @@ export default function Sidebar({
             style={{ color: '#4ADE80' }}
           >
             <ShieldCheck size={18} />
-            <span title="Dev Admin">Dev Admin</span>
+            <span title="Dev">Dev</span>
           </button>
         )}
       </nav>
@@ -194,14 +194,12 @@ export default function Sidebar({
               onClick={currentUser.isDevAdmin ? () => setActiveTab('dev-admin') : undefined}
               {...(currentUser.isDevAdmin ? { type: 'button' } : {})}
               style={{ cursor: currentUser.isDevAdmin ? 'pointer' : 'default', background: activeTab === 'dev-admin' ? 'rgba(74, 222, 128, 0.1)' : '' }}
-              title={currentUser.isDevAdmin ? "Mở Dev Admin Dashboard" : ""}
+              title={currentUser.isDevAdmin ? "Mở Dev Panel" : ""}
             >
               <UserCheck size={16} style={{ color: '#4ADE80' }} />
               <div className="user-info-text" style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="user-email">{currentUser.email.split('@')[0]}</span>
-                {currentUser.isDevAdmin && (
-                  <span className="dev-admin-tag-small">DEV ADMIN</span>
-                )}
+                <span className="dev-admin-tag-small">{currentUser.role === 'admin' ? 'ADMIN' : currentUser.isDevAdmin ? 'DEV' : 'USER'}</span>
               </div>
             </UserInfo>
             <button className="logout-btn" onClick={onLogout} title="Đăng xuất">

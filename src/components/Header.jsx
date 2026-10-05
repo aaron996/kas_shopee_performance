@@ -45,7 +45,7 @@ export default function Header({
   return <header ref={headerRef} className="navbar app-header compact-header">
     <div className="compact-mobile-brand"><strong>BCĐH Shopee</strong><div className="compact-mobile-settings">
       <IconButton icon={isDarkMode ? 'Sun' : 'Moon'} label={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'} onClick={() => setIsDarkMode(!isDarkMode)} />
-      {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" aria-label="Dev Admin" onClick={() => setActiveTab('dev-admin')}><ShieldCheck size={18} /></button>}
+      {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" aria-label="Dev" onClick={() => setActiveTab('dev-admin')}><ShieldCheck size={18} /></button>}
       <button className="nav-btn-sleek icon-btn" aria-label="Đăng xuất" onClick={onLogout}><LogOut size={18} /></button>
     </div></div>
     <div className="compact-header-toolbar">

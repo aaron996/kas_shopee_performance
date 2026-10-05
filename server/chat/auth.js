@@ -42,3 +42,9 @@ export async function hasDevAdminRole(userClient) {
   return !error && data === true;
 }
 
+export async function canViewCodAdvanced(userClient) {
+  if (!userClient || typeof userClient.rpc !== 'function') return false;
+  const { data, error } = await userClient.rpc('can_view_cod_advanced');
+  return !error && data === true;
+}
+

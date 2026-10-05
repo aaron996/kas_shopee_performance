@@ -92,7 +92,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'dev-admin',
-    label: 'Dev Admin',
+    label: 'Dev',
     navigation: { sidebar: false, commandPalette: false, mobile: false },
     requiresDevAdmin: true,
     surface: lazy(() => import('../components/DevAdminDashboard.jsx'))

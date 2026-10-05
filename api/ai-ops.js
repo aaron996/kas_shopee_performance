@@ -53,7 +53,7 @@ export function createAiOpsHandler(dependencies = {}) {
       serviceClient = auth.serviceClient;
 
       if (!await authorizeDev(auth.userClient, currentUser)) {
-        throw new ChatError('AI_OPS_FORBIDDEN', 'Chỉ Dev Admin mới có quyền truy cập AI Operations.', 403);
+        throw new ChatError('AI_OPS_FORBIDDEN', 'Chỉ Dev mới có quyền truy cập AI Operations.', 403);
       }
     } catch (err) {
       const pub = toPublicError(err);

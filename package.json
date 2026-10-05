@@ -28,6 +28,7 @@
     "vite": "^8.2.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "oxlint": "^1.75.0"

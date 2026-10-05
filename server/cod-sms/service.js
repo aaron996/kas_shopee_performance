@@ -358,7 +358,7 @@ function completionValues(result, status, modelCalled, scoredAt) {
 
 export function serializeAssessment(row, options = {}) {
   const includeEvidence = options.includeEvidence === true;
-  // Regular (non-Dev-Admin) users must only ever learn the bare suspicion
+  // Regular users must only ever learn the bare suspicion
   // score/status — never the scoring method (raw SMS evidence, AI
   // explanation, model name, rubric version, technical error detail).
   // Defaults to true so internal callers (dev-only batch runs, etc.) keep
