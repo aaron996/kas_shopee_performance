@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
+  const panel = useRef(null);
   const searchRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -57,8 +59,8 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
 
   useEffect(() => {
     if (!open) return undefined;
-    const onPointerDown = event => { if (!root.current?.contains(event.target)) close(); };
-    const onScrollOrResize = event => { if (!root.current?.contains(event.target)) close(); };
+    const onPointerDown = event => { if (!root.current?.contains(event.target) && !panel.current?.contains(event.target)) close(); };
+    const onScrollOrResize = event => { if (!root.current?.contains(event.target) && !panel.current?.contains(event.target)) close(); };
     document.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('resize', onScrollOrResize);
     window.addEventListener('scroll', onScrollOrResize, true);
@@ -92,7 +94,7 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
       <span className="msd-summary">{summary}</span>
       <ChevronDown size={16} className="msd-chevron" aria-hidden="true" />
     </button>
-    {open && panelStyle && <div id={id} className="msd-panel" style={panelStyle}>
+    {open && panelStyle && createPortal(<div ref={panel} id={id} className="msd-panel" style={panelStyle}>
       {showSearch && <label className="msd-search">
         <Search size={14} aria-hidden="true" />
         <input ref={searchRef} type="text" value={query} placeholder={placeholder} aria-label={`Tìm ${label.toLowerCase()}`} onChange={e => setQuery(e.target.value)} />
@@ -116,6 +118,6 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
         })}
         {visible.length === 0 && <li className="msd-empty">Không có kết quả</li>}
       </ul>
-    </div>}
+    </div>, document.body)}
   </div>;
 }

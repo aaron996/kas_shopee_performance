@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap, shouldAnimate } from '../../utils/gsapSetup';
 
 const focusableSelector = [
@@ -128,7 +129,9 @@ export default function ModalDialog({
 
   if (!isMounted) return null;
 
-  return (
+  // Portal ra body: modal nằm trong container có transform/filter thì
+  // position:fixed bị tính theo container đó (backdrop không phủ hết màn hình).
+  return createPortal(
     <div
       ref={backdropRef}
       className="modal-backdrop"
@@ -152,6 +155,7 @@ export default function ModalDialog({
       >
         {children}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
