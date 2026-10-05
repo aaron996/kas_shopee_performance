@@ -4,7 +4,8 @@ import { toPublicError } from '../server/chat/errors.js';
 import { sendJson } from '../server/chat/sse.js';
 import { consumeSuggestionQuota } from '../server/chat/suggestion-quota.js';
 import { generateSmartSuggestions } from '../server/chat/smart-suggestions.js';
-import { buildDynamicSuggestions, getFallbackSuggestions } from '../src/utils/chatSuggestions.js';
+import { buildDynamicSuggestions, formatSuggestionScope, getFallbackSuggestions } from '../src/utils/chatSuggestions.js';
+import { parseScreenContext } from '../server/chat/protocol.js';
 import OpenAI from 'openai';
 
 function createSuggestionModel(config) {
@@ -57,9 +58,11 @@ export function createSuggestionsHandler(dependencies = {}) {
         const ctx = body?.screenContext || body || {};
         activeTab = ctx.activeTab || 'report1';
         client = ctx.client || 'SPB';
-        regions = Array.isArray(ctx.regions) ? ctx.regions : null;
-        hubTypes = Array.isArray(ctx.hubTypes) ? ctx.hubTypes : null;
+        regions = ctx.regions ?? null;
+        hubTypes = ctx.hubTypes ?? null;
       }
+
+      const screenContext = parseScreenContext({ activeTab, client, regions, hubTypes });
 
       const quotaResult = await consumeQuota(serviceClient, user.id, 10);
 
@@ -68,7 +71,7 @@ export function createSuggestionsHandler(dependencies = {}) {
         sendJson(res, 200, {
           quotaExceeded: true,
           remainingRefreshes: 0,
-          ...getFallback(activeTab)
+          ...getFallback(activeTab, screenContext)
         });
         return;
       }
@@ -80,7 +83,7 @@ export function createSuggestionsHandler(dependencies = {}) {
           userClient,
           openai: createModel(config),
           config,
-          screenContext: { activeTab, client, regions, hubTypes },
+          screenContext,
           seed: quotaResult.count
         });
       } catch {
@@ -89,12 +92,16 @@ export function createSuggestionsHandler(dependencies = {}) {
       if (!result?.suggestions?.length) {
         result = {
           ...buildSuggestions({ activeTab, client, regions, hubTypes, seed: quotaResult.count }),
-          basis: 'template'
+          basis: 'template',
+          fallbackReason: 'no_usable_signals'
         };
       }
       if (!result.placeholder) {
         result.placeholder = getFallback(activeTab).placeholder;
       }
+
+      result.context = screenContext;
+      result.scopeLabel = formatSuggestionScope(screenContext);
 
       sendJson(res, 200, {
         quotaExceeded: false,

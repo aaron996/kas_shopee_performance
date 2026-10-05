@@ -73,3 +73,45 @@ test('api/chat-suggestions rejects unsupported HTTP methods with 405', async () 
   const data = JSON.parse(res.body);
   assert.equal(data.error.code, 'CHAT_METHOD_NOT_ALLOWED');
 });
+
+test('quota fallback preserves the current client and filters', async () => {
+  const handler = createSuggestionsHandler({
+    readConfig: () => ({}), authenticate: async () => ({ user: { id: 'u1' }, serviceClient: {} }),
+    consumeQuota: async () => ({ allowed: false })
+  });
+  const context = { activeTab: 'report1', client: 'SPE', regions: [], hubTypes: ['SOC'] };
+  const res = new FakeResponse();
+  await handler({ method: 'POST', headers: {}, body: { screenContext: context } }, res);
+  const data = JSON.parse(res.body);
+  assert.equal(data.context.client, 'SPE');
+  assert.deepEqual(data.context.regions, []);
+  assert.deepEqual(data.context.hubTypes, ['SOC']);
+  assert.ok(data.items.every(item => item.question.includes('SPE')));
+});
+
+test('invalid suggestion scope is rejected before consuming quota or querying data', async () => {
+  let consumed = false;
+  const handler = createSuggestionsHandler({
+    readConfig: () => ({}), authenticate: async () => ({ user: { id: 'u1' } }),
+    consumeQuota: async () => { consumed = true; }
+  });
+  const res = new FakeResponse();
+  await handler({ method: 'POST', headers: {}, body: { screenContext: { client: 'invalid' } } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(consumed, false);
+});
+
+test('data failure produces a scoped fallback with observable basis', async () => {
+  const handler = createSuggestionsHandler({
+    readConfig: () => ({}), authenticate: async () => ({ user: { id: 'u1' }, serviceClient: {} }),
+    consumeQuota: async () => ({ allowed: true, count: 1, remaining: 9 }),
+    buildSmartSuggestions: async () => { throw new Error('RPC unavailable'); }
+  });
+  const res = new FakeResponse();
+  await handler({ method: 'POST', headers: {}, body: { screenContext: { activeTab: 'report3', client: 'SPE', regions: ['HCM'] } } }, res);
+  const data = JSON.parse(res.body);
+  assert.equal(data.basis, 'template');
+  assert.equal(data.fallbackReason, 'no_usable_signals');
+  assert.equal(data.scopeLabel, 'SPE · Tất cả tuyến');
+  assert.equal(data.items.length, 3);
+});
