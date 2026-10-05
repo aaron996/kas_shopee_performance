@@ -376,6 +376,8 @@ export default function PerformanceRoadRanking({
                 selectedHubId={selectedHubId}
                 onSelectHub={handleSelectHub}
                 onOpenDetail={handleOpenDetail}
+                d1Label={d1Formatted}
+                d8Label={d8Formatted || ''}
               />
             </Suspense>
           ) : (

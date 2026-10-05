@@ -3,8 +3,14 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
+  REPLAY_DURATION_MS,
+  SLA_FRACTION,
+  START_GATE_FRACTION,
+  TRANSITION_DURATION_MS,
   assignRegionLanes,
+  computeReplayFrames,
   computeSceneLayout,
+  computeTransitionFrames,
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
@@ -13,7 +19,7 @@ import {
   LabelProjector,
   Road,
   SelectionRing,
-  Trucks,
+  TruckFleet,
   SHADOW_MAX_TRUCKS
 } from './roadScene3dParts.jsx';
 import TruckTag from './TruckTag.jsx';
@@ -25,13 +31,14 @@ const LANE_WIDTH = 1.8;
 const FOV = 40;
 const TILT_DEG = 35; // camera elevation above the road
 const TARGET_Y = 1; // look slightly above the asphalt so gantries and labels fit
-const SLA_FRACTION = 0.93; // SLA gate just past the last truck slot (0.88)
-const START_GATE_FRACTION = 0.015;
 const START_COLOR = '#38bdf8';
 const SLA_COLOR = '#f59e0b';
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
 const FOLLOW_OFFSET = new THREE.Vector3(-3.5, 5, 9); // camera offset from the followed truck
 const FLIGHT_SPEED = 6; // exponential smoothing rate of the camera flight
+
+// Auto-play the replay once per page load (not on every 2D/3D switch).
+let autoReplayDone = false;
 
 const FALLBACK_COLORS = { good: '#0f6e56', bad: '#a13b2a' };
 
@@ -172,7 +179,7 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
   );
 }
 
-export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, onSelectHub, onOpenDetail }) {
+export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, onSelectHub, onOpenDetail, d1Label = '', d8Label = '' }) {
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
@@ -198,6 +205,55 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
     const layout = computeSceneLayout(sceneTrucks, { roadLength, laneCount, laneWidth: LANE_WIDTH, laneMode });
     return layout.map((slot, i) => ({ ...slot, item: sceneTrucks[i], meetsTarget: Boolean(sceneTrucks[i].meetsTarget) }));
   }, [sceneTrucks, roadLength, laneCount, laneMode]);
+
+  // What is actually on screen: the last committed trucks plus an optional motion
+  // (a replay, or a transition from the previous layout). Computed during render so
+  // the first frame of a transition already starts from the old positions.
+  const motionCounter = useRef(0);
+  const [scene, setScene] = useState(() => ({ trucks, motion: null }));
+  if (scene.trucks !== trucks) {
+    // identical positions (e.g. only the selection changed): keep whatever is running
+    let motion = reducedMotion ? null : scene.motion;
+    if (!reducedMotion && scene.trucks.length > 0 && trucks.length > 0) {
+      const transition = computeTransitionFrames(scene.trucks, trucks);
+      if (transition.changed) {
+        motion = { key: ++motionCounter.current, kind: 'transition', durationMs: TRANSITION_DURATION_MS, items: transition.items };
+      }
+    }
+    setScene({ trucks, motion });
+  }
+
+  const canReplay = Boolean(d8Label) && trucks.some((t) => t.item.hasCommonBaseline === true);
+  const replaying = Boolean(scene.motion && scene.motion.kind === 'replay');
+
+  const startReplay = useCallback(() => {
+    const frames = computeReplayFrames(sceneTrucks, { roadLength, laneCount, laneWidth: LANE_WIDTH, laneMode });
+    const items = trucks.map((truck, i) => ({ ...truck, ...frames[i] }));
+    setScene({ trucks, motion: { key: ++motionCounter.current, kind: 'replay', durationMs: REPLAY_DURATION_MS, items } });
+  }, [sceneTrucks, trucks, roadLength, laneCount, laneMode]);
+
+  // First time the 3D scene is shown: replay once (never with reduced motion).
+  useEffect(() => {
+    if (autoReplayDone || reducedMotion || !canReplay) return;
+    autoReplayDone = true;
+    startReplay();
+  }, [canReplay, reducedMotion, startReplay]);
+
+  const handleMotionEnd = useCallback((key) => {
+    setScene((current) => (current.motion && current.motion.key === key ? { ...current, motion: null } : current));
+  }, []);
+
+  const positionsRef = useRef(new Map());
+  const badgeRef = useRef(null);
+  const handleProgress = useCallback((t) => {
+    const badge = badgeRef.current;
+    if (!badge) return;
+    if (t == null) return;
+    badge.style.setProperty('--replay-progress', String(t));
+    badge.dataset.phase = t < 0.5 ? 'from' : 'to';
+  }, []);
+
+  const fleetItems = scene.motion ? scene.motion.items : scene.trucks;
 
   const selectedTruck = useMemo(() => trucks.find((t) => t.id === selectedHubId) || null, [trucks, selectedHubId]);
   const focus = camMode === 'follow' && selectedTruck ? { x: selectedTruck.x, z: selectedTruck.z } : null;
@@ -241,7 +297,9 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
       if (idx >= TAGGED_TOP_N && !isSelected && !isHovered) return;
       list.push({
         key: `tag-${truck.id}`,
-        position: [truck.x, 2.1 + (isHovered ? 0.25 : 0), truck.z],
+        position: [truck.x, 2.1, truck.z],
+        followId: truck.id,
+        baseY: 2.1,
         anchor: 'above',
         priority: isHovered ? 100 : isSelected ? 90 : 70 - idx * 0.1,
         nearOnly: !isSelected && !isHovered,
@@ -313,8 +371,11 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
         <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} sceneBackground={SCENE_BG} />
         <Checkpoint x={startX} roadWidth={roadWidth} color={START_COLOR} />
         <Checkpoint x={slaX} roadWidth={roadWidth} color={SLA_COLOR} line />
-        <Trucks
-          trucks={trucks}
+        <TruckFleet
+          // an InstancedMesh cannot be resized: remount when the number of drawn trucks changes
+          key={fleetItems.length}
+          items={fleetItems}
+          motion={scene.motion}
           goodColor={colors.good}
           badColor={colors.bad}
           castShadow={shadowsOn}
@@ -322,10 +383,15 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
           selectedId={selectedHubId}
           onHover={setHoveredId}
           onSelect={handleSelect}
+          positionsRef={positionsRef}
+          onProgress={handleProgress}
+          onMotionEnd={handleMotionEnd}
         />
-        {selectedTruck && <SelectionRing x={selectedTruck.x} z={selectedTruck.z} />}
+        {selectedTruck && (
+          <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} />
+        )}
 
-        <LabelProjector labels={labels} elements={labelRefs} />
+        <LabelProjector labels={labels} elements={labelRefs} positionsRef={positionsRef} />
         <CameraRig roadLength={roadLength} roadWidth={roadWidth} focus={focus} reducedMotion={reducedMotion} />
       </Canvas>
 
@@ -344,7 +410,30 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
         ))}
       </div>
 
+      {replaying && (
+        <div
+          key={scene.motion.key}
+          ref={badgeRef}
+          className="prr-3d-replay-badge"
+          data-phase="from"
+          role="status"
+        >
+          <span className="replay-date from">D-8 {d8Label}</span>
+          <span className="replay-track" aria-hidden="true"><span className="replay-fill" /></span>
+          <span className="replay-date to">D-1 {d1Label}</span>
+        </div>
+      )}
+
       <div className="prr-3d-controls">
+        <button
+          type="button"
+          className="prr-replay-btn"
+          disabled={!canReplay || replaying}
+          title={canReplay ? 'Xem lại thứ hạng chuyển từ D-8 sang D-1 (hạng trong nhóm đối soát chung)' : 'Chưa có dữ liệu D-8 để so sánh'}
+          onClick={startReplay}
+        >
+          Replay D-8 → D-1
+        </button>
         <div className="prr-segmented-limit" role="group" aria-label="Chế độ camera">
           <button
             type="button"

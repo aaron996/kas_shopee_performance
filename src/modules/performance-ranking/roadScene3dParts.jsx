@@ -1,13 +1,19 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import {
+  REPLAY_ARROWS_MS,
+  easeInOutCubic,
+  interpolateFrame
+} from '../../utils/rankingSceneLayout.js';
 
-export const INSTANCING_THRESHOLD = 30; // > 30 trucks -> InstancedMesh
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 
 const CARGO = '#1e293b';
 const DARK = '#0f172a';
 const GHN_ORANGE = '#f15a22';
+const ARROW_UP = '#34d399';
+const ARROW_DOWN = '#f87171';
 
 // Truck facing +x, ~3 long, ~1.3 wide. `color: 'status'` is tinted per truck
 // (meets target / below target); `basic` parts are unlit so the theme token
@@ -38,77 +44,52 @@ function liftFor(id, hoveredId, selectedId) {
   return 0;
 }
 
-function PartGeometry({ part }) {
-  return part.geo === 'cyl'
-    ? <cylinderGeometry args={part.args} />
-    : <boxGeometry args={part.args} />;
+// Per-instance opacity: every truck-part geometry carries an `instanceAlpha`
+// attribute (one shared Float32Array) that scales the fragment alpha. Needed to
+// fade trucks in/out inside a single InstancedMesh.
+function patchInstanceAlpha(shader) {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float instanceAlpha;\nvarying float vInstanceAlpha;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvInstanceAlpha = instanceAlpha;');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vInstanceAlpha;')
+    .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vInstanceAlpha;');
 }
-
-function PartMaterial({ part, statusColor }) {
-  const color = part.color === 'status' ? statusColor : part.color;
-  return part.basic
-    ? <meshBasicMaterial color={color} />
-    : <meshStandardMaterial color={color} roughness={0.7} metalness={0.1} />;
-}
-
-/** One truck as a plain group (<= INSTANCING_THRESHOLD trucks). */
-function TruckModel({ id, x, z, lift, statusColor, castShadow, onHover, onSelect }) {
-  return (
-    <group
-      position={[x, lift, z]}
-      onPointerOver={(e) => { e.stopPropagation(); onHover(id); }}
-      onPointerOut={() => onHover(null)}
-      onClick={(e) => {
-        if (e.delta > CLICK_TRAVEL_PX) return;
-        e.stopPropagation();
-        onSelect(id);
-      }}
-    >
-      {TRUCK_PARTS.map((part) => (
-        <mesh key={part.key} position={part.position} rotation={part.rotation} castShadow={castShadow}>
-          <PartGeometry part={part} />
-          <PartMaterial part={part} statusColor={statusColor} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
+const alphaCacheKey = () => 'instanceAlpha';
 
 const _matrix = new THREE.Matrix4();
 const _partMatrix = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _scale = new THREE.Vector3(1, 1, 1);
-const _color = new THREE.Color();
+const _pos = new THREE.Vector3();
+const _arrowColor = new THREE.Color();
 
-/** One InstancedMesh per truck part; per-instance colour only for tinted parts. */
-function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow, hoveredId, selectedId, onHover, onSelect }) {
-  const ref = useRef(null);
-  const invalidate = useThree((s) => s.invalidate);
-  const tinted = part.color === 'status';
+/** One InstancedMesh for a truck part. Registers itself (mesh + material) with the fleet. */
+function FleetPart({ part, index, count, alphaArray, register, items, castShadow, onHover, onSelect }) {
+  const geometry = useMemo(() => {
+    const g = part.geo === 'cyl' ? new THREE.CylinderGeometry(...part.args) : new THREE.BoxGeometry(...part.args);
+    g.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alphaArray, 1));
+    return g;
+  }, [part, alphaArray]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
-  useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    _euler.set(...(part.rotation || [0, 0, 0]));
-    _quat.setFromEuler(_euler);
-    _partMatrix.compose(new THREE.Vector3(...part.position), _quat, _scale);
-    trucks.forEach((truck, i) => {
-      _matrix.makeTranslation(truck.x, liftFor(truck.id, hoveredId, selectedId), truck.z).multiply(_partMatrix);
-      mesh.setMatrixAt(i, _matrix);
-      if (tinted) mesh.setColorAt(i, _color.set(truck.meetsTarget ? goodColor : badColor));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    invalidate();
-  }, [part, trucks, tinted, goodColor, badColor, hoveredId, selectedId, invalidate]);
+  const idOf = (e) => {
+    const item = e.instanceId == null ? null : items[e.instanceId];
+    return item && !item.ghost ? item.id : null;
+  };
 
-  const idOf = (e) => (e.instanceId == null ? null : (trucks[e.instanceId]?.id ?? null));
+  const materialProps = {
+    ref: (m) => register(index, 'material', m),
+    onBeforeCompile: patchInstanceAlpha,
+    customProgramCacheKey: alphaCacheKey
+  };
+  const color = part.color === 'status' ? '#ffffff' : part.color;
 
   return (
     <instancedMesh
-      ref={ref}
-      args={[undefined, undefined, trucks.length]}
+      ref={(m) => register(index, 'mesh', m)}
+      args={[geometry, undefined, count]}
       castShadow={castShadow}
       frustumCulled={false}
       onPointerOver={(e) => { e.stopPropagation(); onHover(idOf(e)); }}
@@ -121,19 +102,48 @@ function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow, hov
         if (id) onSelect(id);
       }}
     >
-      <PartGeometry part={part} />
-      <PartMaterial part={part} statusColor="#ffffff" />
+      {part.basic
+        ? <meshBasicMaterial {...materialProps} color={color} />
+        : <meshStandardMaterial {...materialProps} color={color} roughness={0.7} metalness={0.1} />}
     </instancedMesh>
   );
 }
 
 /**
- * @param trucks Array<{id, x, z, meetsTarget}> (layout merged with Hub data)
- * onHover(id | null) / onSelect(id) report pointer interaction (raycast; for
- * instanced trucks the hit instanceId is mapped back to the truck id).
+ * All trucks as one InstancedMesh per part (a handful of draw calls for any count),
+ * plus the animation loop for Replay and scene transitions.
+ *
+ * @param items Array<{id, x, z, meetsTarget, ghost?, from?, to?, alphaFrom?, alphaTo?, dir?}>
+ *   Items with from/to are animated while `motion` is set; otherwise they sit at x/z.
+ *   Remount (key) whenever items.length changes: an InstancedMesh cannot be resized.
+ * @param motion null | {key, kind: 'replay' | 'transition', durationMs}
+ * @param positionsRef MutableRefObject<Map<id, {x, z, lift}>> written every update (labels follow it)
+ * @param onProgress (t: number | null) => void called per frame during a replay (t = 0..1)
+ * @param onMotionEnd (key) => void when a motion has finished
  */
-export function Trucks({ trucks, goodColor, badColor, castShadow, hoveredId, selectedId, onHover, onSelect }) {
+export function TruckFleet({
+  items, motion, goodColor, badColor, castShadow, hoveredId, selectedId,
+  onHover, onSelect, positionsRef, onProgress, onMotionEnd
+}) {
   const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+  const count = items.length;
+  const alphaArray = useMemo(() => new Float32Array(count).fill(1), [count]);
+  const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
+  useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
+
+  const meshes = useRef([]);
+  const materials = useRef([]);
+  const arrowMesh = useRef(null);
+  const startRef = useRef(null);
+  const endedKeyRef = useRef(null);
+
+  const register = (index, kind, node) => {
+    (kind === 'mesh' ? meshes : materials).current[index] = node;
+  };
+
+  const goodC = useMemo(() => new THREE.Color(goodColor), [goodColor]);
+  const badC = useMemo(() => new THREE.Color(badColor), [badColor]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -141,50 +151,137 @@ export function Trucks({ trucks, goodColor, badColor, castShadow, hoveredId, sel
     return () => { canvas.style.cursor = ''; };
   }, [gl, hoveredId]);
 
-  if (trucks.length > INSTANCING_THRESHOLD) {
-    return (
-      <group>
-        {TRUCK_PARTS.map((part) => (
-          <InstancedTruckPart
-            // count is part of the key: an InstancedMesh cannot be resized in place
-            key={`${part.key}-${trucks.length}`}
-            part={part}
-            trucks={trucks}
-            goodColor={goodColor}
-            badColor={badColor}
-            castShadow={castShadow}
-            hoveredId={hoveredId}
-            selectedId={selectedId}
-            onHover={onHover}
-            onSelect={onSelect}
-          />
-        ))}
-      </group>
-    );
-  }
+  // Writes every instance for time `now`; returns { t, active }.
+  const write = (now) => {
+    let t = 1;
+    if (motion && startRef.current != null) t = Math.min(1, Math.max(0, (now - startRef.current) / motion.durationMs));
+    const e = easeInOutCubic(t);
+    const animated = Boolean(motion);
+    let fading = false;
+    const positions = positionsRef.current;
+    positions.clear();
+
+    const xs = new Float32Array(count);
+    const ys = new Float32Array(count);
+    const zs = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const item = items[i];
+      let x = item.x;
+      let z = item.z;
+      let a = 1;
+      if (animated && item.from) {
+        const f = interpolateFrame(item, e);
+        x = f.x; z = f.z; a = f.alpha;
+      }
+      const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
+      xs[i] = x; ys[i] = lift; zs[i] = z;
+      alphaArray[i] = a;
+      if (a < 0.999) fading = true;
+      if (!item.ghost) positions.set(item.id, { x, z, lift });
+    }
+
+    TRUCK_PARTS.forEach((part, p) => {
+      const mesh = meshes.current[p];
+      if (!mesh) return;
+      _euler.set(...(part.rotation || [0, 0, 0]));
+      _quat.setFromEuler(_euler);
+      _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
+      const tinted = part.color === 'status';
+      for (let i = 0; i < count; i++) {
+        _matrix.makeTranslation(xs[i], ys[i], zs[i]).multiply(_partMatrix);
+        mesh.setMatrixAt(i, _matrix);
+        if (tinted) mesh.setColorAt(i, items[i].meetsTarget ? goodC : badC);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      const attribute = mesh.geometry.getAttribute('instanceAlpha');
+      if (attribute) attribute.needsUpdate = true;
+      const material = materials.current[p];
+      if (material) material.transparent = fading;
+    });
+
+    // Rank arrows over the trucks that moved, during the last REPLAY_ARROWS_MS of a replay.
+    const arrows = arrowMesh.current;
+    if (arrows) {
+      let shown = 0;
+      const showArrows = motion && motion.kind === 'replay' && t < 1 && (1 - t) * motion.durationMs <= REPLAY_ARROWS_MS;
+      if (showArrows) {
+        const bob = Math.sin(now / 160) * 0.12;
+        for (let i = 0; i < count; i++) {
+          const item = items[i];
+          if (!item.dir || item.ghost) continue;
+          _euler.set(item.dir < 0 ? Math.PI : 0, 0, 0);
+          _quat.setFromEuler(_euler);
+          _matrix.compose(_pos.set(xs[i] + 0.3, 2.3 + bob + ys[i], zs[i]), _quat, _scale);
+          arrows.setMatrixAt(shown, _matrix);
+          arrows.setColorAt(shown, _arrowColor.set(item.dir > 0 ? ARROW_UP : ARROW_DOWN));
+          shown++;
+        }
+      }
+      arrows.count = shown;
+      arrows.instanceMatrix.needsUpdate = true;
+      if (arrows.instanceColor) arrows.instanceColor.needsUpdate = true;
+    }
+
+    return { t, active: animated && t < 1 };
+  };
+
+  // Rest state, hover/selection lift, colours, data changes and the start of a motion.
+  const motionKey = motion ? motion.key : null;
+  useLayoutEffect(() => {
+    startRef.current = motionKey == null ? null : performance.now();
+    endedKeyRef.current = null;
+    write(performance.now());
+    invalidate();
+    // write() closes over the props listed here; it is intentionally not a dependency itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, motionKey, goodC, badC, hoveredId, selectedId, invalidate]);
+
+  useFrame(() => {
+    if (!motion || startRef.current == null) return;
+    const { t, active } = write(performance.now());
+    if (motion.kind === 'replay' && onProgress) onProgress(t);
+    if (active) {
+      invalidate(); // keep rendering while animating (frameloop is on demand)
+    } else if (endedKeyRef.current !== motion.key) {
+      endedKeyRef.current = motion.key;
+      if (onProgress) onProgress(null);
+      if (onMotionEnd) onMotionEnd(motion.key);
+    }
+  });
+
   return (
     <group>
-      {trucks.map((truck) => (
-        <TruckModel
-          key={truck.id}
-          id={truck.id}
-          x={truck.x}
-          z={truck.z}
-          lift={liftFor(truck.id, hoveredId, selectedId)}
-          statusColor={truck.meetsTarget ? goodColor : badColor}
+      {TRUCK_PARTS.map((part, index) => (
+        <FleetPart
+          key={part.key}
+          part={part}
+          index={index}
+          count={count}
+          alphaArray={alphaArray}
+          register={register}
+          items={items}
           castShadow={castShadow}
           onHover={onHover}
           onSelect={onSelect}
         />
       ))}
+      <instancedMesh ref={arrowMesh} args={[arrowGeometry, undefined, Math.max(1, count)]} frustumCulled={false}>
+        <meshBasicMaterial color="#ffffff" />
+      </instancedMesh>
     </group>
   );
 }
 
 /** Flat highlight ring on the asphalt under the selected truck (same cyan as the 2D spotlight). */
-export function SelectionRing({ x, z }) {
+export function SelectionRing({ id, x, z, positionsRef }) {
+  const ref = useRef(null);
+  useFrame(() => {
+    const p = positionsRef.current.get(id);
+    if (p && ref.current) ref.current.position.set(p.x, 0.04, p.z);
+  });
   return (
-    <mesh position={[x, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.62, 1]}>
+    <mesh ref={ref} position={[x, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.62, 1]}>
       <ringGeometry args={[2.0, 2.25, 48]} />
       <meshBasicMaterial color="#38bdf8" />
     </mesh>
@@ -282,11 +379,13 @@ const MIN_NEAR_RANGE = 30;
  * Per frame: labels behind the camera are hidden; labels flagged `nearOnly` are
  * hidden when far from the camera; the rest are placed greedily by `priority`
  * and any label whose box overlaps one already placed is hidden.
+ * A label with `followId` tracks that truck's animated position (positionsRef).
  *
- * @param labels Array<{key, position: [x, y, z], anchor?: 'above' | 'center', priority?: number, nearOnly?: boolean}>
+ * @param labels Array<{key, position: [x, y, z], followId?, baseY?, anchor?: 'above' | 'center', priority?: number, nearOnly?: boolean}>
  * @param elements MutableRefObject<Map<string, HTMLElement>> owned by the overlay
+ * @param positionsRef MutableRefObject<Map<id, {x, z, lift}>>
  */
-export function LabelProjector({ labels, elements }) {
+export function LabelProjector({ labels, elements, positionsRef }) {
   const invalidate = useThree((s) => s.invalidate);
   const vec = useMemo(() => new THREE.Vector3(), []);
   const order = useMemo(() => [...labels].sort((a, b) => (b.priority || 0) - (a.priority || 0)), [labels]);
@@ -302,7 +401,9 @@ export function LabelProjector({ labels, elements }) {
     for (const label of order) {
       const el = elements.current.get(label.key);
       if (!el) continue;
-      vec.set(...label.position);
+      const followed = label.followId ? positionsRef.current.get(label.followId) : null;
+      if (followed) vec.set(followed.x, (label.baseY || 0) + followed.lift, followed.z);
+      else vec.set(...label.position);
       const distance = camera.position.distanceTo(vec);
       vec.project(camera);
       measured.push({
@@ -322,11 +423,10 @@ export function LabelProjector({ labels, elements }) {
         m.el.style.visibility = 'hidden';
         continue;
       }
-      // keep the label fully inside the canvas horizontally
+      // keep the label fully inside the canvas
       const half = m.w / 2;
       const px = Math.min(Math.max((m.ndcX * 0.5 + 0.5) * size.width, half + LABEL_PADDING), size.width - half - LABEL_PADDING);
       const above = m.label.anchor !== 'center';
-      // keep the label inside the canvas vertically too
       const rawY = (-m.ndcY * 0.5 + 0.5) * size.height;
       const py = above ? Math.max(rawY, m.h + LABEL_PADDING) : Math.max(rawY, m.h / 2 + LABEL_PADDING);
       const top = above ? py - m.h : py - m.h / 2;

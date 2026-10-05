@@ -9,6 +9,8 @@
 
 export const START_FRACTION = 0.05;
 export const END_FRACTION = 0.88;
+export const START_GATE_FRACTION = 0.015; // intake gate, just before the first truck slot (0.05)
+export const SLA_FRACTION = 0.93; // SLA gate just past the last truck slot (0.88)
 export const LANE_ORDER = [0, 2, 1, 3];
 export const MIN_ROAD_LENGTH = 36;
 export const MAX_ROAD_LENGTH = 320;
@@ -120,4 +122,119 @@ export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, lan
       progress
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Motion: Replay D-8 -> D-1 and scene transitions. Pure, so it can be tested.
+// ---------------------------------------------------------------------------
+
+export const REPLAY_DURATION_MS = 3000;
+export const TRANSITION_DURATION_MS = 800;
+export const REPLAY_ARROWS_MS = 2000; // arrows over moving trucks during the last N ms of a replay
+
+export function easeInOutCubic(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+/** Position/opacity of a motion item at eased progress `e` (0..1). */
+export function interpolateFrame(frame, e) {
+  return {
+    x: frame.from.x + (frame.to.x - frame.from.x) * e,
+    z: frame.from.z + (frame.to.z - frame.from.z) * e,
+    alpha: frame.alphaFrom + (frame.alphaTo - frame.alphaFrom) * e
+  };
+}
+
+/**
+ * Replay D-8 -> D-1.
+ *
+ * End positions are exactly the static layout. A Hub with a common D-8/D-1
+ * baseline (`hasCommonBaseline === true`) starts where its D-8 cohort rank would
+ * have put it: its slot shifted back by `deltaRank` (= cohortRankD8 - cohortRankD1;
+ * > 0 moved up, < 0 moved down), clamped to the visible slots, with duplicate
+ * start slots nudged to the nearest free one. Hubs without a baseline ("Mới") start
+ * at the intake gate, fully transparent, and fade in while driving to their slot.
+ *
+ * Replay uses `cohortRank` (rank inside the common D-8/D-1 cohort, as the table's
+ * "Δ Hạng" column does), not the overall `rank`.
+ *
+ * @param sceneTrucks rank-sorted trucks with hasCommonBaseline / deltaRank
+ * @param opts same options as computeSceneLayout
+ * @returns Array<{id, from: {x, z}, to: {x, z}, isNew: boolean, dir: -1 | 0 | 1, alphaFrom: number, alphaTo: number}>
+ */
+export function computeReplayFrames(sceneTrucks, opts = {}) {
+  const list = Array.isArray(sceneTrucks) ? sceneTrucks : [];
+  const n = list.length;
+  if (n === 0) return [];
+  const layout = computeSceneLayout(list, opts);
+  const regionMode = opts.laneMode === 'region';
+  const length = opts.roadLength ?? (regionMode ? getRegionRoadLength(list) : getRoadLength(n));
+  const intakeX = (START_GATE_FRACTION - 0.5) * length;
+
+  const hasBaseline = (t) => t.hasCommonBaseline === true && Number.isFinite(t.deltaRank);
+  const wanted = [];
+  list.forEach((t, i) => {
+    if (hasBaseline(t)) wanted.push({ i, slot: Math.min(n - 1, Math.max(0, i + t.deltaRank)) });
+  });
+
+  // unique start slots: closest free slot to the wanted one, ties resolved towards the back
+  wanted.sort((a, b) => a.slot - b.slot || a.i - b.i);
+  const taken = new Array(n).fill(false);
+  const startSlot = new Map();
+  for (const w of wanted) {
+    let chosen = -1;
+    for (let d = 0; d < n && chosen < 0; d++) {
+      if (w.slot + d < n && !taken[w.slot + d]) chosen = w.slot + d;
+      else if (w.slot - d >= 0 && !taken[w.slot - d]) chosen = w.slot - d;
+    }
+    taken[chosen] = true;
+    startSlot.set(w.i, chosen);
+  }
+
+  return list.map((t, i) => {
+    const to = { x: layout[i].x, z: layout[i].z };
+    if (!hasBaseline(t)) {
+      return { id: t.id, from: { x: intakeX, z: to.z }, to, isNew: true, dir: 0, alphaFrom: 0, alphaTo: 1 };
+    }
+    const slot = layout[startSlot.get(i)];
+    const from = { x: slot.x, z: regionMode ? to.z : slot.z };
+    return { id: t.id, from, to, isNew: false, dir: Math.sign(t.deltaRank), alphaFrom: 1, alphaTo: 1 };
+  });
+}
+
+/**
+ * Transition between two scene states (KPI / filter / lane-mode change).
+ * Trucks present in both slide from their old to their new position; new ones
+ * fade in where they end up; removed ones fade out where they were (returned as
+ * `ghost` items so the scene can keep drawing them until the transition ends).
+ *
+ * @param prevTrucks Array<{id, x, z, meetsTarget}> last rendered trucks
+ * @param nextTrucks Array<{id, x, z, meetsTarget}> new trucks
+ * @returns {{changed: boolean, items: Array<{id, x, z, meetsTarget, ghost: boolean, from, to, alphaFrom, alphaTo, dir}>}}
+ */
+export function computeTransitionFrames(prevTrucks, nextTrucks) {
+  const prev = new Map((prevTrucks || []).map((t) => [t.id, t]));
+  const next = Array.isArray(nextTrucks) ? nextTrucks : [];
+  const nextIds = new Set(next.map((t) => t.id));
+  let changed = false;
+
+  const items = next.map((t) => {
+    const before = prev.get(t.id);
+    const to = { x: t.x, z: t.z };
+    if (!before) {
+      changed = true;
+      return { ...t, ghost: false, from: to, to, alphaFrom: 0, alphaTo: 1, dir: 0 };
+    }
+    if (before.x !== t.x || before.z !== t.z) changed = true;
+    return { ...t, ghost: false, from: { x: before.x, z: before.z }, to, alphaFrom: 1, alphaTo: 1, dir: 0 };
+  });
+
+  for (const before of prev.values()) {
+    if (nextIds.has(before.id)) continue;
+    changed = true;
+    const at = { x: before.x, z: before.z };
+    items.push({ ...before, ghost: true, from: at, to: at, alphaFrom: 1, alphaTo: 0, dir: 0 });
+  }
+  return { changed, items };
 }
