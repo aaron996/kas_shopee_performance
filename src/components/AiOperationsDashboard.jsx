@@ -1753,7 +1753,7 @@ export default function AiOperationsDashboard() {
                       }}
                     />
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Bắt buộc nhập để lưu vết kiểm toán (Audit Trail) cho Dev Admin.
+                      Bắt buộc nhập để lưu vết kiểm toán (Audit Trail) cho Dev.
                     </span>
                   </div>
 
@@ -1895,7 +1895,7 @@ export default function AiOperationsDashboard() {
                     <div>Model: <strong>{modelConfigData.globalConfig.model}</strong></div>
                     <div>Reasoning: <strong>{modelConfigData.globalConfig.reasoningEffort || 'Không'}</strong></div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Cập nhật: {new Date(modelConfigData.globalConfig.updatedAt).toLocaleString('vi-VN')} ({modelConfigData.globalConfig.updatedBy || 'Dev Admin'})
+                      Cập nhật: {new Date(modelConfigData.globalConfig.updatedAt).toLocaleString('vi-VN')} ({modelConfigData.globalConfig.updatedBy || 'Dev'})
                     </div>
                     {modelConfigData.globalConfig.reason && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -1974,7 +1974,7 @@ export default function AiOperationsDashboard() {
                       <td style={{ padding: '0.6rem 1rem', color: 'var(--text-muted)' }}>
                         {u.updatedAt ? new Date(u.updatedAt).toLocaleString('vi-VN') : '-'}
                       </td>
-                      <td style={{ padding: '0.6rem 1rem' }}>{u.updatedBy || 'Dev Admin'}</td>
+                      <td style={{ padding: '0.6rem 1rem' }}>{u.updatedBy || 'Dev'}</td>
                       <td style={{ padding: '0.6rem 1rem', color: 'var(--text-muted)' }}>{u.reason || '-'}</td>
                       <td style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>
                         <button

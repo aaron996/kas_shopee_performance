@@ -5088,6 +5088,22 @@ body.dark-mode .kpi-table-tab.active {
   flex-wrap: wrap;
 }
 
+.role-settings { padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-surface); }
+.role-settings h2 { margin: 0 0 0.75rem; }
+.role-settings p { color: var(--text-muted); }
+.role-settings-toolbar, .role-settings-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+.role-search { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); flex: 1; min-width: 180px; }
+.role-search input { width: 100%; border: 0; background: transparent; color: var(--text-main); font: inherit; min-width: 0; }
+.role-search:focus-within { box-shadow: var(--focus-ring); }
+.role-settings-table { overflow-x: auto; }
+.role-settings-table table { width: 100%; border-collapse: collapse; }
+.role-settings-table th, .role-settings-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+.role-settings-table select { padding: 0.5rem; min-width: 100px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); }
+.role-self { color: var(--text-muted); white-space: nowrap; }
+.role-settings .role-settings-error { color: var(--danger-fg, #a13b2a); }
+.role-settings-pagination span { margin-right: auto; }
+.role-tab.is-active { background: var(--ghn-blue); color: white; border-color: var(--ghn-blue); }
+
 .header-cod-filters .msd { width: clamp(180px, 23vw, 340px); max-width: 100%; }
 .cod-driver-search {
   display: flex;

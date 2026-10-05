@@ -35,7 +35,7 @@ export function createCodSmsThresholdHandler(dependencies = {}) {
       }
 
       if (!await authorizeDev(userClient)) {
-        throw new ChatError('COD_SMS_THRESHOLD_FORBIDDEN', 'Chỉ Dev Admin được sửa mốc điểm SMS.', 403);
+        throw new ChatError('COD_SMS_THRESHOLD_FORBIDDEN', 'Chỉ Dev được sửa mốc điểm SMS.', 403);
       }
       let body;
       try {
@@ -46,7 +46,7 @@ export function createCodSmsThresholdHandler(dependencies = {}) {
       const threshold = validateThreshold(body?.threshold);
       const { data, error } = await userClient.rpc('set_cod_sms_escalation_threshold', { p_threshold: threshold });
       if (error) {
-        if (error.code === '42501') throw new ChatError('COD_SMS_THRESHOLD_FORBIDDEN', 'Chỉ Dev Admin được sửa mốc điểm SMS.', 403);
+        if (error.code === '42501') throw new ChatError('COD_SMS_THRESHOLD_FORBIDDEN', 'Chỉ Dev được sửa mốc điểm SMS.', 403);
         if (error.code === '22023') throw new ChatError('COD_SMS_THRESHOLD_INVALID', 'Mốc điểm SMS phải là số nguyên từ 1 đến 9.', 400);
         throw new ChatError('COD_SMS_THRESHOLD_SAVE_FAILED', 'Không thể lưu mốc điểm SMS.', 503);
       }

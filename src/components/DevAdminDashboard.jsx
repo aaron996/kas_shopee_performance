@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabaseClient';
 import AiOperationsDashboard from './AiOperationsDashboard';
 import LoadingScreen from './LoadingScreen';
 import CodSmsThresholdSettings from './CodSmsThresholdSettings';
+import AppRoleSettings from './AppRoleSettings';
 
 const PAGE_SIZE = 1000;
 
@@ -21,8 +22,8 @@ function downloadCsv(filename, headers, rows) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export default function DevAdminDashboard({ onlineUsers }) {
-  const [adminTab, setAdminTab] = useState('ai-ops'); // 'ai-ops' | 'cod-sms' | 'access'
+export default function DevAdminDashboard({ onlineUsers, currentUser }) {
+  const [adminTab, setAdminTab] = useState('ai-ops'); // 'roles' | 'ai-ops' | 'cod-sms' | 'access'
   const [accessLogs, setAccessLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -50,7 +51,7 @@ export default function DevAdminDashboard({ onlineUsers }) {
       setAccessLogs(logs);
     } catch (err) {
       console.error('Failed to load logs', err);
-      setLoadError('Không thể tải lịch sử truy cập. Kiểm tra quyền Dev Admin trong Supabase rồi thử lại.');
+      setLoadError('Không thể tải lịch sử truy cập. Kiểm tra quyền Dev trong Supabase rồi thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -113,13 +114,14 @@ export default function DevAdminDashboard({ onlineUsers }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', background: 'var(--ghn-blue)', padding: '1.5rem', borderRadius: '12px', color: 'white', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
         <ShieldAlert size={32} />
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>CỔNG QUẢN TRỊ DEV ADMIN</h1>
-          <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Vận hành Chatbot AI, hạn mức Quota theo user và giám sát lưu lượng hệ thống</p>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>CỔNG QUẢN TRỊ DEV</h1>
+          <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Phân quyền tài khoản, vận hành Chatbot AI và giám sát hệ thống</p>
         </div>
       </div>
 
       {/* Main Mode Tabs */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+        <button type="button" onClick={() => setAdminTab('roles')} aria-current={adminTab === 'roles' ? 'page' : undefined} className={`btn-secondary role-tab ${adminTab === 'roles' ? 'is-active' : ''}`}><Users size={18} /> PHÂN QUYỀN</button>
         <button
           type="button"
           onClick={() => setAdminTab('ai-ops')}
@@ -169,7 +171,9 @@ export default function DevAdminDashboard({ onlineUsers }) {
 
       </div>
 
-      {adminTab === 'ai-ops' ? (
+      {adminTab === 'roles' ? (
+        <AppRoleSettings currentUser={currentUser} />
+      ) : adminTab === 'ai-ops' ? (
         <AiOperationsDashboard />
       ) : adminTab === 'cod-sms' ? (
         <CodSmsThresholdSettings />

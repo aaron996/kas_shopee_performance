@@ -82,6 +82,31 @@ test('ordinary authenticated user cannot request verbatim SMS evidence', async (
   assert.equal(res.body.error.code, 'COD_SMS_EVIDENCE_FORBIDDEN');
 });
 
+test('admin can read SMS evidence and run history but cannot start scoring', async () => {
+  const handler = createCodSmsAssessmentsHandler(dependencies({
+    authorizeAdvanced: async () => true,
+    createRepository: () => ({
+      list: async () => ({ rows: [{ suspicion_type: 'Gối đầu COD', driver_id: '1', order_code: 'A', evidence: ['test SMS'], explanation: 'Chi tiết chấm điểm', detected_patterns: ['mau_1'], model: 'test-model' }], totalCount: 1 }),
+      listRuns: async () => ({ rows: [], totalCount: 0 }),
+      listRunItems: async () => []
+    })
+  }));
+  for (const url of ['/api/cod-sms-assessments?include_evidence=true', '/api/cod-sms-assessments?view=runs', '/api/cod-sms-assessments?view=run_items&run_id=00000000-0000-0000-0000-000000000001']) {
+    const res = createResponse();
+    await handler({ method: 'GET', url, headers: { authorization: 'Bearer token' } }, res);
+    assert.equal(res.statusCode, 200);
+    if (url.includes('include_evidence')) {
+      assert.deepEqual(res.body.assessments[0].evidence, ['test SMS']);
+      assert.equal(res.body.assessments[0].explanation, 'Chi tiết chấm điểm');
+      assert.deepEqual(res.body.assessments[0].detectedPatterns, ['mau_1']);
+      assert.equal(res.body.assessments[0].model, 'test-model');
+    }
+  }
+  const res = createResponse();
+  await handler({ method: 'POST', url: '/api/cod-sms-assessments', headers: { authorization: 'Bearer token' }, body: {} }, res);
+  assert.equal(res.statusCode, 403);
+});
+
 test('ordinary authenticated user receives assessment contract without evidence', async () => {
   const handler = createCodSmsAssessmentsHandler(dependencies({
     createRepository: () => ({

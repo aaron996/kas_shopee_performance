@@ -28,8 +28,9 @@ function withTimeout(promise, label, timeoutMs = REQUEST_TIMEOUT_MS) {
  * the short-lived in-memory snapshot cache so operations can see a newly
  * synced batch immediately.
  */
-export async function fetchCodSuspicionData({ forceRefresh = false } = {}) {
-  if (!forceRefresh && codSuspicionCache && codSuspicionCache.expiresAt > Date.now()) {
+export async function fetchCodSuspicionData({ forceRefresh = false, userEmail = '', role = 'user' } = {}) {
+  const scope = `${String(userEmail).trim().toLowerCase()}:${role}`;
+  if (!forceRefresh && codSuspicionCache?.scope === scope && codSuspicionCache.expiresAt > Date.now()) {
     return codSuspicionCache.result;
   }
 
@@ -83,6 +84,7 @@ export async function fetchCodSuspicionData({ forceRefresh = false } = {}) {
       }
     };
     codSuspicionCache = {
+      scope,
       result,
       expiresAt: Date.now() + COD_SUSPICION_CACHE_TTL_MS
     };
@@ -405,10 +407,11 @@ export function getCodSmsEvidenceCacheKey({
   driverId,
   orderCode,
   userEmail = '',
-  isDevAdmin = false
+  isDevAdmin = false,
+  role = isDevAdmin ? 'dev' : 'user'
 } = {}) {
   const normEmail = String(userEmail || '').trim().toLowerCase();
-  const roleScope = isDevAdmin ? 'dev' : 'viewer';
+  const roleScope = role === 'admin' ? 'admin' : isDevAdmin ? 'dev' : 'viewer';
   const sType = String(suspicionType || '').trim();
   const dId = String(driverId || '').trim();
   const oCode = String(orderCode || '').trim();
@@ -464,13 +467,14 @@ export async function fetchCodSmsAssessmentEvidenceCached({
   orderCode,
   userEmail = '',
   isDevAdmin = false,
+  role = isDevAdmin ? 'dev' : 'user',
   forceRefresh = false,
   signal = null
 }) {
-  const cacheKey = getCodSmsEvidenceCacheKey({ suspicionType, driverId, orderCode, userEmail, isDevAdmin });
+  const cacheKey = getCodSmsEvidenceCacheKey({ suspicionType, driverId, orderCode, userEmail, isDevAdmin, role });
 
   if (!forceRefresh) {
-    const cached = getCachedCodSmsEvidence({ suspicionType, driverId, orderCode, userEmail, isDevAdmin });
+    const cached = getCachedCodSmsEvidence({ suspicionType, driverId, orderCode, userEmail, isDevAdmin, role });
     if (cached) {
       return {
         ...cached,

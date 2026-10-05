@@ -7,7 +7,7 @@ function ModuleSurface({ module, runtime, onBackToOverview }) {
   const Surface = module.surface;
   const content = (
     <Suspense fallback={<LoadingScreen variant="page" />}>
-      <Surface {...runtime} />
+      <Surface key={module.id === 'cod-suspicion' ? `${runtime.userEmail}:${runtime.role}` : module.id} {...runtime} />
     </Suspense>
   );
 
