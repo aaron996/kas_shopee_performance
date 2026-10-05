@@ -13,7 +13,7 @@ import './snapshot.css';
 // In production the rows arrive embedded in the HTML (api/snapshot-page.js),
 // so the table is on screen as soon as the scripts run — the screenshot
 // service captures once the network goes quiet and must not race a fetch.
-// Without them (local dev) the page falls back to /api/snapshot-data.
+// Without them (e.g. Vite local dev, which does not run api/) the page shows an error.
 // <html data-snapshot="ready|error"> marks the outcome.
 function readEmbeddedPayload() {
   const el = document.getElementById('snapshot-data');
@@ -35,7 +35,8 @@ export default function SnapshotPage() {
   const embedded = useMemo(() => readEmbeddedPayload(), []);
   const [state, setState] = useState(() => {
     if (params.error) return { status: 'error', message: params.error };
-    return embedded ? toState(embedded, params) : { status: 'loading' };
+    if (!embedded) return { status: 'error', message: 'Thiếu dữ liệu nhúng — hãy mở /snapshot qua Vercel (vercel dev hoặc deploy).' };
+    return toState(embedded, params);
   });
 
   useEffect(() => {
@@ -44,29 +45,9 @@ export default function SnapshotPage() {
   }, []);
 
   useEffect(() => {
-    if (params.error || embedded) return undefined;
-    let cancelled = false;
-    const query = new URLSearchParams({ report: params.view.data, client: params.client, token: params.token });
-    fetch(`/api/snapshot-data?${query}`)
-      .then(async res => {
-        const body = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(body?.error?.message || `HTTP ${res.status}`);
-        return body;
-      })
-      .then(payload => {
-        if (!cancelled) setState(toState(payload, params));
-      })
-      .catch(error => {
-        if (!cancelled) setState({ status: 'error', message: error.message || 'Không tải được dữ liệu.' });
-      });
-    return () => { cancelled = true; };
-  }, [params, embedded]);
-
-  useEffect(() => {
     document.documentElement.dataset.snapshot = state.status;
   }, [state.status]);
 
-  if (state.status === 'loading') return <div className="snapshot-root" />;
   if (state.status === 'error') {
     return (
       <div className="snapshot-root">

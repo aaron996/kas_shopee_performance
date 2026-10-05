@@ -96,6 +96,8 @@ export function readChatConfig(env = process.env) {
     supabaseUrl: requireValue(env, 'SUPABASE_URL'),
     supabaseAnonKey: requireValue(env, 'SUPABASE_ANON_KEY'),
     supabaseServiceRoleKey: requireValue(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+    // Set AI_CHAT_SUGGESTIONS_MODEL=false to keep data-driven suggestions but skip the model rewrite.
+    suggestionModelEnabled: env.AI_CHAT_SUGGESTIONS_MODEL !== 'false',
     orgId: env.AI_CHAT_ORG_ID?.trim() || 'ghn-kas',
     webSearchEnabled: env.AI_CHAT_WEB_SEARCH_ENABLED !== 'false',
     userDailyTurns: readInt(env, 'AI_CHAT_USER_DAILY_TURNS', 10, 1, 10000),

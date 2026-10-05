@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { issueSnapshotToken, verifySnapshotToken, isSnapshotSecret, SNAPSHOT_TOKEN_TTL_SECONDS } from './token.js';
 import { packRows, fetchSnapshotRows } from './data.js';
 import { createSnapshotTokenHandler } from '../../api/snapshot-token.js';
-import { createSnapshotDataHandler } from '../../api/snapshot-data.js';
 import { createSnapshotPageHandler } from '../../api/snapshot-page.js';
 import { createSnapshotSummaryHandler } from '../../api/snapshot-summary.js';
 import { embedSnapshotPayload, resolveAppOrigin } from './page.js';
@@ -106,48 +105,6 @@ test('token endpoint needs the bearer secret', () => {
   handler({ method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }, ok);
   assert.equal(ok.statusCode, 200);
   assert.equal(verifySnapshotToken(SECRET, ok.body.token, NOW), true);
-});
-
-test('data endpoint rejects bad tokens and unknown reports before reading', async () => {
-  let reads = 0;
-  const handler = createSnapshotDataHandler({
-    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
-    createServiceClient: () => ({}),
-    fetchRows: async () => { reads += 1; return []; },
-    now: () => NOW
-  });
-  const { token } = issueSnapshotToken(SECRET, NOW);
-
-  const badToken = createResponse();
-  await handler({ method: 'GET', url: '/api/snapshot-data?report=pick&token=1.x' }, badToken);
-  assert.equal(badToken.statusCode, 401);
-
-  const badReport = createResponse();
-  await handler({ method: 'GET', url: `/api/snapshot-data?report=cod&token=${token}` }, badReport);
-  assert.equal(badReport.statusCode, 400);
-
-  const badClient = createResponse();
-  await handler({ method: 'GET', url: `/api/snapshot-data?report=pick&client=ALL&token=${token}` }, badClient);
-  assert.equal(badClient.statusCode, 400);
-
-  assert.equal(reads, 0);
-});
-
-test('data endpoint returns packed rows for a valid request', async () => {
-  const handler = createSnapshotDataHandler({
-    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
-    createServiceClient: () => ({}),
-    fetchRows: async (_client, request) => {
-      assert.deepEqual(request, { report: 'deli', clientName: 'SPB' });
-      return [{ id: 1, region: 'HCM', mau_deli: 3 }];
-    },
-    now: () => NOW
-  });
-  const { token } = issueSnapshotToken(SECRET, NOW);
-  const res = createResponse();
-  await handler({ method: 'GET', url: `/api/snapshot-data?report=deli&client=spb&token=${encodeURIComponent(token)}` }, res);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { columns: ['region', 'mau_deli'], rows: [['HCM', 3]] });
 });
 
 test('embedSnapshotPayload adds an inert JSON block inside <head>', () => {

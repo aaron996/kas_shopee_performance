@@ -42,8 +42,9 @@ pictures still go out and only Build Nhan Xet errors.
    The rows must be embedded: pptraas captures once the network has gone
    quiet, and a data fetch issued after page load (several seconds for the
    Pick/Deli tables) lost that race and produced blank pictures.
-   `GET /api/snapshot-data` still serves the same rows for local dev, where
-   the page is served by Vite without them.
+   The old `GET /api/snapshot-data` fallback was removed to stay under Vercel
+   Hobby's 12-function cap; without embedded rows (plain Vite dev) the page
+   shows an error, so test it with `vercel dev`.
 
 The long-lived secret never appears in a URL; only the short-lived token goes
 through the external screenshot service.
