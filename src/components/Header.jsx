@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Filter, LogOut, ShieldCheck, Warehouse } from 'lucide-react';
+import { Filter, LogOut, MapPin, ShieldCheck, Warehouse } from 'lucide-react';
 import IconButton from './ui/IconButton';
+import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 
@@ -10,7 +11,7 @@ export default function Header({
   onResetFilters, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, currentUser, onLogout, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
-  onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses
+  onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses, codSuspicionProvinces
 }) {
   const hideRegionHubFilters = ['report3', 'report-insight', 'cod-suspicion'].includes(activeTab);
   const [popover, setPopover] = useState(null);
@@ -78,20 +79,18 @@ export default function Header({
               <div className="hdr-field">
                 <Warehouse size={14} className="filter-icon" />
                 <span className="hdr-field-label">Kho:</span>
-                <select className="filter-select-sleek" aria-label="Lọc theo kho giao" value={codSuspicionFilters.warehouse} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, warehouse: e.target.value }))}>
-                  <option value="ALL">Tất cả các kho ({codSuspicionWarehouses.length})</option>
-                  {codSuspicionWarehouses.map((warehouse) => <option key={warehouse} value={warehouse}>{warehouse}</option>)}
-                </select>
+                <MultiSelectDropdown label="Kho" singleSelect searchable placeholder="Tìm tên kho…"
+                  options={[{ value: 'ALL', label: `Tất cả các kho (${codSuspicionWarehouses.length})` }, ...codSuspicionWarehouses.map(value => ({ value, label: value }))]}
+                  value={[codSuspicionFilters.warehouse]}
+                  onChange={([warehouse]) => setCodSuspicionFilters(prev => ({ ...prev, warehouse }))} />
               </div>
               <div className="hdr-field">
-                <AlertTriangle size={14} className="filter-icon" />
-                <span className="hdr-field-label">Cảnh báo:</span>
-                <select className="filter-select-sleek" aria-label="Lọc theo mức độ cảnh báo" value={codSuspicionFilters.alertLevel} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, alertLevel: e.target.value }))}>
-                  <option value="ALL">Tất cả mức độ</option>
-                  <option value="HIGH">Cao</option>
-                  <option value="MEDIUM">Vừa</option>
-                  <option value="LOW">Thấp</option>
-                </select>
+                <MapPin size={14} className="filter-icon" />
+                <span className="hdr-field-label">Tỉnh thành:</span>
+                <MultiSelectDropdown label="Tỉnh thành" singleSelect searchable placeholder="Tìm tỉnh thành…"
+                  options={[{ value: 'ALL', label: `Tất cả tỉnh thành (${codSuspicionProvinces.length})` }, ...codSuspicionProvinces.map(value => ({ value, label: value }))]}
+                  value={[codSuspicionFilters.province]}
+                  onChange={([province]) => setCodSuspicionFilters(prev => ({ ...prev, province }))} />
               </div>
             </div>
           )}

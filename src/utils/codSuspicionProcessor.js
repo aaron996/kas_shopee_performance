@@ -135,6 +135,7 @@ export function normalizeSuspicionOrder(raw) {
     orderStatus,
     codAmount,
     warehouseName: warehouse || 'Chưa rõ kho',
+    toProvince: String(raw.to_province || raw['To province'] || '').trim() || 'Chưa rõ tỉnh thành',
     firstDeliveredDate: raw.first_delivered_date || raw['Ngày gán giao'] || null,
     endDeliveryDate: raw.end_delivery_date || raw['Ngày kết thúc giao'] || null,
     returnDate: raw.return_date || raw['Ngày chuyển hoàn'] || null,
@@ -274,6 +275,7 @@ export function sortDrivers(drivers = []) {
 export function filterDriverGroups(driverGroups = [], {
   suspicionType = 'ALL',
   warehouse = 'ALL',
+  province = 'ALL',
   alertLevel = 'ALL',
   searchQuery = '',
   assessmentsByCaseKey = null,
@@ -286,8 +288,10 @@ export function filterDriverGroups(driverGroups = [], {
     .map(driver => {
       // Orphan drivers (resolution recorded but no order currently in the
       // source snapshot) have no order-level data to filter against —
-      // apply only suspicionType and the driver-identity part of search.
+      // Preserve their existing warehouse behavior, but a selected province
+      // requires a current source order. Search still matches driver identity.
       if (driver.isOrphan) {
+        if (province !== 'ALL') return null;
         if (suspicionType !== 'ALL' && driver.suspicionType !== suspicionType) return null;
         if (cleanSearch) {
           const matchesDriver =
@@ -308,6 +312,7 @@ export function filterDriverGroups(driverGroups = [], {
         if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
           return false;
         }
+        if (province !== 'ALL' && order.toProvince !== province) return false;
         if (!useEffectiveAlertLevel && alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
         }
