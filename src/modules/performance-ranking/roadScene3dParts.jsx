@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -27,6 +27,17 @@ const TRUCK_PARTS = [
   { key: 'axle3', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK }
 ];
 
+const HOVER_LIFT = 0.25;
+const SELECT_LIFT = 0.12;
+// A click only counts if the pointer did not travel (otherwise it was an orbit drag).
+const CLICK_TRAVEL_PX = 4;
+
+function liftFor(id, hoveredId, selectedId) {
+  if (id === hoveredId) return HOVER_LIFT;
+  if (id === selectedId) return SELECT_LIFT;
+  return 0;
+}
+
 function PartGeometry({ part }) {
   return part.geo === 'cyl'
     ? <cylinderGeometry args={part.args} />
@@ -41,9 +52,18 @@ function PartMaterial({ part, statusColor }) {
 }
 
 /** One truck as a plain group (<= INSTANCING_THRESHOLD trucks). */
-function TruckModel({ x, z, statusColor, castShadow }) {
+function TruckModel({ id, x, z, lift, statusColor, castShadow, onHover, onSelect }) {
   return (
-    <group position={[x, 0, z]}>
+    <group
+      position={[x, lift, z]}
+      onPointerOver={(e) => { e.stopPropagation(); onHover(id); }}
+      onPointerOut={() => onHover(null)}
+      onClick={(e) => {
+        if (e.delta > CLICK_TRAVEL_PX) return;
+        e.stopPropagation();
+        onSelect(id);
+      }}
+    >
       {TRUCK_PARTS.map((part) => (
         <mesh key={part.key} position={part.position} rotation={part.rotation} castShadow={castShadow}>
           <PartGeometry part={part} />
@@ -62,7 +82,7 @@ const _scale = new THREE.Vector3(1, 1, 1);
 const _color = new THREE.Color();
 
 /** One InstancedMesh per truck part; per-instance colour only for tinted parts. */
-function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow }) {
+function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow, hoveredId, selectedId, onHover, onSelect }) {
   const ref = useRef(null);
   const invalidate = useThree((s) => s.invalidate);
   const tinted = part.color === 'status';
@@ -74,17 +94,33 @@ function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow }) {
     _quat.setFromEuler(_euler);
     _partMatrix.compose(new THREE.Vector3(...part.position), _quat, _scale);
     trucks.forEach((truck, i) => {
-      _matrix.makeTranslation(truck.x, 0, truck.z).multiply(_partMatrix);
+      _matrix.makeTranslation(truck.x, liftFor(truck.id, hoveredId, selectedId), truck.z).multiply(_partMatrix);
       mesh.setMatrixAt(i, _matrix);
       if (tinted) mesh.setColorAt(i, _color.set(truck.meetsTarget ? goodColor : badColor));
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     invalidate();
-  }, [part, trucks, tinted, goodColor, badColor, invalidate]);
+  }, [part, trucks, tinted, goodColor, badColor, hoveredId, selectedId, invalidate]);
+
+  const idOf = (e) => (e.instanceId == null ? null : (trucks[e.instanceId]?.id ?? null));
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, trucks.length]} castShadow={castShadow} frustumCulled={false}>
+    <instancedMesh
+      ref={ref}
+      args={[undefined, undefined, trucks.length]}
+      castShadow={castShadow}
+      frustumCulled={false}
+      onPointerOver={(e) => { e.stopPropagation(); onHover(idOf(e)); }}
+      onPointerMove={(e) => { e.stopPropagation(); onHover(idOf(e)); }}
+      onPointerOut={() => onHover(null)}
+      onClick={(e) => {
+        if (e.delta > CLICK_TRAVEL_PX) return;
+        e.stopPropagation();
+        const id = idOf(e);
+        if (id) onSelect(id);
+      }}
+    >
       <PartGeometry part={part} />
       <PartMaterial part={part} statusColor="#ffffff" />
     </instancedMesh>
@@ -93,8 +129,18 @@ function InstancedTruckPart({ part, trucks, goodColor, badColor, castShadow }) {
 
 /**
  * @param trucks Array<{id, x, z, meetsTarget}> (layout merged with Hub data)
+ * onHover(id | null) / onSelect(id) report pointer interaction (raycast; for
+ * instanced trucks the hit instanceId is mapped back to the truck id).
  */
-export function Trucks({ trucks, goodColor, badColor, castShadow }) {
+export function Trucks({ trucks, goodColor, badColor, castShadow, hoveredId, selectedId, onHover, onSelect }) {
+  const gl = useThree((s) => s.gl);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    canvas.style.cursor = hoveredId ? 'pointer' : '';
+    return () => { canvas.style.cursor = ''; };
+  }, [gl, hoveredId]);
+
   if (trucks.length > INSTANCING_THRESHOLD) {
     return (
       <group>
@@ -107,6 +153,10 @@ export function Trucks({ trucks, goodColor, badColor, castShadow }) {
             goodColor={goodColor}
             badColor={badColor}
             castShadow={castShadow}
+            hoveredId={hoveredId}
+            selectedId={selectedId}
+            onHover={onHover}
+            onSelect={onSelect}
           />
         ))}
       </group>
@@ -117,13 +167,27 @@ export function Trucks({ trucks, goodColor, badColor, castShadow }) {
       {trucks.map((truck) => (
         <TruckModel
           key={truck.id}
+          id={truck.id}
           x={truck.x}
           z={truck.z}
+          lift={liftFor(truck.id, hoveredId, selectedId)}
           statusColor={truck.meetsTarget ? goodColor : badColor}
           castShadow={castShadow}
+          onHover={onHover}
+          onSelect={onSelect}
         />
       ))}
     </group>
+  );
+}
+
+/** Flat highlight ring on the asphalt under the selected truck (same cyan as the 2D spotlight). */
+export function SelectionRing({ x, z }) {
+  return (
+    <mesh position={[x, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.62, 1]}>
+      <ringGeometry args={[2.0, 2.25, 48]} />
+      <meshBasicMaterial color="#38bdf8" />
+    </mesh>
   );
 }
 
@@ -181,7 +245,7 @@ export function Road({ roadLength, laneCount, laneWidth, sceneBackground }) {
   );
 }
 
-/** Operational checkpoint: a gantry over the road (its label is an HTML overlay, see sceneLabels). */
+/** Operational checkpoint: a gantry over the road (its label is an HTML overlay, see LabelProjector). */
 export function Checkpoint({ x, roadWidth, color, line = false }) {
   const half = roadWidth / 2 + 0.2;
   return (
@@ -206,34 +270,75 @@ export function Checkpoint({ x, roadWidth, color, line = false }) {
   );
 }
 
+const LABEL_PADDING = 4;
+const NEAR_RANGE_FACTOR = 2.5; // far-label cutoff = camera-to-target distance * this
+const MIN_NEAR_RANGE = 30;
+
 /**
  * Projects 3D anchor points to screen space and moves matching DOM nodes.
  * Used instead of drei <Html>, which creates a React root per label and logs
  * "synchronously unmount a root" warnings under React 19.
- * @param labels Array<{key: string, position: [x, y, z]}>
+ *
+ * Per frame: labels behind the camera are hidden; labels flagged `nearOnly` are
+ * hidden when far from the camera; the rest are placed greedily by `priority`
+ * and any label whose box overlaps one already placed is hidden.
+ *
+ * @param labels Array<{key, position: [x, y, z], anchor?: 'above' | 'center', priority?: number, nearOnly?: boolean}>
  * @param elements MutableRefObject<Map<string, HTMLElement>> owned by the overlay
  */
 export function LabelProjector({ labels, elements }) {
   const invalidate = useThree((s) => s.invalidate);
   const vec = useMemo(() => new THREE.Vector3(), []);
+  const order = useMemo(() => [...labels].sort((a, b) => (b.priority || 0) - (a.priority || 0)), [labels]);
 
   useLayoutEffect(() => { invalidate(); }, [labels, invalidate]);
 
-  useFrame(({ camera, size }) => {
-    for (const label of labels) {
+  useFrame(({ camera, size, controls }) => {
+    const target = controls && controls.target;
+    const nearRange = Math.max(MIN_NEAR_RANGE, (target ? camera.position.distanceTo(target) : 0) * NEAR_RANGE_FACTOR);
+
+    // reads first (offsetWidth/Height), writes after, to avoid layout thrash
+    const measured = [];
+    for (const label of order) {
       const el = elements.current.get(label.key);
       if (!el) continue;
-      vec.set(...label.position).project(camera);
-      if (vec.z > 1 || vec.z < -1) {
-        el.style.visibility = 'hidden';
+      vec.set(...label.position);
+      const distance = camera.position.distanceTo(vec);
+      vec.project(camera);
+      measured.push({
+        el,
+        label,
+        hidden: vec.z > 1 || vec.z < -1 || (label.nearOnly && distance > nearRange),
+        ndcX: vec.x,
+        ndcY: vec.y,
+        w: el.offsetWidth,
+        h: el.offsetHeight
+      });
+    }
+
+    const placed = [];
+    for (const m of measured) {
+      if (m.hidden) {
+        m.el.style.visibility = 'hidden';
         continue;
       }
-      // keep the label fully inside the canvas
-      const half = el.offsetWidth / 2;
-      const px = Math.min(Math.max((vec.x * 0.5 + 0.5) * size.width, half + 4), size.width - half - 4);
-      const py = (-vec.y * 0.5 + 0.5) * size.height;
-      el.style.visibility = 'visible';
-      el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -50%)`;
+      // keep the label fully inside the canvas horizontally
+      const half = m.w / 2;
+      const px = Math.min(Math.max((m.ndcX * 0.5 + 0.5) * size.width, half + LABEL_PADDING), size.width - half - LABEL_PADDING);
+      const above = m.label.anchor !== 'center';
+      // keep the label inside the canvas vertically too
+      const rawY = (-m.ndcY * 0.5 + 0.5) * size.height;
+      const py = above ? Math.max(rawY, m.h + LABEL_PADDING) : Math.max(rawY, m.h / 2 + LABEL_PADDING);
+      const top = above ? py - m.h : py - m.h / 2;
+      const box = { l: px - half - LABEL_PADDING, r: px + half + LABEL_PADDING, t: top - LABEL_PADDING, b: top + m.h + LABEL_PADDING };
+      const overlaps = placed.some((o) => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t);
+      if (overlaps) {
+        m.el.style.visibility = 'hidden';
+        continue;
+      }
+      placed.push(box);
+      m.el.style.visibility = 'visible';
+      m.el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, ${above ? '-100%' : '-50%'})`;
     }
   });
   return null;

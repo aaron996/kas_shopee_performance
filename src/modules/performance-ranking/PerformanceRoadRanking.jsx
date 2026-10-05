@@ -73,6 +73,7 @@ export default function PerformanceRoadRanking({
   const [sceneMode, setSceneMode] = useState(() => getInitialSceneMode(webgl2));
 
   const tableRowRefs = useRef(new Map());
+  const insightPanelRef = useRef(null);
 
   // Calculate ranking contract
   const rankingData = useMemo(() => {
@@ -149,6 +150,15 @@ export default function PerformanceRoadRanking({
   // Select / deselect a Hub by composite ID
   const handleSelectHub = useCallback((hubId) => {
     setSelectedHubId(prev => (prev === hubId ? null : hubId));
+  }, []);
+
+  // Enter on the 3D scene: bring the selected Hub's detail panel into view and focus it.
+  const handleOpenDetail = useCallback(() => {
+    const panel = insightPanelRef.current;
+    if (!panel) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    panel.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
+    panel.focus({ preventScroll: true });
   }, []);
 
   const handleSceneModeChange = useCallback((mode) => {
@@ -361,7 +371,12 @@ export default function PerformanceRoadRanking({
         ) : (
           sceneMode === '3d' ? (
             <Suspense fallback={<LoadingScreen variant="block" />}>
-              <RoadScene3D sceneTrucks={sceneTrucks} />
+              <RoadScene3D
+                sceneTrucks={sceneTrucks}
+                selectedHubId={selectedHubId}
+                onSelectHub={handleSelectHub}
+                onOpenDetail={handleOpenDetail}
+              />
             </Suspense>
           ) : (
             <RoadScene2D
@@ -375,7 +390,12 @@ export default function PerformanceRoadRanking({
 
       {/* 3. Selected Hub Insight Detail Panel */}
       {selectedHubItem && (
-        <section className="prr-insight-panel animate-fade-in" aria-label="Chi tiết Hub được chọn">
+        <section
+          ref={insightPanelRef}
+          tabIndex={-1}
+          className="prr-insight-panel animate-fade-in"
+          aria-label="Chi tiết Hub được chọn"
+        >
           <div className="insight-panel-header">
             <div className="insight-hub-identity">
               <div className="hub-avatar-badge">
