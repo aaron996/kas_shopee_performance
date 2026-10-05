@@ -49,7 +49,9 @@ export async function fetchCodSuspicionData({ forceRefresh = false } = {}) {
       metadata = metaRows[0];
     }
 
-    // 2. Fetch suspicion rows with pagination
+    // 2. Fetch suspicion rows with pagination. The sheet sync loads every row
+    // into Supabase; the COD tab only shows orders flagged "Bất thường call log
+    // (so P90 hardcode)" = Có AND "Mức ưu tiên gọi xác minh" = Cao.
     const rows = [];
     let from = 0;
     for (let page = 0; page < 50; page++) {
@@ -57,6 +59,8 @@ export async function fetchCodSuspicionData({ forceRefresh = false } = {}) {
         supabase
           .from('kas_cod_suspicion_data')
           .select('*')
+          .eq('signal_count_over_p90', true)
+          .eq('call_verification_priority', 'Cao')
           .order('total_score', { ascending: false })
           .range(from, from + PAGE_SIZE - 1),
         'kas_cod_suspicion_data'

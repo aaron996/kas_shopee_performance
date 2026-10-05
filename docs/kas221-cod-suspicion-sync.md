@@ -261,3 +261,8 @@ Kết quả trả về mong đợi:
 }
 ```
 Sau đó đăng nhập app bằng một tài khoản GHN hợp lệ để kiểm tra dữ liệu hiển thị trên giao diện `Đơn nghi vấn COD`.
+
+**Bộ lọc tab COD (đọc từ Supabase):** script sync vẫn đẩy toàn bộ đơn từ Google Sheet lên
+Supabase. Tab COD của app (`fetchCodSuspicionData` trong `src/utils/codSuspicionClient.js`)
+chỉ đọc các đơn có `signal_count_over_p90 = true` ("Bất thường call log (so P90 hardcode)" = Có)
+**và** `call_verification_priority = 'Cao'`. Export `nghi_ngo_COD` (`server/cod-export/service.js`) áp cùng bộ lọc.

@@ -49,9 +49,13 @@ async function selectAll(buildQuery, code, message) {
 
 export function createCodExportRepository(serviceClient) {
   return {
+    /** Same scope as the COD tab: call-log anomaly (P90) = Có AND verification priority = Cao. */
     loadOrders() {
       return selectAll(
-        () => serviceClient.from('kas_cod_suspicion_data').select(ORDER_COLUMNS).order('id', { ascending: true }),
+        () => serviceClient.from('kas_cod_suspicion_data').select(ORDER_COLUMNS)
+          .eq('signal_count_over_p90', true)
+          .eq('call_verification_priority', 'Cao')
+          .order('id', { ascending: true }),
         'COD_EXPORT_SOURCE_READ_FAILED', 'Không thể đọc snapshot đơn COD.'
       );
     },
