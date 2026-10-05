@@ -20,6 +20,26 @@ user can request non-raw assessment fields. Only a Dev Admin can add
 `include_evidence=true`; otherwise `evidence` is `null`. The underlying SMS and
 assessment tables have no direct `anon`/`authenticated` grants.
 
+## Score impact and role-based display
+
+`total_score` remains the SQL score for each order. A driver's SQL score is the
+maximum SQL score among the orders currently filtered into that driver group,
+not the sum. SMS AI scores are also aggregated by maximum and are never added
+to the SQL score or used to reorder drivers.
+
+The app's SQL alert thresholds are High >= 18, Medium >= 15, otherwise Low.
+When the highest valid `scored` SMS result reaches the configured threshold
+(default 1), the derived level rises one step: Low -> Medium or Medium -> High.
+High stays High. Regular-user alert filtering and the Sheet export use this
+derived level; hiding its badge does not change that behavior. Unavailable
+assessment/threshold data falls back to the SQL level.
+
+Dev and Admin roles see `SQL <score> điểm` on driver cards, numeric SQL scores alongside
+SMS AI scores in the order table, and the numeric SQL score in the SMS detail
+dialog. Regular users see neither SQL/SMS score badges nor an alert-level
+badge or column on driver cards and order tables. This is a display rule;
+existing API authorization and data access are unchanged.
+
 ## Environment
 
 Keep the feature disabled until the migration has been reviewed and applied by

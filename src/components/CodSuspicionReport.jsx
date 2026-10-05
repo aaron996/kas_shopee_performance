@@ -38,7 +38,6 @@ import {
   getCodSuspicionDriverKey,
   computeSuspicionKPIs,
   getAlertLevel,
-  getOrderEffectiveAlertLevel,
   aggregateOrdersByEndDeliveryDate,
   getCodSmsCaseKey,
   getSmsScoreBadge,
@@ -1359,7 +1358,7 @@ export default function CodSuspicionReport({
             const accordionKey = `${activeResolutionTab}:${driverKey}`;
             const isExpanded = expandedDrivers.has(accordionKey);
             const driverTypeColor = TYPE_COLORS[driver.suspicionType] || 'var(--ghn-orange)';
-            const driverAlertLevel = canViewCodAdvanced ? getAlertLevel(driver.maxScore) : driver.effectiveAlertLevel || getAlertLevel(driver.maxScore);
+            const driverAlertLevel = getAlertLevel(driver.maxScore);
 
             return (
               <div
@@ -1419,12 +1418,15 @@ export default function CodSuspicionReport({
 
                     <div className="cod-driver-primary">
                       <div className="cod-driver-name-row">
-                        <span
-                          className="cod-driver-alert"
-                          style={{ color: driverAlertLevel.color, background: driverAlertLevel.background }}
-                        >
-                          {driverAlertLevel.label}
-                        </span>
+                        {canViewCodAdvanced && (
+                          <span
+                            className="cod-driver-alert"
+                            style={{ color: driverAlertLevel.color, background: driverAlertLevel.background }}
+                            title="Điểm SQL cao nhất trong các đơn đang hiển thị; điểm SMS AI được giữ riêng, không cộng vào điểm SQL."
+                          >
+                            SQL {driver.orders.length ? `${driver.maxScore} điểm` : '—'}
+                          </span>
+                        )}
                         <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>
                           {driver.driverName}
                         </strong>
@@ -1562,9 +1564,9 @@ export default function CodSuspicionReport({
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700 }}>Tiền COD</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', fontWeight: 700 }}>Kho giao</th>
                             <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Ngày kết thúc</th>
-                            <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Mức độ cảnh báo</th>
                             {canViewCodAdvanced && (
                               <>
+                                <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SQL</th>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Điểm SMS (AI)</th>
                                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', fontWeight: 700 }}>Thao tác</th>
                               </>
@@ -1573,11 +1575,7 @@ export default function CodSuspicionReport({
                         </thead>
                         <tbody>
                           {driver.orders.map((order) => {
-                            const orderAlertLevel = canViewCodAdvanced
-                              ? getAlertLevel(order.totalScore)
-                              : smsThreshold === null
-                                ? getAlertLevel(order.totalScore)
-                                : getOrderEffectiveAlertLevel(order, smsAssessments, smsThreshold);
+                            const orderAlertLevel = getAlertLevel(order.totalScore);
                             const smsKey = getCodSmsCaseKey({
                               suspicionType: order.suspicionType,
                               driverId: order.driverId,
@@ -1621,23 +1619,22 @@ export default function CodSuspicionReport({
                                   {formatDateVN(order.endDeliveryDate)}
                                 </td>
 
-                                {/* Mức độ cảnh báo (SQL) */}
-                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  <span
-                                    style={{
-                                      fontWeight: 800,
-                                      padding: '0.2rem 0.5rem',
-                                      borderRadius: '6px',
-                                      background: orderAlertLevel.background,
-                                      color: orderAlertLevel.color
-                                    }}
-                                  >
-                                    {orderAlertLevel.label}
-                                  </span>
-                                </td>
-
                                 {canViewCodAdvanced && (
                                   <>
+                                    {/* Điểm SQL gốc, không cộng điểm SMS AI */}
+                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <span
+                                        style={{
+                                          fontWeight: 800,
+                                          padding: '0.2rem 0.5rem',
+                                          borderRadius: '6px',
+                                          background: orderAlertLevel.background,
+                                          color: orderAlertLevel.color
+                                        }}
+                                      >
+                                        {order.totalScore}
+                                      </span>
+                                    </td>
                                     {/* Điểm SMS (AI) */}
                                     <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                       <span className={`cod-sms-badge cod-sms-badge--${smsBadge.level}`}>
@@ -1824,12 +1821,12 @@ export default function CodSuspicionReport({
                   <span className="cod-sms-modal__meta-value">{formatCurrencyVND(smsDetailModal.order.codAmount)}</span>
                 </div>
                 <div className="cod-sms-modal__meta-item">
-                  <span className="cod-sms-modal__meta-label">Cảnh báo SQL</span>
+                  <span className="cod-sms-modal__meta-label">Điểm SQL</span>
                   <span
                     className="cod-sms-modal__meta-value"
                     style={{ color: getAlertLevel(smsDetailModal.order.totalScore).color, fontWeight: 700 }}
                   >
-                    {getAlertLevel(smsDetailModal.order.totalScore).label} ({smsDetailModal.order.totalScore}đ)
+                    {smsDetailModal.order.totalScore} điểm
                   </span>
                 </div>
               </div>

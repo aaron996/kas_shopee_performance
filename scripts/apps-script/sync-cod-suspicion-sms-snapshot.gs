@@ -45,7 +45,7 @@ const COD_SMS_REQUIRED_HEADERS = [
   'Nhiều đơn cùng lý do fail, cập nhật gần nhau (M16)', 'Điểm tổng nghi vấn',
   'TB thời lượng 1 cuộc gọi (giây)', 'TB thời lượng đổ chuông (giây)',
   'Số lượng call log (đơn này)', 'so_don_nghi_van_cua_tai_xe',
-  'rn_trong_tai_xe', 'tai_xe_dat_dieu_kien', 'Mức ưu tiên gọi xác minh',
+  'rn_trong_tai_xe', 'tai_xe_dat_dieu_kien', 'Mức nghi ngờ',
   'SMS - thời gian', 'SMS - loại người nhận', 'SMS - nội dung'
 ];
 
@@ -54,6 +54,13 @@ const COD_SMS_REQUIRED_HEADERS = [
 // "Tỉnh giao", so any of these spellings maps to the canonical header.
 const COD_SMS_PROVINCE_HEADER = 'To province';
 const COD_SMS_PROVINCE_HEADER_ALIASES = ['to province', 'to_province', 'toprovince', 'tỉnh giao'];
+
+// The source sheet renamed its priority column (currently AK). Resolve by
+// header, not position, and accept the previous SQL/export names too.
+const COD_SMS_PRIORITY_HEADER = 'Mức nghi ngờ';
+const COD_SMS_PRIORITY_HEADER_ALIASES = [
+  'mức nghi ngờ', 'mức ưu tiên xử lý', 'mức ưu tiên gọi xác minh'
+];
 
 // BI dropped this column from the current query. Read it when present so an
 // older export still fills driver_resignation_date, otherwise store null.
@@ -256,6 +263,7 @@ function buildGoiDauCodSmsSnapshot_() {
 
 function canonicalHeader_(header) {
   const normalized = header.toLowerCase().replace(/\s+/g, ' ');
+  if (COD_SMS_PRIORITY_HEADER_ALIASES.includes(normalized)) return COD_SMS_PRIORITY_HEADER;
   return COD_SMS_PROVINCE_HEADER_ALIASES.includes(normalized) ? COD_SMS_PROVINCE_HEADER : header;
 }
 
@@ -354,7 +362,7 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
       source['rn_trong_tai_xe'], 'rn_trong_tai_xe', sheetRowNumber, displaySource['rn_trong_tai_xe']
     ),
     driver_qualifies: booleanOrFalse_(source['tai_xe_dat_dieu_kien'], 'tai_xe_dat_dieu_kien', sheetRowNumber),
-    call_verification_priority: enumText_(source['Mức ưu tiên gọi xác minh'], ['Cao', 'Trung bình', 'Thấp'], 'Mức ưu tiên gọi xác minh', sheetRowNumber)
+    call_verification_priority: enumText_(source[COD_SMS_PRIORITY_HEADER], ['Cao', 'Trung bình', 'Thấp'], COD_SMS_PRIORITY_HEADER, sheetRowNumber)
   };
 }
 
