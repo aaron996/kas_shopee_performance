@@ -68,8 +68,7 @@ test('z is centred on the road and lanes are laneWidth apart', () => {
   assert.deepEqual([...byLane.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]), [-3, -1, 1, 3]);
 });
 
-test('trucks in the same lane keep a truck-length gap even with 200 trucks', () => {
-  const n = 200;
+for (const n of [200, 1167]) test(`trucks in the same lane keep a truck-length gap with ${n} trucks`, () => {
   const layout = computeSceneLayout(makeTrucks(n), { roadLength: getRoadLength(n) });
   const lanes = new Map();
   for (const t of layout) {
@@ -180,7 +179,7 @@ test('region layout: same-lane trucks never overlap when the road is long enough
 test('getRegionRoadLength: at least the staggered length, capped, and sane for n < 2', () => {
   assert.equal(getRegionRoadLength([]), MIN_ROAD_LENGTH);
   assert.equal(getRegionRoadLength([{ id: 'a', region: 'HNO' }]), MIN_ROAD_LENGTH);
-  const many = withRegions(300, () => 'HNO');
+  const many = withRegions(1000, () => 'HNO'); // would need ~4,100 units
   assert.equal(getRegionRoadLength(many), MAX_REGION_ROAD_LENGTH);
   const spread = withRegions(8, (i) => REGIONS[i % 4]);
   assert.ok(getRegionRoadLength(spread) >= getRoadLength(8));

@@ -12,7 +12,8 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | 1 | Cảnh 3D tĩnh: đường, làn, xe, camera toàn cảnh | Xong |
 | 2 | Tương tác: chọn xe, nhãn, camera bám xe, làn theo Vùng, bàn phím | Xong |
 | 3 | Replay D-8 → D-1 và chuyển cảnh khi đổi KPI/bộ lọc | Xong |
-| 4–5 | Hiệu năng, mobile, hoàn thiện | Chưa làm |
+| 4 | Hiệu năng, mobile, đường lui, tiếp cận | Xong |
+| 5 | Hoàn thiện hình ảnh và tài liệu | Chưa làm |
 
 ## Kiến trúc Sprint 0
 
@@ -21,7 +22,10 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | `PerformanceRoadRanking.jsx` | Giữ dữ liệu, KPI, bảng, panel chi tiết. Chọn cảnh theo `sceneMode` |
 | `RoadScene2D.jsx` | Cảnh SVG/CSS cũ, tách nguyên trạng. Props: `sceneTrucks`, `selectedHubId`, `onSelectHub`. Tự giữ ref và hiệu ứng cuộn tới xe đang chọn |
 | `RoadScene3D.jsx` | Cảnh 3D (react-three-fiber). Nạp bằng `React.lazy`, nằm trong chunk riêng. Nhận `sceneTrucks`, dựng canvas, ánh sáng, camera, nhãn checkpoint |
-| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `TruckFleet` (`InstancedMesh`, raycast, vòng lặp animation), `SelectionRing`, `LabelProjector` |
+| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `TruckFleet` (`InstancedMesh`, lớp chọn xe, vòng lặp animation), `SelectionRing`, `LabelProjector` (vẽ nhãn lên canvas 2D) |
+| `labelOverlay.js` | Đo và vẽ nhãn xe, nhãn checkpoint, nhãn làn, chip Replay lên canvas 2D phủ trên cảnh |
+| `utils/sceneLabelStyle.js` | Bảng màu nhãn + hàm tính độ tương phản WCAG (có test `sceneLabelStyle.test.mjs`) |
+| `SceneErrorBoundary.jsx` | Bắt lỗi tải chunk 3D / lỗi render để rơi về 2D |
 | `TruckTag.jsx` | Nhãn xe dùng chung cho 2D và 3D (`.prr-truck-tag*`) |
 | `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`, `computeReplayFrames`, `computeTransitionFrames`, easing. Có test `rankingSceneLayout.test.mjs` |
 | `utils/sceneCapability.js` | Hàm thuần: `detectWebGL2(createCanvas)`, `pickDefaultSceneMode(...)`. Có test `sceneCapability.test.mjs` |
@@ -148,11 +152,11 @@ dải đèn trên nóc cabin, màu lấy từ token `--status-success-fg` (đạ
 - 1 `hemisphereLight` + 1 `directionalLight`. Bóng đổ (PCF) chỉ bật khi ≤ 60 xe.
 - `frameloop="demand"`: đứng yên không tốn CPU/GPU, chỉ vẽ khi dữ liệu hoặc camera
   đổi.
-- Hai nhãn "Điểm tiếp nhận & điều phối" và "Mốc chuẩn SLA" là DOM phủ lên canvas,
-  toạ độ tính bằng `LabelProjector` (chiếu điểm 3D sang màn hình trong `useFrame`).
-  Không dùng drei `<Html>`: nó tạo một React root cho mỗi nhãn và báo lỗi
-  "synchronously unmount a root" trên React 19. Nhãn Hub ở Sprint 2 cũng đi qua
-  đường này.
+- Nhãn (hai checkpoint, nhãn xe, nhãn làn, chip Replay) được vẽ lên một **canvas 2D** đặt
+  chồng trên canvas WebGL; toạ độ tính bằng `LabelProjector` (chiếu điểm 3D sang màn hình
+  trong `useFrame`). Không dùng drei `<Html>`: nó tạo một React root cho mỗi nhãn và báo lỗi
+  "synchronously unmount a root" trên React 19. Từ Sprint 4 cũng không dùng DOM di chuyển mỗi
+  khung hình, xem mục "Hiệu năng" bên dưới.
 - Trạng thái rỗng dùng lại `.prr-scene-empty` của component cha.
 
 ### Ảnh chụp
@@ -190,10 +194,11 @@ Esc bỏ chọn, đổi KPI thì bỏ chọn, nút "Mở chi tiết Hub" gọi `
 
 ### Nhãn xe
 
-Nhãn là DOM phủ lên canvas, dùng chung `TruckTag` với cảnh 2D: `#hạng`, tên Hub,
-KPI D-1 (1 chữ số thập phân), `deltaRank` (`+n`/`-n`, "Mới" khi
-`hasCommonBaseline === false`), dấu `!` khi `isSmallSample`. Nhãn hiện cho Top
-10, xe đang chọn và xe đang hover. `LabelProjector` quyết định mỗi khung hình:
+Nhãn mang nội dung giống nhãn 2D (`TruckTag`): `#hạng`, tên Hub, KPI D-1 (1 chữ số thập phân),
+`deltaRank` (`+n`/`-n`, "Mới" khi `hasCommonBaseline === false`), dấu `!` khi `isSmallSample`,
+viền trên xanh/đỏ theo đạt mục tiêu. Từ Sprint 4 chúng được vẽ bằng canvas 2D (`labelOverlay.js`)
+chứ không còn là DOM `.prr-truck-tag*`; cảnh 2D vẫn dùng `TruckTag`. Nhãn hiện cho Top 10, xe đang
+chọn và xe đang hover. `LabelProjector` quyết định mỗi khung hình:
 
 1. Ẩn nhãn nằm sau camera.
 2. Ẩn nhãn của xe ở xa camera (Top 10 thường, không áp dụng cho xe chọn/hover):
@@ -290,8 +295,9 @@ nên Replay khớp với bảng:
 ### Hiển thị
 
 - Thời lượng 3 giây, easing `easeInOutCubic`.
-- Chip ở giữa phía trên: `D-8 <ngày> ▬▬▬ D-1 <ngày>` với thanh tiến độ. Ngày đang "hiện hành"
-  sáng lên, ngày còn lại mờ đi (đổi ở nửa thời gian).
+- Chip ở giữa phía trên (vẽ trên canvas 2D): `D-8 <ngày> ▬▬▬ D-1 <ngày>` với thanh tiến độ. Ngày
+  đang "hiện hành" sáng, ngày còn lại mờ (đổi ở nửa thời gian). Vùng `aria-live` đọc "Đang chạy
+  Replay D-8 … sang D-1 …".
 - 2 giây cuối: mũi tên (nón) xanh/đỏ nhấp nhô trên nóc các xe đã đổi hạng.
 - Lần đầu mở 3D trong một lần tải trang: tự chạy Replay một lần (cờ `autoReplayDone` trong
   module nên chuyển 2D ↔ 3D không chạy lại). Không tự chạy khi `prefers-reduced-motion`,
@@ -305,8 +311,9 @@ vị trí từ `positionsRef` nên bám theo xe đang chạy. Khi chuyển độ
 `invalidate()` và cảnh về `frameloop="demand"`.
 
 Độ mờ từng xe: `MeshStandardMaterial`/`MeshBasicMaterial` được vá bằng `onBeforeCompile` để
-nhân alpha với thuộc tính instance `instanceAlpha`; `material.transparent` chỉ bật trong lúc
-có xe đang mờ.
+nhân alpha với thuộc tính instance `instanceAlpha`. Material để `transparent` ngay từ đầu: đổi
+`transparent` lúc chạy làm three đổi khoá chương trình (define `OPAQUE`) và biên dịch lại bộ
+shader đúng lúc Replay bắt đầu làm mờ xe; alpha = 1 thì cho kết quả như vật liệu đặc.
 
 ## Chuyển cảnh khi đổi KPI / bộ lọc
 
@@ -336,3 +343,171 @@ mũi tên xuất hiện từ ~1 giây; Hub "Mới" mờ gần cổng tiếp nh�
 
 Chưa đo: chi phí mỗi khung hình khi Replay với vài trăm xe (ghi 11 ma trận × số xe mỗi khung);
 sẽ đo ở Sprint 4.
+
+## Hiệu năng, mobile, đường lui, tiếp cận (Sprint 4)
+
+### Đo hiệu năng
+
+**Quy mô thật.** Truy vấn đếm (chỉ đếm, không đọc số liệu) trên `kas_pick_data`, ngày D-1
+`2026-10-04`: **1.167 Hub** có dữ liệu D-1 (1.493 Hub nếu tính mọi ngày), 14 Vùng có tên và một
+nhóm không có Vùng. Phân bố theo Vùng lấy từ truy vấn này. Số liệu KPI không đọc từ DB nên **bộ
+đo dùng dữ liệu tổng hợp** có đúng 1.167 Hub, đúng phân bố Vùng và Loại Hub `BC`, thêm khoảng 1/9
+Hub không có D-8 để có Hub "Mới". Chế độ "Tất cả" vì vậy có **1.167 xe**, không phải "vài trăm"
+như plan giả định; Top 20 là 20 xe.
+
+**Cách đo.** Playwright + Chrome 1 cửa sổ 1440×900 (mobile: 375×812, DPR 3, cảm ứng). Chạy trên
+bản build production (`vite build` + `vite preview`, có vá tạm đường đăng nhập local và handle đo
+`window.__ranking3d` chỉ để đo; không commit). FPS lấy từ bộ đếm `requestAnimationFrame` trong
+trang: (a) kéo xoay camera liên tục 3 giây, (b) 3 giây Replay. GPU thật là NVIDIA RTX 3050 Laptop;
+"không GPU" = WebGL bằng CPU (SwiftShader), gần với máy văn phòng không card rời nhưng
+thường vẫn nhanh hơn máy yếu thật; "CPU ×4" = `Emulation.setCPUThrottlingRate(4)`.
+**Đây là máy phát triển, không phải máy ở hub; con số tuyệt đối không thay được phép đo trên máy
+thật.** `1% thấp` = fps của 1% khung chậm nhất.
+
+| Cấu hình | Số xe | Xoay camera (TB / 1% thấp) | Replay (TB / 1% thấp, khung dài nhất) |
+|---|---|---|---|
+| Desktop, GPU thật | 20 | 119 / 79 fps | 112 / 15 fps, 133 ms |
+| Desktop, GPU thật | 1.167 | 119 / 60 fps | 91 / 6 fps, 266 ms |
+| Desktop, GPU thật, CPU ×4 | 20 | 81 / 16 fps | 23 / 1 fps, 1.200 ms |
+| Desktop, GPU thật, CPU ×4 | 1.167 | 78 / 11 fps | 22 / 1 fps, 1.475 ms |
+| Desktop, không GPU (SwiftShader) | 20 | 56 / 10 fps | 19 / 4 fps, 236 ms |
+| Desktop, không GPU (SwiftShader) | 1.167 | 15 / 3 fps | 5 / 3 fps, 382 ms |
+| Mobile 375×812, CPU ×4 | 20 | 80 / 20 fps | 31 / 1 fps, 1.209 ms |
+| Mobile 375×812, CPU ×4 | 1.167 | 85 / 28 fps | 17 / 1 fps, 1.092 ms |
+
+Nhận xét:
+
+- Bản đo đầu tiên (trước tối ưu, build dev) với 1.167 xe và GPU thật: xoay 70 fps (1% thấp 10 fps),
+  Replay 46 fps (1% thấp 7 fps); mô phỏng CPU ×4: xoay 30 fps, Replay 9 fps; không GPU: xoay 4 fps.
+  Sau tối ưu: xoay ổn định ≥ 78 fps ở mọi cấu hình có GPU, kể cả CPU ×4.
+- **Khung rất dài (~1 giây ở CPU ×4) trong Replay là một lần vẽ lại cả trang**, xảy ra khi bấm
+  nút và khi kết thúc (nút đổi trạng thái, vùng `aria-live` đổi chữ). Trang có bảng ~1.200 dòng nên
+  mỗi thay đổi DOM nhìn thấy được tốn ~45 ms thật (×4 = ~180 ms) cho lần vẽ lại, bất kể thay đổi
+  nhỏ cỡ nào. Trong lúc chạy, khung hình 7–21 ms thật. Ở GPU thật, CPU ×1 hitch chỉ ~120–270 ms.
+- Không GPU với "Tất cả" (1.167 xe, ~320 nghìn tam giác) vẫn chậm (15 fps xoay, 5 fps Replay):
+  fill-rate phần mềm. Quy tắc chọn chế độ mặc định của plan (3D khi `hardwareConcurrency > 4`)
+  và công tắc 2D/3D là đường lui; với máy không GPU nên dùng Top 10/20.
+- Bộ nhớ GPU ước tính (công thức bên dưới): ~5 MB không đổ bóng, ~21 MB có bóng (Top ≤ 60 xe, desktop).
+  Bộ nhớ JS sau khi vào BXH: 21 MB (20 xe) / 29 MB (1.167 xe) ở build production.
+
+**Bộ nhớ GPU ước tính.** Bộ đệm instance: mỗi xe ~12 bộ phận × 64 B ma trận + 2 bộ phận × 12 B màu
++ 11 × 4 B độ mờ ≈ 0,84 KB → 1.167 xe ≈ 1 MB; hình học: 24 geometry nhỏ (< 0,1 MB); khung hình: 1094×338×4 B
+×(màu + độ sâu) ≈ 3 MB ở DPR 1 (mobile DPR ≤ 1,25: ~1 MB); bản đồ bóng 2048² độ sâu 32 bit = 16 MB
+(chỉ khi ≤ 60 xe, không phải mobile, chưa tụt chất lượng). `renderer.info`: 24 geometry, 3 texture,
+8–13 chương trình shader, 19–34 draw call (gồm lượt vẽ bóng), 5,7 nghìn / 321 nghìn tam giác (20 / 1.167 xe).
+
+**Thời gian từ lúc mở tab tới lúc thấy xe** (build production, CPU ×1, 1.167 Hub, từ lúc bấm nút
+"BXH Performance"): khoảng **3,5 giây** ở 3D so với ~2,0 giây ở 2D. Trong 3D: ~0,8 giây tới khi
+thẻ cảnh và bảng có mặt; ~1,1 giây là render trang (xếp hạng + bảng 1.167 dòng, có cả ở 2D);
+phần còn lại ~1,5 giây là nạp chunk 3D (957 kB, ~321 ms mạng), tạo ngữ cảnh WebGL, biên dịch shader
+và khung hình đầu. Ở CPU ×4 tổng là ~36 giây (2D: ~9–10 giây). Điểm yếu của 3D là lần mở đầu trên
+CPU chậm; máy ≤ 4 nhân mặc định 2D nên không gặp, và máy mạnh chỉ mất thêm ~1,5 giây.
+
+### Điều đã tối ưu (và vì sao)
+
+Nút thắt thật không nằm ở three.js. Cắt dần từng thành phần (tắt riêng bóng, nhãn, raycast, rồi
+vài tổ hợp) cho thấy: chạy cùng lúc **nhãn DOM di chuyển mỗi khung hình** và **bảng 1.167 dòng**
+làm trình duyệt vẽ lại toàn bộ trang (một lần `Paint` của cả tài liệu 1440×4900 px, ~170 ms thật)
+cho từng khung hình. Chỉ cần một `<div>` đổi `transform` phía trên canvas cũng đủ gây ra (thử riêng
+một div đơn lẻ: 9,7 fps ở CPU ×4); đặt `contain`, `will-change`, bỏ `backdrop-filter`, đổi
+`visibility` sang `opacity` đều không đổi kết quả.
+
+| Thay đổi | Lý do | Tác dụng đo được (CPU ×4, Top 20, kéo xoay) |
+|---|---|---|
+| Vẽ nhãn lên canvas 2D thay vì DOM | Bỏ thay đổi DOM theo khung hình | 3 → 71 fps (CPU ×1: 34 → 118 fps) |
+| Chọn xe bằng một lớp "pick" riêng (ray–hộp theo từng xe, không phải `InstancedMesh.raycast`) | `InstancedMesh.raycast` của three thử bounding-sphere và tam giác cho từng thể hiện của 11 mesh (~13.000 phép thử mỗi lần di chuột với 1.167 xe) | Bỏ ~55 ms/3 giây khỏi hồ sơ CPU; chọn vẫn đúng (kiểm thử tương tác) |
+| Không cập nhật hover khi đang giữ nút chuột | Kéo xoay quét qua nhiều xe gây render lại React liên tục | 4 → 7 fps (trước khi vẽ nhãn bằng canvas) |
+| Đo kích thước nhãn một lần (không đọc `offsetWidth` mỗi khung), chỉ ghi style khi đổi | Tránh ép layout cả tài liệu mỗi khung hình | Giảm, kết hợp các mục trên |
+| `shadowMap.autoUpdate = false`, chỉ cập nhật khi xe đổi chỗ | Đèn đứng yên nên bản đồ bóng không cần vẽ lại khi chỉ xoay camera | Bỏ 1 lượt vẽ bóng/khung khi xoay |
+| Chip Replay vẽ trên canvas 2D (không còn CSS animation DOM) | CSS animation DOM cũng gây vẽ lại cả trang mỗi khung | Replay 33 → 61 fps (GPU thật, 20 xe, build dev) |
+| Bộ giám sát chất lượng tự viết (xem dưới) thay cho `PerformanceMonitor` của drei | `PerformanceMonitor` đo giữa các khung *được vẽ*, nên với `frameloop="demand"` mọi khoảng nghỉ đều bị tính là chậm | Không dùng drei `PerformanceMonitor` |
+| Material `transparent` ngay từ đầu | Tránh biên dịch lại shader khi Replay bắt đầu | Không còn bước biên dịch giữa chừng |
+| Đường 4 làn dài tối đa 1.400 đơn vị (trước 320) | 1.167 xe chồng lên nhau ở 320; 1.400 đủ để hai xe cùng làn không đè | Có test cho 1.167 xe |
+
+**Bộ giám sát chất lượng thích ứng.** Khi một lần Replay có tốc độ khung *trung vị* dưới 30 fps (bỏ
+6 khung đầu; cần ≥ 12 khung) **hai lần liên tiếp**, cảnh tụt xuống bậc thấp: tắt bóng đổ và DPR
+0,8. Chỉ tính Replay, vì chuyển cảnh theo sau đổi KPI/bộ lọc bị chính việc xếp hạng lại + bảng
+1.167 dòng làm đói khung. Một Replay nhanh đặt lại bộ đếm. Chưa có đường lên lại bậc cao trong một
+lần xem. Bậc thấp cũng áp dụng sẵn trên thiết bị cảm ứng / màn hình ≤ 768 px (không bóng, DPR ≤ 1,25).
+
+**Bóng đổ**: bật khi ≤ 60 xe, không phải mobile, bậc cao. **Gộp geometry tĩnh**: chưa làm, vì tổng
+draw call chỉ 19–34 (đường, vạch kẻ, cổng, 11 bộ phận xe, mũi tên, vòng chọn) và không phải nút thắt.
+
+### Mobile
+
+- Chiều cao cảnh `clamp(280px, 58dvh, 400px)` trên màn hình ≤ 640 px (400 px / 812 px khi đo).
+- Chạm: kéo một ngón theo chiều ngang để xoay, hai ngón chụm/mở để zoom, chạm xe để chọn.
+- **Cuộn trang không bị canvas giữ lại.** `OrbitControls` đặt `touch-action: none` trên canvas, và
+  react-three-fiber đặt tương tự trên khối bọc canvas; một cảnh cao 400 px sẽ nuốt mọi cú vuốt dọc.
+  CSS `.prr-scene3d canvas, .prr-scene3d > div { touch-action: pan-y !important }` (cần `!important` để
+  thắng style inline) cho phép vuốt dọc cuộn trang; kéo ngang vẫn xoay và chụm vẫn zoom. Kiểm bằng
+  sự kiện chạm CDP: vuốt dọc bắt đầu trên canvas làm trang cuộn (`scrollY` 487 → 759), kéo ngang làm
+  camera xoay và trang không cuộn, chụm làm camera đến gần (65,5 → 26,6).
+- Nhãn thu gọn khi canvas rộng < 560 px: bỏ chip `+n/Mới/!`, chữ nhỏ hơn, tên tối đa ~64 px; nút điều
+  khiển xuống dưới bên trái, chữ nhỏ hơn, bỏ dòng chú thích dài (còn liên kết "Xem dạng bảng").
+- Mặc định 2D/3D vẫn theo quy tắc ở mục 2 của plan (`hardwareConcurrency > 4`), nên nhiều điện thoại
+  mạnh sẽ mở thẳng 3D. Chưa thử trên điện thoại thật (chỉ mô phỏng).
+
+### Đường lui
+
+| Sự cố | Hành vi | Kiểm |
+|---|---|---|
+| Không có WebGL2 | Nút 3D bị khoá + tooltip, luôn 2D | Có (chặn `getContext('webgl2')`) |
+| Mất ngữ cảnh WebGL (`webglcontextlost`) | Tự chuyển 2D + toast "Trình duyệt đã dừng đồ hoạ 3D…"; **không** ghi đè lựa chọn đã lưu; chọn 3D lại tạo ngữ cảnh mới | Có (`WEBGL_lose_context`) |
+| Lỗi tải chunk 3D / lỗi render | `SceneErrorBoundary` chuyển 2D + toast "…Tải lại trang để thử 3D lần nữa" (import động lỗi bị trình duyệt nhớ nên thử lại cần tải lại trang) | Có (chặn request chunk) |
+| Tab trình duyệt bị ẩn | Trình duyệt dừng `requestAnimationFrame` nên không vẽ gì; vòng lặp `demand` không tự chạy nên không tốn CPU/GPU. Replay dùng `performance.now()` nên khi quay lại chỉ nhảy tới đích | Dựa trên hành vi trình duyệt, không đo riêng |
+
+Trình nghe `webglcontextlost` được tháo khi cảnh unmount, nên việc nhả ngữ cảnh có chủ đích khi rời
+tab không bị tính là sự cố.
+
+### Tiếp cận
+
+- `<canvas>` có `role="img"` và `aria-label` tóm tắt: KPI + mục tiêu, số Hub, số Hub đạt mục tiêu,
+  3 Hub dẫn đầu, trỏ tới bảng đối soát. Khung bọc (`role="group"`, `tabIndex=0`) mang nhãn hướng dẫn phím.
+- Nút "Xem dạng bảng" (cuối cảnh) cuộn tới và đưa focus vào bảng đối soát.
+- Độ tương phản (WCAG 2.x, ngưỡng AA 4,5:1 cho chữ nhỏ, 3:1 cho viền/biểu tượng). Nhãn vẽ trên nền
+  tối ở cả hai theme nên một bảng màu (`sceneLabelStyle.js`) phủ cả hai; test kiểm: chữ hạng/tên/KPI trên
+  nhãn, chip `+n`, `-n`, `Mới`, `!`, nhãn checkpoint, nhãn làn đều ≥ 4,5:1, viền trạng thái ≥ 3:1. Nút điều
+  khiển (đo từ style tính toán, hai theme):
+
+  | Thành phần | Sáng | Tối |
+  |---|---|---|
+  | Tuỳ chọn không chọn của nút phân đoạn trong cảnh | 13,6 | 8,4 |
+  | Tuỳ chọn đang chọn / nút Replay | 14,6 | 11,9 |
+  | Chú thích và liên kết "Xem dạng bảng" | 12,0 / 10,7 | 12,0 / 10,7 |
+
+  **Phát hiện có sẵn từ trước:** tuỳ chọn không chọn của `.prr-segmented-limit .seg-btn` (màu
+  `--text-secondary` trên `--surface-subtle`) chỉ đạt 4,42:1 (sáng) và 4,04:1 (tối), dưới AA. Mình chỉ
+  sửa trong cảnh 3D (dùng `--text-primary`); thanh công cụ chung (2D/3D, Top 10/20/Tất cả) giữ nguyên để
+  không đổi giao diện 2D.
+- Nhãn vẽ trên canvas là trang trí (số liệu đầy đủ có ở bảng); lựa chọn Hub và Replay được thông báo qua
+  vùng `aria-live`.
+
+### Giải phóng tài nguyên
+
+Rời module BXH thì cảnh bị gỡ (module không `keepMounted`) và react-three-fiber giải phóng bộ
+vẽ (`forceContextLoss`). Hình học tự tạo (xe, mũi tên) được `dispose()` trong cleanup. Kiểm tra vào/ra
+BXH 6 lần liên tiếp (5 lần quay lại): mọi ngữ cảnh WebGL cũ đều ở trạng thái đã mất (5/5), mỗi bộ vẽ
+luôn 24 geometry và 3 texture, số chương trình không tăng, DOM luôn đúng 1 cặp canvas.
+
+**Phát hiện, chưa xử lý:** bộ nhớ JS tăng ~6–7 MB mỗi lần quay lại BXH (102 → 135 MB sau 5 lần ở
+build dev). **Chế độ 2D tăng cùng mức (63 → 94 MB, ~6,3 MB/lần)**, tức không do WebGL mà do chính
+module trang BXH (bảng 1.167 dòng, dữ liệu xếp hạng) giữ lại bộ nhớ sau khi unmount. Chưa tìm
+nguyên nhân gốc (có thể chỉ là hiện tượng của React dev); nên theo dõi riêng nếu người dùng mở/đóng tab
+BXH nhiều lần.
+
+### Hạn chế đã biết
+
+- Bảng 1.167 dòng là nguyên nhân chính khiến mọi thay đổi DOM trên trang tốn một lần vẽ lại cả trang;
+  ảo hoá bảng (hoặc phân trang) sẽ cải thiện cả 2D lẫn 3D, nằm ngoài phạm vi sprint này.
+- Lần mở 3D đầu tiên trên CPU chậm tốn nhiều giây (xem trên).
+- "Tất cả" với 1.167 xe: mỗi xe chỉ vài điểm ảnh ở toàn cảnh; dùng zoom/bám xe và bảng.
+- Chưa có đường lên lại chất lượng cao sau khi đã tụt bậc trong một lần xem.
+
+### Kiểm tra Sprint 4
+
+Playwright + Chrome (GPU thật) trên dữ liệu tổng hợp 1.167 Hub: bộ kiểm tra tương tác Sprint 2 (chọn, hover,
+bàn phím, làn theo Vùng, "Tất cả") và bộ kiểm tra Replay/chuyển cảnh Sprint 3 chạy lại, đạt hết; bộ kiểm
+tra Sprint 4 (đường lui, rò tài nguyên, chạm/mobile) đạt hết trừ mục bộ nhớ JS nêu trên.
+Ảnh: `docs/evidence/ranking-3d-sprint4/` (desktop sáng/tối, "Tất cả" 1.167 xe, làn theo Vùng, mobile
+sáng/tối, cảnh mobile).

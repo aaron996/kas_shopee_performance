@@ -27,6 +27,8 @@ import {
 } from '../../utils/sceneCapability.js';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import RoadScene2D from './RoadScene2D.jsx';
+import SceneErrorBoundary from './SceneErrorBoundary.jsx';
+import { useToast } from '../../components/ui/Toast.jsx';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
@@ -71,9 +73,11 @@ export default function PerformanceRoadRanking({
   const [searchFilter, setSearchFilter] = useState('');
   const [webgl2] = useState(detectWebGL2InBrowser);
   const [sceneMode, setSceneMode] = useState(() => getInitialSceneMode(webgl2));
+  const showToast = useToast();
 
   const tableRowRefs = useRef(new Map());
   const insightPanelRef = useRef(null);
+  const tableCardRef = useRef(null);
 
   // Calculate ranking contract
   const rankingData = useMemo(() => {
@@ -150,6 +154,26 @@ export default function PerformanceRoadRanking({
   // Select / deselect a Hub by composite ID
   const handleSelectHub = useCallback((hubId) => {
     setSelectedHubId(prev => (prev === hubId ? null : hubId));
+  }, []);
+
+  // 3D failed (chunk did not load, render error, WebGL context lost): show 2D for this visit only.
+  // The saved preference is left alone so a transient failure does not pin the user to 2D.
+  const handleSceneFailure = useCallback((reason) => {
+    setSceneMode('2d');
+    showToast(
+      reason === 'context-lost'
+        ? 'Trình duyệt đã dừng đồ hoạ 3D nên cảnh được chuyển sang 2D. Chọn 3D để thử lại.'
+        : 'Không hiển thị được cảnh 3D nên cảnh được chuyển sang 2D. Tải lại trang để thử 3D lần nữa.',
+      { tone: 'warning', duration: 7000 }
+    );
+  }, [showToast]);
+
+  const handleViewTable = useCallback(() => {
+    const table = tableCardRef.current;
+    if (!table) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    table.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    table.focus({ preventScroll: true });
   }, []);
 
   // Enter on the 3D scene: bring the selected Hub's detail panel into view and focus it.
@@ -370,16 +394,22 @@ export default function PerformanceRoadRanking({
           </div>
         ) : (
           sceneMode === '3d' ? (
+            <SceneErrorBoundary onError={() => handleSceneFailure('load')}>
             <Suspense fallback={<LoadingScreen variant="block" />}>
               <RoadScene3D
                 sceneTrucks={sceneTrucks}
                 selectedHubId={selectedHubId}
                 onSelectHub={handleSelectHub}
                 onOpenDetail={handleOpenDetail}
+                onViewTable={handleViewTable}
+                onContextLost={() => handleSceneFailure('context-lost')}
+                metricLabel={metricLabel}
+                target={target}
                 d1Label={d1Formatted}
                 d8Label={d8Formatted || ''}
               />
             </Suspense>
+            </SceneErrorBoundary>
           ) : (
             <RoadScene2D
               sceneTrucks={sceneTrucks}
@@ -524,7 +554,7 @@ export default function PerformanceRoadRanking({
       )}
 
       {/* 4. Full Audit & Verification Table Section */}
-      <section className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
+      <section ref={tableCardRef} tabIndex={-1} className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
         <div className="prr-table-toolbar">
           <div className="table-toolbar-left">
             <h2 className="table-toolbar-title">Bảng Đối Soát Thứ Hạng Vận Hành</h2>

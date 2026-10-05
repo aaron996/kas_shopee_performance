@@ -22,7 +22,6 @@ import {
   TruckFleet,
   SHADOW_MAX_TRUCKS
 } from './roadScene3dParts.jsx';
-import TruckTag from './TruckTag.jsx';
 
 // Loaded via React.lazy so three stays out of the 2D path.
 const SCENE_BG = '#0f172a';
@@ -35,6 +34,9 @@ const START_COLOR = '#38bdf8';
 const SLA_COLOR = '#f59e0b';
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
 const FOLLOW_OFFSET = new THREE.Vector3(-3.5, 5, 9); // camera offset from the followed truck
+const QUALITY_MIN_FPS = 30; // median fps of a replay/transition below this counts as slow
+const QUALITY_STRIKES = 2; // slow motions in a row before dropping to the low tier
+const QUALITY_MIN_FRAMES = 12;
 const FLIGHT_SPEED = 6; // exponential smoothing rate of the camera flight
 
 // Auto-play the replay once per page load (not on every 2D/3D switch).
@@ -78,6 +80,39 @@ function useReducedMotion() {
     return () => query.removeEventListener('change', onChange);
   }, []);
   return reduced;
+}
+
+// Phones and tablets: no shadows and a lower pixel-ratio cap.
+function useCompactDevice() {
+  const [compact] = useState(() => window.matchMedia('(pointer: coarse), (max-width: 768px)').matches);
+  return compact;
+}
+
+/** Reports WebGL context loss (GPU reset, driver crash, too many contexts) to the parent. */
+function ContextWatcher({ onLost }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const handler = (event) => {
+      event.preventDefault();
+      onLost();
+    };
+    canvas.addEventListener('webglcontextlost', handler);
+    // removed on unmount, so the deliberate context release of a normal unmount does not count
+    return () => canvas.removeEventListener('webglcontextlost', handler);
+  }, [gl, onLost]);
+  return null;
+}
+
+/** Gives the <canvas> itself an accessible name (role=img). */
+function CanvasSetup({ label }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    const canvas = gl.domElement;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', label);
+  }, [gl, label]);
+  return null;
 }
 
 /**
@@ -179,7 +214,10 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
   );
 }
 
-export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, onSelectHub, onOpenDetail, d1Label = '', d8Label = '' }) {
+export default function RoadScene3D({
+  sceneTrucks = [], selectedHubId = null, onSelectHub, onOpenDetail, onViewTable, onContextLost,
+  d1Label = '', d8Label = '', metricLabel = '', target = null
+}) {
   const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
@@ -199,7 +237,30 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
   const laneCount = regionLanes ? Math.max(1, regionLanes.lanes.length) : STAGGER_LANE_COUNT;
   const roadLength = regionMode ? getRegionRoadLength(sceneTrucks) : getRoadLength(count);
   const roadWidth = laneCount * LANE_WIDTH + 0.6;
-  const shadowsOn = count <= SHADOW_MAX_TRUCKS;
+  const compact = useCompactDevice();
+  // Adaptive quality: a motion that ran under QUALITY_MIN_FPS drops to the low tier for good.
+  const [quality, setQuality] = useState('high');
+  const lowQuality = quality === 'low';
+  const shadowsOn = count <= SHADOW_MAX_TRUCKS && !compact && !lowQuality;
+  const dprRange = lowQuality ? 0.8 : [1, compact ? 1.25 : 1.5];
+  // One slow motion can be a hiccup (tab in background, first shader compile), so the tier only
+  // drops after QUALITY_STRIKES slow motions in a row; a good one resets the count.
+  const slowStrikes = useRef(0);
+  const handleMotionStats = useCallback((stats) => {
+    if (import.meta.env.DEV) {
+      const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
+      (handle.motionStats = handle.motionStats || []).push({ ...stats });
+    }
+    // Transitions follow a KPI/filter change, whose React work (re-ranking, ~1,000-row table) starves
+    // the frames for reasons unrelated to the scene; only replays say anything about 3D speed.
+    if (stats.kind !== 'replay' || stats.frames < QUALITY_MIN_FRAMES) return;
+    if (stats.avgFps >= QUALITY_MIN_FPS) {
+      slowStrikes.current = 0;
+      return;
+    }
+    slowStrikes.current += 1;
+    if (slowStrikes.current >= QUALITY_STRIKES) setQuality('low');
+  }, []);
 
   const trucks = useMemo(() => {
     const layout = computeSceneLayout(sceneTrucks, { roadLength, laneCount, laneWidth: LANE_WIDTH, laneMode });
@@ -244,15 +305,8 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
   }, []);
 
   const positionsRef = useRef(new Map());
-  const badgeRef = useRef(null);
-  const handleProgress = useCallback((t) => {
-    const badge = badgeRef.current;
-    if (!badge) return;
-    if (t == null) return;
-    badge.style.setProperty('--replay-progress', String(t));
-    badge.dataset.phase = t < 0.5 ? 'from' : 'to';
-  }, []);
-
+  const replayRef = useRef({ active: false, t: 0 });
+  const replayLabels = useMemo(() => ({ from: `D-8 ${d8Label}`, to: `D-1 ${d1Label}` }), [d8Label, d1Label]);
   const fleetItems = scene.motion ? scene.motion.items : scene.trucks;
 
   const selectedTruck = useMemo(() => trucks.find((t) => t.id === selectedHubId) || null, [trucks, selectedHubId]);
@@ -261,8 +315,8 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
   const startX = (START_GATE_FRACTION - 0.5) * roadLength;
   const slaX = (SLA_FRACTION - 0.5) * roadLength;
 
-  // HTML labels over the canvas, positioned by LabelProjector.
-  const labelRefs = useRef(new Map());
+  // Labels drawn on the 2D overlay canvas by LabelProjector.
+  const overlayRef = useRef(null);
   const labels = useMemo(() => {
     const list = [
       {
@@ -270,14 +324,14 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
         position: [startX, 4.3, 0],
         anchor: 'center',
         priority: 60,
-        content: <div className="prr-3d-checkpoint" style={{ borderColor: START_COLOR }}>Điểm tiếp nhận &amp; điều phối</div>
+        spec: { kind: 'pill', text: 'Điểm tiếp nhận & điều phối', color: START_COLOR }
       },
       {
         key: 'sla',
         position: [slaX, 4.3, 0],
         anchor: 'center',
         priority: 60,
-        content: <div className="prr-3d-checkpoint" style={{ borderColor: SLA_COLOR }}>Mốc chuẩn SLA</div>
+        spec: { kind: 'pill', text: 'Mốc chuẩn SLA', color: SLA_COLOR }
       }
     ];
     if (regionLanes) {
@@ -287,7 +341,7 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
           position: [-roadLength / 2 + 0.6, 0.4, (i - (laneCount - 1) / 2) * LANE_WIDTH],
           anchor: 'center',
           priority: 65,
-          content: <div className="prr-3d-lane-label">{lane.label}</div>
+          spec: { kind: 'lane', text: lane.label }
         });
       });
     }
@@ -295,6 +349,12 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
       const isSelected = truck.id === selectedHubId;
       const isHovered = truck.id === hoveredId;
       if (idx >= TAGGED_TOP_N && !isSelected && !isHovered) return;
+      const item = truck.item;
+      let delta = null;
+      if (item.hasCommonBaseline === false) delta = { text: 'Mới', tone: 'none' };
+      else if (item.deltaRank !== null && item.deltaRank !== 0) {
+        delta = { text: item.deltaRank > 0 ? `+${item.deltaRank}` : String(item.deltaRank), tone: item.deltaRank > 0 ? 'up' : 'down' };
+      }
       list.push({
         key: `tag-${truck.id}`,
         position: [truck.x, 2.1, truck.z],
@@ -303,8 +363,16 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
         anchor: 'above',
         priority: isHovered ? 100 : isSelected ? 90 : 70 - idx * 0.1,
         nearOnly: !isSelected && !isHovered,
-        className: isHovered ? 'is-hover' : isSelected ? 'is-selected' : '',
-        content: <TruckTag item={truck.item} className="prr-truck-tag--3d" />
+        spec: {
+          kind: 'tag',
+          rank: item.rank,
+          name: item.displayName || item.hub,
+          kpi: `${item.kpiD1.toFixed(1)}%`,
+          good: Boolean(item.meetsTarget),
+          delta,
+          warn: Boolean(item.isSmallSample),
+          state: isHovered ? 'hover' : isSelected ? 'selected' : 'rest'
+        }
       });
     });
     return list;
@@ -334,8 +402,15 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
     }
   };
 
+  const handleContextLost = useCallback(() => {
+    if (typeof onContextLost === 'function') onContextLost();
+  }, [onContextLost]);
+
   const top3 = sceneTrucks.slice(0, 3).map((t) => `${t.displayName || t.hub} (hạng ${t.rank})`).join(', ');
-  const ariaLabel = `Cảnh 3D tuyến đường xếp hạng, ${count} Hub${top3 ? `, dẫn đầu: ${top3}` : ''}. Phím mũi tên trái phải để chuyển Hub, Enter để mở chi tiết. Số liệu chính xác xem ở bảng đối soát bên dưới.`;
+  const meetCount = sceneTrucks.filter((t) => t.meetsTarget).length;
+  const kpiPart = metricLabel ? `${metricLabel}${target != null ? `, mục tiêu ${target}%` : ''}: ` : '';
+  const canvasLabel = `${kpiPart}${count} Hub trên đường, ${meetCount} đạt mục tiêu${top3 ? `. Dẫn đầu: ${top3}` : ''}. Số liệu chính xác xem ở bảng đối soát bên dưới.`;
+  const ariaLabel = 'Cảnh 3D tuyến đường xếp hạng. Phím mũi tên trái phải để chuyển Hub, Enter để mở chi tiết.';
   const selectedItem = selectedTruck ? selectedTruck.item : null;
 
   return (
@@ -348,9 +423,22 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
     >
       <Canvas
         frameloop="demand"
-        dpr={[1, 1.5]}
+        dpr={dprRange}
         shadows={shadowsOn ? 'percentage' : false}
         camera={{ position: [0, 9, 14], fov: FOV }}
+        onCreated={({ gl, scene, camera }) => {
+          // Dev-only handle for perf/leak measurement (docs/performance-ranking-3d.md, "Đo hiệu năng").
+          // The light never moves, so the shadow map is re-rendered only when trucks change.
+          gl.shadowMap.autoUpdate = false;
+          gl.shadowMap.needsUpdate = true;
+          if (import.meta.env.DEV) {
+            const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
+            handle.gl = gl;
+            handle.scene = scene;
+            handle.camera = camera;
+            handle.glList.push(new WeakRef(gl)); // weak: the hook itself must not keep renderers alive
+          }
+        }}
       >
         <color attach="background" args={[SCENE_BG]} />
         <hemisphereLight args={['#e2e8f0', '#334155', 2]} />
@@ -384,45 +472,21 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
           onHover={setHoveredId}
           onSelect={handleSelect}
           positionsRef={positionsRef}
-          onProgress={handleProgress}
+          replayRef={replayRef}
           onMotionEnd={handleMotionEnd}
+          onMotionStats={handleMotionStats}
         />
         {selectedTruck && (
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} />
         )}
 
-        <LabelProjector labels={labels} elements={labelRefs} positionsRef={positionsRef} />
+        <LabelProjector labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
+        <ContextWatcher onLost={handleContextLost} />
+        <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} roadWidth={roadWidth} focus={focus} reducedMotion={reducedMotion} />
       </Canvas>
 
-      <div className="prr-3d-labels" aria-hidden="true">
-        {labels.map((label) => (
-          <div
-            key={label.key}
-            ref={(el) => {
-              if (el) labelRefs.current.set(label.key, el);
-              else labelRefs.current.delete(label.key);
-            }}
-            className={`prr-3d-label ${label.className || ''}`.trim()}
-          >
-            {label.content}
-          </div>
-        ))}
-      </div>
-
-      {replaying && (
-        <div
-          key={scene.motion.key}
-          ref={badgeRef}
-          className="prr-3d-replay-badge"
-          data-phase="from"
-          role="status"
-        >
-          <span className="replay-date from">D-8 {d8Label}</span>
-          <span className="replay-track" aria-hidden="true"><span className="replay-fill" /></span>
-          <span className="replay-date to">D-1 {d1Label}</span>
-        </div>
-      )}
+      <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
 
       <div className="prr-3d-controls">
         <button
@@ -474,9 +538,12 @@ export default function RoadScene3D({ sceneTrucks = [], selectedHubId = null, on
         </div>
       </div>
 
-      <div className="prr-3d-caption">Vị trí thể hiện thứ hạng, không tỉ lệ với KPI</div>
+      <div className="prr-3d-caption">
+        <span>Vị trí thể hiện thứ hạng, không tỉ lệ với KPI</span>
+        <button type="button" className="prr-3d-table-link" onClick={onViewTable}>Xem dạng bảng</button>
+      </div>
       <div className="prr-3d-sr" aria-live="polite">
-        {selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}
+        {replaying ? `Đang chạy Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}
       </div>
     </div>
   );
