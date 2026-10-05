@@ -57,6 +57,7 @@ async function readSse(response, onEvent) {
 function statusText(status) {
   if (status?.phase === 'awaiting_input') return 'Chờ bạn chọn…';
   if (status?.phase === 'querying_database') return 'Đang tra cứu dữ liệu vận hành…';
+  if (status?.phase === 'searching_public_information') return 'Đang tra cứu nguồn công khai…';
   if (status?.phase === 'answering') return 'Đang tổng hợp câu trả lời…';
   return 'Đang hiểu câu hỏi…';
 }

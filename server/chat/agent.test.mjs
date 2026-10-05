@@ -24,6 +24,75 @@ test('usageRow applies Luna token prices in microdollars', () => {
   assert.equal(row.estimatedMicrousd, 77); // 80*0.2 + 20*0.02 + 50*1.2
 });
 
+test('general knowledge can answer directly without requiring KPI choices or database calls', async () => {
+  for (const question of ['ODR là gì?', 'COD là gì?', 'Last mile khác fulfillment thế nào?', 'RAG khác fine-tuning thế nào?']) {
+    const answers = [];
+    let modelCalls = 0;
+    const result = await runChatAgent({ config, request: { ...request, question, screenContext: { activeTab: 'cod-suspicion' } },
+      onText: text => answers.push(text), onInteraction: () => assert.fail('no KPI chooser for knowledge')
+    }, {
+      openai: { responses: { create: async body => {
+        modelCalls++;
+        assert.match(body.instructions, /Chỉ với yêu cầu tra cứu số liệu KPI/);
+        assert.match(body.instructions, /Không gọi request_metric_query, không ép chọn client\/ngày/);
+        return { status: 'completed', usage, output_text: 'Giải thích kiến thức trong phạm vi.' };
+      } } }, executeTool: async () => assert.fail('no database needed for direct answer')
+    });
+    assert.equal(modelCalls, 1);
+    assert.deepEqual(result.toolNames, []);
+    assert.deepEqual(answers, ['Giải thích kiến thức trong phạm vi.']);
+  }
+});
+
+test('public research integrates citations and usage while keeping web evidence separate from app sources', async () => {
+  const bodies = [];
+  const answers = [];
+  const statuses = [];
+  const webResponse = { status: 'completed', usage, output: [
+    { type: 'web_search_call', action: { type: 'search' } },
+    { type: 'message', content: [{ type: 'output_text', text: 'Tin công khai [1]', annotations: [
+      { type: 'url_citation', url: 'https://example.com/logistics', title: 'Nguồn công khai', start_index: 13, end_index: 16 }
+    ] }] }
+  ] };
+  const openai = { responses: { async create(body) {
+    bodies.push(structuredClone(body));
+    if (body.tools?.[0]?.type === 'web_search') return webResponse;
+    if (bodies.length === 1) return { status: 'completed', usage, output: [
+      { type: 'function_call', call_id: 'public_1', name: 'search_public_information', arguments: JSON.stringify({ topic: 'logistics', query: 'Tin logistics quốc tế tuần này' }) }
+    ] };
+    return { status: 'completed', usage, output_text: 'Đây là thông tin logistics công khai, chưa liên quan số liệu dashboard.' };
+  } } };
+  const result = await runChatAgent({ config, request: { ...request, question: 'Tin logistics tuần này?',
+    history: [{ role: 'user', content: 'Private history' }, { role: 'assistant', content: 'Private response' }],
+    screenContext: { client: 'SPB', regions: ['HCM'] }
+  }, onText: text => answers.push(text), onStatus: status => statuses.push(status), onSource: () => assert.fail('web must not produce a database scope card') },
+  { openai, executeTool: () => assert.fail('no database for public research') });
+  assert.equal(bodies.length, 3);
+  assert.doesNotMatch(JSON.stringify(bodies[1]), /Private history|Private response|HCM|screenContext/);
+  assert.ok(bodies[2].input.some(item => item.type === 'function_call_output' && JSON.parse(item.output).data.available));
+  assert.match(answers.join(''), /\[Nguồn công khai\]\(https:\/\/example.com\/logistics\)/);
+  assert.deepEqual(result.sources, []);
+  assert.deepEqual(result.toolNames, ['search_public_information']);
+  assert.equal(result.actualMicrousd, 10000 + 77 * 3);
+  assert.ok(statuses.some(status => status.phase === 'searching_public_information'));
+});
+
+test('search is bounded to one research request per turn and unavailable data reaches the answering model', async () => {
+  let searches = 0, rounds = 0;
+  const bodies = [];
+  await runChatAgent({ config, request: { ...request, question: 'Tin ecommerce mới nhất?' } }, {
+    searchPublicInformation: async () => { searches++; return { data: { available: false, reason: 'provider_unavailable' } }; },
+    openai: { responses: { async create(body) {
+      bodies.push(structuredClone(body)); rounds++;
+      return rounds < 3 ? { status: 'completed', usage, output: [{ type: 'function_call', call_id: `search_${rounds}`, name: 'search_public_information', arguments: '{}' }] }
+        : { status: 'completed', usage, output_text: 'Chưa xác minh được tin mới.' };
+    } } }
+  });
+  assert.equal(searches, 1);
+  const outputs = bodies.at(-1).input.filter(item => item.type === 'function_call_output').map(item => JSON.parse(item.output));
+  assert.deepEqual(outputs.map(item => item.data.reason), ['provider_unavailable', 'turn_search_limit']);
+});
+
 test('agent replays reasoning/tool output then streams a grounded final answer', async () => {
   const requests = [];
   const planner = {

@@ -1,9 +1,10 @@
-import { getDashboardHelp } from '../../src/data/dashboardHelp.js';
+import { DASHBOARD_HELP, getDashboardHelp } from '../../src/data/dashboardHelp.js';
 import { getMetricDefinition } from '../../src/data/metricGlossary.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { ChatError } from './errors.js';
 import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
 import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
+import { PUBLIC_SEARCH_TOOL } from './public-search.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
@@ -11,7 +12,7 @@ const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
 const GRAINS = new Set(['nationwide', 'region', 'hub']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);
 const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime']);
-const HELP_TOPICS = new Set(['metrics', 'ca1', 'leadtime', 'insight', 'data_source']);
+const HELP_TOPICS = new Set(Object.keys(DASHBOARD_HELP));
 const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli' });
 
 function invalid(message) {
@@ -167,7 +168,7 @@ export const CHAT_TOOLS = Object.freeze([
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false, required: ['metric'],
-      properties: { metric: { type: 'string', enum: ['p1st', 'opr', 'd1st', 'odr', 'ca1', 'leadtime'] } }
+      properties: { metric: { type: 'string', enum: ['p1st', 'opr', 'd1st', 'odr', 'ca1', 'fd', 'leadtime'] } }
     }
   },
   {
@@ -180,7 +181,8 @@ export const CHAT_TOOLS = Object.freeze([
       properties: { topic: { type: 'string', enum: [...HELP_TOPICS] } }
     }
   },
-  REQUEST_METRIC_QUERY_TOOL
+  REQUEST_METRIC_QUERY_TOOL,
+  PUBLIC_SEARCH_TOOL
 ]);
 
 export async function executeChatTool(call, context = {}) {

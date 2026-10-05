@@ -1,8 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRequestBody, requestPayloadHash } from './protocol.js';
+import { MODULE_IDS } from '../../src/modules/moduleIds.js';
 
 const requestId = '550e8400-e29b-41d4-a716-446655440000';
+
+test('chat accepts context from every dashboard module, including the COD question that failed', () => {
+  for (const activeTab of MODULE_IDS) {
+    const result = parseRequestBody({ requestId, question: 'đơn nghi ngờ COD là gì?', history: [],
+      screenContext: { activeTab, client: 'SPB', regions: ['HCM'], hubTypes: ['LM'] } });
+    assert.equal(result.screenContext.activeTab, activeTab);
+    assert.deepEqual(result.screenContext.regions, ['HCM']);
+    assert.deepEqual(result.screenContext.hubTypes, ['LM']);
+  }
+});
 
 test('parseRequestBody normalizes a valid conversation', () => {
   const result = parseRequestBody(Buffer.from(JSON.stringify({
