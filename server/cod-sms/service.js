@@ -82,7 +82,10 @@ export function createCodSmsRepository(serviceClient) {
     async loadSources({ limit, offset = 0, cases = [] }) {
       let query = serviceClient
         .from('kas_cod_suspicion_data')
-        .select('suspicion_type,driver_id,order_code,driver_name,cod_amount');
+        .select('suspicion_type,driver_id,order_code,driver_name,cod_amount')
+        // Same scope as the COD tab: only score orders shown there.
+        .eq('signal_count_over_p90', true)
+        .eq('call_verification_priority', 'Cao');
 
       if (cases.length) {
         query = query.in('order_code', [...new Set(cases.map(item => item.orderCode))]);
