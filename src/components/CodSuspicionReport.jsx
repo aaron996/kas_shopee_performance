@@ -115,7 +115,6 @@ export default function CodSuspicionReport({
   const [smsThreshold, setSmsThreshold] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSmsLoading, setIsSmsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resolutionError, setResolutionError] = useState('');
   const [smsError, setSmsError] = useState('');
@@ -175,7 +174,6 @@ export default function CodSuspicionReport({
       setSmsAssessmentsFailed(false);
       setIsLoading(false);
       setIsSmsLoading(false);
-      setHasLoaded(true);
       return;
     }
     if (forceRefresh) {
@@ -237,7 +235,6 @@ export default function CodSuspicionReport({
     } finally {
       setIsLoading(false);
       setIsSmsLoading(false);
-      setHasLoaded(true);
     }
   }, [dataEnabled]);
 
@@ -693,6 +690,15 @@ export default function CodSuspicionReport({
     return aggregateOrdersByEndDeliveryDate(filteredDrivers);
   }, [filteredDrivers]);
 
+  // Keep pending data out of every report section, including counts and empty states.
+  if (isLoading) {
+    return (
+      <div className="report-container cod-suspicion-page">
+        <LoadingScreen variant="page" />
+      </div>
+    );
+  }
+
   return (
     <div className="report-container cod-suspicion-page">
       
@@ -846,7 +852,7 @@ export default function CodSuspicionReport({
             >
               <AlertTriangle size={24} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
-                Không có đơn có "Ngày kết thúc giao" hợp lệ trong phạm vi lọc.
+                Không có dữ liệu trong phạm vi lọc.
               </div>
             </div>
           ) : (
@@ -1284,23 +1290,7 @@ export default function CodSuspicionReport({
 
       {/* 6. Driver Accordion List */}
       <div className="cod-driver-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {isLoading && !hasLoaded && visibleDrivers.length === 0 ? (
-          <div
-            style={{
-              position: 'relative',
-              minHeight: '260px',
-              background: 'var(--card-bg, #ffffff)',
-              borderRadius: '12px',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden'
-            }}
-          >
-            <LoadingScreen />
-          </div>
-        ) : visibleDrivers.length === 0 ? (
+        {visibleDrivers.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
