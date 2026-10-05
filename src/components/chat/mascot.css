@@ -60,3 +60,20 @@
   .chat-panel .chat-welcome { margin-top: 0.5rem; }
 }
 @media print { .chat-fab, .chat-panel { display: none !important; } }
+
+#kas-chat-panel.chat-panel--expanded {
+  width: min(960px, calc(100vw - 2.5rem));
+  height: calc(100dvh - 2.5rem);
+}
+.chat-panel--expanded .chat-message-bubble { max-width: min(90%, 75ch); }
+@media (max-width: 768px) {
+  #kas-chat-panel.chat-panel--expanded {
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
