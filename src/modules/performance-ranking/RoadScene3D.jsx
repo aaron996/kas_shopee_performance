@@ -123,6 +123,42 @@ function Atmosphere({ theme, roadLength }) {
   );
 }
 
+/**
+ * Releases three's shared DFG look-up texture when the scene unmounts.
+ *
+ * three keeps one module-level `DataTexture` (the DFG LUT) for every MeshStandard / Lambert / Phong
+ * material and each WebGLRenderer adds a 'dispose' listener to it that closes over that renderer.
+ * Nothing removes the listener when the renderer is disposed, so every visit to the 3D scene left a
+ * whole renderer (canvas, WebGL context object, and through the canvas the entire detached page
+ * subtree, ~6 MB with the ranking table) reachable forever. Disposing the LUT fires the event and
+ * removes the listener; the texture itself stays valid and is re-uploaded by the next renderer.
+ * The LUT is read from a rendered material's uniforms while the scene is alive, because the material
+ * (and its properties) is already gone when the unmount cleanup runs.
+ */
+function SharedTextureRelease() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const lutRef = useRef(null);
+
+  useFrame(() => {
+    if (lutRef.current) return;
+    scene.traverse((object) => {
+      if (lutRef.current || !object.material) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        const lut = gl.properties.get(material)?.uniforms?.dfgLUT?.value;
+        if (lut) { lutRef.current = lut; return; }
+      }
+    });
+  });
+
+  useEffect(() => () => {
+    if (lutRef.current) lutRef.current.dispose();
+    lutRef.current = null;
+  }, []);
+  return null;
+}
+
 /** Reports WebGL context loss (GPU reset, driver crash, too many contexts) to the parent. */
 function ContextWatcher({ onLost }) {
   const gl = useThree((s) => s.gl);
@@ -527,6 +563,7 @@ export default function RoadScene3D({
 
         <LabelProjector labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
         <ContextWatcher onLost={handleContextLost} />
+        <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} roadWidth={roadWidth} focus={focus} reducedMotion={reducedMotion} />
       </Canvas>

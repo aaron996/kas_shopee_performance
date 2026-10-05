@@ -491,11 +491,31 @@ vẽ (`forceContextLoss`). Hình học tự tạo (xe, mũi tên) được `disp
 BXH 6 lần liên tiếp (5 lần quay lại): mọi ngữ cảnh WebGL cũ đều ở trạng thái đã mất (5/5), mỗi bộ vẽ
 luôn 24 geometry và 3 texture, số chương trình không tăng, DOM luôn đúng 1 cặp canvas.
 
-**Phát hiện, chưa xử lý:** bộ nhớ JS tăng ~6–7 MB mỗi lần quay lại BXH (102 → 135 MB sau 5 lần ở
-build dev). **Chế độ 2D tăng cùng mức (63 → 94 MB, ~6,3 MB/lần)**, tức không do WebGL mà do chính
-module trang BXH (bảng 1.167 dòng, dữ liệu xếp hạng) giữ lại bộ nhớ sau khi unmount. Chưa tìm
-nguyên nhân gốc (có thể chỉ là hiện tượng của React dev); nên theo dõi riêng nếu người dùng mở/đóng tab
-BXH nhiều lần.
+**Rò bộ nhớ khi rời tab BXH (đã sửa).** Mỗi lần vào rồi ra tab ở chế độ 3D, cả cây DOM của trang BXH
+(~1.170 dòng bảng, ~3.300 SVG, ~6 MB bộ nhớ JS ở build production) vẫn nằm trong bộ nhớ.
+
+- *Nguyên nhân.* three.js giữ **một texture dùng chung ở cấp module** (bảng tra DFG, `getDFGLUT()`) cho mọi vật
+  liệu `MeshStandard`/`Lambert`/`Phong`. Mỗi `WebGLRenderer` gắn một trình nghe `dispose` lên texture đó, trình
+  nghe đóng kín trên renderer ấy, và không ai gỡ nó khi renderer bị huỷ (`renderer.dispose()` không đụng tới texture
+  dùng chung). Renderer cũ nhờ vậy vẫn truy cập được từ biến cấp module; renderer giữ canvas, và canvas giữ
+  toàn bộ cây DOM đã gỡ của trang. Tìm ra bằng ảnh chụp heap (CDP): đường giữ đi từ `WebGLTexture` của renderer
+  cũ qua một cặp `WeakMap` có khoá là `Source` của texture DFG (biến `rg` trong bundle).
+- *Sửa.* `SharedTextureRelease` (trong `RoadScene3D.jsx`) lấy texture DFG từ uniform `dfgLUT` của một vật liệu đã
+  vẽ (khi cảnh còn sống, vì lúc cleanup vật liệu đã bị gỡ) và gọi `dispose()` khi cảnh unmount. Sự kiện `dispose`
+  kích hoạt và gỡ trình nghe; bản thân texture vẫn dùng được và được renderer kế tiếp tải lên lại.
+- *Kết quả* (build production, 1.167 Hub, vào/ra BXH 6 lần, bộ nhớ JS sau GC): trước **21 → 49 MB** và số dòng
+  bảng còn sống tăng 1.168 mỗi lần (1.168 → 7.008); sau **20 → 22 MB**, số dòng bảng luôn 1.168.
+- *Chế độ 2D không rò* (16 → 17 MB; 63 → 64 MB ở dev). Số "2D cũng tăng 6,3 MB/lần" ghi ở bản đầu của mục này **sai**:
+  đó là hiện tượng của bộ đo, xem dưới.
+- *Dev server.* Ở `npm run dev`, 3D vẫn giữ các renderer cũ vì `react-refresh` (`helpersByRoot`) giữ mọi root của
+  react-three-fiber; chỉ có ở dev, không có ở bản build.
+
+**Cạm bẫy khi đo rò bộ nhớ bằng Playwright/CDP** (làm sai kết luận lần đầu): (1) `ElementHandle` trả về từ
+`page.$()` / `page.waitForSelector()` giữ phần tử sống cho tới khi `dispose()`; dùng `page.evaluate` và
+`locator.waitFor()` để kiểm tra tồn tại; (2) `Runtime.queryObjects` trả về mảng giữ toàn bộ đối tượng khớp, nên
+phải gọi `Runtime.releaseObjectGroup` ngay sau khi đếm, nếu không chính phép đo giữ DOM sống và tạo ra "rò" giả.
+Cách đếm đáng tin: `HeapProfiler.collectGarbage` hai lần rồi đọc `performance.memory.usedJSHeapSize` và số
+`HTMLTableRowElement` còn sống (đã nhả đối tượng truy vấn), lặp lại vào/ra tab nhiều lần.
 
 ### Hạn chế đã biết
 
@@ -509,7 +529,7 @@ BXH nhiều lần.
 
 Playwright + Chrome (GPU thật) trên dữ liệu tổng hợp 1.167 Hub: bộ kiểm tra tương tác Sprint 2 (chọn, hover,
 bàn phím, làn theo Vùng, "Tất cả") và bộ kiểm tra Replay/chuyển cảnh Sprint 3 chạy lại, đạt hết; bộ kiểm
-tra Sprint 4 (đường lui, rò tài nguyên, chạm/mobile) đạt hết trừ mục bộ nhớ JS nêu trên.
+tra Sprint 4 (đường lui, rò tài nguyên, chạm/mobile) đạt hết; mục bộ nhớ JS đã được sửa và đo lại (xem "Rò bộ nhớ khi rời tab BXH").
 Ảnh: `docs/evidence/ranking-3d-sprint4/` (desktop sáng/tối, "Tất cả" 1.167 xe, làn theo Vùng, mobile
 sáng/tối, cảnh mobile).
 
@@ -595,7 +615,6 @@ So với Sprint 0: chunk 3D 912,6 → 961,7 kB (+49 kB) cho toàn bộ cảnh, t
 - Không GPU + "Tất cả": chậm (15 fps xoay); nên dùng Top 10/20 hoặc 2D.
 - Mỗi thay đổi DOM trên trang tốn một lần vẽ lại cả trang vì bảng ~1.200 dòng (hitch khi bấm Replay); ảo hoá
   bảng nằm ngoài phạm vi.
-- Bộ nhớ JS tăng ~6–7 MB mỗi lần quay lại tab BXH, cả ở 2D (chưa tìm nguyên nhân gốc).
 - Replay dùng hạng trong nhóm đối soát chung và xấp xỉ quãng chạy khi chỉ hiện Top N (hướng luôn đúng).
 - Nhãn trên canvas là trang trí đối với trình đọc màn hình; số liệu đầy đủ ở bảng.
 - Cảnh 3D luôn dùng nền sáng/tối theo theme nhưng cảnh 2D vẫn là khung tối cố định như trước (giữ nguyên 2D).
