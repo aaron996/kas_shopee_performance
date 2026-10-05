@@ -17,6 +17,10 @@ GET on the same endpoint is read-only (the script's dry run).
 
 ## Selection
 
+Chỉ xét các đơn trong snapshot có `signal_count_over_p90 = true` ("Bất thường call log (so P90
+hardcode)" = Có) và `call_verification_priority = 'Cao'` — cùng phạm vi với tab COD của app.
+Các bước dưới tính trên tập đã lọc này.
+
 A driver case is (suspicion type, driver). Its level is the same effective
 level the app shows regular users:
 
