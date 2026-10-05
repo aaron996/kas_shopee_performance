@@ -9,15 +9,13 @@ const OPTIONS = [
     key: 'SPE',
     icon: Zap,
     title: 'Shopee Express',
-    tag: 'SPE',
-    desc: 'Đơn hàng nhanh, giao hoả tốc trong ngày.'
+    tag: 'SPE'
   },
   {
     key: 'SPB',
     icon: Boxes,
     title: 'Shopee Bulky',
-    tag: 'SPB',
-    desc: 'Đơn hàng cồng kềnh, khối lượng lớn.'
+    tag: 'SPB'
   }
 ];
 
@@ -52,7 +50,7 @@ export default function ClientSelectModal({ isOpen, onSelect }) {
       </div>
 
       <div className="client-select-grid">
-        {OPTIONS.map(({ key, icon: Icon, title, tag, desc }) => {
+        {OPTIONS.map(({ key, icon: Icon, title, tag }) => {
           const isPicked = picked === key;
           const isFaded = picked && !isPicked;
           return (
@@ -68,7 +66,6 @@ export default function ClientSelectModal({ isOpen, onSelect }) {
               </span>
               <span className="client-select-option-title">{title}</span>
               <span className="client-select-option-tag">{tag}</span>
-              <span className="client-select-option-desc">{desc}</span>
             </button>
           );
         })}
