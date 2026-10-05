@@ -22,7 +22,8 @@ hardcode)" = Có) và `call_verification_priority = 'Cao'` — cùng phạm vi v
 Các bước dưới tính trên tập đã lọc này.
 
 A driver case is (suspicion type, driver). Its level is the same effective
-level the app shows regular users:
+level the app uses for regular-user alert filtering (the driver/order level
+badges are hidden for regular users):
 
 1. SQL level of the driver's highest `total_score` (High ≥ 18, Medium ≥ 15,
    otherwise Low).

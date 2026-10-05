@@ -140,8 +140,14 @@ Payload body:
 
 Tab hiện tại có grain một dòng cho mỗi SMS, nên không được gửi thẳng vào RPC
 legacy: một đơn có nhiều SMS sẽ làm nhân số đơn và tổng COD. Dùng script
-`scripts/apps-script/sync-cod-suspicion-sms-snapshot.gs`, chạy dry-run trước,
-và gọi endpoint mới:
+`scripts/apps-script/sync-cod-suspicion-sms-snapshot.gs`, chạy dry-run trước.
+
+Header `Mức nghi ngờ` (hiện ở cột AK) được map vào
+`call_verification_priority`, với giá trị `Cao`, `Trung bình`, `Thấp`.
+Script tìm theo tên header và cũng nhận hai tên cũ `Mức ưu tiên xử lý` /
+`Mức ưu tiên gọi xác minh`; vị trí cột có thể thay đổi.
+
+Gọi endpoint mới:
 
 ```
 POST https://iyjsihwgnzcytbojvoom.supabase.co/rest/v1/rpc/sync_kas_cod_suspicion_snapshot
