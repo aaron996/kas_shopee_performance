@@ -8,12 +8,16 @@
 .motion-tooltip{position:fixed;z-index:20000;max-width:260px;padding:12px 15px;background:#142b43;color:#fff;border:1px solid #ffffff20;border-radius:var(--radius-control);box-shadow:0 8px 28px #061d3433;pointer-events:none;animation:tooltip-enter 125ms ease-out;font-size:var(--type-meta);line-height:1.5}
 .motion-tooltip strong,.motion-tooltip span{display:block}.motion-tooltip span{color:#c3d4e3;margin-top:3px}
 @keyframes tooltip-enter{from{opacity:0;transform:translateX(-4px) scale(.97)}to{opacity:1;transform:none}}
-/* The expanded toggle shares the brand/search alignment; the rail stays centred. */
-.sidebar-brand-container{display:flex;flex-direction:column;align-items:stretch;padding-bottom:8px}
-.sidebar-brand-container .below-logo-toggle{position:static!important;transform:none!important;display:flex;align-items:center;justify-content:flex-start;gap:12px;width:calc(100% - 32px)!important;height:44px!important;margin:0 16px!important;padding:0 8px!important;border:0!important;border-radius:var(--radius-control)!important;background:transparent!important;color:inherit!important;box-shadow:none!important;font:500 var(--type-caption)/1.5 var(--font-sans)}
-.sidebar-brand-container .below-logo-toggle:hover{background:rgb(255 255 255 / .08)!important}
-.app-sidebar.collapsed .sidebar-brand-container{align-items:center}
-.app-sidebar.collapsed .sidebar-brand-container .below-logo-toggle{width:44px!important;margin:0!important;justify-content:center;padding:0!important}
+/* The pin sits beside the brand without taking a navigation row. */
+.sidebar-brand-container{position:relative}
+.sidebar-brand{min-height:96px;padding-right:38px;gap:8px}
+.sidebar-brand-text{min-width:0}
+.sidebar-brand-text .brand-name{font-size:14px}
+.sidebar-pin-btn{position:absolute;top:32px;right:6px;display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:rgb(255 255 255 / .7);cursor:pointer;transition:background-color 180ms,color 180ms}
+.sidebar-pin-btn:hover,.sidebar-pin-btn[aria-pressed=true]{background:rgb(255 255 255 / .12);color:#fff}
+.sidebar-pin-btn:focus-visible{outline:2px solid var(--action-primary);outline-offset:2px}
+.app-sidebar.collapsed .sidebar-brand{padding-right:8px}
+.app-sidebar.collapsed .sidebar-pin-btn{visibility:hidden;pointer-events:none}
 .app-sidebar .sidebar-command-search{background:rgb(255 255 255 / .06);border-color:transparent;box-shadow:none;padding-inline:10px}
 .app-sidebar .sidebar-command-search:hover{background:rgb(255 255 255 / .12);border-color:transparent;box-shadow:none}
 .sidebar-command-search>.animated-icon{flex:none}.sidebar-command-search>span:not(.animated-icon){white-space:nowrap}
@@ -116,3 +120,5 @@
 @media(prefers-reduced-motion:reduce){.header-popover-panel{animation:none}.header-popover-trigger{transition:none}}
 
 @media(prefers-reduced-motion:reduce){.overview-kpi-cards .kpi-card{transition:none}.overview-kpi-cards .kpi-card.selected{transform:none}}
+
+.app-sidebar{transition:width 180ms cubic-bezier(.23,1,.32,1)}.app-sidebar:has(:focus-visible){transition:none}@media(prefers-reduced-motion:reduce){.app-sidebar,.sidebar-pin-btn{transition:none}}
