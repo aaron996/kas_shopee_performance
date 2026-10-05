@@ -189,7 +189,7 @@ Esc bỏ chọn, đổi KPI thì bỏ chọn, nút "Mở chi tiết Hub" gọi `
 
 Nhãn là DOM phủ lên canvas, dùng chung `TruckTag` với cảnh 2D: `#hạng`, tên Hub,
 KPI D-1 (1 chữ số thập phân), `deltaRank` (`+n`/`-n`, "Mới" khi
-`hasCommonBaseline === false`), dấu `!` khi `isSmallSample`. Nhãn có nhãn cho Top
+`hasCommonBaseline === false`), dấu `!` khi `isSmallSample`. Nhãn hiện cho Top
 10, xe đang chọn và xe đang hover. `LabelProjector` quyết định mỗi khung hình:
 
 1. Ẩn nhãn nằm sau camera.
@@ -239,7 +239,7 @@ Nút "Làn xen kẽ / Làn theo Vùng" ở góc dưới phải của cảnh (m�
 
 ### Kiểm tra
 
-Chạy bằng Playwright + Chrome (WebGL phần mềm) trên dữ liệu mẫu tạm, 16 bước, tất
+Chạy bằng Playwright + Chrome (WebGL phần mềm) trên dữ liệu mẫu tạm, tất
 cả đạt, console sạch (trừ `THREE.Clock deprecated` của R3F):
 
 hover (con trỏ + nhãn) · bấm chọn · camera sang "Bám xe" · nhãn đang chọn · bấm lại
