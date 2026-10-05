@@ -1,34 +1,361 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-17T00:00:00+07:00",
+  "generatedAt": "2026-10-05T06:54:03.472Z",
   "title": "Design System: GHN KAS Operations",
   "extensions": {
     "colorMeta": {
-      "orange-500": { "role": "secondary", "displayName": "GHN Orange", "canonical": "#f15a22", "tonalRamp": ["#4f1708", "#76240d", "#a53412", "#c94516", "#f15a22", "#fb8b61", "#fec1ab", "#fff1ea"] },
-      "cyan-700": { "role": "primary", "displayName": "Operational Cyan", "canonical": "#0ea5c4", "tonalRamp": ["#08303d", "#0a4b5d", "#0b657b", "#0b84a0", "#0ea5c4", "#4dc7dc", "#a8e7f0", "#e7fbfd"] },
-      "canvas": { "role": "neutral", "displayName": "Pastel Canvas", "canonical": "#eaf2fb", "tonalRamp": ["#102338", "#203d5b", "#466f96", "#81a8c9", "#b7d1e6", "#eaf2fb", "#f2f7fd", "#ffffff"] },
-      "surface": { "role": "neutral", "displayName": "White Work Surface", "canonical": "#ffffff", "tonalRamp": ["#1e293b", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc", "#ffffff"] },
-      "slate-800": { "role": "neutral", "displayName": "Primary Slate", "canonical": "#1e293b", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f8fafc"] }
+      "orange-500": {
+        "role": "secondary",
+        "displayName": "GHN Orange",
+        "canonical": "#f15a22",
+        "tonalRamp": [
+          "#4f1708",
+          "#76240d",
+          "#a53412",
+          "#c94516",
+          "#f15a22",
+          "#fb8b61",
+          "#fec1ab",
+          "#fff1ea"
+        ]
+      },
+      "cyan-700": {
+        "role": "primary",
+        "displayName": "Operational Cyan",
+        "canonical": "#0ea5c4",
+        "tonalRamp": [
+          "#08303d",
+          "#0a4b5d",
+          "#0b657b",
+          "#0b84a0",
+          "#0ea5c4",
+          "#4dc7dc",
+          "#a8e7f0",
+          "#e7fbfd"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Pastel Canvas",
+        "canonical": "#eaf2fb",
+        "tonalRamp": [
+          "#102338",
+          "#203d5b",
+          "#466f96",
+          "#81a8c9",
+          "#b7d1e6",
+          "#eaf2fb",
+          "#f2f7fd",
+          "#ffffff"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "White Work Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#1e293b",
+          "#475569",
+          "#64748b",
+          "#94a3b8",
+          "#cbd5e1",
+          "#e2e8f0",
+          "#f8fafc",
+          "#ffffff"
+        ]
+      },
+      "slate-800": {
+        "role": "neutral",
+        "displayName": "Primary Slate",
+        "canonical": "#1e293b",
+        "tonalRamp": [
+          "#0f172a",
+          "#1e293b",
+          "#334155",
+          "#475569",
+          "#64748b",
+          "#94a3b8",
+          "#cbd5e1",
+          "#f8fafc"
+        ]
+      },
+      "orange-700": {
+        "role": "secondary",
+        "displayName": "Orange 700",
+        "tonalRamp": [
+          "oklch(15.00% 0.17627 37.65)",
+          "oklch(26.43% 0.17627 37.65)",
+          "oklch(37.86% 0.17627 37.65)",
+          "oklch(49.29% 0.17627 37.65)",
+          "oklch(60.71% 0.17627 37.65)",
+          "oklch(72.14% 0.17627 37.65)",
+          "oklch(83.57% 0.17627 37.65)",
+          "oklch(95.00% 0.17627 37.65)"
+        ],
+        "canonical": "#c94516"
+      },
+      "cyan-800": {
+        "role": "primary",
+        "displayName": "Cyan 800",
+        "tonalRamp": [
+          "oklch(15.00% 0.10145 220.13)",
+          "oklch(26.43% 0.10145 220.13)",
+          "oklch(37.86% 0.10145 220.13)",
+          "oklch(49.29% 0.10145 220.13)",
+          "oklch(60.71% 0.10145 220.13)",
+          "oklch(72.14% 0.10145 220.13)",
+          "oklch(83.57% 0.10145 220.13)",
+          "oklch(95.00% 0.10145 220.13)"
+        ],
+        "canonical": "#0b84a0"
+      },
+      "slate-950": {
+        "role": "neutral",
+        "displayName": "Slate 950",
+        "tonalRamp": [
+          "oklch(15.00% 0.03982 265.75)",
+          "oklch(26.43% 0.03982 265.75)",
+          "oklch(37.86% 0.03982 265.75)",
+          "oklch(49.29% 0.03982 265.75)",
+          "oklch(60.71% 0.03982 265.75)",
+          "oklch(72.14% 0.03982 265.75)",
+          "oklch(83.57% 0.03982 265.75)",
+          "oklch(95.00% 0.03982 265.75)"
+        ],
+        "canonical": "#0f172a"
+      },
+      "slate-500": {
+        "role": "neutral",
+        "displayName": "Slate 500",
+        "tonalRamp": [
+          "oklch(15.00% 0.04072 257.42)",
+          "oklch(26.43% 0.04072 257.42)",
+          "oklch(37.86% 0.04072 257.42)",
+          "oklch(49.29% 0.04072 257.42)",
+          "oklch(60.71% 0.04072 257.42)",
+          "oklch(72.14% 0.04072 257.42)",
+          "oklch(83.57% 0.04072 257.42)",
+          "oklch(95.00% 0.04072 257.42)"
+        ],
+        "canonical": "#64748b"
+      },
+      "surface-subtle": {
+        "role": "neutral",
+        "displayName": "Surface Subtle",
+        "tonalRamp": [
+          "oklch(15.00% 0.00963 252.81)",
+          "oklch(26.43% 0.00963 252.81)",
+          "oklch(37.86% 0.00963 252.81)",
+          "oklch(49.29% 0.00963 252.81)",
+          "oklch(60.71% 0.00963 252.81)",
+          "oklch(72.14% 0.00963 252.81)",
+          "oklch(83.57% 0.00963 252.81)",
+          "oklch(95.00% 0.00963 252.81)"
+        ],
+        "canonical": "#f2f7fd"
+      },
+      "border-subtle": {
+        "role": "neutral",
+        "displayName": "Border Subtle",
+        "tonalRamp": [
+          "oklch(15.00% 0.02359 250.08)",
+          "oklch(26.43% 0.02359 250.08)",
+          "oklch(37.86% 0.02359 250.08)",
+          "oklch(49.29% 0.02359 250.08)",
+          "oklch(60.71% 0.02359 250.08)",
+          "oklch(72.14% 0.02359 250.08)",
+          "oklch(83.57% 0.02359 250.08)",
+          "oklch(95.00% 0.02359 250.08)"
+        ],
+        "canonical": "#dce9f7"
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Border Strong",
+        "tonalRamp": [
+          "oklch(15.00% 0.03850 248.26)",
+          "oklch(26.43% 0.03850 248.26)",
+          "oklch(37.86% 0.03850 248.26)",
+          "oklch(49.29% 0.03850 248.26)",
+          "oklch(60.71% 0.03850 248.26)",
+          "oklch(72.14% 0.03850 248.26)",
+          "oklch(83.57% 0.03850 248.26)",
+          "oklch(95.00% 0.03850 248.26)"
+        ],
+        "canonical": "#c6dcf2"
+      },
+      "success-bg": {
+        "role": "semantic",
+        "displayName": "Success Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.02934 125.96)",
+          "oklch(26.43% 0.02934 125.96)",
+          "oklch(37.86% 0.02934 125.96)",
+          "oklch(49.29% 0.02934 125.96)",
+          "oklch(60.71% 0.02934 125.96)",
+          "oklch(72.14% 0.02934 125.96)",
+          "oklch(83.57% 0.02934 125.96)",
+          "oklch(95.00% 0.02934 125.96)"
+        ],
+        "canonical": "#eaf3de"
+      },
+      "success-fg": {
+        "role": "semantic",
+        "displayName": "Success Fg",
+        "tonalRamp": [
+          "oklch(15.00% 0.09078 170.11)",
+          "oklch(26.43% 0.09078 170.11)",
+          "oklch(37.86% 0.09078 170.11)",
+          "oklch(49.29% 0.09078 170.11)",
+          "oklch(60.71% 0.09078 170.11)",
+          "oklch(72.14% 0.09078 170.11)",
+          "oklch(83.57% 0.09078 170.11)",
+          "oklch(95.00% 0.09078 170.11)"
+        ],
+        "canonical": "#0f6e56"
+      },
+      "warning-bg": {
+        "role": "semantic",
+        "displayName": "Warning Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.05803 95.62)",
+          "oklch(26.43% 0.05803 95.62)",
+          "oklch(37.86% 0.05803 95.62)",
+          "oklch(49.29% 0.05803 95.62)",
+          "oklch(60.71% 0.05803 95.62)",
+          "oklch(72.14% 0.05803 95.62)",
+          "oklch(83.57% 0.05803 95.62)",
+          "oklch(95.00% 0.05803 95.62)"
+        ],
+        "canonical": "#fef3c7"
+      },
+      "warning-fg": {
+        "role": "semantic",
+        "displayName": "Warning Fg",
+        "tonalRamp": [
+          "oklch(15.00% 0.12470 46.20)",
+          "oklch(26.43% 0.12470 46.20)",
+          "oklch(37.86% 0.12470 46.20)",
+          "oklch(49.29% 0.12470 46.20)",
+          "oklch(60.71% 0.12470 46.20)",
+          "oklch(72.14% 0.12470 46.20)",
+          "oklch(83.57% 0.12470 46.20)",
+          "oklch(95.00% 0.12470 46.20)"
+        ],
+        "canonical": "#92400e"
+      },
+      "danger-bg": {
+        "role": "semantic",
+        "displayName": "Danger Bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.03421 29.01)",
+          "oklch(26.43% 0.03421 29.01)",
+          "oklch(37.86% 0.03421 29.01)",
+          "oklch(49.29% 0.03421 29.01)",
+          "oklch(60.71% 0.03421 29.01)",
+          "oklch(72.14% 0.03421 29.01)",
+          "oklch(83.57% 0.03421 29.01)",
+          "oklch(95.00% 0.03421 29.01)"
+        ],
+        "canonical": "#f7d9d4"
+      },
+      "danger-fg": {
+        "role": "semantic",
+        "displayName": "Danger Fg",
+        "tonalRamp": [
+          "oklch(15.00% 0.13898 31.79)",
+          "oklch(26.43% 0.13898 31.79)",
+          "oklch(37.86% 0.13898 31.79)",
+          "oklch(49.29% 0.13898 31.79)",
+          "oklch(60.71% 0.13898 31.79)",
+          "oklch(72.14% 0.13898 31.79)",
+          "oklch(83.57% 0.13898 31.79)",
+          "oklch(95.00% 0.13898 31.79)"
+        ],
+        "canonical": "#a13b2a"
+      }
     },
     "typographyMeta": {
-      "body": { "displayName": "Operational Body", "purpose": "Dense, legible operational content and controls." },
-      "heading": { "displayName": "Section Heading", "purpose": "Compact hierarchy for report and dialog titles." },
-      "mono": { "displayName": "Metric Annotation", "purpose": "Codes, compact figures, and source identifiers." }
+      "body": {
+        "displayName": "Operational Body",
+        "purpose": "Dense, legible operational content and controls."
+      },
+      "heading": {
+        "displayName": "Section Heading",
+        "purpose": "Compact hierarchy for report and dialog titles."
+      },
+      "mono": {
+        "displayName": "Metric Annotation",
+        "purpose": "Codes, compact figures, and source identifiers."
+      }
     },
     "shadows": [
-      { "name": "soft-surface", "value": "0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04)", "purpose": "Resting white data surfaces on the pastel canvas." },
-      { "name": "raised-interaction", "value": "0 14px 34px -14px rgba(20, 60, 100, 0.22), 0 2px 8px rgba(20, 60, 100, 0.06)", "purpose": "Deliberate hover and picked states." },
-      { "name": "overlay", "value": "0 24px 48px rgba(20, 60, 100, 0.22)", "purpose": "Modal and overlay surfaces." }
+      {
+        "name": "soft-surface",
+        "value": "0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04)",
+        "purpose": "Resting white data surfaces on the pastel canvas."
+      },
+      {
+        "name": "raised-interaction",
+        "value": "0 14px 34px -14px rgba(20, 60, 100, 0.22), 0 2px 8px rgba(20, 60, 100, 0.06)",
+        "purpose": "Deliberate hover and picked states."
+      },
+      {
+        "name": "overlay",
+        "value": "0 24px 48px rgba(20, 60, 100, 0.22)",
+        "purpose": "Modal and overlay surfaces."
+      }
     ],
     "motion": [
-      { "name": "standard", "value": "cubic-bezier(0.2, 0, 0, 1)", "purpose": "Default state changes." },
-      { "name": "snappy", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Compact press feedback." },
-      { "name": "fast", "value": "180ms", "purpose": "Short interaction transitions." }
+      {
+        "name": "standard",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "State transitions."
+      },
+      {
+        "name": "snappy",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Compact press feedback."
+      },
+      {
+        "name": "smooth",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "State transitions."
+      },
+      {
+        "name": "instant",
+        "value": "120ms",
+        "purpose": "Interaction timing."
+      },
+      {
+        "name": "fast",
+        "value": "180ms",
+        "purpose": "Interaction timing."
+      },
+      {
+        "name": "normal",
+        "value": "260ms",
+        "purpose": "Interaction timing."
+      },
+      {
+        "name": "modal",
+        "value": "300ms",
+        "purpose": "Dialog transitions."
+      }
     ],
     "breakpoints": [
-      { "name": "phone", "value": "560px" },
-      { "name": "tablet", "value": "768px" },
-      { "name": "desktop-wide", "value": "1200px" }
+      {
+        "name": "phone",
+        "value": "560px"
+      },
+      {
+        "name": "tablet",
+        "value": "768px"
+      },
+      {
+        "name": "desktop-wide",
+        "value": "1200px"
+      }
     ]
   },
   "components": [
@@ -39,6 +366,14 @@
       "description": "Use for the strongest local action only.",
       "html": "<button class=\"ds-action-primary\">Xuất CSV</button>",
       "css": ".ds-action-primary { min-height: 32px; padding: .4rem 1rem; border: 0; border-radius: var(--radius-pill); background: var(--action-primary); color: var(--text-on-brand); font: 600 .82rem var(--font-sans); cursor: pointer; box-shadow: var(--shadow-raised); transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-snappy); } .ds-action-primary:hover { background: var(--action-primary-hover); } .ds-action-primary:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); } .ds-action-primary:active { transform: scale(.96); }"
+    },
+    {
+      "name": "Secondary Action",
+      "kind": "button",
+      "refersTo": "action-secondary",
+      "description": "A compact secondary action with a visible boundary.",
+      "html": "<button class=\"ds-action-secondary\">Thử lại</button>",
+      "css": ".ds-action-secondary { padding: .4rem .85rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: var(--surface-subtle); color: var(--text-primary); font: 600 .82rem var(--font-sans); cursor: pointer; transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth); } .ds-action-secondary:hover { background: var(--surface-default); border-color: var(--border-strong); } .ds-action-secondary:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); } .ds-action-secondary:active { transform: scale(.97); }"
     },
     {
       "name": "Text Field",
@@ -83,14 +418,46 @@
   ],
   "narrative": {
     "northStar": "The Calm Operations Desk",
-    "overview": "GHN KAS is an operations workspace, not a marketing surface. It should make scope, freshness, risk, and the next drill-down legible at a glance. The visual language is airy and pastel-blue, while the density and wording remain practical enough for repeated daily analysis.",
-    "keyCharacteristics": ["Operational hierarchy before decoration.", "One shared shape scale for repeated UI roles.", "Color never carries status or data meaning without labels, values, or structure."],
-    "rules": [
-      { "name": "The One-Action Accent Rule", "body": "Cyan identifies the principal interactive path on a local surface. Orange does not replace semantic warning/error treatment and is not a second primary button color.", "section": "colors" },
-      { "name": "The Role, Not the File Rule", "body": "A new card inherits surface, and a new form field inherits control, regardless of which CSS file or report module owns it. Do not introduce literal radii for a repeated UI role.", "section": "shapes" },
-      { "name": "The Legacy Radius Rule", "body": "Existing literal 18px, 20px, 24px, 8px, and similar values are migration candidates, not additions to the design scale.", "section": "shapes" }
+    "overview": "GHN KAS is an operations workspace, not a marketing surface. It should make scope, freshness, risk, and the next drill-down legible at a glance. The visual language is airy and pastel-blue, while the density and wording remain practical enough for repeated daily analysis.\n\nWhite data surfaces sit on a pale blue canvas. Cyan is reserved for primary interaction and orange for GHN emphasis or attention; status colors communicate state, not decoration. The system favors compact controls, clear borders, and restrained diffuse elevation over glossy or ornamental treatment.",
+    "keyCharacteristics": [
+      "Operational hierarchy before decoration.",
+      "One shared shape scale for repeated UI roles.",
+      "Color never carries status or data meaning without labels, values, or structure."
     ],
-    "dos": ["Do use var(--radius-surface) for a new card, modal, filter bar, report panel, or peer data container.", "Do use var(--radius-control) for a field or compact rectangular control.", "Do use var(--radius-pill) only when the component is intentionally capsule-shaped."],
-    "donts": ["Don't add a literal border-radius to a repeated component role when a radius token exists.", "Don't make two peer white surfaces appear to have different curvature without a containment/attachment reason.", "Don't use a pill merely to make every control look alike."]
+    "rules": [
+      {
+        "name": "The One-Action Accent Rule",
+        "body": "Cyan identifies the principal interactive path on a local surface. Orange does not replace semantic warning/error treatment and is not a second primary button color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Evidence Before Elevation Rule",
+        "body": "Use elevation to separate an actionable or layered surface, not to decorate every box.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Role, Not the File Rule",
+        "body": "A new card inherits `surface`, and a new form field inherits `control`, regardless of which CSS file or report module owns it. Do not introduce literal radii for a repeated UI role.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Legacy Radius Rule",
+        "body": "Existing literal `18px`, `20px`, `24px`, `8px`, and similar values are migration candidates, not additions to the design scale. Preserve a literal only when it is a documented geometric exception above.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** use `var(--radius-surface)` for a new card, modal, filter bar, report panel, or peer data container.",
+      "**Do** use `var(--radius-control)` for a field or compact rectangular control.",
+      "**Do** use `var(--radius-pill)` only when the component is intentionally capsule-shaped.",
+      "**Do** keep a label, number, icon, or structural cue alongside semantic color.",
+      "**Do** preserve visible keyboard focus and reduced-motion behavior."
+    ],
+    "donts": [
+      "**Don't** add a literal `border-radius` to a repeated component role when a radius token exists.",
+      "**Don't** make two peer white surfaces appear to have different curvature without a containment/attachment reason.",
+      "**Don't** use a pill merely to make every control look alike; pills are for compact actions, tabs, and chips.",
+      "**Don't** remove borders and rely solely on shadows to establish field or card boundaries."
+    ]
   }
 }
