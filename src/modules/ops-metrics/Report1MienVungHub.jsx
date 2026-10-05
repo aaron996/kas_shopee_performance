@@ -424,19 +424,33 @@ export default function Report1MienVungHub({
 
 
   // Export Matrix Data to CSV, filtered by the export dialog.
-  const EXPORT_METRICS = ['Pickup', 'Deli', 'FD'];
-  const exportSources = useMemo(() => [
-    ...pickRows.map(r => ({ metric: 'Pickup', r, hub: r.hub, hubType: getHubType(r) })),
-    ...deliRows.map(r => ({ metric: 'Deli', r, hub: r.hub, hubType: getHubType(r) })),
-    ...fdRows.map(r => ({ metric: 'FD', r, hub: r.deliverywh || '', hubType: getHubType(r) }))
-  ], [pickRows, deliRows, fdRows]);
+  // Mỗi dòng pickup/deli xuất 2 chỉ số (1st + tổng thể OPR/ODR); FD đứng riêng.
+  const EXPORT_METRIC_DEFS = {
+    '1st Pickup': { tot: r => getRowVal(r, 'mau_pu'), ont: r => getRowVal(r, 'ontime_pu_1st') },
+    'OPR': { tot: r => getRowVal(r, 'mau_pu'), ont: r => getRowVal(r, 'ontime_pu_opr') },
+    '1st Deli': { tot: r => getRowVal(r, 'mau_deli', 'mau_del'), ont: r => getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') },
+    'ODR': { tot: r => getRowVal(r, 'mau_deli', 'mau_del'), ont: r => getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr') },
+    'FD': { tot: r => getRowVal(r, 'mau_fd'), ont: r => getRowVal(r, 'fd_hoan_thanh') }
+  };
+  const EXPORT_METRICS = Object.keys(EXPORT_METRIC_DEFS);
+  // Giá trị trống vẫn phải là một lựa chọn lọc, nếu không dòng đó bị loại khỏi CSV (hay gặp ở FD).
+  const EXPORT_BLANK = '(Không xác định)';
+  const orBlank = (v) => v || EXPORT_BLANK;
+  const exportSources = useMemo(() => {
+    const src = (metrics, r, hub) => metrics.map(metric => ({ metric, r, hub: orBlank(hub), hubType: orBlank(getHubType(r)) }));
+    return [
+      ...pickRows.flatMap(r => src(['1st Pickup', 'OPR'], r, r.hub)),
+      ...deliRows.flatMap(r => src(['1st Deli', 'ODR'], r, r.hub)),
+      ...fdRows.flatMap(r => src(['FD'], r, r.deliverywh))
+    ];
+  }, [pickRows, deliRows, fdRows]);
   const exportFields = useMemo(() => {
-    const uniq = (fn) => [...new Set(exportSources.map(fn).filter(Boolean))].sort().map(v => ({ value: v, label: v }));
-    const clients = uniq(x => x.r.client_name);
+    const uniq = (fn) => [...new Set(exportSources.map(fn))].sort().map(v => ({ value: v, label: v }));
+    const clients = uniq(x => orBlank(x.r.client_name));
     return [
       { key: 'client', label: 'Client', options: clients, initial: clientFilter === 'ALL' ? undefined : [clientFilter] },
       { key: 'metric', label: 'Loại chỉ số', options: EXPORT_METRICS.map(v => ({ value: v, label: v })) },
-      { key: 'region', label: 'Vùng', options: uniq(x => x.r.region) },
+      { key: 'region', label: 'Vùng', options: uniq(x => orBlank(x.r.region)) },
       { key: 'hubType', label: 'Loại hub (WH type)', options: uniq(x => x.hubType) },
       { key: 'hub', label: 'Hub / Kho giao', options: uniq(x => x.hub) }
     ];
@@ -446,9 +460,9 @@ export default function Report1MienVungHub({
     return d.length ? { min: d[0], max: d[d.length - 1] } : null;
   }, [exportSources]);
   const selectExportRows = ({ selection, from, to }) => exportSources.filter(({ metric, r, hub, hubType }) =>
-    (selection.client || []).includes(r.client_name) &&
+    (selection.client || []).includes(orBlank(r.client_name)) &&
     (selection.metric || []).includes(metric) &&
-    (selection.region || []).includes(r.region) &&
+    (selection.region || []).includes(orBlank(r.region)) &&
     (selection.hubType || []).includes(hubType) &&
     (selection.hub || []).includes(hub) &&
     (!from || r.report_date >= from) && (!to || r.report_date <= to));
@@ -459,10 +473,11 @@ export default function Report1MienVungHub({
     const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Loại hub', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
     rows.forEach(({ metric, r, hub, hubType }) => {
-      const tot = metric === 'Pickup' ? getRowVal(r, 'mau_pu') : metric === 'Deli' ? getRowVal(r, 'mau_deli', 'mau_del') : getRowVal(r, 'mau_fd');
-      const ont = metric === 'Pickup' ? getRowVal(r, 'ontime_pu_1st') : metric === 'Deli' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'fd_hoan_thanh');
+      const def = EXPORT_METRIC_DEFS[metric];
+      const tot = def.tot(r);
+      const ont = def.ont(r);
       const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push([metric, r.client_name || '', r.region, hubType, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+      csvRows.push([metric, orBlank(r.client_name), orBlank(r.region), hubType, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
     const context = {
