@@ -1,5 +1,5 @@
-import React from 'react';
-import { LogOut, UserCheck, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { LogOut, Pin, PinOff, UserCheck, ShieldCheck } from 'lucide-react';
 import SelectionIndicator from './ui/SelectionIndicator';
 import AnimatedIcon from './ui/AnimatedIcon';
 import { navigationModules, MODULE_GROUP_LABELS } from '../modules/moduleRegistry.jsx';
@@ -11,10 +11,47 @@ export default function Sidebar({
   onLogout,
   isDarkMode,
   setIsDarkMode,
-  isCollapsed,
-  onToggleCollapse,
   onOpenPalette
 }) {
+  const pinStorageKey = currentUser?.email
+    ? `ghn_sidebar_pinned:${currentUser.email.trim().toLowerCase()}`
+    : null;
+  const [isPinned, setIsPinned] = useState(() => {
+    try {
+      // An account without a saved choice starts expanded and pinned.
+      return !pinStorageKey || localStorage.getItem(pinStorageKey) !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [isHovered, setIsHovered] = useState(false);
+  const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
+  const closeTimer = useRef(null);
+  const isCollapsed = !isPinned && !isHovered && !hasKeyboardFocus;
+
+  useEffect(() => {
+    if (!pinStorageKey) return;
+    try {
+      localStorage.setItem(pinStorageKey, String(isPinned));
+    } catch {
+      // Pinning still works when browser storage is unavailable.
+    }
+  }, [isPinned, pinStorageKey]);
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  const handlePointerEnter = (event) => {
+    if (event.pointerType === 'touch') return;
+    clearTimeout(closeTimer.current);
+    setIsHovered(true);
+  };
+
+  const handlePointerLeave = () => {
+    clearTimeout(closeTimer.current);
+    // Allow a brief trip outside the panel without flickering shut.
+    closeTimer.current = setTimeout(() => setIsHovered(false), 160);
+  };
+
   const handleHomeClick = () => {
     setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -47,7 +84,20 @@ export default function Sidebar({
   };
 
   return (
-    <aside id="app-sidebar" className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside
+      id="app-sidebar"
+      className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerLeave}
+      onPointerDownCapture={() => setHasKeyboardFocus(false)}
+      onFocusCapture={(event) => {
+        if (event.target.matches(':focus-visible')) setHasKeyboardFocus(true);
+      }}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setHasKeyboardFocus(false);
+      }}
+    >
       <div className="sidebar-brand-container" style={{ position: 'relative' }}>
         <button type="button" className="sidebar-brand" onClick={handleHomeClick} aria-label="Tổng quan GHN">
           <img
@@ -61,18 +111,18 @@ export default function Sidebar({
           </div>
         </button>
 
-        {/* Keep the navigation control aligned directly beneath the brand. */}
+        {/* Compact pin control beside the brand. */}
         <button
           type="button"
-          className="sidebar-toggle-btn below-logo-toggle"
-          onClick={onToggleCollapse}
-          data-tooltip={isCollapsed ? "Mở rộng điều hướng" : "Thu gọn điều hướng"}
-          aria-label={isCollapsed ? "Mở rộng điều hướng" : "Thu gọn điều hướng"}
+          className="sidebar-pin-btn"
+          onClick={() => setIsPinned(pinned => !pinned)}
+          data-tooltip={isPinned ? 'Bỏ ghim thanh bên' : 'Ghim thanh bên'}
+          data-tooltip-detail={isPinned ? 'Tự mở khi rê chuột vào, thu lại khi rời chuột' : 'Giữ thanh bên luôn mở'}
+          aria-label="Ghim thanh bên"
           aria-controls="app-sidebar"
-          aria-expanded={!isCollapsed}
+          aria-pressed={isPinned}
         >
-          <AnimatedIcon name={isCollapsed ? "PanelLeftOpen" : "PanelLeftClose"} />
-          {!isCollapsed && <span>Thu gọn điều hướng</span>}
+          {isPinned ? <PinOff size={16} aria-hidden="true" /> : <Pin size={16} aria-hidden="true" />}
         </button>
       </div>
 

@@ -182,7 +182,6 @@ export default function App() {
 
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isDataSourceOpen, setIsDataSourceOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
   // Command palette: Cmd/Ctrl+K từ bất kỳ đâu trong app, trừ khi đang gõ vào
@@ -771,14 +770,13 @@ export default function App() {
       {/* Main Layout wrapper for Sidebar + Content */}
       <div className="app-layout">
         <Sidebar
+          key={currentUser?.email?.trim().toLowerCase() || 'anonymous'}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           currentUser={currentUser}
           onLogout={handleLogout}
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           onOpenPalette={() => setIsPaletteOpen(true)}
         />
 
