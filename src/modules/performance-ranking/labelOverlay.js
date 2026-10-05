@@ -32,7 +32,7 @@ function roundRect(ctx, x, y, w, h, r) {
 function metrics(compact) {
   return compact
     ? { padX: 5, padY: 3, nameMax: 64, rank: 9.5, name: 10, kpi: 9.5, chip: 8.5, rowGap: 1, gap: 3 }
-    : { padX: 6, padY: 4, nameMax: 95, rank: 10.5, name: 11, kpi: 10.5, chip: 9.5, rowGap: 2, gap: 4 };
+    : { padX: 6, padY: 4, nameMax: 95, rank: 11, name: 11.5, kpi: 11, chip: 9.5, rowGap: 2, gap: 4 };
 }
 
 function fit(ctx, text, maxWidth) {
@@ -140,7 +140,8 @@ export function drawLabel(ctx, spec, box, x, y, fonts) {
   ctx.save();
   roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 6);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = spec.state === 'rest' ? P.tagBorder : accent;
+  ctx.strokeStyle = spec.state === 'rest' ? (spec.medal ? spec.medal : P.tagBorder) : accent;
+  if (spec.state === 'rest' && spec.medal) ctx.lineWidth = 1.5;
   ctx.stroke();
 
   ctx.textBaseline = 'middle';
@@ -158,7 +159,7 @@ export function drawLabel(ctx, spec, box, x, y, fonts) {
 
   cx = x + m.padX;
   ctx.font = `700 ${m.kpi}px ${fonts.mono}`;
-  ctx.fillStyle = P.kpi;
+  ctx.fillStyle = spec.good ? P.tagGood : P.tagBelow; // KPI text carries the target status too
   ctx.fillText(spec.kpi, cx, row2Y);
   cx += kpiW + m.gap;
   for (const chip of chips) {

@@ -14,6 +14,8 @@ import {
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
+import { Play } from 'lucide-react';
+import { pickSceneTheme } from '../../utils/sceneThemes.js';
 import {
   Checkpoint,
   LabelProjector,
@@ -24,7 +26,6 @@ import {
 } from './roadScene3dParts.jsx';
 
 // Loaded via React.lazy so three stays out of the 2D path.
-const SCENE_BG = '#0f172a';
 const STAGGER_LANE_COUNT = 4;
 const LANE_WIDTH = 1.8;
 const FOV = 40;
@@ -33,6 +34,8 @@ const TARGET_Y = 1; // look slightly above the asphalt so gantries and labels fi
 const START_COLOR = '#38bdf8';
 const SLA_COLOR = '#f59e0b';
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
+const ALWAYS_LABELLED = 3; // ranks 1-3 outrank everything but the hovered / selected truck
+const MEDAL_BORDER = ['#f5b800', '#b8c4d0', '#a0522d'];
 const FOLLOW_OFFSET = new THREE.Vector3(-3.5, 5, 9); // camera offset from the followed truck
 const QUALITY_MIN_FPS = 30; // median fps of a replay/transition below this counts as slow
 const QUALITY_STRIKES = 2; // slow motions in a row before dropping to the low tier
@@ -42,7 +45,7 @@ const FLIGHT_SPEED = 6; // exponential smoothing rate of the camera flight
 // Auto-play the replay once per page load (not on every 2D/3D switch).
 let autoReplayDone = false;
 
-const FALLBACK_COLORS = { good: '#0f6e56', bad: '#a13b2a' };
+const FALLBACK_COLORS = { good: '#0f6e56', bad: '#a13b2a', isDark: false };
 
 function readThemeColors() {
   if (typeof document === 'undefined') return FALLBACK_COLORS;
@@ -50,17 +53,19 @@ function readThemeColors() {
   const pick = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
   return {
     good: pick('--status-success-fg', FALLBACK_COLORS.good),
-    bad: pick('--status-danger-fg', FALLBACK_COLORS.bad)
+    bad: pick('--status-danger-fg', FALLBACK_COLORS.bad),
+    isDark: document.body.classList.contains('dark-mode')
   };
 }
 
-// Same tokens as the legend dots; re-read when the app toggles dark-mode on <body>.
+// Status colours use the same tokens as the legend dots; everything is re-read when the app
+// toggles dark-mode on <body>.
 function useThemeColors() {
   const [colors, setColors] = useState(readThemeColors);
   useEffect(() => {
     const update = () => {
       const next = readThemeColors();
-      setColors((prev) => (prev.good === next.good && prev.bad === next.bad ? prev : next));
+      setColors((prev) => (prev.good === next.good && prev.bad === next.bad && prev.isDark === next.isDark ? prev : next));
     };
     update();
     const observer = new MutationObserver(update);
@@ -86,6 +91,36 @@ function useReducedMotion() {
 function useCompactDevice() {
   const [compact] = useState(() => window.matchMedia('(pointer: coarse), (max-width: 768px)').matches);
   return compact;
+}
+
+/**
+ * Sky gradient (scene.background) and fog. The default camera looks down at the road, so most of
+ * the time only the ground and its fade into the horizon colour are visible; the sky shows when the
+ * user orbits down towards the horizon. Fog starts beyond the road so trucks are never washed out.
+ */
+function Atmosphere({ theme, roadLength }) {
+  const sky = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+    gradient.addColorStop(0, theme.skyTop);
+    gradient.addColorStop(1, theme.skyBottom);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 2, 256);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }, [theme]);
+  useEffect(() => () => sky.dispose(), [sky]);
+  const near = roadLength * 0.9 + 60;
+  return (
+    <>
+      <primitive object={sky} attach="background" />
+      <fog attach="fog" args={[theme.horizon, near, near * 2.6 + 260]} />
+    </>
+  );
 }
 
 /** Reports WebGL context loss (GPU reset, driver crash, too many contexts) to the parent. */
@@ -128,13 +163,19 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
   const flightRef = useRef(null);
   const placedRef = useRef(false);
 
+  // On a narrow canvas the whole road would shrink to a thin strip: frame the leading part of it
+  // (rank 1 end) and let the user orbit or pinch for the rest. Wide canvases still frame it all.
+  const aspectRatio = size.width / Math.max(1, size.height);
+  const visibleSpan = aspectRatio >= 1.6 ? roadLength : Math.max(Math.min(roadLength, 26), roadLength * Math.max(0.4, aspectRatio / 1.6));
+  const centerX = roadLength / 2 - visibleSpan / 2 - (visibleSpan < roadLength ? roadLength * 0.04 : 0);
+
   const fitDistance = useMemo(() => {
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
     const aspect = Math.max(0.2, size.width / Math.max(1, size.height));
-    const horizontal = (roadLength * 0.54) / (tanHalf * aspect);
-    const vertical = 11 / tanHalf; // road width + gantry height + labels
+    const horizontal = (visibleSpan * 0.54) / (tanHalf * aspect);
+    const vertical = 8.5 / tanHalf; // road width + gantry height + labels
     return Math.max(horizontal, vertical);
-  }, [roadLength, size.width, size.height]);
+  }, [visibleSpan, size.width, size.height]);
 
   const hasFocus = Boolean(focus);
   const focusX = focus ? focus.x : 0;
@@ -146,11 +187,12 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
       return { target, position: target.clone().add(FOLLOW_OFFSET) };
     }
     const tilt = THREE.MathUtils.degToRad(TILT_DEG);
+    const x = visibleSpan < roadLength ? centerX : 0;
     return {
-      target: new THREE.Vector3(0, TARGET_Y, 0),
-      position: new THREE.Vector3(0, TARGET_Y + Math.sin(tilt) * fitDistance, Math.cos(tilt) * fitDistance)
+      target: new THREE.Vector3(x, TARGET_Y, 0),
+      position: new THREE.Vector3(x, TARGET_Y + Math.sin(tilt) * fitDistance, Math.cos(tilt) * fitDistance)
     };
-  }, [hasFocus, focusX, focusZ, fitDistance]);
+  }, [hasFocus, focusX, focusZ, fitDistance, visibleSpan, roadLength, centerX]);
 
   useLayoutEffect(() => {
     camera.near = 0.5;
@@ -219,6 +261,7 @@ export default function RoadScene3D({
   d1Label = '', d8Label = '', metricLabel = '', target = null
 }) {
   const colors = useThemeColors();
+  const theme = pickSceneTheme(colors.isDark);
   const reducedMotion = useReducedMotion();
   const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
   const [hoveredId, setHoveredId] = useState(null);
@@ -323,14 +366,14 @@ export default function RoadScene3D({
         key: 'start',
         position: [startX, 4.3, 0],
         anchor: 'center',
-        priority: 60,
+        priority: 72,
         spec: { kind: 'pill', text: 'Điểm tiếp nhận & điều phối', color: START_COLOR }
       },
       {
         key: 'sla',
         position: [slaX, 4.3, 0],
         anchor: 'center',
-        priority: 60,
+        priority: 72,
         spec: { kind: 'pill', text: 'Mốc chuẩn SLA', color: SLA_COLOR }
       }
     ];
@@ -361,8 +404,8 @@ export default function RoadScene3D({
         followId: truck.id,
         baseY: 2.1,
         anchor: 'above',
-        priority: isHovered ? 100 : isSelected ? 90 : 70 - idx * 0.1,
-        nearOnly: !isSelected && !isHovered,
+        priority: isHovered ? 100 : isSelected ? 90 : idx < ALWAYS_LABELLED ? 80 - idx : 70 - idx * 0.1,
+        nearOnly: !isSelected && !isHovered && idx >= ALWAYS_LABELLED,
         spec: {
           kind: 'tag',
           rank: item.rank,
@@ -371,6 +414,7 @@ export default function RoadScene3D({
           good: Boolean(item.meetsTarget),
           delta,
           warn: Boolean(item.isSmallSample),
+          medal: item.rank >= 1 && item.rank <= 3 ? MEDAL_BORDER[item.rank - 1] : null,
           state: isHovered ? 'hover' : isSelected ? 'selected' : 'rest'
         }
       });
@@ -440,11 +484,12 @@ export default function RoadScene3D({
           }
         }}
       >
-        <color attach="background" args={[SCENE_BG]} />
-        <hemisphereLight args={['#e2e8f0', '#334155', 2]} />
+        <Atmosphere theme={theme} roadLength={roadLength} />
+        <hemisphereLight args={[theme.hemisphere.sky, theme.hemisphere.ground, theme.hemisphere.intensity]} />
         <directionalLight
           position={[roadLength * 0.1, 26, 14]}
-          intensity={1.5}
+          color={theme.sun.color}
+          intensity={theme.sun.intensity}
           castShadow={shadowsOn}
           shadow-mapSize={[2048, 2048]}
           shadow-camera-left={-roadLength / 2 - 6}
@@ -456,7 +501,7 @@ export default function RoadScene3D({
           shadow-radius={4}
         />
 
-        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} sceneBackground={SCENE_BG} />
+        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} />
         <Checkpoint x={startX} roadWidth={roadWidth} color={START_COLOR} />
         <Checkpoint x={slaX} roadWidth={roadWidth} color={SLA_COLOR} line />
         <TruckFleet
@@ -496,7 +541,8 @@ export default function RoadScene3D({
           title={canReplay ? 'Xem lại thứ hạng chuyển từ D-8 sang D-1 (hạng trong nhóm đối soát chung)' : 'Chưa có dữ liệu D-8 để so sánh'}
           onClick={startReplay}
         >
-          Replay D-8 → D-1
+          <Play size={12} aria-hidden="true" />
+          <span>Replay D-8 → D-1</span>
         </button>
         <div className="prr-segmented-limit" role="group" aria-label="Chế độ camera">
           <button

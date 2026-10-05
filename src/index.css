@@ -6746,7 +6746,7 @@ body.dark-mode .prr-scope-chip.highlight {
 /* Phones: a canvas that fits the screen (the table stays close) and tighter controls. */
 @media (max-width: 640px) {
   .prr-scene3d {
-    height: clamp(280px, 58dvh, 400px);
+    height: clamp(240px, 44dvh, 340px);
   }
 }
 
@@ -6802,6 +6802,25 @@ body.dark-mode .prr-scope-chip.highlight {
    raised pill. */
 .prr-3d-controls .prr-segmented-limit .seg-btn:not(.active):not(:disabled) {
   color: var(--text-primary);
+}
+
+/* Selected option: the raised pill plus a GHN-orange underline, so the state survives a glance and
+   does not rely on a white-on-pale difference. */
+.prr-3d-controls .prr-segmented-limit .seg-btn.active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12), inset 0 -2px 0 var(--ghn-orange, #f15a22);
+}
+
+.prr-3d-controls .prr-segmented-limit .seg-btn:disabled {
+  opacity: 0.6;
+}
+
+.prr-3d-controls .prr-replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-width: 1.5px;
+  border-color: var(--action-primary, #0ea5c4);
+  margin-right: 0.35rem; /* the action sits apart from the two state toggles */
 }
 
 .prr-scene3d:focus-visible {
