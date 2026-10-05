@@ -361,7 +361,7 @@ export default function PerformanceRoadRanking({
         ) : (
           sceneMode === '3d' ? (
             <Suspense fallback={<LoadingScreen variant="block" />}>
-              <RoadScene3D />
+              <RoadScene3D sceneTrucks={sceneTrucks} />
             </Suspense>
           ) : (
             <RoadScene2D
