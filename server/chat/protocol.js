@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ChatError } from './errors.js';
+import { MODULE_IDS } from '../../src/modules/moduleIds.js';
 
 export const MAX_BODY_BYTES = 64 * 1024;
 export const MAX_QUESTION_CHARS = 4000;
@@ -14,7 +15,9 @@ const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
 const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
 const DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const ALLOWED_TABS = Object.freeze(new Set(['report1', 'report5', 'report3', 'report-insight']));
+// Chat is available on every dashboard module. Share the navigation contract so
+// a valid UI tab cannot make an otherwise valid question fail validation.
+export const ALLOWED_TABS = Object.freeze(new Set(MODULE_IDS));
 
 function badRequest(message) {
   throw new ChatError('CHAT_BAD_REQUEST', message, 400);

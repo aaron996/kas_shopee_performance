@@ -11,6 +11,23 @@ test('tool definitions are strict and never expose arbitrary SQL', () => {
   }
 });
 
+test('dashboard help is limited to user-visible topics and COD explanation does not reveal scoring', async () => {
+  const result = await executeChatTool({ name: 'get_dashboard_help', arguments: JSON.stringify({ topic: 'cod' }) });
+  assert.match(result.data.description, /không phải kết luận/);
+  assert.doesNotMatch(result.data.description, /SMS|scoring|P90|SQL|schema/i);
+  for (const topic of ['dev-admin', 'sms_scoring', 'ranking', 'model_config']) {
+    await assert.rejects(executeChatTool({ name: 'get_dashboard_help', arguments: JSON.stringify({ topic }) }),
+      error => error.code === 'CHAT_TOOL_ARGUMENTS_INVALID');
+  }
+});
+
+test('FD definition is available without querying user data', async () => {
+  const definition = CHAT_TOOLS.find(tool => tool.name === 'get_metric_definition');
+  assert.ok(definition.parameters.properties.metric.enum.includes('fd'));
+  const result = await executeChatTool({ name: 'get_metric_definition', arguments: '{"metric":"fd"}' });
+  assert.match(result.data.formula, /fd_hoan_thanh/);
+});
+
 test('metric tool maps only validated arguments to the fixed RPC', async () => {
   const calls = [];
   const userClient = {

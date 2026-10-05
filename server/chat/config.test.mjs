@@ -14,6 +14,11 @@ test('chat config fails closed while feature flag is off', () => {
   assert.throws(() => readChatConfig({ ...validEnv, AI_CHAT_ENABLED: 'false' }), error => error.code === 'CHAT_DISABLED');
 });
 
+test('public search can be disabled without disabling database or knowledge chat', () => {
+  assert.equal(readChatConfig(validEnv).webSearchEnabled, true);
+  assert.equal(readChatConfig({ ...validEnv, AI_CHAT_WEB_SEARCH_ENABLED: 'false' }).webSearchEnabled, false);
+});
+
 test('chat config defaults to Luna with low reasoning and rejects unknown models', () => {
   const config = readChatConfig(validEnv);
   assert.equal(config.model, 'gpt-5.6-luna');
