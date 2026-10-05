@@ -11,7 +11,8 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | 0 | Khung, thư viện, công tắc 2D/3D, lazy chunk | Xong (tài liệu này) |
 | 1 | Cảnh 3D tĩnh: đường, làn, xe, camera toàn cảnh | Xong |
 | 2 | Tương tác: chọn xe, nhãn, camera bám xe, làn theo Vùng, bàn phím | Xong |
-| 3–5 | Replay, hiệu năng, hoàn thiện | Chưa làm |
+| 3 | Replay D-8 → D-1 và chuyển cảnh khi đổi KPI/bộ lọc | Xong |
+| 4–5 | Hiệu năng, mobile, hoàn thiện | Chưa làm |
 
 ## Kiến trúc Sprint 0
 
@@ -20,9 +21,9 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | `PerformanceRoadRanking.jsx` | Giữ dữ liệu, KPI, bảng, panel chi tiết. Chọn cảnh theo `sceneMode` |
 | `RoadScene2D.jsx` | Cảnh SVG/CSS cũ, tách nguyên trạng. Props: `sceneTrucks`, `selectedHubId`, `onSelectHub`. Tự giữ ref và hiệu ứng cuộn tới xe đang chọn |
 | `RoadScene3D.jsx` | Cảnh 3D (react-three-fiber). Nạp bằng `React.lazy`, nằm trong chunk riêng. Nhận `sceneTrucks`, dựng canvas, ánh sáng, camera, nhãn checkpoint |
-| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `Trucks` (nhóm mesh hoặc `InstancedMesh`, có raycast), `SelectionRing`, `LabelProjector` |
+| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `TruckFleet` (`InstancedMesh`, raycast, vòng lặp animation), `SelectionRing`, `LabelProjector` |
 | `TruckTag.jsx` | Nhãn xe dùng chung cho 2D và 3D (`.prr-truck-tag*`) |
-| `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`. Có test `rankingSceneLayout.test.mjs` |
+| `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`, `computeReplayFrames`, `computeTransitionFrames`, easing. Có test `rankingSceneLayout.test.mjs` |
 | `utils/sceneCapability.js` | Hàm thuần: `detectWebGL2(createCanvas)`, `pickDefaultSceneMode(...)`. Có test `sceneCapability.test.mjs` |
 
 Không sửa `utils/performanceRanking.js`, không thêm file trong `api/`.
@@ -131,9 +132,12 @@ dải đèn trên nóc cabin, màu lấy từ token `--status-success-fg` (đạ
 `--status-danger-fg` (chưa đạt), cùng token với chấm chú giải. Màu được đọc lại khi
 `<body>` đổi class (theme sáng/tối). Nền cảnh luôn tối `#0f172a`, giống khối 2D.
 
-- ≤ 30 xe: mỗi xe là một `group` mesh.
-- Trên 30 xe: mỗi bộ phận là một `InstancedMesh` (màu từng xe qua `instanceColor`).
-  Vì `InstancedMesh` không đổi số lượng tại chỗ nên `key` có kèm số xe.
+- Từ Sprint 3, mọi số lượng xe đều dùng `InstancedMesh` (mỗi bộ phận của xe một mesh,
+  màu từng xe qua `instanceColor`, độ mờ từng xe qua thuộc tính `instanceAlpha`). Sprint 1–2
+  chỉ dùng `InstancedMesh` khi > 30 xe và dùng `group` cho số xe nhỏ; bỏ nhánh `group` để
+  animation và độ mờ chỉ có một đường chạy. Số draw call cố định (~12) bất kể số xe.
+  `InstancedMesh` không đổi số lượng tại chỗ nên `TruckFleet` được remount khi số xe đang
+  vẽ đổi.
 - Vạch kẻ đứt gộp vào một `InstancedMesh`.
 
 ### Camera, ánh sáng, vòng lặp render
@@ -174,10 +178,9 @@ Esc bỏ chọn, đổi KPI thì bỏ chọn, nút "Mở chi tiết Hub" gọi `
 
 ### Chọn xe và hover
 
-- Raycast của R3F. Xe ≤ 30 là `group`, bấm vào bất kỳ bộ phận nào đều chọn xe đó.
-  Xe > 30 là `InstancedMesh`: dùng `instanceId` của lần va chạm để tra ngược về
-  `id` Hub (mỗi bộ phận có handler riêng, `onPointerMove` cập nhật khi đi từ xe
-  này sang xe khác trong cùng một mesh).
+- Raycast của R3F trên `InstancedMesh`: dùng `instanceId` của lần va chạm để tra ngược
+  về `id` Hub (mỗi bộ phận có handler riêng, `onPointerMove` cập nhật khi đi từ xe này
+  sang xe khác trong cùng một mesh).
 - Chỉ tính là bấm khi con trỏ gần như không di chuyển (`event.delta ≤ 4px`), nên
   kéo để xoay camera không chọn nhầm xe.
 - Hover: con trỏ `pointer`, xe nhô lên 0,25 đơn vị, nhãn của xe đó hiện ngay (kể cả
@@ -253,3 +256,83 @@ reduced-motion. Cảnh 2D kiểm tra lại: 20 xe, 20 nhãn, chọn xe vẫn ch�
 
 Chưa kiểm tra: chọn từ ô tìm kiếm của bảng (ô này chỉ lọc dòng bảng, chọn vẫn đi
 qua bấm dòng nên dùng cùng luồng); cảm ứng trên điện thoại (Sprint 4).
+
+## Replay D-8 → D-1
+
+Nút "Replay D-8 → D-1" ở góc dưới phải của cảnh 3D. Nút bị tắt (kèm tooltip) khi chưa có
+ngày D-8 hoặc không Hub nào có baseline chung.
+
+### Hạng nào được dùng
+
+Replay dựa trên **hạng trong nhóm đối soát chung** (`cohortRankD8`, `cohortRankD1`, tức
+chỉ những Hub có dữ liệu cả D-1 lẫn D-8), **không phải `rank` toàn bộ**. Đây cũng là hạng
+mà cột "Δ Hạng" trong bảng và nhãn `+n/-n` dùng (`deltaRank = cohortRankD8 - cohortRankD1`),
+nên Replay khớp với bảng:
+
+- `deltaRank > 0`: Hub lên hạng, xe chạy **tiến lên** và có mũi tên xanh.
+- `deltaRank < 0`: Hub tụt hạng, xe **lùi lại** và có mũi tên đỏ.
+- `deltaRank = 0`: xe đứng yên, không mũi tên.
+- Hub không có baseline (`hasCommonBaseline !== true`, nhãn "Mới"): xe xuất phát ở cổng
+  "Điểm tiếp nhận & điều phối", trong suốt, và hiện dần trong lúc chạy tới vị trí của nó.
+
+### Cách tính vị trí (`computeReplayFrames`)
+
+- Vị trí kết thúc = vị trí tĩnh của cảnh (đúng `computeSceneLayout`). Kiểm tra bằng ảnh:
+  trước và sau Replay giống nhau tới từng điểm ảnh (sai khác làm tròn ≤ 3/765, dưới 50 điểm).
+- Vị trí bắt đầu = vị trí tĩnh của "ô" `idx + deltaRank`, kẹp trong `[0, n-1]`. Hai Hub trùng
+  ô xuất phát thì Hub sau bị đẩy sang ô trống gần nhất để không chồng nhau.
+- Khi cảnh chỉ hiện Top N, `idx` là chỉ số trong lát cắt đang hiện. Một Hub có `deltaRank`
+  rất lớn có thể bị kẹp ở cuối đoạn đường đang hiện (không xuất phát từ ngoài khung nhìn).
+  Hướng và mũi tên luôn lấy từ dấu của `deltaRank`, nên luôn khớp bảng; chỉ khoảng cách
+  chạy là xấp xỉ.
+- Chế độ "Làn theo Vùng": mỗi xe giữ làn của Vùng mình, chỉ thay đổi vị trí dọc đường.
+
+### Hiển thị
+
+- Thời lượng 3 giây, easing `easeInOutCubic`.
+- Chip ở giữa phía trên: `D-8 <ngày> ▬▬▬ D-1 <ngày>` với thanh tiến độ. Ngày đang "hiện hành"
+  sáng lên, ngày còn lại mờ đi (đổi ở nửa thời gian).
+- 2 giây cuối: mũi tên (nón) xanh/đỏ nhấp nhô trên nóc các xe đã đổi hạng.
+- Lần đầu mở 3D trong một lần tải trang: tự chạy Replay một lần (cờ `autoReplayDone` trong
+  module nên chuyển 2D ↔ 3D không chạy lại). Không tự chạy khi `prefers-reduced-motion`,
+  nhưng bấm nút vẫn chạy bình thường.
+
+### Vòng lặp render
+
+Mỗi khung hình `TruckFleet` ghi lại ma trận của mọi bộ phận, `instanceAlpha` và vị trí hiện
+tại của từng xe (`positionsRef`) rồi gọi `invalidate()`. Nhãn xe, vòng chọn và các mũi tên đọc
+vị trí từ `positionsRef` nên bám theo xe đang chạy. Khi chuyển động xong thì ngừng
+`invalidate()` và cảnh về `frameloop="demand"`.
+
+Độ mờ từng xe: `MeshStandardMaterial`/`MeshBasicMaterial` được vá bằng `onBeforeCompile` để
+nhân alpha với thuộc tính instance `instanceAlpha`; `material.transparent` chỉ bật trong lúc
+có xe đang mờ.
+
+## Chuyển cảnh khi đổi KPI / bộ lọc
+
+Khi `sceneTrucks` đổi (đổi KPI, bộ lọc, Top 10/20/Tất cả, chọn Hub ngoài lát cắt, đổi kiểu
+làn), cảnh tính `computeTransitionFrames` ngay trong lúc render nên khung hình đầu tiên đã
+xuất phát từ vị trí cũ (không chớp):
+
+- Hub có ở cả hai trạng thái: trượt từ vị trí cũ sang vị trí mới trong 0,8 giây.
+- Hub mới xuất hiện: hiện dần tại chỗ.
+- Hub bị loại: vẫn được vẽ ("ghost") và mờ dần tại chỗ, sau đó bị bỏ.
+- Vị trí không đổi (ví dụ chỉ đổi Hub đang chọn): không có chuyển động, và một Replay đang
+  chạy không bị ngắt.
+- `prefers-reduced-motion`: nhảy thẳng sang trạng thái mới.
+
+### Kiểm tra Sprint 3
+
+Playwright + Chrome (WebGL phần mềm), dữ liệu mẫu tạm có cả Hub "Mới": tự chạy Replay lần
+đầu · chip biến mất khi xong · ngày D-8/D-1 trên chip · pha chuyển `from → to` · kết thúc
+Replay trùng ảnh tĩnh · reduced-motion không tự chạy nhưng nút vẫn chạy · không chip/chuyển
+cảnh khi đổi KPI với reduced-motion · cảnh sau chuyển cảnh (đổi KPI, Top 20 → Top 10) trùng ảnh
+nhảy thẳng của reduced-motion · console sạch (trừ `THREE.Clock deprecated` của R3F). Bộ kiểm
+tra tương tác của Sprint 2 chạy lại, vẫn đạt.
+
+Ảnh: `docs/evidence/ranking-3d-sprint3/` — `replay-0150ms` … `replay-2800ms` (chuỗi khung hình,
+mũi tên xuất hiện từ ~1 giây; Hub "Mới" mờ gần cổng tiếp nhận), `transition-mid`,
+`transition-limit-mid`, `rest-before`.
+
+Chưa đo: chi phí mỗi khung hình khi Replay với vài trăm xe (ghi 11 ma trận × số xe mỗi khung);
+sẽ đo ở Sprint 4.

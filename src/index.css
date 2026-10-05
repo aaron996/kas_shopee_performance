@@ -6790,6 +6790,71 @@ body.dark-mode .prr-scope-chip.highlight {
   outline-offset: 2px;
 }
 
+.prr-replay-btn {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-default);
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.prr-replay-btn:hover:not(:disabled) {
+  border-color: var(--action-primary);
+}
+
+.prr-replay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prr-3d-replay-badge {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #f8fafc;
+  font-size: 0.74rem;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.prr-3d-replay-badge .replay-date {
+  transition: opacity var(--duration-fast) var(--ease-snappy);
+}
+
+.prr-3d-replay-badge[data-phase="from"] .replay-date.to,
+.prr-3d-replay-badge[data-phase="to"] .replay-date.from {
+  opacity: 0.45;
+}
+
+.prr-3d-replay-badge .replay-track {
+  position: relative;
+  width: 7rem;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.3);
+  overflow: hidden;
+}
+
+.prr-3d-replay-badge .replay-fill {
+  position: absolute;
+  inset: 0;
+  background: #38bdf8;
+  transform-origin: left center;
+  transform: scaleX(var(--replay-progress, 0));
+}
+
 .prr-3d-sr {
   position: absolute;
   width: 1px;

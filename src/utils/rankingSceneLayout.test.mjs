@@ -5,6 +5,11 @@ import {
   getRoadLength,
   getRegionRoadLength,
   assignRegionLanes,
+  computeReplayFrames,
+  computeTransitionFrames,
+  easeInOutCubic,
+  interpolateFrame,
+  START_GATE_FRACTION,
   MAX_REGION_ROAD_LENGTH,
   MIN_ROAD_LENGTH,
   MAX_ROAD_LENGTH
@@ -185,4 +190,110 @@ test('region mode without regions on any truck still lays out (single "Khác" la
   const trucks = makeTrucks(5);
   const layout = computeSceneLayout(trucks, { roadLength: getRegionRoadLength(trucks), laneMode: 'region' });
   assert.ok(layout.every((t) => t.lane === 0 && t.z === 0));
+});
+
+// ---- Motion: replay + transition ----
+// cohort ranks: D1 order is the array order; `d8Of(i)` is the cohort rank on D-8
+const baseline = (n, d8Of) =>
+  Array.from({ length: n }, (_, i) => {
+    const d8 = d8Of(i);
+    return { id: `h${i + 1}`, rank: i + 1, hasCommonBaseline: true, cohortRankD1: i + 1, cohortRankD8: d8, deltaRank: d8 - (i + 1) };
+  });
+
+test('replay: end positions equal the static layout', () => {
+  const trucks = baseline(12, (i) => 12 - i);
+  const opts = { roadLength: getRoadLength(12) };
+  const layout = computeSceneLayout(trucks, opts);
+  const frames = computeReplayFrames(trucks, opts);
+  frames.forEach((f, i) => {
+    assert.equal(f.id, trucks[i].id);
+    assert.deepEqual(f.to, { x: layout[i].x, z: layout[i].z });
+  });
+});
+
+test('replay: moved-up hubs drive forward, moved-down hubs drive back, same rank stays', () => {
+  // D-8 order was the reverse of the D-1 order; the middle truck did not move
+  const trucks = baseline(7, (i) => 7 - i);
+  const frames = computeReplayFrames(trucks);
+  trucks.forEach((t, i) => {
+    const f = frames[i];
+    if (t.deltaRank > 0) { assert.ok(f.to.x > f.from.x, `${t.id} should move forward`); assert.equal(f.dir, 1); }
+    else if (t.deltaRank < 0) { assert.ok(f.to.x < f.from.x, `${t.id} should move back`); assert.equal(f.dir, -1); }
+    else { assert.equal(f.to.x, f.from.x); assert.equal(f.dir, 0); }
+  });
+});
+
+test('replay: start slots are a permutation when every hub has a baseline', () => {
+  const trucks = baseline(20, (i) => ((i * 7) % 20) + 1); // a permutation of 1..20
+  const frames = computeReplayFrames(trucks);
+  assert.equal(new Set(frames.map((f) => f.from.x.toFixed(6))).size, 20);
+});
+
+test('replay: hubs without baseline are flagged new, start at the intake gate and fade in', () => {
+  const trucks = [
+    ...baseline(3, (i) => 3 - i),
+    { id: 'new1', rank: 4, hasCommonBaseline: false, cohortRankD1: null, cohortRankD8: null, deltaRank: null }
+  ];
+  const frames = computeReplayFrames(trucks, { roadLength: 100 });
+  const f = frames[3];
+  assert.equal(f.isNew, true);
+  assert.equal(f.dir, 0);
+  assert.equal(f.alphaFrom, 0);
+  assert.equal(f.alphaTo, 1);
+  assert.ok(Math.abs(f.from.x - (START_GATE_FRACTION - 0.5) * 100) < 1e-9);
+  assert.equal(f.from.z, f.to.z);
+  assert.ok(frames.slice(0, 3).every((x) => !x.isNew && x.alphaFrom === 1));
+});
+
+test('replay: n = 0 / 1, no NaN, huge deltas stay on the road', () => {
+  assert.deepEqual(computeReplayFrames([]), []);
+  const [one] = computeReplayFrames([{ id: 'a', hasCommonBaseline: true, deltaRank: 5 }]);
+  assert.ok(Number.isFinite(one.from.x) && Number.isFinite(one.to.x));
+  const wild = baseline(10, (i) => i + 1 + 500 * (i % 2 ? 1 : -1));
+  const length = getRoadLength(10);
+  for (const f of computeReplayFrames(wild, { roadLength: length })) {
+    for (const v of [f.from.x, f.from.z, f.to.x, f.to.z, f.alphaFrom, f.alphaTo]) assert.ok(Number.isFinite(v));
+    assert.ok(Math.abs(f.from.x) <= length / 2);
+  }
+});
+
+test('replay: region lanes keep each hub in its own lane', () => {
+  const trucks = baseline(8, (i) => 8 - i).map((t, i) => ({ ...t, region: i % 2 ? 'HNO' : 'HCM' }));
+  const frames = computeReplayFrames(trucks, { laneMode: 'region' });
+  frames.forEach((f) => assert.equal(f.from.z, f.to.z));
+});
+
+test('transition: unchanged scene reports changed = false', () => {
+  const prev = [{ id: 'a', x: 1, z: 0, meetsTarget: true }, { id: 'b', x: -1, z: 2, meetsTarget: false }];
+  const { changed, items } = computeTransitionFrames(prev, prev.map((t) => ({ ...t })));
+  assert.equal(changed, false);
+  assert.equal(items.length, 2);
+});
+
+test('transition: moved, new and removed trucks', () => {
+  const prev = [{ id: 'a', x: 1, z: 0, meetsTarget: true }, { id: 'gone', x: -3, z: 2, meetsTarget: false }];
+  const next = [{ id: 'a', x: 5, z: 0, meetsTarget: true }, { id: 'fresh', x: 2, z: 1.8, meetsTarget: true }];
+  const { changed, items } = computeTransitionFrames(prev, next);
+  assert.equal(changed, true);
+  const byId = new Map(items.map((i) => [i.id, i]));
+  assert.deepEqual(byId.get('a').from, { x: 1, z: 0 });
+  assert.deepEqual(byId.get('a').to, { x: 5, z: 0 });
+  assert.equal(byId.get('fresh').alphaFrom, 0);
+  assert.deepEqual(byId.get('fresh').from, byId.get('fresh').to);
+  assert.equal(byId.get('gone').ghost, true);
+  assert.equal(byId.get('gone').alphaTo, 0);
+  assert.equal(items.filter((i) => !i.ghost).length, 2);
+});
+
+test('easing and interpolation are bounded and monotonic', () => {
+  assert.equal(easeInOutCubic(0), 0);
+  assert.equal(easeInOutCubic(1), 1);
+  assert.equal(easeInOutCubic(-3), 0);
+  assert.equal(easeInOutCubic(9), 1);
+  let last = -1;
+  for (let i = 0; i <= 20; i++) { const v = easeInOutCubic(i / 20); assert.ok(v >= last); last = v; }
+  const frame = { from: { x: 0, z: 0 }, to: { x: 10, z: -4 }, alphaFrom: 0, alphaTo: 1 };
+  assert.deepEqual(interpolateFrame(frame, 0), { x: 0, z: 0, alpha: 0 });
+  assert.deepEqual(interpolateFrame(frame, 0.5), { x: 5, z: -2, alpha: 0.5 });
+  assert.deepEqual(interpolateFrame(frame, 1), { x: 10, z: -4, alpha: 1 });
 });
