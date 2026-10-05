@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   computeSceneLayout,
   getRoadLength,
+  getRegionRoadLength,
+  assignRegionLanes,
+  MAX_REGION_ROAD_LENGTH,
   MIN_ROAD_LENGTH,
   MAX_ROAD_LENGTH
 } from './rankingSceneLayout.js';
@@ -93,4 +96,93 @@ test('getRoadLength is clamped', () => {
 test('non-4 lane counts fall back to round-robin', () => {
   const layout = computeSceneLayout(makeTrucks(5), { laneCount: 3 });
   assert.deepEqual(layout.map((t) => t.lane), [0, 1, 2, 0, 1]);
+});
+
+const REGIONS = ['HNO', 'HCM', 'MB', 'MN', 'MT', 'DNB', 'TNB', 'XYZ'];
+const withRegions = (n, regionOf) =>
+  Array.from({ length: n }, (_, i) => ({ id: `h${i + 1}`, rank: i + 1, region: regionOf(i) }));
+
+test('region lanes: one lane per region, most trucks first', () => {
+  const trucks = withRegions(9, (i) => (i % 3 === 0 ? 'HNO' : i % 3 === 1 ? 'HCM' : 'MB'));
+  trucks.push({ id: 'x', rank: 10, region: 'HCM' });
+  const { lanes, laneOf } = assignRegionLanes(trucks);
+  assert.deepEqual(lanes.map((l) => l.label), ['HCM', 'HNO', 'MB']);
+  assert.equal(laneOf.get('x'), 0);
+  assert.equal(laneOf.get('h1'), 1);
+});
+
+test('region lanes: exactly 6 regions use 6 lanes, no "Khác"', () => {
+  const { lanes } = assignRegionLanes(withRegions(12, (i) => REGIONS[i % 6]));
+  assert.equal(lanes.length, 6);
+  assert.ok(!lanes.some((l) => l.label === 'Khác'));
+});
+
+test('region lanes: more than 6 regions are capped at 6 lanes with the rest in "Khác"', () => {
+  const trucks = withRegions(16, (i) => REGIONS[i % 8]);
+  const { lanes, laneOf } = assignRegionLanes(trucks);
+  assert.equal(lanes.length, 6);
+  assert.equal(lanes[5].label, 'Khác');
+  const kept = new Set(lanes.slice(0, 5).map((l) => l.key));
+  for (const t of trucks) {
+    const lane = laneOf.get(t.id);
+    assert.ok(lane >= 0 && lane < 6);
+    if (!kept.has(t.region)) assert.equal(lane, 5);
+  }
+});
+
+test('region lanes: trucks without a region go to "Khác"', () => {
+  const trucks = [{ id: 'a', region: 'HNO' }, { id: 'b', region: '' }, { id: 'c' }];
+  const { lanes, laneOf } = assignRegionLanes(trucks);
+  assert.deepEqual(lanes.map((l) => l.label), ['HNO', 'Khác']);
+  assert.equal(laneOf.get('b'), 1);
+  assert.equal(laneOf.get('c'), 1);
+});
+
+test('region layout: z by region lane, rank order along x is unchanged', () => {
+  const trucks = withRegions(20, (i) => REGIONS[i % 4]);
+  const roadLength = getRegionRoadLength(trucks);
+  const layout = computeSceneLayout(trucks, { roadLength, laneMode: 'region', laneWidth: 2 });
+  for (let i = 1; i < layout.length; i++) assert.ok(layout[i].x < layout[i - 1].x);
+  const zByRegion = new Map();
+  layout.forEach((t, i) => {
+    const prev = zByRegion.get(trucks[i].region);
+    if (prev !== undefined) assert.equal(prev, t.z);
+    zByRegion.set(trucks[i].region, t.z);
+  });
+  assert.equal(new Set(zByRegion.values()).size, 4);
+  const zs = [...zByRegion.values()].sort((a, b) => a - b);
+  assert.deepEqual(zs, [-3, -1, 1, 3]);
+});
+
+test('region layout: same-lane trucks never overlap when the road is long enough', () => {
+  for (const [n, regionOf] of [
+    [10, () => 'HNO'], // worst case: every truck in one lane
+    [40, (i) => REGIONS[i % 3]],
+    [60, (i) => REGIONS[Math.floor(i / 20)]]
+  ]) {
+    const trucks = withRegions(n, regionOf);
+    const roadLength = getRegionRoadLength(trucks);
+    assert.ok(roadLength <= MAX_REGION_ROAD_LENGTH);
+    const layout = computeSceneLayout(trucks, { roadLength, laneMode: 'region' });
+    const last = new Map();
+    for (const t of layout) {
+      if (last.has(t.lane)) assert.ok(last.get(t.lane) - t.x >= 3.4 - 1e-9, `n=${n} gap too small`);
+      last.set(t.lane, t.x);
+    }
+  }
+});
+
+test('getRegionRoadLength: at least the staggered length, capped, and sane for n < 2', () => {
+  assert.equal(getRegionRoadLength([]), MIN_ROAD_LENGTH);
+  assert.equal(getRegionRoadLength([{ id: 'a', region: 'HNO' }]), MIN_ROAD_LENGTH);
+  const many = withRegions(300, () => 'HNO');
+  assert.equal(getRegionRoadLength(many), MAX_REGION_ROAD_LENGTH);
+  const spread = withRegions(8, (i) => REGIONS[i % 4]);
+  assert.ok(getRegionRoadLength(spread) >= getRoadLength(8));
+});
+
+test('region mode without regions on any truck still lays out (single "Khác" lane)', () => {
+  const trucks = makeTrucks(5);
+  const layout = computeSceneLayout(trucks, { roadLength: getRegionRoadLength(trucks), laneMode: 'region' });
+  assert.ok(layout.every((t) => t.lane === 0 && t.z === 0));
 });

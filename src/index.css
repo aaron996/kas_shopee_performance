@@ -6726,12 +6726,34 @@ body.dark-mode .prr-scope-chip.highlight {
   pointer-events: none;
 }
 
-.prr-3d-checkpoint {
+/* One projected overlay label; LabelProjector sets transform + visibility every frame. */
+.prr-3d-label {
   position: absolute;
   left: 0;
   top: 0;
   visibility: hidden;
   white-space: nowrap;
+  z-index: 1;
+}
+
+.prr-3d-label.is-selected {
+  z-index: 2;
+}
+
+.prr-3d-label.is-hover {
+  z-index: 3;
+}
+
+.prr-3d-label .prr-truck-tag--3d {
+  position: static;
+  bottom: auto;
+}
+
+.prr-3d-label.is-selected .prr-truck-tag--3d {
+  border-color: #38bdf8;
+}
+
+.prr-3d-checkpoint {
   font-size: 0.7rem;
   font-weight: 600;
   color: #f8fafc;
@@ -6740,6 +6762,41 @@ body.dark-mode .prr-scope-chip.highlight {
   border-radius: var(--radius-pill);
   padding: 0.15rem 0.55rem;
   user-select: none;
+}
+
+.prr-3d-lane-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: rgba(51, 65, 85, 0.9);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  user-select: none;
+}
+
+.prr-3d-controls {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  z-index: 5;
+}
+
+.prr-scene3d:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.prr-3d-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .scene-toolbar-right {

@@ -10,7 +10,8 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 |---|---|---|
 | 0 | Khung, thư viện, công tắc 2D/3D, lazy chunk | Xong (tài liệu này) |
 | 1 | Cảnh 3D tĩnh: đường, làn, xe, camera toàn cảnh | Xong |
-| 2–5 | Tương tác, Replay, hiệu năng, hoàn thiện | Chưa làm |
+| 2 | Tương tác: chọn xe, nhãn, camera bám xe, làn theo Vùng, bàn phím | Xong |
+| 3–5 | Replay, hiệu năng, hoàn thiện | Chưa làm |
 
 ## Kiến trúc Sprint 0
 
@@ -19,8 +20,9 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | `PerformanceRoadRanking.jsx` | Giữ dữ liệu, KPI, bảng, panel chi tiết. Chọn cảnh theo `sceneMode` |
 | `RoadScene2D.jsx` | Cảnh SVG/CSS cũ, tách nguyên trạng. Props: `sceneTrucks`, `selectedHubId`, `onSelectHub`. Tự giữ ref và hiệu ứng cuộn tới xe đang chọn |
 | `RoadScene3D.jsx` | Cảnh 3D (react-three-fiber). Nạp bằng `React.lazy`, nằm trong chunk riêng. Nhận `sceneTrucks`, dựng canvas, ánh sáng, camera, nhãn checkpoint |
-| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `Trucks` (nhóm mesh hoặc `InstancedMesh`), `LabelProjector` |
-| `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`. Có test `rankingSceneLayout.test.mjs` |
+| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `Trucks` (nhóm mesh hoặc `InstancedMesh`, có raycast), `SelectionRing`, `LabelProjector` |
+| `TruckTag.jsx` | Nhãn xe dùng chung cho 2D và 3D (`.prr-truck-tag*`) |
+| `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`. Có test `rankingSceneLayout.test.mjs` |
 | `utils/sceneCapability.js` | Hàm thuần: `detectWebGL2(createCanvas)`, `pickDefaultSceneMode(...)`. Có test `sceneCapability.test.mjs` |
 
 Không sửa `utils/performanceRanking.js`, không thêm file trong `api/`.
@@ -111,8 +113,8 @@ Cùng quy tắc với cảnh 2D:
   thì `0.5`.
 - `progress` ánh xạ vào dải `[5%, 88%]` chiều dài đường. Hạng 1 ở xa nhất, về phía
   Mốc chuẩn SLA.
-- Làn xen kẽ `[0, 2, 1, 3]` để xe liền kề không chồng nhau (làn theo Vùng là
-  Sprint 2).
+- Làn xen kẽ `[0, 2, 1, 3]` để xe liền kề không chồng nhau. Có thêm chế độ
+  "Làn theo Vùng" (xem mục Tương tác).
 - Trục `x` chạy dọc đường, trục `z` ngang làn. Đường căn giữa gốc toạ độ.
 
 Chiều dài đường: `clamp(n × 1.6, 36, 320)` đơn vị. Vì làn xen kẽ nên hai xe cùng
@@ -163,3 +165,91 @@ dòng; chỉ 60 Hub đủ điều kiện xếp hạng trong bộ mẫu đó. Ch�
 `RoadScene3D-*.js`: 936,57 kB (249,61 kB gzip), tăng ~24 kB so với Sprint 0 do
 thêm cảnh, `OrbitControls`. `PerformanceRoadRanking-*.js` giữ ~24,75 kB. Chunk
 `index-*.js` đổi theo các commit khác trên `main`, không do Sprint này.
+
+## Tương tác
+
+Cảnh 3D đồng bộ hai chiều với bảng và panel chi tiết thông qua `selectedHubId` ở
+component cha. Component cha vẫn giữ nguyên các hành vi cũ: bấm lại để bỏ chọn,
+Esc bỏ chọn, đổi KPI thì bỏ chọn, nút "Mở chi tiết Hub" gọi `onJumpToReport1`.
+
+### Chọn xe và hover
+
+- Raycast của R3F. Xe ≤ 30 là `group`, bấm vào bất kỳ bộ phận nào đều chọn xe đó.
+  Xe > 30 là `InstancedMesh`: dùng `instanceId` của lần va chạm để tra ngược về
+  `id` Hub (mỗi bộ phận có handler riêng, `onPointerMove` cập nhật khi đi từ xe
+  này sang xe khác trong cùng một mesh).
+- Chỉ tính là bấm khi con trỏ gần như không di chuyển (`event.delta ≤ 4px`), nên
+  kéo để xoay camera không chọn nhầm xe.
+- Hover: con trỏ `pointer`, xe nhô lên 0,25 đơn vị, nhãn của xe đó hiện ngay (kể cả
+  xe ngoài Top 10) và nằm trên cùng. Đây cũng là tooltip: tên, hạng, KPI D-1.
+- Xe đang chọn: nhô lên 0,12, có vòng sáng cyan `#38bdf8` dưới xe (cùng màu
+  spotlight 2D), nhãn viền cyan.
+
+### Nhãn xe
+
+Nhãn là DOM phủ lên canvas, dùng chung `TruckTag` với cảnh 2D: `#hạng`, tên Hub,
+KPI D-1 (1 chữ số thập phân), `deltaRank` (`+n`/`-n`, "Mới" khi
+`hasCommonBaseline === false`), dấu `!` khi `isSmallSample`. Nhãn có nhãn cho Top
+10, xe đang chọn và xe đang hover. `LabelProjector` quyết định mỗi khung hình:
+
+1. Ẩn nhãn nằm sau camera.
+2. Ẩn nhãn của xe ở xa camera (Top 10 thường, không áp dụng cho xe chọn/hover):
+   xa hơn `max(30, khoảng cách camera-tới-điểm-nhìn × 2,5)`. Ở toàn cảnh mọi xe đều
+   trong tầm; khi zoom sát thì chỉ các xe gần mới có nhãn.
+3. Xếp theo độ ưu tiên (hover > đang chọn > Top 10 theo hạng > cổng checkpoint >
+   nhãn làn) và ẩn nhãn nào chồng lên nhãn đã xếp. Hệ quả: ở toàn cảnh nhiều xe,
+   một số nhãn Top 10 sẽ bị ẩn cho tới khi zoom vào hoặc hover; bảng bên dưới vẫn
+   là nguồn số liệu đầy đủ.
+4. Nhãn luôn nằm trọn trong khung canvas.
+
+### Camera
+
+- "Toàn cảnh" (mặc định): khung nhìn nghiêng 35° ôm cả đường.
+- "Bám xe": chọn xe (từ 3D, bảng, bàn phím) thì camera bay mượt tới xe đó
+  (làm mượt theo hàm mũ, khoảng 0,5–1 giây). Bỏ chọn thì tự quay về toàn cảnh. Nút
+  "Toàn cảnh" quay về mà vẫn giữ lựa chọn; nút "Bám xe" (chỉ bật khi có xe được
+  chọn) bay lại.
+- Người dùng bắt đầu kéo thì chuyến bay bị huỷ. Vẫn vẽ liên tục trong lúc bay
+  (`invalidate()` mỗi khung), xong thì về `frameloop="demand"`.
+- `prefers-reduced-motion: reduce`: camera nhảy thẳng tới vị trí mới, không bay.
+
+### Làn theo Vùng
+
+Nút "Làn xen kẽ / Làn theo Vùng" ở góc dưới phải của cảnh (mặc định xen kẽ).
+
+- Mỗi Vùng một làn, sắp theo số xe giảm dần rồi theo tên. Tối đa **6 làn**: nếu
+  có hơn 6 Vùng thì 5 Vùng đầu giữ làn riêng, các Vùng còn lại (và xe thiếu
+  `region`) gộp vào làn "Khác". Đúng 6 Vùng thì không có làn "Khác".
+- Tên Vùng hiện ở đầu mỗi làn. Số làn đổi thì mặt đường rộng ra/hẹp lại.
+- Vị trí dọc đường vẫn theo hạng như cũ. Vì xe cùng Vùng có thể liền hạng nhau
+  (cùng làn), đường được kéo dài để hai xe cùng làn cách ít nhất 3,4 đơn vị
+  (`getRegionRoadLength`), tối đa 640. Quá giới hạn đó (rất nhiều xe dồn một
+  Vùng) thì xe có thể chồng nhau về hình ảnh.
+- Lựa chọn này chỉ lưu trong phiên xem, không ghi `localStorage`.
+
+### Bàn phím và tiếp cận
+
+- Khung cảnh (`role="group"`, `tabIndex=0`) nhận phím khi đang focus:
+  `←`/`→` chuyển Hub kế bên theo hạng (`→` lên một hạng, vì hạng cao nằm bên
+  phải), `Enter` mở chi tiết (cuộn tới và focus panel chi tiết; nếu chưa chọn gì
+  thì chọn Hub hạng 1). Esc vẫn là bỏ chọn (phím ở cấp trang).
+- `aria-label` mô tả cảnh, số Hub, 3 Hub dẫn đầu, phím tắt và trỏ người dùng tới
+  bảng đối soát. Có vùng `aria-live` đọc "Đã chọn Hub …, hạng …, KPI …".
+- Nhãn phủ là `aria-hidden` (số liệu có ở bảng).
+
+### Kiểm tra
+
+Chạy bằng Playwright + Chrome (WebGL phần mềm) trên dữ liệu mẫu tạm, 16 bước, tất
+cả đạt, console sạch (trừ `THREE.Clock deprecated` của R3F):
+
+hover (con trỏ + nhãn) · bấm chọn · camera sang "Bám xe" · nhãn đang chọn · bấm lại
+bỏ chọn · về toàn cảnh khi bỏ chọn · chọn từ bảng thì xe sáng lên trong 3D · nút
+"Toàn cảnh" giữ lựa chọn · `→`/`←` · `Enter` focus panel · Esc · đổi KPI khi đang
+chọn thì bỏ chọn · làn theo Vùng · chọn xe trong chế độ `InstancedMesh` (34 xe) ·
+reduced-motion. Cảnh 2D kiểm tra lại: 20 xe, 20 nhãn, chọn xe vẫn chạy.
+
+Ảnh: `docs/evidence/ranking-3d-sprint2/` (`select-follow`, `overview-with-selection`,
+`region-lanes`, `all-select`).
+
+Chưa kiểm tra: chọn từ ô tìm kiếm của bảng (ô này chỉ lọc dòng bảng, chọn vẫn đi
+qua bấm dòng nên dùng cùng luồng); cảm ứng trên điện thoại (Sprint 4).
