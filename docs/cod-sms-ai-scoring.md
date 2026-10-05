@@ -11,6 +11,10 @@ The assessment table is separate from `kas_cod_suspicion_data`; the pipeline
 does not update `total_score`, source rows, or driver-resolution state. No cron
 is configured by this change.
 
+Only orders in the COD tab scope are scored: `signal_count_over_p90 = true` and
+`call_verification_priority = 'Cao'`. Earlier assessments of other orders stay in
+the table but are no longer refreshed.
+
 `GET /api/cod-sms-assessments` is the stable UI contract. Any authenticated app
 user can request non-raw assessment fields. Only a Dev Admin can add
 `include_evidence=true`; otherwise `evidence` is `null`. The underlying SMS and
