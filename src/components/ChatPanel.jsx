@@ -6,7 +6,6 @@ import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import { canRetry, formatDataScope } from '../utils/chatRetry';
-import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
 
 function createRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -119,11 +118,6 @@ function DataScopeBlock({ sources }) {
   );
 }
 
-function formatSuggestionDate(dateStr) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr || '');
-  return match ? `${match[3]}/${match[2]}` : dateStr;
-}
-
 export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -136,75 +130,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const [announcement, setAnnouncement] = useState('');
   const [mascotHidden, setMascotHidden] = useState(() => window.localStorage.getItem('kas-mascot-hidden') === 'true');
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
-  const [suggestionData, setSuggestionData] = useState(null);
-  const suggestionScopeKey = JSON.stringify({ activeTab: screenContext?.activeTab || 'report1', client: screenContext?.client || 'SPB', regions: screenContext?.regions ?? null, hubTypes: screenContext?.hubTypes ?? null });
-  const suggestionContext = useMemo(() => JSON.parse(suggestionScopeKey), [suggestionScopeKey]);
-  const fallbackSuggestions = useMemo(() => getFallbackSuggestions(suggestionContext.activeTab, suggestionContext), [suggestionContext]);
-  const visibleSuggestions = suggestionData?.cacheKey === suggestionScopeKey ? suggestionData : fallbackSuggestions;
-  const clientCacheRef = useRef(new Map());
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen || messages.length > 0 || pending || failedRequest) return;
-    const cacheKey = suggestionScopeKey;
-
-    const cached = clientCacheRef.current.get(cacheKey);
-    if (cached && Date.now() - cached.at < 10 * 60 * 1000) {
-      setSuggestionData(cached.data);
-      return;
-    }
-
-    let isCancelled = false;
-    const controller = new AbortController();
-    async function loadSuggestions() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token || isCancelled) {
-          if (!isCancelled) setSuggestionData({ ...fallbackSuggestions, cacheKey });
-          return;
-        }
-
-        const res = await fetch('/api/chat-suggestions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ screenContext: suggestionContext }),
-          signal: controller.signal
-        });
-
-        if (res.ok && !isCancelled) {
-          const body = await res.json();
-          if (body.quotaExceeded) {
-            setSuggestionData({ ...fallbackSuggestions, cacheKey });
-          } else if (body.suggestions) {
-            const nextData = {
-              ...body,
-              context: suggestionContext,
-              cacheKey,
-              dataAsOf: body.basis === 'template' ? null : body.dataAsOf ?? null
-            };
-            clientCacheRef.current.set(cacheKey, { at: Date.now(), data: nextData });
-            setSuggestionData(nextData);
-          }
-        } else if (!isCancelled) {
-          setSuggestionData({ ...fallbackSuggestions, cacheKey });
-        }
-      } catch {
-        if (!isCancelled) {
-          setSuggestionData({ ...fallbackSuggestions, cacheKey });
-        }
-      }
-    }
-
-    loadSuggestions();
-    return () => { isCancelled = true; controller.abort(); };
-  }, [isOpen, suggestionScopeKey, suggestionContext, fallbackSuggestions, messages.length, pending, failedRequest]);
 
   // Clean up legacy localStorage keys once
   useEffect(() => {
@@ -246,8 +176,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
 
   const history = useMemo(() => messages.slice(-20).map(({ role, content }) => ({ role, content })), [messages]);
   const isStreaming = Boolean(pending);
-  const followupSuggestions = useMemo(() => buildFollowupSuggestions(messages.at(-1)), [messages]);
-  const suggestionsDisabled = isStreaming || Boolean(quota && !quota.isUnlimited && quota.remainingTurns <= 0);
   const mascotState = getMascotState({
     isOpen,
     error,
@@ -281,7 +209,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
-  }, [messages, pending, error, failedRequest, status, isOpen, followupSuggestions]);
+  }, [messages, pending, error, failedRequest, status, isOpen]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -388,7 +316,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       const assistantContent = answer.trim() || interaction.prompt;
       setMessages(current => [...current,
         { role: 'user', content: displayQuestion },
-        { role: 'assistant', content: assistantContent, sources, interaction, requestQuestion: normalizedQuestion, screenContext: context }
+        { role: 'assistant', content: assistantContent, sources, interaction }
       ]);
       setPending(null);
       setStatus(null);
@@ -437,15 +365,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     submitQuestion(message.question, query, message.summary);
   };
 
-  const renderSuggestions = data => (
-    <div className="chat-suggestions">
-      {(data.items || data.suggestions.map(question => ({ id: question, label: question, question }))).map(item => (
-        <button type="button" key={item.id} disabled={suggestionsDisabled}
-          onClick={() => submitQuestion(item.question, null, item.question, data.context || screenContext)}>{item.label}</button>
-      ))}
-    </div>
-  );
-
   return (
     <>
     {!isOpen && !mascotHidden && <div className="chat-mascot-launcher">
@@ -481,17 +400,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       </header>
 
       <div className="chat-panel-body" ref={scrollRef}>
-        {!messages.length && !pending && !failedRequest && !error && (
-          <div className="chat-welcome">
-            <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
-            <h3>Hỏi dữ liệu KAS</h3>
-            <p className="chat-suggestions-basis">{visibleSuggestions.scopeLabel}
-              {visibleSuggestions.dataAsOf && <> · Dữ liệu đến {formatSuggestionDate(visibleSuggestions.dataAsOf)}</>}
-            </p>
-            {renderSuggestions(visibleSuggestions)}
-          </div>
-        )}
-
         {messages.map((message, index) => (
           <article className={`chat-message chat-message--${message.role}`} key={`${message.role}-${index}`}>
             <div className="chat-message-bubble">
@@ -511,14 +419,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
             {message.role === 'assistant' && <DataScopeBlock sources={message.sources} />}
           </article>
         ))}
-
-        {messages.length > 0 && !pending && !failedRequest && !error && followupSuggestions && (
-          <div className="chat-followups" aria-label="Gợi ý hỏi tiếp">
-            <p className="chat-followups-title">Tìm hiểu tiếp</p>
-            <p className="chat-suggestions-basis">{followupSuggestions.scopeLabel} · Theo kỳ vừa tra cứu</p>
-            {renderSuggestions(followupSuggestions)}
-          </div>
-        )}
 
         {pending && (
           <>
@@ -581,7 +481,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
               submitQuestion(draft);
             }
           }}
-          placeholder={followupSuggestions?.placeholder || visibleSuggestions.placeholder}
+          placeholder="Nhập câu hỏi…"
           rows={2}
           disabled={isStreaming}
         />
