@@ -8,7 +8,7 @@
  *
  * Yêu cầu trước khi chạy production:
  *   1. Áp dụng migration tạo RPC `sync_kas_cod_suspicion_snapshot` (bản mới nhất
- *      là 20260929082541_cod_suspicion_warehouse_id, có cột warehouse_id).
+ *      là 20261006045955_cod_suspicion_to_region, có cột to_region).
  *   2. Đặt Script Property `SUPABASE_SERVICE_ROLE_KEY`.
  *   3. Không để nhánh COD cũ trong `sync-to-supabase.gs` chạy cùng snapshot.
  *
@@ -32,7 +32,7 @@ const COD_SMS_CONFLICTS_HEADERS = [
 // stops the refresh before it can replace a good snapshot with partial data.
 const COD_SMS_REQUIRED_HEADERS = [
   'Loại nghi ngờ', 'ID tài xế', 'Tên tài xế', 'Trạng thái tài xế',
-  'Mã đơn', 'Trạng thái hiện tại', 'COD', 'ID kho giao', 'Kho giao',
+  'Mã đơn', 'Trạng thái hiện tại', 'COD', 'To region', 'ID kho giao', 'Kho giao',
   'To province', 'Ngày gán giao', 'Ngày kết thúc giao', 'Ngày chuyển hoàn',
   'Tổng thời gian giao (ngày)', 'Số ngày hẹn giao lại',
   'Bất thường call log (so P90 hardcode)', 'Số cuộc gọi có người nghe',
@@ -46,6 +46,9 @@ const COD_SMS_REQUIRED_HEADERS = [
   'TB thời lượng 1 cuộc gọi (giây)', 'TB thời lượng đổ chuông (giây)',
   'Số lượng call log (đơn này)', 'so_don_nghi_van_cua_tai_xe',
   'rn_trong_tai_xe', 'tai_xe_dat_dieu_kien', 'Mức nghi ngờ',
+  'co_tin_hieu_call_attempt', 'co_tin_hieu_gps_mocked', 'dat_uu_tien_02e',
+  'so_don_uu_tien_02e_cua_tai_xe_theo_nhanh', 'Nhóm xử lý 02e',
+  'thu_tu_uu_tien_02e', 'Lý do chọn hoặc giảm ưu tiên',
   'SMS - thời gian', 'SMS - loại người nhận', 'SMS - nội dung'
 ];
 
@@ -77,6 +80,7 @@ function dryRunGoiDauCodSmsSnapshot() {
     orders_without_sms: snapshot.stats.orders_without_sms,
     duplicate_sms_removed: snapshot.stats.duplicate_sms_removed,
     total_drivers: snapshot.stats.total_drivers,
+    orders_by_region: snapshot.stats.orders_by_region,
     orders_by_province: snapshot.stats.orders_by_province,
     conflicted_orders_skipped: snapshot.stats.conflicted_orders_skipped
   }));
@@ -251,6 +255,7 @@ function buildGoiDauCodSmsSnapshot_() {
     stats: {
       source_rows: sourceRows.length,
       total_drivers: new Set(orders.map((order) => order.driver_id)).size,
+      orders_by_region: countBy_(orders, (order) => order.to_region || '(trống)'),
       orders_by_province: countBy_(orders, (order) => order.to_province || '(trống)'),
       orders_with_sms: ordersWithSms,
       orders_without_sms: orders.length - ordersWithSms,
@@ -306,6 +311,7 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
     cod_amount: numberOrNull_(source['COD'], 'COD', sheetRowNumber, displaySource['COD']),
     warehouse_id: idTextOrNull_(source['ID kho giao'], 'ID kho giao', sheetRowNumber),
     warehouse_name: textOrNull_(source['Kho giao']),
+    to_region: textOrNull_(source['To region']),
     to_province: textOrNull_(source[COD_SMS_PROVINCE_HEADER]),
     first_delivered_date: dateOrNull_(source['Ngày gán giao'], timezone, sheetRowNumber),
     end_delivery_date: dateOrNull_(source['Ngày kết thúc giao'], timezone, sheetRowNumber),
@@ -362,7 +368,19 @@ function normalizeCodOrder_(source, displaySource, timezone, sheetRowNumber) {
       source['rn_trong_tai_xe'], 'rn_trong_tai_xe', sheetRowNumber, displaySource['rn_trong_tai_xe']
     ),
     driver_qualifies: booleanOrFalse_(source['tai_xe_dat_dieu_kien'], 'tai_xe_dat_dieu_kien', sheetRowNumber),
-    call_verification_priority: enumText_(source[COD_SMS_PRIORITY_HEADER], ['Cao', 'Trung bình', 'Thấp'], COD_SMS_PRIORITY_HEADER, sheetRowNumber)
+    call_verification_priority: enumText_(source[COD_SMS_PRIORITY_HEADER], ['Cao', 'Trung bình', 'Thấp'], COD_SMS_PRIORITY_HEADER, sheetRowNumber),
+    has_call_attempt_signal: booleanOrFalse_(source['co_tin_hieu_call_attempt'], 'co_tin_hieu_call_attempt', sheetRowNumber),
+    has_gps_mocked_signal: booleanOrFalse_(source['co_tin_hieu_gps_mocked'], 'co_tin_hieu_gps_mocked', sheetRowNumber),
+    meets_priority_02e: booleanOrFalse_(source['dat_uu_tien_02e'], 'dat_uu_tien_02e', sheetRowNumber),
+    priority_02e_order_count: integerOrNull_(
+      source['so_don_uu_tien_02e_cua_tai_xe_theo_nhanh'], 'so_don_uu_tien_02e_cua_tai_xe_theo_nhanh',
+      sheetRowNumber, displaySource['so_don_uu_tien_02e_cua_tai_xe_theo_nhanh']
+    ),
+    priority_02e_group: textOrNull_(source['Nhóm xử lý 02e']),
+    priority_02e_rank: integerOrNull_(
+      source['thu_tu_uu_tien_02e'], 'thu_tu_uu_tien_02e', sheetRowNumber, displaySource['thu_tu_uu_tien_02e']
+    ),
+    priority_02e_reason: textOrNull_(source['Lý do chọn hoặc giảm ưu tiên'])
   };
 }
 

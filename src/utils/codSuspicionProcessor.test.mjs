@@ -999,3 +999,18 @@ test('getDriverSmsLabel tells flagged, failed, unscored and all-zero drivers apa
     { text: 'SMS: 0 điểm', level: 'no_evidence' });
 });
 
+
+test('region filter keeps only orders of the selected region and drops orphans', () => {
+  const groups = groupOrdersByDriver([
+    { driver_id: '1', driver_name: 'An', order_code: 'A', to_region: 'HNO', total_score: 20, cod_amount: 100 },
+    { driver_id: '1', driver_name: 'An', order_code: 'B', to_region: 'HCM', total_score: 30, cod_amount: 200 },
+    { driver_id: '2', driver_name: 'Bình', order_code: 'C', total_score: 25 }
+  ].map(normalizeSuspicionOrder));
+
+  const hno = filterDriverGroups(groups, { region: 'HNO' });
+  assert.equal(hno.length, 1);
+  assert.deepEqual(hno[0].orders.map(order => order.orderCode), ['A']);
+  assert.equal(hno[0].totalCod, 100);
+  assert.equal(filterDriverGroups(groups, { region: 'Chưa rõ vùng' })[0].driverId, '2');
+  assert.equal(filterDriverGroups([{ ...groups[0], isOrphan: true }], { region: 'HNO' }).length, 0);
+});

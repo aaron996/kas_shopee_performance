@@ -11,7 +11,7 @@ export default function Header({
   onResetFilters, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, currentUser, onLogout, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
-  onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses, codSuspicionProvinces
+  onRetryData, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses, codSuspicionRegions = [], codSuspicionProvinces
 }) {
   const hideRegionHubFilters = ['report3', 'report-insight', 'cod-suspicion'].includes(activeTab);
   const [popover, setPopover] = useState(null);
@@ -83,6 +83,14 @@ export default function Header({
                   options={[{ value: 'ALL', label: `Tất cả các kho (${codSuspicionWarehouses.length})` }, ...codSuspicionWarehouses.map(value => ({ value, label: value }))]}
                   value={[codSuspicionFilters.warehouse]}
                   onChange={([warehouse]) => setCodSuspicionFilters(prev => ({ ...prev, warehouse }))} />
+              </div>
+              <div className="hdr-field">
+                <MapPin size={14} className="filter-icon" />
+                <span className="hdr-field-label">Vùng:</span>
+                <MultiSelectDropdown label="Vùng" singleSelect searchable placeholder="Tìm vùng…"
+                  options={[{ value: 'ALL', label: `Tất cả vùng (${codSuspicionRegions.length})` }, ...codSuspicionRegions.map(value => ({ value, label: value }))]}
+                  value={[codSuspicionFilters.region]}
+                  onChange={([region]) => setCodSuspicionFilters(prev => ({ ...prev, region }))} />
               </div>
               <div className="hdr-field">
                 <MapPin size={14} className="filter-icon" />

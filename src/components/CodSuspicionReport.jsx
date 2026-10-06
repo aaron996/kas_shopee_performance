@@ -100,6 +100,7 @@ export default function CodSuspicionReport({
   active = true,
   filters,
   onAvailableWarehouses,
+  onAvailableRegions,
   onAvailableProvinces,
   onSearchChange,
   canManageResolutions = false,
@@ -142,7 +143,7 @@ export default function CodSuspicionReport({
   const fileInputRef = useRef(null);
   const driverCardRefs = useRef(new Map());
 
-  const { suspicionType = 'ALL', warehouse = 'ALL', province = 'ALL', searchQuery = '' } = filters || {};
+  const { suspicionType = 'ALL', warehouse = 'ALL', region = 'ALL', province = 'ALL', searchQuery = '' } = filters || {};
 
   // Accordion expanded state: Set of driverId
   const [expandedDrivers, setExpandedDrivers] = useState(new Set());
@@ -503,6 +504,11 @@ export default function CodSuspicionReport({
     onAvailableWarehouses?.(availableWarehouses);
   }, [availableWarehouses, onAvailableWarehouses]);
 
+  const availableRegions = useMemo(() => Array.from(new Set(normalizedOrders.map(order => order.toRegion))).sort((a, b) => a.localeCompare(b, 'vi')), [normalizedOrders]);
+  useEffect(() => {
+    onAvailableRegions?.(availableRegions);
+  }, [availableRegions, onAvailableRegions]);
+
   const availableProvinces = useMemo(() => Array.from(new Set(normalizedOrders.map(order => order.toProvince))).sort((a, b) => a.localeCompare(b, 'vi')), [normalizedOrders]);
   useEffect(() => {
     onAvailableProvinces?.(availableProvinces);
@@ -513,6 +519,7 @@ export default function CodSuspicionReport({
     const filteredGroups = filterDriverGroups(allDriverGroups, {
       suspicionType,
       warehouse,
+      region,
       province,
       searchQuery,
       assessmentsByCaseKey: smsAssessments,
@@ -520,7 +527,7 @@ export default function CodSuspicionReport({
       useEffectiveAlertLevel: !canViewCodAdvanced && smsThreshold !== null
     });
     return addSmsSummaryToDriverGroups(filteredGroups, smsAssessments, { threshold: smsThreshold });
-  }, [allDriverGroups, suspicionType, warehouse, province, searchQuery, smsAssessments, smsThreshold, canViewCodAdvanced]);
+  }, [allDriverGroups, suspicionType, warehouse, region, province, searchQuery, smsAssessments, smsThreshold, canViewCodAdvanced]);
 
   const smsOverview = useMemo(
     () => summarizeCodSmsAssessments(normalizedOrders, smsAssessments),
@@ -1343,7 +1350,7 @@ export default function CodSuspicionReport({
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
               {!dataEnabled
                 ? 'Đăng nhập qua Supabase để tìm và mở hồ sơ tài xế hoặc mã đơn theo quyền được cấp.'
-                : suspicionType !== 'ALL' || warehouse !== 'ALL' || province !== 'ALL' || searchQuery
+                : suspicionType !== 'ALL' || warehouse !== 'ALL' || region !== 'ALL' || province !== 'ALL' || searchQuery
                 ? 'Không tìm thấy kết quả phù hợp với điều kiện lọc hiện tại. Thử đặt lại bộ lọc.'
                 : activeResolutionTab === 'resolved'
                   ? 'Bao gồm các trường hợp có vi phạm đang xử lý hoặc đã xử lý theo chế tài.'

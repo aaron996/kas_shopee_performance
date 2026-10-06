@@ -135,6 +135,7 @@ export function normalizeSuspicionOrder(raw) {
     orderStatus,
     codAmount,
     warehouseName: warehouse || 'Chưa rõ kho',
+    toRegion: String(raw.to_region || raw['To region'] || '').trim() || 'Chưa rõ vùng',
     toProvince: String(raw.to_province || raw['To province'] || '').trim() || 'Chưa rõ tỉnh thành',
     firstDeliveredDate: raw.first_delivered_date || raw['Ngày gán giao'] || null,
     endDeliveryDate: raw.end_delivery_date || raw['Ngày kết thúc giao'] || null,
@@ -152,6 +153,14 @@ export function normalizeSuspicionOrder(raw) {
     // Additional metrics
     driverSuspiciousOrderCount: Number(raw.driver_suspicious_order_count ?? raw.so_don_nghi_van_cua_tai_xe ?? 1),
     successDistanceKm: raw.success_distance_km ?? raw['Khoảng cách GPS lúc thành công (km)'] ?? null,
+    // Query 02e priority columns
+    hasCallAttemptSignal: Boolean(raw.has_call_attempt_signal ?? raw.co_tin_hieu_call_attempt),
+    hasGpsMockedSignal: Boolean(raw.has_gps_mocked_signal ?? raw.co_tin_hieu_gps_mocked),
+    meetsPriority02e: Boolean(raw.meets_priority_02e ?? raw.dat_uu_tien_02e),
+    priority02eOrderCount: raw.priority_02e_order_count ?? raw.so_don_uu_tien_02e_cua_tai_xe_theo_nhanh ?? null,
+    priority02eGroup: String(raw.priority_02e_group || raw['Nhóm xử lý 02e'] || '').trim() || null,
+    priority02eRank: raw.priority_02e_rank ?? raw.thu_tu_uu_tien_02e ?? null,
+    priority02eReason: String(raw.priority_02e_reason || raw['Lý do chọn hoặc giảm ưu tiên'] || '').trim() || null,
     syncedAt: raw.synced_at || null
   };
 }
@@ -275,6 +284,7 @@ export function sortDrivers(drivers = []) {
 export function filterDriverGroups(driverGroups = [], {
   suspicionType = 'ALL',
   warehouse = 'ALL',
+  region = 'ALL',
   province = 'ALL',
   alertLevel = 'ALL',
   searchQuery = '',
@@ -291,7 +301,7 @@ export function filterDriverGroups(driverGroups = [], {
       // Preserve their existing warehouse behavior, but a selected province
       // requires a current source order. Search still matches driver identity.
       if (driver.isOrphan) {
-        if (province !== 'ALL') return null;
+        if (region !== 'ALL' || province !== 'ALL') return null;
         if (suspicionType !== 'ALL' && driver.suspicionType !== suspicionType) return null;
         if (cleanSearch) {
           const matchesDriver =
@@ -312,6 +322,7 @@ export function filterDriverGroups(driverGroups = [], {
         if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
           return false;
         }
+        if (region !== 'ALL' && order.toRegion !== region) return false;
         if (province !== 'ALL' && order.toProvince !== province) return false;
         if (!useEffectiveAlertLevel && alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
