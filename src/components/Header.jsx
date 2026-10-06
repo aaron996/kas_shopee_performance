@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Filter, LogOut, MapPin, ShieldCheck, Warehouse } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import IconButton from './ui/IconButton';
 import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
@@ -66,40 +66,25 @@ export default function Header({
         </>}
       </div>}
           {activeTab === 'cod-suspicion' && (
-            <div className="header-cod-filters" aria-label="Bộ lọc đơn nghi vấn COD">
-              <div className="hdr-field">
-                <Filter size={14} className="filter-icon" />
-                <span className="hdr-field-label">Loại:</span>
-                <select className="filter-select-sleek" aria-label="Lọc theo loại nghi ngờ" value={codSuspicionFilters.suspicionType} onChange={(e) => setCodSuspicionFilters(prev => ({ ...prev, suspicionType: e.target.value }))}>
-                  <option value="ALL">Tất cả loại nghi ngờ</option>
-                  <option value="Gối đầu COD">Gối đầu COD</option>
-                  <option value="Rút ruột">Rút ruột</option>
-                </select>
-              </div>
-              <div className="hdr-field">
-                <Warehouse size={14} className="filter-icon" />
-                <span className="hdr-field-label">Kho:</span>
-                <MultiSelectDropdown label="Kho" singleSelect searchable placeholder="Tìm tên kho…"
-                  options={[{ value: 'ALL', label: `Tất cả các kho (${codSuspicionWarehouses.length})` }, ...codSuspicionWarehouses.map(value => ({ value, label: value }))]}
-                  value={[codSuspicionFilters.warehouse]}
-                  onChange={([warehouse]) => setCodSuspicionFilters(prev => ({ ...prev, warehouse }))} />
-              </div>
-              <div className="hdr-field">
-                <MapPin size={14} className="filter-icon" />
-                <span className="hdr-field-label">Vùng:</span>
-                <MultiSelectDropdown label="Vùng" singleSelect searchable placeholder="Tìm vùng…"
-                  options={[{ value: 'ALL', label: `Tất cả vùng (${codSuspicionRegions.length})` }, ...codSuspicionRegions.map(value => ({ value, label: value }))]}
-                  value={[codSuspicionFilters.region]}
-                  onChange={([region]) => setCodSuspicionFilters(prev => ({ ...prev, region }))} />
-              </div>
-              <div className="hdr-field">
-                <MapPin size={14} className="filter-icon" />
-                <span className="hdr-field-label">Tỉnh thành:</span>
-                <MultiSelectDropdown label="Tỉnh thành" singleSelect searchable placeholder="Tìm tỉnh thành…"
-                  options={[{ value: 'ALL', label: `Tất cả tỉnh thành (${codSuspicionProvinces.length})` }, ...codSuspicionProvinces.map(value => ({ value, label: value }))]}
-                  value={[codSuspicionFilters.province]}
-                  onChange={([province]) => setCodSuspicionFilters(prev => ({ ...prev, province }))} />
-              </div>
+            <div className="header-cod-filters" role="group" aria-label="Bộ lọc đơn nghi vấn COD">
+              {[
+                ['suspicionType', 'Loại', 'type', ['Gối đầu COD', 'Rút ruột'], 'Tìm loại nghi ngờ…'],
+                ['region', 'Vùng', 'region', codSuspicionRegions, 'Tìm vùng…'],
+                ['province', 'Tỉnh thành', 'province', codSuspicionProvinces, 'Tìm tỉnh thành…'],
+                ['warehouse', 'Kho', 'warehouse', codSuspicionWarehouses, 'Tìm tên kho…']
+              ].map(([key, label, className, options, placeholder]) => {
+                const selection = codSuspicionFilters[key] ?? 'ALL';
+                const values = selection === 'ALL' ? options : Array.isArray(selection) ? selection : [selection];
+                const summary = selection === 'ALL' ? 'Tất cả' : values.length > 1 ? `${values.length} đã chọn` : undefined;
+                return <div key={key} className={`hdr-field cod-filter-${className}`}>
+                  <MultiSelectDropdown label={label} triggerLabel={label} triggerSummary={summary}
+                    searchable={key !== 'suspicionType'} panelMinWidth={280} placeholder={placeholder}
+                    options={options.map(value => ({ value, label: value }))} value={values}
+                    onChange={selected => setCodSuspicionFilters(prev => ({ ...prev,
+                      [key]: options.length > 0 && options.every(value => selected.includes(value)) ? 'ALL' : selected
+                    }))} />
+                </div>;
+              })}
             </div>
           )}
 

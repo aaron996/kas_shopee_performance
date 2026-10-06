@@ -7,7 +7,7 @@ const PANEL_MAX_HEIGHT = 320;
 // Multi-select with a searchable checklist in a popover. The panel is
 // position:fixed so it is not clipped by a scrolling modal body.
 // options: [{ value, label }]; value: string[]; onChange(string[]).
-export default function MultiSelectDropdown({ label, options, value, onChange, searchable, placeholder = 'Tìm…', singleSelect = false }) {
+export default function MultiSelectDropdown({ label, options, value, onChange, searchable, placeholder = 'Tìm…', singleSelect = false, panelMinWidth = 0, triggerLabel, triggerSummary }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
@@ -32,28 +32,28 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
     return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
   }, [options, value, allSelected, selected, singleSelect]);
 
-  const place = () => {
+  useLayoutEffect(() => {
+    if (!open) return;
     const rect = trigger.current?.getBoundingClientRect();
     if (!rect) return;
     const below = window.innerHeight - rect.bottom - PANEL_GAP - 12;
     const above = rect.top - PANEL_GAP - 12;
     const openUp = below < 220 && above > below;
     const maxHeight = Math.max(160, Math.min(PANEL_MAX_HEIGHT, openUp ? above : below));
+    const width = Math.min(Math.max(rect.width, panelMinWidth), window.innerWidth - 24);
     setPanelStyle({
-      left: rect.left,
-      width: rect.width,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      width,
       maxHeight,
+      transformOrigin: openUp ? 'bottom left' : 'top left',
       ...(openUp ? { bottom: window.innerHeight - rect.top + PANEL_GAP } : { top: rect.bottom + PANEL_GAP })
     });
-  };
+  }, [open, panelMinWidth]);
 
   const close = (restoreFocus = false) => {
     setOpen(false);
-    setQuery('');
     if (restoreFocus) trigger.current?.focus();
   };
-
-  useLayoutEffect(() => { if (open) place(); }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -88,11 +88,11 @@ export default function MultiSelectDropdown({ label, options, value, onChange, s
       close(true);
     }
   }}>
-    <button ref={trigger} type="button" className={`msd-trigger ${open ? 'is-open' : ''} ${value.length > 0 && !allSelected && (!singleSelect || value[0] !== 'ALL') ? 'is-filtered' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={`${label}: ${summary}`} disabled={options.length === 0} onClick={() => open ? close() : setOpen(true)}>
-      <span className="msd-summary">{summary}</span>
+    <button ref={trigger} type="button" className={`msd-trigger ${open ? 'is-open' : ''} ${value.length > 0 && !allSelected && (!singleSelect || value[0] !== 'ALL') ? 'is-filtered' : ''}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={`${label}: ${summary}`} disabled={options.length === 0} onClick={() => { if (open) close(); else { setQuery(''); setOpen(true); } }}>
+      <span className="msd-summary" title={summary}>{triggerLabel && <span className="msd-trigger-label">{triggerLabel}: </span>}{triggerSummary ?? summary}</span>
       <ChevronDown size={16} className="msd-chevron" aria-hidden="true" />
     </button>
-    {open && panelStyle && <div id={id} className="msd-panel" style={panelStyle}>
+    {panelStyle && <div id={id} className={`msd-panel ${open ? 'is-open' : 'is-closed'}`} style={panelStyle} aria-hidden={!open} inert={!open}>
       {showSearch && <label className="msd-search">
         <Search size={14} aria-hidden="true" />
         <input ref={searchRef} type="text" value={query} placeholder={placeholder} aria-label={`Tìm ${label.toLowerCase()}`} onChange={e => setQuery(e.target.value)} />

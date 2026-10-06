@@ -293,6 +293,10 @@ export function filterDriverGroups(driverGroups = [], {
   useEffectiveAlertLevel = false
 } = {}) {
   const cleanSearch = searchQuery.trim().toLowerCase();
+  // OR within a field; AND across fields, evaluated against the same order.
+  // Keep ALL/string inputs compatible with global-search navigation.
+  const matchesSelection = (selection, value) => selection === 'ALL' ||
+    (Array.isArray(selection) ? selection.includes(value) : selection === value);
 
   return driverGroups
     .map(driver => {
@@ -302,7 +306,8 @@ export function filterDriverGroups(driverGroups = [], {
       // requires a current source order. Search still matches driver identity.
       if (driver.isOrphan) {
         if (region !== 'ALL' || province !== 'ALL') return null;
-        if (suspicionType !== 'ALL' && driver.suspicionType !== suspicionType) return null;
+        if (Array.isArray(warehouse) && warehouse.length === 0) return null;
+        if (!matchesSelection(suspicionType, driver.suspicionType)) return null;
         if (cleanSearch) {
           const matchesDriver =
             driver.driverId.toLowerCase().includes(cleanSearch) ||
@@ -316,14 +321,14 @@ export function filterDriverGroups(driverGroups = [], {
       // applied to the resulting driver case, whose SMS score is the maximum
       // across these orders. Dev retains the SQL order-level filter.
       const matchingOrders = driver.orders.filter(order => {
-        if (suspicionType !== 'ALL' && order.suspicionType !== suspicionType) {
+        if (!matchesSelection(suspicionType, order.suspicionType)) {
           return false;
         }
-        if (warehouse !== 'ALL' && order.warehouseName !== warehouse) {
+        if (!matchesSelection(warehouse, order.warehouseName)) {
           return false;
         }
-        if (region !== 'ALL' && order.toRegion !== region) return false;
-        if (province !== 'ALL' && order.toProvince !== province) return false;
+        if (!matchesSelection(region, order.toRegion)) return false;
+        if (!matchesSelection(province, order.toProvince)) return false;
         if (!useEffectiveAlertLevel && alertLevel !== 'ALL' && getAlertLevel(order.totalScore).value !== alertLevel) {
           return false;
         }
