@@ -6867,6 +6867,77 @@ body.dark-mode .prr-scope-chip.highlight {
   border-color: var(--action-primary);
 }
 
+.prr-playback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.prr-speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.4rem 0.15rem 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-default);
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.prr-speed-control input {
+  width: 96px;
+  min-width: 0;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--action-primary, #0ea5c4);
+  cursor: pointer;
+}
+
+.prr-speed-control output {
+  min-width: 3.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.prr-speed-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.prr-speed-control input:disabled,
+.prr-speed-reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prr-speed-control input:focus-visible,
+.prr-speed-reset:focus-visible {
+  outline: 2px solid var(--action-primary, #0ea5c4);
+  outline-offset: 2px;
+}
+
+.prr-playback-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.prr-playback-btn:focus-visible,
+.prr-replay-btn:focus-visible {
+  outline: 2px solid var(--action-primary, #0ea5c4);
+  outline-offset: 2px;
+}
+
 .prr-replay-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -6907,71 +6978,6 @@ body.dark-mode .prr-scope-chip.highlight {
   user-select: none;
 }
 
-/* Scenery Backdrop */
-.prr-road-scenery {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-}
-
-.scenery-checkpoint {
-  position: absolute;
-  top: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: #64748b;
-  letter-spacing: 0.03em;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  pointer-events: none;
-}
-
-.scenery-checkpoint.start { left: 24px; }
-.scenery-checkpoint.mid { left: 45%; }
-
-.checkpoint-marker {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ghn-orange, #f15a22);
-  margin-bottom: 2px;
-}
-
-.scenery-checkpoint.sla {
-  right: 42px;
-  align-items: center;
-}
-
-.sla-badge {
-  background: rgba(14, 165, 196, 0.16);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-  box-shadow: 0 2px 8px rgba(14, 165, 196, 0.25);
-  margin-bottom: 4px;
-}
-
-.sla-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  font-family: var(--font-heading);
-}
-
-.sla-baseline-line {
-  width: 2px;
-  height: 240px;
-  background: rgba(56, 189, 248, 0.5);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
-}
-
 /* Lanes Container */
 .prr-lanes-container {
   position: absolute;
@@ -6983,12 +6989,59 @@ body.dark-mode .prr-scope-chip.highlight {
 }
 
 .prr-lane {
+  position: relative;
   height: 64px;
-  border-bottom: 1.5px dashed rgba(255, 255, 255, 0.16);
+  overflow: hidden;
 }
 
-.prr-lane:last-child {
-  border-bottom: none;
+.prr-lane:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(100% + 80px);
+  height: 1.5px;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0 40px, transparent 40px 80px);
+  animation: prr-road-travel 2.5s linear infinite paused;
+}
+
+.prr-wheel {
+  transform-box: fill-box;
+  transform-origin: center;
+  /* 32px/s road travel divided by the circumference of a 6px wheel. */
+  animation: prr-wheel-roll 1.178s linear infinite paused;
+}
+
+.prr-truck-body {
+  animation: prr-suspension 0.8s var(--ease-smooth) infinite paused;
+  animation-delay: var(--truck-phase, 0s);
+}
+
+.prr-driving .prr-lane::after,
+.prr-driving .prr-wheel,
+.prr-driving .prr-truck-body {
+  animation-play-state: running;
+}
+
+@keyframes prr-road-travel {
+  to { transform: translateX(-80px); }
+}
+
+@keyframes prr-wheel-roll {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes prr-suspension {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prr-lane::after,
+  .prr-wheel,
+  .prr-truck-body {
+    animation: none;
+  }
 }
 
 /* Native Truck Button Reset */
@@ -7015,8 +7068,10 @@ body.dark-mode .prr-scope-chip.highlight {
   outline: none;
 }
 
-.prr-truck-node:hover {
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .prr-truck-node:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .prr-truck-node.is-selected {

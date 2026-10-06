@@ -1,5 +1,62 @@
 # BXH Performance dạng 3D
 
+## Chuyển động xe (2026-10-06)
+
+- Toolbar có thanh tốc độ 0,25×–4×, bước 0,25×, mặc định 2× so với tốc độ gốc;
+  nút reset về 2×. Giữ lựa chọn khi đổi 2D/3D, đổi KPI hoặc tạm dừng; tải lại
+  trang về mặc định 2×. Tốc độ áp dụng cả chạy nền và replay (3 giây ở 1×,
+  1,5 giây ở 2×), không thay đổi thứ hạng/KPI.
+- 3D nhân delta của clock sau khi giới hạn wall time; đổi tốc độ không reset
+  clock hay replay. 2D dùng WAAPI `updatePlaybackRate` trên các CSS animation
+  của cảnh để giữ pha hiện tại; không đổi `animation-duration` giữa chừng.
+- Xe chạy nền trong hệ quy chiếu của đoàn: vị trí thứ hạng không đổi khi dữ liệu
+  không đổi. Vạch đường và texture nhựa đường trôi ngược; ba vành bánh có dấu quay.
+  Thân xe nhún 0,012 đơn vị, lệch pha; nhãn giữ nguyên điểm neo để dễ đọc.
+- Cây và biển báo dùng cùng khoảng đường đã đi với bánh/vạch đường. Bốn mesh
+  instanced cập nhật vị trí, không thêm timer hay setState từng frame. Props mờ
+  dần trong 6 đơn vị ở mỗi đầu vùng đệm 12 đơn vị ngoài đường, rồi xuất hiện lại
+  từ phía trước. Tạm dừng/ẩn/giảm chuyển động đóng băng cả cảnh ven đường.
+- Bỏ hai cổng xanh/vàng và nhãn checkpoint ở 3D; bỏ mốc SLA giả định ở 2D.
+  Vị trí dọc đường chỉ thể hiện thứ hạng. Đạt/chưa đạt mục tiêu vẫn thể hiện qua
+  màu trạng thái, nhãn KPI và bảng. Các phần ghi lại sprint bên dưới mô tả
+  lịch sử triển khai trước khi bỏ cổng.
+- Replay vẫn kết thúc đúng layout D-1 trong 3 giây ở 1×. Tốc độ đường mỗi frame cộng
+  phần tụt hạng lớn nhất vào tốc độ chạy nền, vì vậy bánh xe của Hub tụt hạng vẫn
+  quay về phía trước. Xe chuyển làn theo đường cong, góc lái giới hạn ±0,18 rad.
+  Đổi bộ lọc/làn giữa replay nối từ vị trí đang nhìn thấy.
+  Camera bám theo vị trí xe đang chuyển hạng, giữ góc orbit và mức zoom của người xem.
+- Nút Tạm dừng/Tiếp tục nằm ở toolbar chung, giữ lựa chọn khi đổi 2D/3D. Tạm dừng
+  đóng băng cả replay, bánh và mặt đường. Tab bị ẩn hoặc scene ngoài viewport cũng
+  đóng băng thời gian; quay lại tiếp tục từ vị trí cũ. Giảm chuyển động tắt chạy
+  nền và replay, giữ chọn xe/camera và bảng số liệu.
+- `useScenePlayback.js` giữ trạng thái đọc/visibility; `sceneDriving.js` giữ clock
+  và phép tính chuyển động thuần. `DriveClock` kích hoạt canvas on-demand ở 30fps
+  khi chạy nền, 60fps khi replay; tạm dừng/ẩn không còn timer. Hơn 60 xe bỏ nhún
+  thân và chỉ cập nhật ba mesh vành trong chạy nền; shadow map chỉ cập nhật khi
+  đổi layout/chọn xe hoặc replay, không cập nhật theo nhún nền.
+- 2D dùng CSS transform cho vạch đường, bánh và cabin, cùng trạng thái tạm dừng.
+  2D tiếp tục là đường lui nhẹ, không nhập Three.js.
+
+Kiểm tra logic: `node --test src/utils/sceneDriving.test.mjs
+src/utils/rankingSceneLayout.test.mjs src/utils/performanceRanking.test.mjs
+src/utils/sceneCapability.test.mjs src/utils/sceneThemes.test.mjs`. Kiểm tra trực quan dùng tab riêng trong Codex
+IAB với fixture cục bộ; không thay đổi quyền đăng nhập hay đọc dữ liệu live.
+
+QA cục bộ đã kiểm tra 2D/3D, pause giữa replay, đổi làn khi replay đang chạy,
+camera bám xe, giảm chuyển động, viewport mobile 390px và cảnh 1.200 Hub mẫu.
+QA thanh tốc độ trong IAB xác nhận clock 3D mặc định chạy 2× theo thời gian thực;
+2D nhận 4× rồi 0,25×, đổi tốc độ lúc pause không đổi currentTime và vẫn paused.
+Reset về 2×, tiếp tục và đổi 2D/3D giữ đúng tốc độ; không có lỗi console.
+Sau sửa cảnh ven đường, đo ma trận instance trong IAB xác nhận cây/biển báo/vạch
+đường cùng dịch chuyển trong chạy nền và replay; trunk/canopy, pole/plate giữ
+cùng vị trí và alpha. Tạm dừng hoặc cuộn cảnh khỏi viewport đóng băng cả các
+mesh này. Cảnh 1.200 xe mẫu chạy nền có 27 draw call và không có lỗi console;
+con số này không thay thế kết quả FPS trên thiết bị thật.
+Cuộn cảnh hoàn toàn khỏi viewport giữ nguyên clock và số frame render; quay lại
+tiếp tục. Probe QA đã được xóa sau kiểm tra; preview dữ liệu mẫu được giữ trong
+`extracted/ranking-preview/` (Git ignore) để người dùng xem. Chưa xác nhận trên dữ liệu thật
+sau đăng nhập hoặc đo FPS trên thiết bị sử dụng thực tế.
+
 Tài liệu kỹ thuật cho tính năng 3D của tab "BXH Performance". Kế hoạch tổng thể
 nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File này
 được cập nhật theo từng sprint.
@@ -21,8 +78,8 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 |---|---|
 | `PerformanceRoadRanking.jsx` | Giữ dữ liệu, KPI, bảng, panel chi tiết. Chọn cảnh theo `sceneMode` |
 | `RoadScene2D.jsx` | Cảnh SVG/CSS cũ, tách nguyên trạng. Props: `sceneTrucks`, `selectedHubId`, `onSelectHub`. Tự giữ ref và hiệu ứng cuộn tới xe đang chọn |
-| `RoadScene3D.jsx` | Cảnh 3D (react-three-fiber). Nạp bằng `React.lazy`, nằm trong chunk riêng. Nhận `sceneTrucks`, dựng canvas, ánh sáng, camera, nhãn checkpoint |
-| `roadScene3dParts.jsx` | Các khối con của cảnh: `Road`, `Checkpoint`, `TruckFleet` (`InstancedMesh`, lớp chọn xe, vòng lặp animation), `SelectionRing`, `LabelProjector` (vẽ nhãn lên canvas 2D) |
+| `RoadScene3D.jsx` | Cảnh 3D (react-three-fiber). Nạp bằng `React.lazy`, nằm trong chunk riêng. Nhận `sceneTrucks`, dựng canvas, ánh sáng, camera và nhãn xe |
+| `roadScene3dParts.jsx` | Các khối con của cảnh: `DriveClock`, `Road`, `Roadside`, `TruckFleet` (`InstancedMesh`, lớp chọn xe, vòng lặp animation), `SelectionRing`, `LabelProjector` (vẽ nhãn lên canvas 2D) |
 | `labelOverlay.js` | Đo và vẽ nhãn xe, nhãn checkpoint, nhãn làn, chip Replay lên canvas 2D phủ trên cảnh |
 | `utils/sceneLabelStyle.js` | Bảng màu nhãn + hàm tính độ tương phản WCAG (có test `sceneLabelStyle.test.mjs`) |
 | `SceneErrorBoundary.jsx` | Bắt lỗi tải chunk 3D / lỗi render để rơi về 2D |

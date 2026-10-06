@@ -4,8 +4,6 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   REPLAY_DURATION_MS,
-  SLA_FRACTION,
-  START_GATE_FRACTION,
   TRANSITION_DURATION_MS,
   assignRegionLanes,
   computeReplayFrames,
@@ -15,14 +13,15 @@ import {
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
 import { Play } from 'lucide-react';
+import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { pickSceneTheme } from '../../utils/sceneThemes.js';
 import {
-  Checkpoint,
   LabelProjector,
   Road,
   SelectionRing,
   TruckFleet,
-  SHADOW_MAX_TRUCKS
+  SHADOW_MAX_TRUCKS,
+  DriveClock
 } from './roadScene3dParts.jsx';
 
 // Loaded via React.lazy so three stays out of the 2D path.
@@ -30,9 +29,7 @@ const STAGGER_LANE_COUNT = 4;
 const LANE_WIDTH = 1.8;
 const FOV = 40;
 const TILT_DEG = 35; // camera elevation above the road
-const TARGET_Y = 1; // look slightly above the asphalt so gantries and labels fit
-const START_COLOR = '#38bdf8';
-const SLA_COLOR = '#f59e0b';
+const TARGET_Y = 1; // look slightly above the asphalt so truck labels fit
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
 const ALWAYS_LABELLED = 3; // ranks 1-3 outrank everything but the hovered / selected truck
 const MEDAL_BORDER = ['#f5b800', '#b8c4d0', '#a0522d'];
@@ -74,17 +71,6 @@ function useThemeColors() {
     return () => observer.disconnect();
   }, []);
   return colors;
-}
-
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = () => setReduced(query.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
 }
 
 // Phones and tablets: no shadows and a lower pixel-ratio cap.
@@ -191,13 +177,14 @@ function CanvasSetup({ label }) {
  * ("Bám xe"). Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
+function CameraRig({ roadLength, roadWidth, focus, reducedMotion, positionsRef }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const controlsRef = useRef(null);
   const flightRef = useRef(null);
   const placedRef = useRef(false);
+  const followedRef = useRef(null);
 
   // On a narrow canvas the whole road would shrink to a thin strip: frame the leading part of it
   // (rank 1 end) and let the user orbit or pinch for the rest. Wide canvases still frame it all.
@@ -253,7 +240,30 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
   useFrame((_, delta) => {
     const flight = flightRef.current;
     const controls = controlsRef.current;
-    if (!flight || !controls) return;
+    if (!controls) return;
+    const pose = focus ? positionsRef.current.get(focus.id) : null;
+    if (pose) {
+      const previous = followedRef.current;
+      if (previous?.id === focus.id) {
+        // Translate the camera with its truck while preserving the user's
+        // orbit angle and zoom. Rank changes never turn the camera around.
+        const dx = pose.x - previous.x;
+        const dz = pose.z - previous.z;
+        camera.position.x += dx;
+        camera.position.z += dz;
+        controls.target.x += dx;
+        controls.target.z += dz;
+      }
+      followedRef.current = { id: focus.id, x: pose.x, z: pose.z };
+      if (flight) {
+        flight.target.set(pose.x, 0.8, pose.z);
+        flight.position.copy(flight.target).add(FOLLOW_OFFSET);
+      }
+      controls.update();
+    } else {
+      followedRef.current = null;
+    }
+    if (!flight) return;
     const k = 1 - Math.exp(-Math.min(delta, 0.1) * FLIGHT_SPEED);
     camera.position.lerp(flight.position, k);
     controls.target.lerp(flight.target, k);
@@ -266,7 +276,7 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
     } else {
       invalidate(); // keep rendering while flying (frameloop is on demand)
     }
-  });
+  }, -0.5);
 
   const keepTargetOnRoad = () => {
     const controls = controlsRef.current;
@@ -294,11 +304,11 @@ function CameraRig({ roadLength, roadWidth, focus, reducedMotion }) {
 
 export default function RoadScene3D({
   sceneTrucks = [], selectedHubId = null, onSelectHub, onOpenDetail, onViewTable, onContextLost,
-  d1Label = '', d8Label = '', metricLabel = '', target = null
+  d1Label = '', d8Label = '', metricLabel = '', target = null, running = true, reducedMotion = false, playbackRate = DEFAULT_DRIVE_RATE
 }) {
   const colors = useThemeColors();
   const theme = pickSceneTheme(colors.isDark);
-  const reducedMotion = useReducedMotion();
+  const clockRef = useRef(createDriveClock());
   const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
   const [hoveredId, setHoveredId] = useState(null);
   const [camMode, setCamMode] = useState('overview'); // 'overview' | 'follow'
@@ -350,12 +360,20 @@ export default function RoadScene3D({
   // (a replay, or a transition from the previous layout). Computed during render so
   // the first frame of a transition already starts from the old positions.
   const motionCounter = useRef(0);
+  const positionsRef = useRef(new Map());
   const [scene, setScene] = useState(() => ({ trucks, motion: null }));
+  if (reducedMotion && scene.motion) setScene({ ...scene, motion: null });
   if (scene.trucks !== trucks) {
     // identical positions (e.g. only the selection changed): keep whatever is running
     let motion = reducedMotion ? null : scene.motion;
     if (!reducedMotion && scene.trucks.length > 0 && trucks.length > 0) {
-      const transition = computeTransitionFrames(scene.trucks, trucks);
+      // A filter/lane change can interrupt replay. Start at the visible pose,
+      // rather than teleporting back to the previous committed rank slots.
+      const previous = scene.trucks.map(truck => {
+        const pose = positionsRef.current.get(truck.id);
+        return pose ? { ...truck, x: pose.x, z: pose.z } : truck;
+      });
+      const transition = computeTransitionFrames(previous, trucks);
       if (transition.changed) {
         motion = { key: ++motionCounter.current, kind: 'transition', durationMs: TRANSITION_DURATION_MS, items: transition.items };
       }
@@ -367,52 +385,34 @@ export default function RoadScene3D({
   const replaying = Boolean(scene.motion && scene.motion.kind === 'replay');
 
   const startReplay = useCallback(() => {
+    if (reducedMotion) return;
     const frames = computeReplayFrames(sceneTrucks, { roadLength, laneCount, laneWidth: LANE_WIDTH, laneMode });
     const items = trucks.map((truck, i) => ({ ...truck, ...frames[i] }));
     setScene({ trucks, motion: { key: ++motionCounter.current, kind: 'replay', durationMs: REPLAY_DURATION_MS, items } });
-  }, [sceneTrucks, trucks, roadLength, laneCount, laneMode]);
+  }, [sceneTrucks, trucks, roadLength, laneCount, laneMode, reducedMotion]);
 
   // First time the 3D scene is shown: replay once (never with reduced motion).
   useEffect(() => {
-    if (autoReplayDone || reducedMotion || !canReplay) return;
+    if (autoReplayDone || reducedMotion || !canReplay || !running) return;
     autoReplayDone = true;
     startReplay();
-  }, [canReplay, reducedMotion, startReplay]);
+  }, [canReplay, reducedMotion, startReplay, running]);
 
   const handleMotionEnd = useCallback((key) => {
     setScene((current) => (current.motion && current.motion.key === key ? { ...current, motion: null } : current));
   }, []);
 
-  const positionsRef = useRef(new Map());
   const replayRef = useRef({ active: false, t: 0 });
   const replayLabels = useMemo(() => ({ from: `D-8 ${d8Label}`, to: `D-1 ${d1Label}` }), [d8Label, d1Label]);
   const fleetItems = scene.motion ? scene.motion.items : scene.trucks;
 
   const selectedTruck = useMemo(() => trucks.find((t) => t.id === selectedHubId) || null, [trucks, selectedHubId]);
-  const focus = camMode === 'follow' && selectedTruck ? { x: selectedTruck.x, z: selectedTruck.z } : null;
-
-  const startX = (START_GATE_FRACTION - 0.5) * roadLength;
-  const slaX = (SLA_FRACTION - 0.5) * roadLength;
+  const focus = camMode === 'follow' && selectedTruck ? { id: selectedTruck.id, x: selectedTruck.x, z: selectedTruck.z } : null;
 
   // Labels drawn on the 2D overlay canvas by LabelProjector.
   const overlayRef = useRef(null);
   const labels = useMemo(() => {
-    const list = [
-      {
-        key: 'start',
-        position: [startX, 4.3, 0],
-        anchor: 'center',
-        priority: 72,
-        spec: { kind: 'pill', text: 'Điểm tiếp nhận & điều phối', color: START_COLOR }
-      },
-      {
-        key: 'sla',
-        position: [slaX, 4.3, 0],
-        anchor: 'center',
-        priority: 72,
-        spec: { kind: 'pill', text: 'Mốc chuẩn SLA', color: SLA_COLOR }
-      }
-    ];
+    const list = [];
     if (regionLanes) {
       regionLanes.lanes.forEach((lane, i) => {
         list.push({
@@ -456,7 +456,7 @@ export default function RoadScene3D({
       });
     });
     return list;
-  }, [startX, slaX, regionLanes, roadLength, laneCount, trucks, selectedHubId, hoveredId]);
+  }, [regionLanes, roadLength, laneCount, trucks, selectedHubId, hoveredId]);
 
   const handleSelect = useCallback((id) => {
     if (typeof onSelectHub === 'function') onSelectHub(id);
@@ -520,6 +520,7 @@ export default function RoadScene3D({
           }
         }}
       >
+        <DriveClock clockRef={clockRef} items={fleetItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate} />
         <Atmosphere theme={theme} roadLength={roadLength} />
         <hemisphereLight args={[theme.hemisphere.sky, theme.hemisphere.ground, theme.hemisphere.intensity]} />
         <directionalLight
@@ -537,9 +538,7 @@ export default function RoadScene3D({
           shadow-radius={4}
         />
 
-        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} />
-        <Checkpoint x={startX} roadWidth={roadWidth} color={START_COLOR} />
-        <Checkpoint x={slaX} roadWidth={roadWidth} color={SLA_COLOR} line />
+        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} />
         <TruckFleet
           // an InstancedMesh cannot be resized: remount when the number of drawn trucks changes
           key={fleetItems.length}
@@ -556,6 +555,8 @@ export default function RoadScene3D({
           replayRef={replayRef}
           onMotionEnd={handleMotionEnd}
           onMotionStats={handleMotionStats}
+          clockRef={clockRef}
+          reducedMotion={reducedMotion}
         />
         {selectedTruck && (
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} />
@@ -565,7 +566,7 @@ export default function RoadScene3D({
         <ContextWatcher onLost={handleContextLost} />
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
-        <CameraRig roadLength={roadLength} roadWidth={roadWidth} focus={focus} reducedMotion={reducedMotion} />
+        <CameraRig roadLength={roadLength} roadWidth={roadWidth} focus={focus} reducedMotion={reducedMotion} positionsRef={positionsRef} />
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
@@ -574,8 +575,8 @@ export default function RoadScene3D({
         <button
           type="button"
           className="prr-replay-btn"
-          disabled={!canReplay || replaying}
-          title={canReplay ? 'Xem lại thứ hạng chuyển từ D-8 sang D-1 (hạng trong nhóm đối soát chung)' : 'Chưa có dữ liệu D-8 để so sánh'}
+          disabled={!canReplay || replaying || !running || reducedMotion}
+          title={reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : !running ? 'Tiếp tục chuyển động xe để chạy replay' : canReplay ? 'Xem lại thứ hạng chuyển từ D-8 sang D-1 (hạng trong nhóm đối soát chung)' : 'Chưa có dữ liệu D-8 để so sánh'}
           onClick={startReplay}
         >
           <Play size={12} aria-hidden="true" />
@@ -626,7 +627,7 @@ export default function RoadScene3D({
         <button type="button" className="prr-3d-table-link" onClick={onViewTable}>Xem dạng bảng</button>
       </div>
       <div className="prr-3d-sr" aria-live="polite">
-        {replaying ? `Đang chạy Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}
+        {replaying ? `${running ? 'Đang chạy' : 'Đã tạm dừng'} Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback, useId, lazy, Suspense } from 'react';
 import {
   Truck,
   ArrowUp,
@@ -10,7 +10,10 @@ import {
   Info,
   MapPin,
   Calendar,
-  Building2
+  Building2,
+  Pause,
+  Play,
+  RotateCcw
 } from 'lucide-react';
 import {
   calculatePerformanceRanking,
@@ -28,12 +31,15 @@ import {
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import RoadScene2D from './RoadScene2D.jsx';
 import SceneErrorBoundary from './SceneErrorBoundary.jsx';
+import useScenePlayback from './useScenePlayback.js';
+import { DEFAULT_DRIVE_RATE, MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { useToast } from '../../components/ui/Toast.jsx';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
 
 const WEBGL2_UNAVAILABLE_HINT = 'Trình duyệt hoặc thiết bị này không hỗ trợ WebGL2 nên không xem được dạng 3D.';
+const EMPTY_ROWS = [];
 
 function readSavedSceneMode() {
   try {
@@ -59,8 +65,8 @@ function getInitialSceneMode(webgl2) {
 
 
 export default function PerformanceRoadRanking({
-  pickRows = [],
-  deliRows = [],
+  pickRows = EMPTY_ROWS,
+  deliRows = EMPTY_ROWS,
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
@@ -78,6 +84,10 @@ export default function PerformanceRoadRanking({
   const tableRowRefs = useRef(new Map());
   const insightPanelRef = useRef(null);
   const tableCardRef = useRef(null);
+  const sceneHostRef = useRef(null);
+  const playback = useScenePlayback(sceneHostRef);
+  const speedControlId = useId();
+  const speedLabel = `${playback.rate.toLocaleString('vi-VN')}×`;
 
   // Calculate ranking contract
   const rankingData = useMemo(() => {
@@ -324,7 +334,7 @@ export default function PerformanceRoadRanking({
       </section>
 
       {/* 2. Visual Delivery Road Scene Section */}
-      <section className="prr-scene-card" aria-label="Tuyến đường xếp hạng Hub">
+      <section ref={sceneHostRef} className="prr-scene-card" aria-label="Tuyến đường xếp hạng Hub">
         <div className="prr-scene-toolbar">
           <div className="scene-toolbar-left">
             <span className="scene-toolbar-title">Tuyến đường Vận chuyển ({metricLabel})</span>
@@ -334,6 +344,42 @@ export default function PerformanceRoadRanking({
           </div>
 
           <div className="scene-toolbar-right">
+            <div className="prr-speed-control">
+              <label htmlFor={speedControlId}>Tốc độ</label>
+              <input
+                id={speedControlId}
+                type="range"
+                min={MIN_DRIVE_RATE}
+                max={MAX_DRIVE_RATE}
+                step="0.25"
+                value={playback.rate}
+                aria-label="Tốc độ chạy xe"
+                aria-valuetext={`${playback.rate.toLocaleString('vi-VN')} lần`}
+                disabled={playback.reducedMotion || sceneTrucks.length === 0}
+                onChange={event => playback.setRate(Number(event.target.value))}
+              />
+              <output htmlFor={speedControlId}>{speedLabel}</output>
+              <button
+                type="button"
+                className="prr-speed-reset"
+                aria-label="Đặt lại tốc độ mặc định 2×"
+                title="Tốc độ mặc định: 2×"
+                disabled={playback.rate === DEFAULT_DRIVE_RATE || playback.reducedMotion || sceneTrucks.length === 0}
+                onClick={() => playback.setRate(DEFAULT_DRIVE_RATE)}
+              ><RotateCcw size={12} aria-hidden="true" /></button>
+            </div>
+            <button
+              type="button"
+              className="prr-replay-btn prr-playback-btn"
+              disabled={playback.reducedMotion || sceneTrucks.length === 0}
+              aria-pressed={playback.paused}
+              aria-label={playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
+              title={playback.reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : undefined}
+              onClick={() => playback.setPaused(value => !value)}
+            >
+              {playback.paused || playback.reducedMotion ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />}
+              {playback.reducedMotion ? 'Giảm chuyển động' : playback.paused ? 'Tiếp tục' : 'Tạm dừng'}
+            </button>
             <div className="prr-segmented-limit" role="group" aria-label="Chế độ hiển thị cảnh">
               <button
                 type="button"
@@ -407,6 +453,9 @@ export default function PerformanceRoadRanking({
                 target={target}
                 d1Label={d1Formatted}
                 d8Label={d8Formatted || ''}
+                running={playback.running}
+                playbackRate={playback.rate}
+                reducedMotion={playback.reducedMotion}
               />
             </Suspense>
             </SceneErrorBoundary>
@@ -415,6 +464,8 @@ export default function PerformanceRoadRanking({
               sceneTrucks={sceneTrucks}
               selectedHubId={selectedHubId}
               onSelectHub={handleSelectHub}
+              running={playback.running}
+              playbackRate={playback.rate}
             />
           )
         )}
