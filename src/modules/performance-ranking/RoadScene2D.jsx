@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import { DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import TruckTag from './TruckTag.jsx';
 
 // SVG Vector Delivery Truck component
@@ -25,6 +26,7 @@ function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
         </filter>
       </defs>
       <g filter={`url(#truck-shadow-${rank})`}>
+        <g className="prr-truck-body">
         {/* Cargo Body (thùng xe tải) */}
         <rect x="2" y="10" width="46" height="24" rx="3" fill={cargoColor} />
         {/* GHN Orange Brand Stripe */}
@@ -41,17 +43,16 @@ function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
         <rect x="74" y="29" width="2.5" height="3.5" rx="1" fill="#fef08a" />
         {/* Front bumper */}
         <rect x="73" y="32" width="4" height="2.5" rx="1" fill="#64748b" />
+        </g>
 
         {/* Wheels (Bánh xe) */}
-        {/* Rear Wheel 1 */}
-        <circle cx="12" cy="34" r="6" fill={wheelColor} />
-        <circle cx="12" cy="34" r="3" fill={rimColor} />
-        {/* Rear Wheel 2 */}
-        <circle cx="26" cy="34" r="6" fill={wheelColor} />
-        <circle cx="26" cy="34" r="3" fill={rimColor} />
-        {/* Front Wheel */}
-        <circle cx="63" cy="34" r="6" fill={wheelColor} />
-        <circle cx="63" cy="34" r="3" fill={rimColor} />
+        {[12, 26, 63].map(cx => (
+          <g key={cx} className="prr-wheel">
+            <circle cx={cx} cy="34" r="6" fill={wheelColor} />
+            <circle cx={cx} cy="34" r="3" fill={rimColor} />
+            <path d={`M${cx - 2.5} 34h5 M${cx} 31.5v5`} stroke="#e2e8f0" strokeWidth="1" />
+          </g>
+        ))}
 
         {/* Rank Crown/Badge on roof */}
         <rect x="18" y="2" width="18" height="9" rx="4.5" fill={badgeBg} stroke={badgeBorder} strokeWidth="1" />
@@ -64,9 +65,17 @@ function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
 }
 
 // 2D SVG/CSS road scene. Kept as its own component so the 3D scene can sit beside it.
-export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub }) {
+export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, running = false, playbackRate = DEFAULT_DRIVE_RATE }) {
   const roadContainerRef = useRef(null);
   const truckElementsRef = useRef(new Map());
+
+  useLayoutEffect(() => {
+    // Preserve the current phase when dragging the speed slider. Changing CSS
+    // animation-duration would jump the wheels and road to a different phase.
+    for (const animation of roadContainerRef.current.getAnimations({ subtree: true })) {
+      if (animation.animationName?.startsWith('prr-')) animation.updatePlaybackRate(playbackRate);
+    }
+  }, [playbackRate, running, sceneTrucks]);
 
   // Smooth scroll scene to selected truck
   useEffect(() => {
@@ -87,7 +96,10 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub })
   }, [selectedHubId]);
 
   return (
-    <div className="prr-road-viewport" ref={roadContainerRef}>
+    <div
+      className={`prr-road-viewport ${running ? 'prr-driving' : ''}`}
+      ref={roadContainerRef}
+    >
       {/* The Road Surface */}
       <div
         className="prr-road-canvas"
@@ -96,24 +108,6 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub })
           minWidth: `${Math.max(1100, sceneTrucks.length * 115)}px`
         }}
       >
-        {/* Road scenery: neutral operational checkpoints (no race track/F1 elements) */}
-        <div className="prr-road-scenery">
-          <div className="scenery-checkpoint start">
-            <span className="checkpoint-marker" />
-            <span>Điểm tiếp nhận &amp; điều phối</span>
-          </div>
-          <div className="scenery-checkpoint mid">
-            <span className="checkpoint-marker" />
-            <span>Hành lang kiểm soát KPI D-1</span>
-          </div>
-          <div className="scenery-checkpoint sla">
-            <div className="sla-badge">
-              <span className="sla-label">Mốc chuẩn SLA</span>
-            </div>
-            <div className="sla-baseline-line" />
-          </div>
-        </div>
-
         {/* 4 Lanes with dashed markings */}
         <div className="prr-lanes-container">
           <div className="prr-lane lane-1" />
@@ -158,7 +152,8 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub })
               style={{
                 left: `${leftPos}%`,
                 top: `${topPos}px`,
-                zIndex: isSelected ? 80 : 20 + laneIdx
+                zIndex: isSelected ? 80 : 20 + laneIdx,
+                '--truck-phase': `${-idx * 0.17}s`
               }}
               onClick={() => onSelectHub(item.id)}
             >

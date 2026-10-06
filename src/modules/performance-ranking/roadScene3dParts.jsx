@@ -5,9 +5,11 @@ import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
 import { computeRoadside } from '../../utils/sceneThemes.js';
 import {
   REPLAY_ARROWS_MS,
-  easeInOutCubic,
-  interpolateFrame
 } from '../../utils/rankingSceneLayout.js';
+import {
+  advanceDriveClock, driveHeading, sampleDrivePose, WHEEL_RADIUS,
+  wrapRoadTravel, roadsideAlpha, ROADSIDE_BUFFER
+} from '../../utils/sceneDriving.js';
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 
@@ -36,13 +38,15 @@ const TRUCK_PARTS = [
   { key: 'logoL', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, 0.655], color: '#ffffff', basic: true, logo: true },
   { key: 'logoR', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, -0.655], rotation: [0, Math.PI, 0], color: '#ffffff', basic: true, logo: true },
   // 3 axles; a cylinder spans the body width so each reads as a wheel on both sides
-  { key: 'axle1', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK },
-  { key: 'axle2', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-0.2, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK },
-  { key: 'axle3', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK }
+  { key: 'axle1', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
+  { key: 'axle2', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-0.2, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
+  { key: 'axle3', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
+  // A visible rim bar on each side makes rotation legible on otherwise uniform tyres.
+  ...[-1.0, -0.2, 1.0].map((x, i) => ({ key: `rim${i}`, geo: 'box', args: [0.42, 0.065, 1.43], position: [x, 0.3, 0], color: '#cbd5e1', wheel: true, spin: true }))
 ];
 
-const HOVER_LIFT = 0.25;
-const SELECT_LIFT = 0.12;
+const HOVER_LIFT = 0.025;
+const SELECT_LIFT = 0.015;
 // A click only counts if the pointer did not travel (otherwise it was an orbit drag).
 const CLICK_TRAVEL_PX = 4;
 
@@ -67,6 +71,8 @@ const alphaCacheKey = () => 'instanceAlpha';
 
 const _matrix = new THREE.Matrix4();
 const _partMatrix = new THREE.Matrix4();
+const _truckMatrix = new THREE.Matrix4();
+const _wheelMatrix = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _scale = new THREE.Vector3(1, 1, 1);
@@ -75,6 +81,34 @@ const _arrowColor = new THREE.Color();
 const _upAxis = new THREE.Vector3(0, 1, 0);
 
 const noRaycast = () => {};
+
+/** Shared simulation time. Runs before geometry/labels and freezes offscreen. */
+export function DriveClock({ clockRef, items, motion, running, playbackRate }) {
+  const invalidate = useThree(s => s.invalidate);
+  const motionKey = motion?.key;
+  useLayoutEffect(() => {
+    clockRef.current.motionElapsed = 0;
+  }, [clockRef, motionKey]);
+  useLayoutEffect(() => {
+    clockRef.current.step = 0;
+    invalidate();
+  }, [clockRef, running, invalidate]);
+  useEffect(() => {
+    if (!running) return undefined;
+    // Cruise needs only 30fps; replay gets 60fps. No idle render loop when
+    // paused/hidden, and camera interaction can still request its own frames.
+    const timer = window.setInterval(invalidate, 1000 / (motionKey == null ? 30 : 60));
+    return () => window.clearInterval(timer);
+  }, [running, motionKey, invalidate]);
+  useFrame((_, delta) => {
+    advanceDriveClock(clockRef.current, items, motion, delta, running, playbackRate);
+    if (import.meta.env.DEV) {
+      const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
+      handle.drive = { ...clockRef.current };
+    }
+  }, -2);
+  return null;
+}
 
 function pickedId(e, items) {
   const item = e.instanceId == null ? null : items[e.instanceId];
@@ -104,6 +138,7 @@ function FleetPart({ part, index, count, alphaArray, register, castShadow, logoT
 
   return (
     <instancedMesh
+      name={`prr-${part.key}`}
       ref={(m) => register(index, m)}
       args={[geometry, undefined, count]}
       castShadow={castShadow}
@@ -126,7 +161,7 @@ function FleetPart({ part, index, count, alphaArray, register, castShadow, logoT
 // truck, using the animated positions the fleet writes each frame.
 const WARMUP_FRAMES = 6; // ignored when judging frame rate
 const PICK_HALF_X = 1.55;
-const PICK_HALF_Z = 0.7;
+const PICK_HALF_Z = 1.0; // includes the corner swept by the small steering angle
 const PICK_HEIGHT = 1.7;
 const PICK_MIN_ALPHA = 0.3; // fading-in/out trucks are not pickable
 
@@ -177,11 +212,16 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
  */
 export function TruckFleet({
   items, motion, goodColor, badColor, castShadow, hoveredId, selectedId,
-  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats
+  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion
 }) {
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
   const count = items.length;
+  const hoverEnabled = useMemo(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches, []);
+  const buffers = useMemo(() => ({
+    xs: new Float32Array(count), ys: new Float32Array(count), zs: new Float32Array(count),
+    headings: new Float32Array(count), bobs: new Float32Array(count)
+  }), [count]);
   const alphaArray = useMemo(() => new Float32Array(count).fill(1), [count]);
   const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
@@ -226,8 +266,8 @@ export function TruckFleet({
   const pickHandlers = {
     // No hover updates while a button is held: that is an orbit drag, and re-rendering the
     // labels on every truck the pointer sweeps over made dragging stutter.
-    onPointerOver: (e) => { e.stopPropagation(); if (!e.nativeEvent.buttons) onHover(pickedId(e, itemsRef.current)); },
-    onPointerMove: (e) => { e.stopPropagation(); if (!e.nativeEvent.buttons) onHover(pickedId(e, itemsRef.current)); },
+    onPointerOver: (e) => { e.stopPropagation(); if (hoverEnabled && !e.nativeEvent.buttons) onHover(pickedId(e, itemsRef.current)); },
+    onPointerMove: (e) => { e.stopPropagation(); if (hoverEnabled && !e.nativeEvent.buttons) onHover(pickedId(e, itemsRef.current)); },
     onPointerOut: () => onHover(null),
     onClick: (e) => {
       if (e.delta > CLICK_TRAVEL_PX) return;
@@ -237,7 +277,6 @@ export function TruckFleet({
     }
   };
   const arrowMesh = useRef(null);
-  const startRef = useRef(null);
   const endedKeyRef = useRef(null);
 
   const register = (index, node) => {
@@ -253,31 +292,31 @@ export function TruckFleet({
     return () => { canvas.style.cursor = ''; };
   }, [gl, hoveredId]);
 
-  // Writes every instance for time `now`; returns { t, active }.
-  const write = (now) => {
+  // Keep rank anchors stable while wheels and suspension travel around them.
+  const write = (updateColors = false) => {
     itemsRef.current = items;
     alphaRef.current = alphaArray;
-    let t = 1;
-    if (motion && startRef.current != null) t = Math.min(1, Math.max(0, (now - startRef.current) / motion.durationMs));
-    const e = easeInOutCubic(t);
+    const clock = clockRef.current;
+    const now = clock.time * 1000;
+    const t = motion ? Math.min(1, clock.motionElapsed / motion.durationMs) : 1;
     const animated = Boolean(motion);
     const positions = positionsRef.current;
     positions.clear();
 
-    const xs = new Float32Array(count);
-    const ys = new Float32Array(count);
-    const zs = new Float32Array(count);
+    const { xs, ys, zs, headings, bobs } = buffers;
     for (let i = 0; i < count; i++) {
       const item = items[i];
       let x = item.x;
       let z = item.z;
       let a = 1;
       if (animated && item.from) {
-        const f = interpolateFrame(item, e);
+        const f = sampleDrivePose(item, t);
         x = f.x; z = f.z; a = f.alpha;
       }
       const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
       xs[i] = x; ys[i] = lift; zs[i] = z;
+      headings[i] = animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0;
+      bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : Math.sin(clock.time * 8 + i * 2.399) * 0.012;
       alphaArray[i] = a;
       if (!item.ghost) positions.set(item.id, { x, z, lift });
     }
@@ -285,17 +324,29 @@ export function TruckFleet({
     TRUCK_PARTS.forEach((part, p) => {
       const mesh = meshes.current[p];
       if (!mesh) return;
+      // A large fleet keeps suspension at rest: only the three rim meshes
+      // need matrix uploads during cruise, rather than all body meshes.
+      if (count > SHADOW_MAX_TRUCKS && !animated && !updateColors && !part.spin) return;
       _euler.set(...(part.rotation || [0, 0, 0]));
       _quat.setFromEuler(_euler);
       _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
       const tinted = part.color === 'status';
       for (let i = 0; i < count; i++) {
-        _matrix.makeTranslation(xs[i], ys[i], zs[i]).multiply(_partMatrix);
+        _quat.setFromAxisAngle(_upAxis, headings[i]);
+        _truckMatrix.compose(_pos.set(xs[i], ys[i] + (part.wheel ? 0 : bobs[i]), zs[i]), _quat, _scale);
+        if (part.spin) {
+          _euler.set(0, 0, -(clock.distance + xs[i]) / WHEEL_RADIUS);
+          _quat.setFromEuler(_euler);
+          _wheelMatrix.compose(_pos.set(...part.position), _quat, _scale);
+          _matrix.copy(_truckMatrix).multiply(_wheelMatrix);
+        } else {
+          _matrix.copy(_truckMatrix).multiply(_partMatrix);
+        }
         mesh.setMatrixAt(i, _matrix);
-        if (tinted) mesh.setColorAt(i, items[i].meetsTarget ? goodC : badC);
+        if (tinted && updateColors) mesh.setColorAt(i, items[i].meetsTarget ? goodC : badC);
       }
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      if (mesh.instanceColor && updateColors) mesh.instanceColor.needsUpdate = true;
       const attribute = mesh.geometry.getAttribute('instanceAlpha');
       if (attribute) attribute.needsUpdate = true;
     });
@@ -341,8 +392,8 @@ export function TruckFleet({
       if (badges.instanceColor) badges.instanceColor.needsUpdate = true;
     }
 
-    // The directional light never moves: re-render the shadow map only when trucks do.
-    gl.shadowMap.needsUpdate = true;
+    // Suspension is too small to warrant a new 2048px shadow map every cruise frame.
+    if (animated || updateColors) gl.shadowMap.needsUpdate = true;
 
     return { t, active: animated && t < 1 };
   };
@@ -350,23 +401,20 @@ export function TruckFleet({
   // Rest state, hover/selection lift, colours, data changes and the start of a motion.
   const motionKey = motion ? motion.key : null;
   useLayoutEffect(() => {
-    startRef.current = motionKey == null ? null : performance.now();
     endedKeyRef.current = null;
     frameDeltas.current = [];
-    write(performance.now());
+    write(true);
     invalidate();
     // write() closes over the props listed here; it is intentionally not a dependency itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, motionKey, goodC, badC, hoveredId, selectedId, invalidate]);
+  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, invalidate]);
 
   useFrame((_, delta) => {
-    if (!motion || startRef.current == null) return;
-    frameDeltas.current.push(delta);
-    const { t, active } = write(performance.now());
-    if (replayRef) replayRef.current = { active: motion.kind === 'replay' && active, t };
-    if (active) {
-      invalidate(); // keep rendering while animating (frameloop is on demand)
-    } else if (endedKeyRef.current !== motion.key) {
+    if (!clockRef.current.step) return;
+    if (motion) frameDeltas.current.push(delta);
+    const { t, active } = write();
+    if (replayRef) replayRef.current = { active: motion?.kind === 'replay' && active, t };
+    if (motion && !active && endedKeyRef.current !== motion.key) {
       endedKeyRef.current = motion.key;
       if (replayRef) replayRef.current = { active: false, t: 1 };
       if (onMotionStats) {
@@ -378,7 +426,7 @@ export function TruckFleet({
       }
       if (onMotionEnd) onMotionEnd(motion.key);
     }
-  });
+  }, -1);
 
   return (
     <group>
@@ -424,10 +472,26 @@ export function SelectionRing({ id, x, z, positionsRef }) {
 }
 
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
-export function Road({ roadLength, laneCount, laneWidth, theme }) {
+export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
   const roadWidth = laneCount * laneWidth + 0.6;
   const dashRef = useRef(null);
   const invalidate = useThree((s) => s.invalidate);
+  const asphaltTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#c4c4c4';
+    ctx.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 1100; i++) {
+      ctx.fillStyle = i % 2 ? '#b4b4b4' : '#d0d0d0';
+      ctx.fillRect((i * 73) % 128, (i * 37 + Math.floor(i / 128) * 19) % 128, 1, 1);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set((roadLength + 6) / 4, roadWidth / 4);
+    return texture;
+  }, [roadLength, roadWidth]);
+  useEffect(() => () => asphaltTexture.dispose(), [asphaltTexture]);
 
   const dashes = useMemo(() => {
     const list = [];
@@ -440,16 +504,28 @@ export function Road({ roadLength, laneCount, laneWidth, theme }) {
     return list;
   }, [roadLength, laneCount, laneWidth]);
 
-  useLayoutEffect(() => {
+  const writeRoad = () => {
     const mesh = dashRef.current;
     if (!mesh) return;
+    const distance = clockRef.current.distance;
+    const minX = -roadLength / 2 - 3;
+    const span = Math.floor((roadLength + 6) / 4) * 4;
     dashes.forEach(([x, z], i) => {
-      _matrix.makeTranslation(x, 0.012, z);
+      _matrix.makeTranslation(wrapRoadTravel(x, distance, minX, span), 0.012, z);
       mesh.setMatrixAt(i, _matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
+    asphaltTexture.offset.x = (distance / 4) % 1;
+  };
+  useLayoutEffect(() => {
+    writeRoad();
     invalidate();
-  }, [dashes, invalidate]);
+    // Geometry/texture changes need an initial draw even while playback is paused.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashes, asphaltTexture, invalidate]);
+  useFrame(() => {
+    if (clockRef.current.step) writeRoad();
+  });
 
   const edgeZ = roadWidth / 2 + 0.25;
   return (
@@ -461,7 +537,7 @@ export function Road({ roadLength, laneCount, laneWidth, theme }) {
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[roadLength + 6, roadWidth]} />
-        <meshStandardMaterial color={theme.asphalt} roughness={0.95} />
+        <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} roughness={0.95} />
       </mesh>
       {[edgeZ, -edgeZ].map((z) => (
         <mesh key={z} position={[0, 0.05, z]}>
@@ -469,107 +545,110 @@ export function Road({ roadLength, laneCount, laneWidth, theme }) {
           <meshStandardMaterial color={theme.shoulder} />
         </mesh>
       ))}
-      <instancedMesh key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false}>
+      <instancedMesh name="prr-road-dashes" key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false}>
         <boxGeometry args={[2, 0.01, 0.1]} />
         <meshBasicMaterial color={theme.dash} />
       </instancedMesh>
-      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} />
+      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} />
     </group>
   );
 }
 
 /**
- * Low-poly trees and road signs along both shoulders. Four instanced meshes in total (trunks,
+ * Low-poly trees and road signs along the far shoulder. Four instanced meshes in total (trunks,
  * canopies, sign poles, sign plates), so the draw-call cost does not depend on how many there are.
- * Positions are deterministic (see computeRoadside).
+ * Share the road's travelled distance; recycling fades outside the asphalt.
  */
-function Roadside({ roadLength, roadWidth, theme }) {
+function Roadside({ roadLength, roadWidth, theme, clockRef }) {
   const trunkRef = useRef(null);
   const canopyRef = useRef(null);
   const poleRef = useRef(null);
   const plateRef = useRef(null);
   const invalidate = useThree((s) => s.invalidate);
-  const { trees, signs } = useMemo(() => computeRoadside(roadLength, roadWidth), [roadLength, roadWidth]);
+  const span = roadLength + ROADSIDE_BUFFER * 2;
+  const { trees, signs } = useMemo(() => computeRoadside(span, roadWidth), [span, roadWidth]);
+  const treeAlpha = useMemo(() => new Float32Array(trees.length), [trees]);
+  const signAlpha = useMemo(() => new Float32Array(signs.length), [signs]);
+  const color = useMemo(() => new THREE.Color(), []);
 
-  useLayoutEffect(() => {
-    const color = new THREE.Color();
+  const writeRoadside = (updateColors = false) => {
+    const distance = clockRef.current.distance;
     const trunk = trunkRef.current;
     const canopy = canopyRef.current;
     if (trunk && canopy) {
       trees.forEach((t, i) => {
+        const x = wrapRoadTravel(t.x, distance, -span / 2, span);
+        treeAlpha[i] = roadsideAlpha(x, roadLength);
         _quat.setFromAxisAngle(_upAxis, (i * 2.399) % (Math.PI * 2));
-        _matrix.compose(_pos.set(t.x, 0.4 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        _matrix.compose(_pos.set(x, 0.4 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
         trunk.setMatrixAt(i, _matrix);
-        _matrix.compose(_pos.set(t.x, 1.6 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        _matrix.compose(_pos.set(x, 1.6 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
         canopy.setMatrixAt(i, _matrix);
-        canopy.setColorAt(i, color.set(theme.treeCanopy[t.tint % theme.treeCanopy.length]));
+        if (updateColors) canopy.setColorAt(i, color.set(theme.treeCanopy[t.tint % theme.treeCanopy.length]));
       });
-      trunk.instanceMatrix.needsUpdate = true;
-      canopy.instanceMatrix.needsUpdate = true;
-      if (canopy.instanceColor) canopy.instanceColor.needsUpdate = true;
+      if (canopy.instanceColor && updateColors) canopy.instanceColor.needsUpdate = true;
     }
     const pole = poleRef.current;
     const plate = plateRef.current;
     if (pole && plate) {
       signs.forEach((sg, i) => {
+        const x = wrapRoadTravel(sg.x, distance, -span / 2, span);
+        signAlpha[i] = roadsideAlpha(x, roadLength);
         _quat.identity();
-        _matrix.compose(_pos.set(sg.x, 1.3, sg.z), _quat, _scale.set(1, 1, 1));
+        _matrix.compose(_pos.set(x, 1.3, sg.z), _quat, _scale.set(1, 1, 1));
         pole.setMatrixAt(i, _matrix);
         // the plate faces the road
         _quat.setFromAxisAngle(_upAxis, sg.side > 0 ? Math.PI : 0);
-        _matrix.compose(_pos.set(sg.x, 2.55, sg.z), _quat, _scale.set(1, 1, 1));
+        _matrix.compose(_pos.set(x, 2.55, sg.z), _quat, _scale.set(1, 1, 1));
         plate.setMatrixAt(i, _matrix);
       });
-      pole.instanceMatrix.needsUpdate = true;
-      plate.instanceMatrix.needsUpdate = true;
+    }
+    for (const mesh of [trunk, canopy, pole, plate]) {
+      if (!mesh) continue;
+      mesh.instanceMatrix.needsUpdate = true;
+      const alpha = mesh.geometry.getAttribute('instanceAlpha');
+      if (alpha) alpha.needsUpdate = true;
     }
     _scale.set(1, 1, 1);
+  };
+  useLayoutEffect(() => {
+    writeRoadside(true);
     invalidate();
+    // Colours are uploaded on theme/layout changes, never on each cruise frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trees, signs, theme, invalidate]);
+  useFrame(() => {
+    if (clockRef.current.step) writeRoadside();
+  });
+
+  const fadeMaterial = { transparent: true, depthWrite: false, onBeforeCompile: patchInstanceAlpha, customProgramCacheKey: alphaCacheKey };
 
   return (
     <group>
-      <instancedMesh key={`t-${trees.length}`} ref={trunkRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
-        <cylinderGeometry args={[0.13, 0.18, 0.8, 6]} />
-        <meshStandardMaterial color={theme.treeTrunk} flatShading />
+      <instancedMesh name="prr-roadside-trunks" key={`t-${trees.length}`} ref={trunkRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
+        <cylinderGeometry args={[0.13, 0.18, 0.8, 6]}>
+          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[treeAlpha, 1]} />
+        </cylinderGeometry>
+        <meshStandardMaterial {...fadeMaterial} color={theme.treeTrunk} flatShading />
       </instancedMesh>
-      <instancedMesh key={`c-${trees.length}`} ref={canopyRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
-        <coneGeometry args={[0.8, 2.0, 7]} />
-        <meshStandardMaterial color="#ffffff" flatShading roughness={0.9} />
+      <instancedMesh name="prr-roadside-canopies" key={`c-${trees.length}`} ref={canopyRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
+        <coneGeometry args={[0.8, 2.0, 7]}>
+          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[treeAlpha, 1]} />
+        </coneGeometry>
+        <meshStandardMaterial {...fadeMaterial} color="#ffffff" flatShading roughness={0.9} />
       </instancedMesh>
-      <instancedMesh key={`p-${signs.length}`} ref={poleRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
-        <cylinderGeometry args={[0.07, 0.07, 2.6, 6]} />
-        <meshStandardMaterial color={theme.signPole} />
+      <instancedMesh name="prr-roadside-poles" key={`p-${signs.length}`} ref={poleRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
+        <cylinderGeometry args={[0.07, 0.07, 2.6, 6]}>
+          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[signAlpha, 1]} />
+        </cylinderGeometry>
+        <meshStandardMaterial {...fadeMaterial} color={theme.signPole} />
       </instancedMesh>
-      <instancedMesh key={`s-${signs.length}`} ref={plateRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
-        <boxGeometry args={[1.1, 0.75, 0.08]} />
-        <meshStandardMaterial color={theme.signPlate} />
+      <instancedMesh name="prr-roadside-signs" key={`s-${signs.length}`} ref={plateRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
+        <boxGeometry args={[1.1, 0.75, 0.08]}>
+          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[signAlpha, 1]} />
+        </boxGeometry>
+        <meshStandardMaterial {...fadeMaterial} color={theme.signPlate} />
       </instancedMesh>
-    </group>
-  );
-}
-
-/** Operational checkpoint: a gantry over the road (its label is an HTML overlay, see LabelProjector). */
-export function Checkpoint({ x, roadWidth, color, line = false }) {
-  const half = roadWidth / 2 + 0.2;
-  return (
-    <group position={[x, 0, 0]}>
-      {[half, -half].map((z) => (
-        <mesh key={z} position={[0, 1.8, z]}>
-          <boxGeometry args={[0.25, 3.6, 0.25]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      ))}
-      <mesh position={[0, 3.5, 0]}>
-        <boxGeometry args={[0.3, 0.3, half * 2 + 0.25]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      {line && (
-        <mesh position={[0, 0.02, 0]}>
-          <boxGeometry args={[0.35, 0.02, roadWidth]} />
-          <meshBasicMaterial color={color} />
-        </mesh>
-      )}
     </group>
   );
 }
