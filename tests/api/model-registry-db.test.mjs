@@ -10,6 +10,9 @@ test('registry SQL protects writes, preserves sync definitions, requires current
       create table public.ai_chat_model_config(feature text, model text, reasoning_effort text);
       grant select,insert,update,delete on public.ai_chat_model_config to service_role;`);
     await db.exec(await readFile(new URL('../../supabase/migrations/20261006120000_ai_model_registry.sql', import.meta.url), 'utf8'));
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261006120100_fix_ai_model_sync_safe_update.sql', import.meta.url), 'utf8'));
+    const functionSource = (await db.query(`select prosrc from pg_proc where proname='sync_ai_model_registry'`)).rows[0].prosrc;
+    assert.match(functionSource, /set available=false\s+where available is distinct from false/i);
     for (const role of ['anon', 'authenticated']) {
       await db.exec(`set role ${role}`);
       await assert.rejects(db.query('select * from public.ai_model_registry'), /permission denied/);
@@ -20,6 +23,8 @@ test('registry SQL protects writes, preserves sync definitions, requires current
     await db.exec('set role service_role');
     const sync = [{ id: 'gpt-new', chatCandidate: true }, { id: 'image-new', chatCandidate: false }];
     await db.query('select public.sync_ai_model_registry($1,$2)', [JSON.stringify(sync), 'cron']);
+    const unseen = (await db.query(`select available from public.ai_model_registry where id='gpt-4.1'`)).rows[0];
+    assert.equal(unseen.available, false);
     assert.equal((await db.query(`select enabled from public.ai_model_registry where id='gpt-new'`)).rows[0].enabled, false);
     const definition = { id: 'gpt-new', label: 'New model', reasoningEfforts: ['low'], defaultReasoningEffort: 'low', pricing: { inputNanoUsdPerToken: 100, cachedInputNanoUsdPerToken: 10, outputNanoUsdPerToken: 200 } };
     await db.query('select public.save_ai_model_definition($1,1,$2)', [JSON.stringify(definition), 'dev']);
