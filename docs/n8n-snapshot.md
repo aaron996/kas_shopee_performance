@@ -109,7 +109,7 @@ GET /api/snapshot-summary?view=hno-rows&report=pick|deli&client=SPB&token=<token
 → { rows: [ { report_date, hub, mau_pu, ontime_pu_1st, … } ] }
 ```
 
-Phạm vi: client `SPB`, vùng `HNO` (sau `reassignKaRegion`), hub type `GXT` + `BC`
+Phạm vi: client `SPB`, vùng `HNO` + `HNO - CK` (sau `reassignKaRegion`, CK gộp chung vào HNO, không tách view), hub type `GXT` + `BC` + `CK`; bỏ `HNO - KA`
 (`scopeHnoReportRows` trong src/utils/snapshotView.js). Endpoint dùng chung file
 `snapshot-summary` để không thêm function (Vercel Hobby cap 12). Node n8n
 `Build HTML HNO` vẫn tự gộp theo hub / tuần như cũ, chỉ đổi nguồn rows.

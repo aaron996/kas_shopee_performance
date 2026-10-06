@@ -209,7 +209,7 @@ test('summary endpoint needs a valid token', async () => {
   assert.equal(res.statusCode, 401);
 });
 
-test('summary endpoint view=hno-rows returns only HNO GXT/BC rows after the KA and CK reassignment', async () => {
+test('summary endpoint view=hno-rows returns HNO rows incl. CK but not KA', async () => {
   const handler = createSnapshotSummaryHandler({
     readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
     createServiceClient: () => ({}),
@@ -230,7 +230,7 @@ test('summary endpoint view=hno-rows returns only HNO GXT/BC rows after the KA a
   const res = createResponse();
   await handler({ method: 'GET', url: `/api/snapshot-summary?view=hno-rows&report=pick&client=SPB&token=${encodeURIComponent(token)}` }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.rows.map(r => r.hub), ['Hub BC', 'Hub GXT']);
+  assert.deepEqual(res.body.rows.map(r => r.hub), ['Hub BC', 'Hub GXT', 'Hub CK Test']);
 });
 
 test('summary endpoint view=hno-rows only serves pick and deli', async () => {

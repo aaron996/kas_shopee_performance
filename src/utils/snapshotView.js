@@ -76,15 +76,16 @@ export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes
 }
 
 // Scope of the HNO Telegram report (n8n `[KAS] ... Daily Report - HNO`): vùng HNO
-// only, hub types GXT and BC, after the same reassignKaRegion the dashboard runs.
-// KA / CK hubs are moved to HNO - KA / HNO - CK there, so they drop out here just
-// as they do in the dashboard's HNO row.
-export const HNO_REPORT_REGION = 'HNO';
-export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC'];
+// plus its CK vùng (CK hubs are reported inside HNO, not as a separate view), hub
+// types GXT, BC and CK, after the same reassignKaRegion the dashboard runs. Only
+// HNO - KA is left out.
+export const HNO_REPORT_REGIONS = ['HNO', 'HNO - CK'];
+export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK'];
 
 export function scopeHnoReportRows(rows) {
+  const regions = new Set(HNO_REPORT_REGIONS);
   const hubTypes = new Set(HNO_REPORT_HUB_TYPES);
   return reassignKaRegion(rows).filter(r =>
-    r.region === HNO_REPORT_REGION && hubTypes.has(String(getHubType(r)).trim().toUpperCase())
+    regions.has(r.region) && hubTypes.has(String(getHubType(r)).trim().toUpperCase())
   );
 }
