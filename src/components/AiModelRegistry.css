@@ -28,6 +28,8 @@
 .model-registry-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 24px 0 16px; }
 .model-registry-filter > label:first-child { flex: 1; min-width: 200px; max-width: 420px; }
 .model-registry-table-wrap { overflow-x: auto; }
+.model-registry-view-controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
+.model-registry-view-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; font-size: .85rem; color: var(--text-muted); }
 .model-registry table { border-collapse: collapse; width: 100%; font-size: .9rem; text-align: left; }
 .model-registry th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover); }
 .model-registry :is(th,td) { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }

@@ -38,7 +38,7 @@ export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = nul
   }
 
   const feature = options.feature || 'chat';
-  if (feature === 'chat') baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
+  baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
   const userId = typeof user === 'string' ? user : user?.id;
   let query = serviceClient.from('ai_chat_model_config').select('*').eq('feature', feature);
   if (userId) {
@@ -132,7 +132,7 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
     throw new ChatError('CHAT_CONFIG_UNAVAILABLE', 'Không thể kết nối cơ sở dữ liệu.', 503);
   }
 
-  if (feature === 'chat') baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
+  baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
   const [configsResult, auditsResult] = await Promise.all([
     serviceClient
       .from('ai_chat_model_config')
@@ -182,6 +182,7 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
   return {
     feature,
     allowedModels: baseConfig.allowedModels,
+    catalogSource: baseConfig.registryMigrated ? 'registry' : 'legacy',
     envDefault: {
       model: baseConfig.model,
       reasoningEffort: baseConfig.reasoningEffort

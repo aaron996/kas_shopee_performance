@@ -1,8 +1,7 @@
 import { ChatError } from './errors.js';
 
 /**
- * Models that Dev Admins can switch to from the UI.
- * The default model (from env AI_CHAT_MODEL) must also be in this list.
+ * Legacy defaults used only when the model registry migration is absent.
  */
 export const ALLOWED_MODELS = [
   {
@@ -31,7 +30,18 @@ export const ALLOWED_MODELS = [
   }
 ];
 
-const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map(m => m.id));
+export function readEnvironmentModel(model, requestedReasoningEffort) {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(model)) {
+    throw new ChatError('CHAT_CONFIG_INVALID', 'Model ID trong biến môi trường không hợp lệ.', 503);
+  }
+  const reasoningEffort = requestedReasoningEffort || ALLOWED_MODELS.find(m => m.id === model)?.defaultReasoningEffort || null;
+  if (reasoningEffort && !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(reasoningEffort)) {
+    throw new ChatError('CHAT_CONFIG_INVALID', 'Reasoning trong biến môi trường không hợp lệ.', 503);
+  }
+  // Model enablement and its supported efforts are checked against the database
+  // after authentication, before any provider request.
+  return { model, reasoningEffort };
+}
 
 export function resolveModelSelection(model, requestedReasoningEffort, allowedModels = ALLOWED_MODELS) {
   const modelConfig = allowedModels.find(candidate => candidate.id === model);
@@ -79,12 +89,9 @@ export function readChatConfig(env = process.env) {
   }
 
   const model = env.AI_CHAT_MODEL?.trim() || 'gpt-5.6-luna';
-  if (!ALLOWED_MODEL_IDS.has(model)) {
-    throw new ChatError('CHAT_CONFIG_INVALID', `AI_CHAT_MODEL "${model}" không nằm trong danh sách model hỗ trợ.`, 503);
-  }
   let modelSelection;
   try {
-    modelSelection = resolveModelSelection(model, env.AI_CHAT_REASONING_EFFORT?.trim());
+    modelSelection = readEnvironmentModel(model, env.AI_CHAT_REASONING_EFFORT?.trim());
   } catch (error) {
     throw new ChatError('CHAT_CONFIG_INVALID', error.message, 503, { cause: error });
   }

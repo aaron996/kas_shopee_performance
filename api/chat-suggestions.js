@@ -1,5 +1,6 @@
 import { authenticateRequest } from '../server/chat/auth.js';
 import { readChatConfig } from '../server/chat/config.js';
+import { resolveEffectiveChatConfig } from '../server/chat/model-config.js';
 import { toPublicError } from '../server/chat/errors.js';
 import { sendJson } from '../server/chat/sse.js';
 import { consumeSuggestionQuota } from '../server/chat/suggestion-quota.js';
@@ -21,6 +22,7 @@ export function createSuggestionsHandler(dependencies = {}) {
   const getFallback = dependencies.getFallback ?? getFallbackSuggestions;
   const buildSmartSuggestions = dependencies.buildSmartSuggestions ?? generateSmartSuggestions;
   const createModel = dependencies.createModel ?? createSuggestionModel;
+  const resolveEffectiveConfig = dependencies.resolveEffectiveConfig ?? resolveEffectiveChatConfig;
 
   return async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -79,10 +81,12 @@ export function createSuggestionsHandler(dependencies = {}) {
       // Prefer questions grounded in the caller's live data; templates are the safety net.
       let result = null;
       try {
+        const effectiveConfig = config.suggestionModelEnabled
+          ? await resolveEffectiveConfig(serviceClient, config, user) : config;
         result = await buildSmartSuggestions({
           userClient,
-          openai: createModel(config),
-          config,
+          openai: createModel(effectiveConfig),
+          config: effectiveConfig,
           screenContext,
           seed: quotaResult.count
         });
