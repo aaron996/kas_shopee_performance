@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateModelCost, formatMicrousdToUsd, MODEL_PRICING } from './pricing.js';
 import { readChatConfig } from './config.js';
+import { legacyRegistry } from './model-registry.js';
 import { computeQuestionFingerprint, finalizeChatRequest, normalizeQuestionText, reserveChatRequest } from './quota.js';
 import { createChatHandler } from '../../api/chat.js';
 import { createAiOpsHandler as createAiOpsHandlerImpl, maskEmail } from '../../api/ai-ops.js';
@@ -579,7 +580,7 @@ test('api/ai-ops GET view=model-config returns allowed models and config overvie
   });
   const serviceClient = {
     from: (table) => ({
-      select: () => chainable(table === 'ai_chat_model_config' ? configRows : [])
+      select: () => chainable(table === 'ai_model_registry' ? legacyRegistry().filter(row => row.id !== 'o4-mini') : table === 'ai_chat_model_config' ? configRows : [])
     })
   };
 
@@ -653,6 +654,7 @@ test('api/ai-ops GET view=model-users searches users and protects privacy', asyn
 test('api/ai-ops POST action=set-model-config validates inputs and records config', async () => {
   let rpcCall = null;
   const serviceClient = {
+    from: () => ({ select: () => ({ order: async () => ({ data: legacyRegistry(), error: null }) }) }),
     rpc: async (name, params) => {
       rpcCall = { name, params };
       return { data: { success: true, scopeType: 'all', model: 'gpt-5.6-terra' }, error: null };

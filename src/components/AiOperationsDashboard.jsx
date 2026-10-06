@@ -26,6 +26,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import AiModelRegistry from './AiModelRegistry';
 import {
   getModelConfigTargetKey,
   getInheritanceLabel,
@@ -733,7 +734,10 @@ export default function AiOperationsDashboard() {
       
       {/* Subtabs Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button type="button" className="btn-secondary" onClick={() => setActiveSubtab('model-registry')} aria-pressed={activeSubtab === 'model-registry'} style={{ background: activeSubtab === 'model-registry' ? 'var(--ghn-orange)' : 'var(--card-bg)', color: activeSubtab === 'model-registry' ? 'white' : 'var(--text-main)' }}>
+            <Layers size={16} /> Quản Lý Model
+          </button>
           <button
             type="button"
             className={`btn-secondary ${activeSubtab === 'overview' ? 'active' : ''}`}
@@ -816,7 +820,7 @@ export default function AiOperationsDashboard() {
         </div>
 
         {/* Date Filter & Refresh (for Overview & Research) */}
-        {activeSubtab !== 'quotas' && activeSubtab !== 'model-config' && (
+        {activeSubtab !== 'quotas' && activeSubtab !== 'model-config' && activeSubtab !== 'model-registry' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', background: 'var(--surface-hover)', borderRadius: '6px', border: '1px solid var(--border)', padding: '2px' }}>
               <button
@@ -1160,6 +1164,7 @@ export default function AiOperationsDashboard() {
       )}
 
       {/* ======================= TAB 2: MODEL & REASONING CONFIGURATION ======================= */}
+      {activeSubtab === 'model-registry' && <AiModelRegistry fetchWithAuth={fetchWithAuth} onChanged={() => setReloadNonce(n => n + 1)} />}
       {activeSubtab === 'model-config' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 

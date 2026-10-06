@@ -5,6 +5,10 @@ import { authenticateRequest, hasDevAdminRole } from '../server/chat/auth.js';
 import { formatMicrousdToUsd } from '../server/chat/pricing.js';
 import { sendJson } from '../server/chat/sse.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
+import { loadModelRegistry, loadRuntimeCatalog, syncModelRegistry, saveModelDefinition, probeModel, toggleModel } from '../server/chat/model-registry.js';
+
+// A probe can make one bounded provider request per advertised reasoning level.
+export const maxDuration = 180;
 
 export function maskEmail(email) {
   if (typeof email !== 'string' || !email.includes('@')) return 'Ẩn danh';
@@ -67,6 +71,11 @@ export function createAiOpsHandler(dependencies = {}) {
     // GET Requests
     if (req.method === 'GET') {
       try {
+        if (view === 'model-registry') {
+          const registry = await loadModelRegistry(serviceClient, { allowLegacy: true });
+          sendJson(res, 200, registry);
+          return;
+        }
         if (view === 'overview') {
           const dateFrom = url.searchParams.get('from');
           const dateTo = url.searchParams.get('to');
@@ -407,7 +416,26 @@ export function createAiOpsHandler(dependencies = {}) {
           });
           body = bodyText ? JSON.parse(bodyText) : {};
         }
+        if (typeof body === 'string') body = JSON.parse(body);
         const action = body.action;
+        const actor = currentUser.email;
+        if (action === 'sync-models') {
+          const result = await syncModelRegistry(serviceClient, config, actor, dependencies.registryOpenAI);
+          sendJson(res, 200, result);
+          return;
+        }
+        if (action === 'save-model') {
+          sendJson(res, 200, await saveModelDefinition(serviceClient, body.definition, actor));
+          return;
+        }
+        if (action === 'probe-model') {
+          sendJson(res, 200, await probeModel(serviceClient, config, body.id, body.revision, actor, dependencies.registryOpenAI));
+          return;
+        }
+        if (action === 'toggle-model') {
+          sendJson(res, 200, await toggleModel(serviceClient, config, body, actor));
+          return;
+        }
 
         if (action === 'set-override') {
           const { userId, userEmail, dailyTurnLimit, isUnlimited, reason } = body;
@@ -516,7 +544,8 @@ export function createAiOpsHandler(dependencies = {}) {
 
           let validatedSelection;
           try {
-            validatedSelection = resolveModelSelection(cleanModel, reasoningEffort || null);
+            const catalog = feature === 'chat' ? await loadRuntimeCatalog(serviceClient, config) : config;
+            validatedSelection = resolveModelSelection(cleanModel, reasoningEffort || null, catalog.allowedModels);
           } catch (valErr) {
             sendJson(res, 400, { error: { code: valErr.code || 'AI_OPS_INVALID_MODEL', message: valErr.message } });
             return;
