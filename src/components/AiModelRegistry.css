@@ -1,0 +1,39 @@
+.model-registry { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: 22px; padding: 24px; }
+.model-registry h3 { margin: 0 0 8px; font-size: 1.2rem; }
+.model-registry h4 { margin: 0 0 16px; }
+.model-registry p { max-width: 75ch; margin: 8px 0; line-height: 1.5; }
+.model-registry-header { display: flex; flex-wrap: wrap; gap: 20px; align-items: start; justify-content: space-between; }
+.model-registry-meta, .model-registry small, .model-registry-footnote { color: var(--text-muted); font-size: .85rem; }
+.model-registry-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.model-registry-actions button { min-height: 40px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+.model-registry .btn-primary { background: var(--action-primary-deep, #0c4a6e); color: white; border: 1px solid var(--action-primary-deep, #0c4a6e); border-radius: 999px; padding: 8px 16px; font: inherit; cursor: pointer; }
+.model-registry .btn-primary:hover:not(:disabled) { filter: brightness(.92); }
+.model-registry button:disabled { opacity: .5; cursor: not-allowed; }
+.model-registry :is(input,select,button):focus-visible { outline: 2px solid var(--action-primary-deep, #0c4a6e); outline-offset: 3px; }
+.model-registry-form { margin: 24px 0; padding: 20px; background: var(--surface-hover); border-radius: 10px; }
+.model-registry-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 16px; }
+.model-registry label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: .9rem; }
+.model-registry input:not([type=checkbox]), .model-registry select { width: 100%; min-height: 42px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); color: var(--text-main); padding: 8px 12px; font: inherit; }
+.model-registry input::placeholder { color: var(--text-muted); }
+.model-registry fieldset { margin: 20px 0; padding: 12px 16px 16px; border: 1px solid var(--border); border-radius: 10px; }
+.model-registry legend { font-weight: 600; }
+.model-registry fieldset p { font-size: .85rem; margin: 0 0 12px; }
+.model-registry-efforts { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.model-registry-efforts label, .model-registry .model-registry-check { flex-direction: row; align-items: center; gap: 8px; }
+.model-registry input[type=checkbox] { accent-color: var(--action-primary-deep, #0c4a6e); width: 18px; height: 18px; }
+.model-registry-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 24px 0 16px; }
+.model-registry-filter > label:first-child { flex: 1; min-width: 200px; max-width: 420px; }
+.model-registry-table-wrap { overflow-x: auto; }
+.model-registry table { border-collapse: collapse; width: 100%; font-size: .9rem; text-align: left; }
+.model-registry th { color: var(--text-muted); font-weight: 600; background: var(--surface-hover); }
+.model-registry :is(th,td) { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.model-registry td:first-child { min-width: 160px; max-width: 260px; }
+.model-registry code { display: block; overflow-wrap: anywhere; font-size: .8rem; margin: 4px 0; }
+.model-registry small { display: block; line-height: 1.5; }
+.model-registry-enabled { color: var(--success, #0f6e56); font-weight: 600; }
+.model-registry-error, .model-registry-notice { padding: 12px 16px; border-radius: 10px; margin-top: 16px; }
+.model-registry-error { background: #f7d9d4; color: #752b20; }
+.model-registry-notice { background: #eaf3de; color: #0f6e56; }
+.model-registry .model-registry-footnote { margin-top: 20px; }
+.model-registry-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 600px) { .model-registry { padding: 16px; } .model-registry-form { padding: 12px; } .model-registry-fields { grid-template-columns: 1fr; } .model-registry-actions button { min-height: 44px; } .model-registry td { min-width: 135px; } }

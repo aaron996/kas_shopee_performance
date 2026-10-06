@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveEffectiveChatConfig, getModelConfigOverview } from './model-config.js';
 import { readChatConfig } from './config.js';
+import { legacyRegistry } from './model-registry.js';
 
 const baseConfig = readChatConfig({
   AI_CHAT_ENABLED: 'true',
@@ -30,6 +31,7 @@ function createChainable(rows, error) {
 function createMockServiceClient(configRows = [], auditRows = [], queryError = null, auditError = null) {
   return {
     from(tableName) {
+      if (tableName === 'ai_model_registry') return { select: () => createChainable(legacyRegistry(), null) };
       if (tableName === 'ai_chat_model_config') {
         return { select: () => createChainable(configRows, queryError) };
       }

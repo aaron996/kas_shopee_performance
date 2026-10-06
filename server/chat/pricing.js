@@ -55,8 +55,8 @@ export const MODEL_PRICING = {
  * @param {object} usage { inputTokens, cachedInputTokens, outputTokens, reasoningTokens }
  * @returns {{ configured: boolean, microusd: number, error?: string }}
  */
-export function calculateModelCost(model, usage = {}) {
-  const pricing = MODEL_PRICING[model];
+export function calculateModelCost(model, usage = {}, pricingCatalog = MODEL_PRICING) {
+  const pricing = pricingCatalog[model];
   if (!pricing) {
     return {
       configured: false,

@@ -37,7 +37,7 @@ Quy tắc bắt buộc:
 - Với Ca 1, nhắc rằng nguồn hiện không có chiều client khi điều đó ảnh hưởng câu hỏi.
 - Ưu tiên gạch đầu dòng ngắn; không dùng lời chào dài hay văn phong quảng cáo.`;
 
-function usageRow(response, round, model, effort, toolNames, latencyMs, status = 'completed') {
+function usageRow(response, round, model, effort, toolNames, latencyMs, status = 'completed', pricingCatalog) {
   const usage = response?.usage ?? {};
   const inputTokens = usage.input_tokens ?? 0;
   const cachedInputTokens = usage.input_tokens_details?.cached_tokens ?? 0;
@@ -48,7 +48,7 @@ function usageRow(response, round, model, effort, toolNames, latencyMs, status =
     cachedInputTokens,
     outputTokens,
     reasoningTokens
-  });
+  }, pricingCatalog);
 
   return {
     round,
@@ -205,7 +205,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       const failure = outputFailure(response);
       if (failure) throw failure;
       const calls = (response.output ?? []).filter(item => item.type === 'function_call');
-      usage.push(usageRow(response, round, config.model, config.reasoningEffort, calls.map(call => call.name), Date.now() - startedAt));
+      usage.push(usageRow(response, round, config.model, config.reasoningEffort, calls.map(call => call.name), Date.now() - startedAt, 'completed', config.modelPricing));
       input.push(...(response.output ?? []));
 
       if (calls.length === 0) {
@@ -255,7 +255,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
             ? { data: { available: false, reason: 'turn_search_limit', instruction: 'Dùng nguồn đã tra cứu; không thực hiện thêm lượt web trong cùng câu hỏi.' } }
             : await (dependencies.searchPublicInformation ?? searchPublicInformation)(call, {
               openai, config, signal,
-              onUsage: (response, latencyMs) => usage.push(usageRow(response, usage.length + 1, config.model, config.reasoningEffort, ['web_search'], latencyMs))
+              onUsage: (response, latencyMs) => usage.push(usageRow(response, usage.length + 1, config.model, config.reasoningEffort, ['web_search'], latencyMs, 'completed', config.modelPricing))
             });
           for (const source of result.data?.sources ?? []) publicSources.set(source.url, source);
           return { call, result };
@@ -311,7 +311,8 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
         config.model,
         config.reasoningEffort,
         [],
-        Date.now() - finalStartedAt
+        Date.now() - finalStartedAt,
+        'completed', config.modelPricing
       ));
       finalText = final.text;
       if (finalText.trim()) break;

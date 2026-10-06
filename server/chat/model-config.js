@@ -1,5 +1,6 @@
 import { ChatError } from './errors.js';
 import { resolveModelSelection } from './config.js';
+import { loadRuntimeCatalog } from './model-registry.js';
 
 /**
  * Resolves the effective AI Chatbot model configuration according to precedence:
@@ -37,6 +38,7 @@ export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = nul
   }
 
   const feature = options.feature || 'chat';
+  if (feature === 'chat') baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
   const userId = typeof user === 'string' ? user : user?.id;
   let query = serviceClient.from('ai_chat_model_config').select('*').eq('feature', feature);
   if (userId) {
@@ -85,7 +87,7 @@ export async function resolveEffectiveChatConfig(serviceClient, arg2, arg3 = nul
 
   let modelSelection;
   try {
-    modelSelection = resolveModelSelection(selectedModel, selectedReasoningEffort);
+    modelSelection = resolveModelSelection(selectedModel, selectedReasoningEffort, baseConfig.allowedModels);
   } catch (err) {
     throw new ChatError(
       'CHAT_CONFIG_UNAVAILABLE',
@@ -130,6 +132,7 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
     throw new ChatError('CHAT_CONFIG_UNAVAILABLE', 'Không thể kết nối cơ sở dữ liệu.', 503);
   }
 
+  if (feature === 'chat') baseConfig = await loadRuntimeCatalog(serviceClient, baseConfig);
   const [configsResult, auditsResult] = await Promise.all([
     serviceClient
       .from('ai_chat_model_config')
@@ -174,7 +177,7 @@ export async function getModelConfigOverview(serviceClient, baseConfig, targetUs
     effectiveSource = 'env';
   }
 
-  const modelSelection = resolveModelSelection(effectiveModel, effectiveReasoningEffort);
+  const modelSelection = resolveModelSelection(effectiveModel, effectiveReasoningEffort, baseConfig.allowedModels);
 
   return {
     feature,

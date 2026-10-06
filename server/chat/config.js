@@ -33,8 +33,8 @@ export const ALLOWED_MODELS = [
 
 const ALLOWED_MODEL_IDS = new Set(ALLOWED_MODELS.map(m => m.id));
 
-export function resolveModelSelection(model, requestedReasoningEffort) {
-  const modelConfig = ALLOWED_MODELS.find(candidate => candidate.id === model);
+export function resolveModelSelection(model, requestedReasoningEffort, allowedModels = ALLOWED_MODELS) {
+  const modelConfig = allowedModels.find(candidate => candidate.id === model);
   if (!modelConfig) {
     throw new ChatError('CHAT_MODEL_NOT_ALLOWED', `Model "${model}" không nằm trong danh sách hỗ trợ.`, 400);
   }
