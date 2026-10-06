@@ -1014,3 +1014,25 @@ test('region filter keeps only orders of the selected region and drops orphans',
   assert.equal(filterDriverGroups(groups, { region: 'Chưa rõ vùng' })[0].driverId, '2');
   assert.equal(filterDriverGroups([{ ...groups[0], isOrphan: true }], { region: 'HNO' }).length, 0);
 });
+
+
+test('multi-select COD filters use OR within fields and intersect on the same order', () => {
+  const rows = [
+    { driver_id: '1', driver_name: 'An', order_code: 'A', suspicion_type: 'Gối đầu COD', to_region: 'Bắc 1', to_province: 'Hà Nội', warehouse_name: 'Kho A', total_score: 20, cod_amount: 100 },
+    { driver_id: '1', driver_name: 'An', order_code: 'B', suspicion_type: 'Gối đầu COD', to_region: 'Bắc 2', to_province: 'Hải Phòng', warehouse_name: 'Kho B', total_score: 30, cod_amount: 200 },
+    { driver_id: '1', driver_name: 'An', order_code: 'C', suspicion_type: 'Gối đầu COD', to_region: 'Nam 1', to_province: 'HCM', warehouse_name: 'Kho C', total_score: 50, cod_amount: 400 },
+    { driver_id: '2', driver_name: 'Bình', order_code: 'D', suspicion_type: 'Rút ruột', to_region: 'Bắc 2', to_province: 'Hải Phòng', warehouse_name: 'Kho B', total_score: 25, cod_amount: 300 }
+  ].map(normalizeSuspicionOrder);
+  const groups = groupOrdersByDriver(rows);
+  const selection = { suspicionType: ['Gối đầu COD', 'Rút ruột'], region: ['Bắc 1', 'Bắc 2'], province: ['Hà Nội', 'Hải Phòng'], warehouse: ['Kho A', 'Kho B'] };
+  const result = filterDriverGroups(groups, selection);
+  assert.deepEqual(result.flatMap(driver => driver.orders.map(order => order.orderCode)).sort(), ['A', 'B', 'D']);
+  assert.equal(result.find(driver => driver.driverId === '1').totalCod, 300);
+  assert.equal(result.find(driver => driver.driverId === '1').maxScore, 30);
+  assert.equal(filterDriverGroups(groups, { region: ['Bắc 1'], warehouse: ['Kho B'] }).length, 0);
+  assert.deepEqual(filterDriverGroups(groups, { ...selection, suspicionType: ['Rút ruột'] }).flatMap(driver => driver.orders.map(order => order.orderCode)), ['D']);
+  for (const field of ['suspicionType', 'region', 'province', 'warehouse']) {
+    assert.equal(filterDriverGroups(groups, { [field]: [] }).length, 0);
+  }
+  assert.equal(filterDriverGroups(groups, { warehouse: 'ALL' }).flatMap(driver => driver.orders).length, 4);
+});
