@@ -18,6 +18,10 @@
 .model-registry fieldset { margin: 20px 0; padding: 12px 16px 16px; border: 1px solid var(--border); border-radius: 10px; }
 .model-registry legend { font-weight: 600; }
 .model-registry fieldset p { font-size: .85rem; margin: 0 0 12px; }
+.model-registry-pricing-tools { margin-bottom: 12px; }
+.model-registry-pricing-source { margin-bottom: 16px; font-size: .85rem; }
+.model-registry-pricing-source summary { cursor: pointer; margin-bottom: 8px; }
+.model-registry-pricing-source li { margin-bottom: 6px; line-height: 1.5; }
 .model-registry-efforts { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .model-registry-efforts label, .model-registry .model-registry-check { flex-direction: row; align-items: center; gap: 8px; }
 .model-registry input[type=checkbox] { accent-color: var(--action-primary-deep, #0c4a6e); width: 18px; height: 18px; }

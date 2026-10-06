@@ -6,6 +6,7 @@ import { formatMicrousdToUsd } from '../server/chat/pricing.js';
 import { sendJson } from '../server/chat/sse.js';
 import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { loadModelRegistry, loadRuntimeCatalog, syncModelRegistry, saveModelDefinition, probeModel, toggleModel } from '../server/chat/model-registry.js';
+import { lookupModelPricing } from '../server/chat/model-pricing-lookup.js';
 
 // A probe can make one bounded provider request per advertised reasoning level.
 export const maxDuration = 180;
@@ -419,6 +420,10 @@ export function createAiOpsHandler(dependencies = {}) {
         if (typeof body === 'string') body = JSON.parse(body);
         const action = body.action;
         const actor = currentUser.email;
+        if (action === 'lookup-model-pricing') {
+          sendJson(res, 200, await lookupModelPricing(body.id, dependencies.pricingFetch));
+          return;
+        }
         if (action === 'sync-models') {
           const result = await syncModelRegistry(serviceClient, config, actor, dependencies.registryOpenAI);
           sendJson(res, 200, result);
