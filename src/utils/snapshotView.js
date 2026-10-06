@@ -3,7 +3,7 @@
 // already used for its own render webhook, so switching it over only changes
 // the base URL.
 import { MIEN_REGIONS } from '../data/defaultDataset.js';
-import { reassignKaRegion, filterRowsByScope, collectHubTypes } from './dataProcessor.js';
+import { reassignKaRegion, filterRowsByScope, collectHubTypes, getHubType } from './dataProcessor.js';
 
 export const SNAPSHOT_VIEWS = {
   'pick:1st': { data: 'pick', module: 'report1', metric: 'p1st' },
@@ -73,4 +73,18 @@ export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes
     regions,
     isHubTypeFiltered: hubTypes.length < allHubTypes.length
   };
+}
+
+// Scope of the HNO Telegram report (n8n `[KAS] ... Daily Report - HNO`): vùng HNO
+// only, hub types GXT and BC, after the same reassignKaRegion the dashboard runs.
+// KA / CK hubs are moved to HNO - KA / HNO - CK there, so they drop out here just
+// as they do in the dashboard's HNO row.
+export const HNO_REPORT_REGION = 'HNO';
+export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC'];
+
+export function scopeHnoReportRows(rows) {
+  const hubTypes = new Set(HNO_REPORT_HUB_TYPES);
+  return reassignKaRegion(rows).filter(r =>
+    r.region === HNO_REPORT_REGION && hubTypes.has(String(getHubType(r)).trim().toUpperCase())
+  );
 }
