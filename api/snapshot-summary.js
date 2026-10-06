@@ -1,13 +1,18 @@
 import { fetchSnapshotRows } from '../server/snapshot/data.js';
 import { readSnapshotConfig, createSnapshotServiceClient, resolveSnapshotRequest } from '../server/snapshot/request.js';
 import { sendJson } from '../server/chat/sse.js';
-import { scopeSnapshotRows, SNAPSHOT_VIEWS } from '../src/utils/snapshotView.js';
+import { scopeSnapshotRows, scopeHnoReportRows, SNAPSHOT_VIEWS } from '../src/utils/snapshotView.js';
 import { buildExecutiveSummary, formatExecutiveSummary, formatExecutiveSummaryMarkdown } from '../src/utils/executiveSummary.js';
 
 // "Nhận xét D-1" for the n8n daily Telegram report: the same text as the
 // dashboard's ExecutiveSummaryModal, built from the same rows (KA vùng,
 // every vùng and hub type — the dashboard's default scope).
+// `?view=hno-rows&report=pick|deli` instead returns the rows of the HNO Telegram
+// report, scoped like the dashboard (see scopeHnoReportRows). It lives here to
+// stay under Vercel Hobby's 12-function cap.
 export const maxDuration = 60;
+
+const HNO_ROW_REPORTS = ['pick', 'deli'];
 
 export function createSnapshotSummaryHandler(dependencies = {}) {
   const getConfig = dependencies.readConfig ?? readSnapshotConfig;
@@ -26,6 +31,21 @@ export function createSnapshotSummaryHandler(dependencies = {}) {
     if (request.error) {
       const { status, ...error } = request.error;
       sendJson(res, status, { error });
+      return;
+    }
+
+    if (new URL(req.url, 'http://localhost').searchParams.get('view') === 'hno-rows') {
+      if (!HNO_ROW_REPORTS.includes(request.report)) {
+        sendJson(res, 400, { error: { code: 'SNAPSHOT_INVALID_REQUEST', message: 'report phải là pick hoặc deli.' } });
+        return;
+      }
+      try {
+        const rows = await fetchRows(createServiceClient(config), request);
+        sendJson(res, 200, { rows: scopeHnoReportRows(rows) });
+      } catch (error) {
+        console.error('Snapshot HNO rows failed:', error);
+        sendJson(res, 503, { error: { code: 'SNAPSHOT_READ_FAILED', message: 'Không đọc được dữ liệu báo cáo.' } });
+      }
       return;
     }
 

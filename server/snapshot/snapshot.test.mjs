@@ -208,3 +208,39 @@ test('summary endpoint needs a valid token', async () => {
   await handler({ method: 'GET', url: '/api/snapshot-summary?token=1.x' }, res);
   assert.equal(res.statusCode, 401);
 });
+
+test('summary endpoint view=hno-rows returns HNO rows incl. CK but not KA', async () => {
+  const handler = createSnapshotSummaryHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    createServiceClient: () => ({}),
+    fetchRows: async (_client, request) => {
+      assert.equal(request.report, 'pick');
+      assert.equal(request.clientName, 'SPB');
+      return [
+        { report_date: '2026-09-27', region: 'HNO', hub: 'Hub BC', hub_type: 'BC', mau_pu: 10, ontime_pu_1st: 9, ontime_pu_opr: 8 },
+        { report_date: '2026-09-27', region: 'HNO', hub: 'Hub GXT', hub_type: 'GXT', mau_pu: 5, ontime_pu_1st: 5, ontime_pu_opr: 4 },
+        { report_date: '2026-09-27', region: 'HNO', hub: 'Hub CK Test', hub_type: 'BC', mau_pu: 7, ontime_pu_1st: 7, ontime_pu_opr: 7 },
+        { report_date: '2026-09-27', region: 'HNO', hub: 'Hub KA', hub_type: 'KA', mau_pu: 3, ontime_pu_1st: 3, ontime_pu_opr: 3 },
+        { report_date: '2026-09-27', region: 'HCM', hub: 'Hub HCM', hub_type: 'BC', mau_pu: 9, ontime_pu_1st: 9, ontime_pu_opr: 9 }
+      ];
+    },
+    now: () => NOW
+  });
+  const { token } = issueSnapshotToken(SECRET, NOW);
+  const res = createResponse();
+  await handler({ method: 'GET', url: `/api/snapshot-summary?view=hno-rows&report=pick&client=SPB&token=${encodeURIComponent(token)}` }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.rows.map(r => r.hub), ['Hub BC', 'Hub GXT', 'Hub CK Test']);
+});
+
+test('summary endpoint view=hno-rows only serves pick and deli', async () => {
+  const handler = createSnapshotSummaryHandler({
+    readConfig: () => ({ secret: SECRET, supabaseUrl: 'https://x', serviceRoleKey: 'k' }),
+    fetchRows: async () => { throw new Error('should not read'); },
+    now: () => NOW
+  });
+  const { token } = issueSnapshotToken(SECRET, NOW);
+  const res = createResponse();
+  await handler({ method: 'GET', url: `/api/snapshot-summary?view=hno-rows&report=ca1&token=${encodeURIComponent(token)}` }, res);
+  assert.equal(res.statusCode, 400);
+});

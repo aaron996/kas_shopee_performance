@@ -92,3 +92,24 @@ into their own vùng, `HCM - CK` / `HNO - CK` (same idea as `HCM - KA`), listed 
 `MIEN_REGIONS`, so the normal pictures show them with no n8n change. A CK hub in
 another region only gets the hub type. `hubTypes=CK` still works if a CK-only
 picture is ever wanted.
+
+## Job HNO dùng chung nguồn
+
+n8n `[KAS] vinhlt - Daily Report - HNO to Telegram` (`xh2oJxXZkWnolmSj`) từng đọc
+thẳng `kas_pick_data` / `kas_deli_data` với `region=HNO&hub_type=BC&client_name=SPB`,
+nên lệch số với app: app chạy `reassignKaRegion` (hub KA / CK tách sang
+`HNO - KA` / `HNO - CK`, đổi hub type) rồi mới lọc, còn job HNO thì không, và bỏ
+sót hub type `GXT`.
+
+Giờ job HNO lấy rows từ app, cùng pipeline với job tổng hợp (token từ
+`/api/snapshot-token`, như trên):
+
+```
+GET /api/snapshot-summary?view=hno-rows&report=pick|deli&client=SPB&token=<token>
+→ { rows: [ { report_date, hub, mau_pu, ontime_pu_1st, … } ] }
+```
+
+Phạm vi: client `SPB`, vùng `HNO` + `HNO - CK` (sau `reassignKaRegion`, CK gộp chung vào HNO, không tách view), hub type `GXT` + `BC` + `CK`; bỏ `HNO - KA`
+(`scopeHnoReportRows` trong src/utils/snapshotView.js). Endpoint dùng chung file
+`snapshot-summary` để không thêm function (Vercel Hobby cap 12). Node n8n
+`Build HTML HNO` vẫn tự gộp theo hub / tuần như cũ, chỉ đổi nguồn rows.
