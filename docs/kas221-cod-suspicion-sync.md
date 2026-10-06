@@ -272,3 +272,13 @@ Sau đó đăng nhập app bằng một tài khoản GHN hợp lệ để kiểm
 Supabase. Tab COD của app (`fetchCodSuspicionData` trong `src/utils/codSuspicionClient.js`)
 chỉ đọc các đơn có `signal_count_over_p90 = true` ("Bất thường call log (so P90 hardcode)" = Có)
 **và** `call_verification_priority = 'Cao'`. Export `nghi_ngo_COD` (`server/cod-export/service.js`) áp cùng bộ lọc.
+
+**Vùng (`To region`):** sheet gốc có thêm cột `To region` (HNO, HCM, TNB, ...). Cột này nằm trong
+`COD_SMS_REQUIRED_HEADERS` và được lưu vào `kas_cod_suspicion_data.to_region` (migration
+`20261006045955_cod_suspicion_to_region`, phải áp trước khi chạy GS mới). Header `Tỉnh giao`
+đã được alias về `To province`. Filter `Vùng` ở header tab COD lọc theo `to_region`. Các cột 02e (`co_tin_hieu_call_attempt`, `co_tin_hieu_gps_mocked`, `dat_uu_tien_02e`,
+`so_don_uu_tien_02e_cua_tai_xe_theo_nhanh`, `Nhóm xử lý 02e`, `thu_tu_uu_tien_02e`,
+`Lý do chọn hoặc giảm ưu tiên`) cũng là header bắt buộc và được lưu vào
+`has_call_attempt_signal`, `has_gps_mocked_signal`, `meets_priority_02e`, `priority_02e_order_count`,
+`priority_02e_group`, `priority_02e_rank`, `priority_02e_reason`. `normalizeSuspicionOrder` đã
+đưa chúng vào object đơn; bộ lọc tab COD vẫn là P90 + `Cao` (chưa đổi sang nhóm 02e).

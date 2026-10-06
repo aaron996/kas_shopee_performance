@@ -100,8 +100,9 @@ export default function App() {
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
   const [hasOpenedCodTab, setHasOpenedCodTab] = useState(initialView.tab === 'cod-suspicion');
-  const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', province: 'ALL', searchQuery: '' });
+  const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', region: 'ALL', province: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
+  const [codSuspicionRegions, setCodSuspicionRegions] = useState([]);
   const [codSuspicionProvinces, setCodSuspicionProvinces] = useState([]);
   const [codSearchFocus, setCodSearchFocus] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -736,6 +737,7 @@ export default function App() {
     'cod-suspicion': {
       filters: codSuspicionFilters,
       onAvailableWarehouses: setCodSuspicionWarehouses,
+      onAvailableRegions: setCodSuspicionRegions,
       onAvailableProvinces: setCodSuspicionProvinces,
       onSearchChange: searchQuery => setCodSuspicionFilters(previous => ({ ...previous, searchQuery })),
       canManageResolutions: Boolean(currentUser?.isDevAdmin),
@@ -830,6 +832,7 @@ export default function App() {
             codSuspicionFilters={codSuspicionFilters}
             setCodSuspicionFilters={setCodSuspicionFilters}
             codSuspicionWarehouses={codSuspicionWarehouses}
+            codSuspicionRegions={codSuspicionRegions}
             codSuspicionProvinces={codSuspicionProvinces}
           />
 
