@@ -19,14 +19,12 @@ test('public search can be disabled without disabling database or knowledge chat
   assert.equal(readChatConfig({ ...validEnv, AI_CHAT_WEB_SEARCH_ENABLED: 'false' }).webSearchEnabled, false);
 });
 
-test('chat config defaults to Luna with low reasoning and rejects unknown models', () => {
+test('chat config defaults to Luna but accepts new model IDs for registry validation', () => {
   const config = readChatConfig(validEnv);
   assert.equal(config.model, 'gpt-5.6-luna');
   assert.equal(config.reasoningEffort, 'low');
-  assert.throws(
-    () => readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'gpt-6-astra' }),
-    error => error.code === 'CHAT_CONFIG_INVALID'
-  );
+  assert.equal(readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'gpt-6-luna' }).model, 'gpt-6-luna');
+  assert.throws(() => readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'bad model' }), error => error.code === 'CHAT_CONFIG_INVALID');
 });
 
 test('chat config accepts allowed models and exports allowedModels list', () => {
@@ -61,10 +59,10 @@ test('every allowed model exposes only validated reasoning combinations', () => 
   }
 });
 
-test('chat config rejects incompatible reasoning and non-reasoning combinations', () => {
+test('model selection rejects incompatible reasoning and non-reasoning combinations', () => {
   assert.throws(
-    () => readChatConfig({ ...validEnv, AI_CHAT_MODEL: 'o4-mini', AI_CHAT_REASONING_EFFORT: 'max' }),
-    error => error.code === 'CHAT_CONFIG_INVALID'
+    () => resolveModelSelection('o4-mini', 'max'),
+    error => error.code === 'CHAT_REASONING_NOT_ALLOWED'
   );
   assert.throws(
     () => resolveModelSelection('gpt-4.1', 'low'),

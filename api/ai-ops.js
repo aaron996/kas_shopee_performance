@@ -549,7 +549,7 @@ export function createAiOpsHandler(dependencies = {}) {
 
           let validatedSelection;
           try {
-            const catalog = feature === 'chat' ? await loadRuntimeCatalog(serviceClient, config) : config;
+            const catalog = await loadRuntimeCatalog(serviceClient, modelConfigBaseConfig(feature, config));
             validatedSelection = resolveModelSelection(cleanModel, reasoningEffort || null, catalog.allowedModels);
           } catch (valErr) {
             sendJson(res, 400, { error: { code: valErr.code || 'AI_OPS_INVALID_MODEL', message: valErr.message } });

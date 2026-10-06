@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Plus, Pencil, CheckCircle2 } from 'lucide-react';
 import './AiModelRegistry.css';
+import { hasModelPrices, isModelTested, selectRegistryModels } from '../utils/modelRegistryView.js';
 
 const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 const PRICES = [
@@ -17,6 +18,10 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [priceFilter, setPriceFilter] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [sort, setSort] = useState('name-asc');
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(false);
   const [priceSource, setPriceSource] = useState(null);
@@ -73,15 +78,14 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
   }
 
   const models = registry?.models || [];
-  const filtered = models.filter(row => (showAll || row.chat_candidate || row.enabled) &&
-    `${row.id} ${row.definition.label}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = selectRegistryModels(models, { search, showAll, status: statusFilter, price: priceFilter, availability: availabilityFilter, sort });
   const syncedAt = models.reduce((latest, row) => row.last_seen_at && (!latest || row.last_seen_at > latest) ? row.last_seen_at : latest, null);
   const disabled = Boolean(busy) || loading || !registry?.migrated;
 
   return <section className="model-registry" aria-labelledby="model-registry-title">
     <header className="model-registry-header">
       <div><h3 id="model-registry-title">Quản lý model</h3>
-        <p>Model mới được phát hiện mỗi ngày. Kiểm tra và bật để đưa vào menu cấu hình chatbot.</p>
+        <p>Model mới được phát hiện mỗi ngày. Kiểm tra và bật để đưa vào menu cấu hình Chatbot và COD.</p>
         <span className="model-registry-meta">Đồng bộ gần nhất: {date(syncedAt)} · {models.filter(row => row.enabled).length} model đã bật</span>
       </div>
       <div className="model-registry-actions">
@@ -126,11 +130,20 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
     <div className="model-registry-filter"><label>Tìm model<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên hoặc Model ID" /></label>
       <label className="model-registry-check"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />Hiện cả model khác (ảnh, âm thanh…)</label>
     </div>
+    <div className="model-registry-view-controls">
+      <label>Trạng thái<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <option value="all">Tất cả trạng thái</option><option value="enabled">Đã bật</option><option value="disabled">Chưa bật</option><option value="tested">Kiểm tra đạt</option><option value="untested">Chưa kiểm tra</option><option value="failed">Kiểm tra thất bại</option>
+      </select></label>
+      <label>Giá token<select value={priceFilter} onChange={e => setPriceFilter(e.target.value)}><option value="all">Tất cả giá</option><option value="complete">Đã đủ giá</option><option value="missing">Còn thiếu giá</option></select></label>
+      <label>Khả dụng<select value={availabilityFilter} onChange={e => setAvailabilityFilter(e.target.value)}><option value="all">Tất cả</option><option value="available">Có trong lần đồng bộ</option><option value="unavailable">Không có trong lần đồng bộ</option><option value="unknown">Chưa xác định</option></select></label>
+      <label>Sắp xếp<select value={sort} onChange={e => setSort(e.target.value)}><option value="name-asc">Tên A → Z</option><option value="name-desc">Tên Z → A</option><option value="updated-desc">Cập nhật mới nhất</option><option value="seen-desc">Phát hiện gần nhất</option><option value="input-asc">Giá input thấp → cao</option><option value="input-desc">Giá input cao → thấp</option><option value="output-asc">Giá output thấp → cao</option><option value="output-desc">Giá output cao → thấp</option></select></label>
+    </div>
+    <div className="model-registry-view-summary"><span>Hiển thị {filtered.length} / {models.length} model</span><button type="button" className="btn-secondary" onClick={() => { setSearch(''); setShowAll(false); setStatusFilter('all'); setPriceFilter('all'); setAvailabilityFilter('all'); setSort('name-asc'); }}>Đặt lại bộ lọc</button></div>
     {loading ? <p role="status">Đang tải danh sách model…</p> : registry && <>
       <div className="model-registry-table-wrap"><table><caption className="model-registry-sr">Danh sách model và trạng thái sử dụng</caption><thead><tr><th>Model</th><th>Trạng thái</th><th>Giá / triệu token</th><th>Thao tác</th></tr></thead>
         <tbody>{filtered.map(row => {
-          const ready = row.tested_revision === row.revision;
-          const priced = PRICES.every(([key]) => Number.isInteger(row.definition.pricing?.[key]));
+          const ready = isModelTested(row);
+          const priced = hasModelPrices(row);
           return <tr key={row.id}><td><strong>{row.definition.label}</strong><code>{row.id}</code><small>Reasoning: {row.definition.reasoningEfforts.join(', ') || 'Không sử dụng'}</small></td>
             <td><span className={row.enabled ? 'model-registry-enabled' : ''}>{row.enabled ? 'Đã bật' : ready ? 'Kiểm tra đạt — chưa bật' : row.probe_success === false ? 'Kiểm tra thất bại' : 'Mới — chưa kiểm tra'}</span>
               {row.source === 'legacy' && !row.tested_at && <small>Cấu hình có sẵn</small>}
@@ -143,7 +156,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
                 setEditing(true); setError(''); setNotice(''); setPriceSource(null); setForm({ ...row.definition, id: row.id, revision: row.revision, pricing: Object.fromEntries(PRICES.map(([key]) => [key, row.definition.pricing?.[key] == null ? '' : row.definition.pricing[key] / 1000])) });
               }} aria-label={`Sửa ${row.id}`}><Pencil size={14} /> Sửa</button>
               <button className="btn-secondary" disabled={disabled || Boolean(form) || row.enabled} onClick={() => mutate('probe-model', { id: row.id, revision: row.revision }, 'Kiểm tra đạt. Bạn có thể bật model sau khi khai báo đủ giá token.')} aria-label={`Kiểm tra ${row.id}`}><CheckCircle2 size={14} /> Kiểm tra</button>
-              <button className="btn-secondary" disabled={disabled || Boolean(form) || (!row.enabled && (!ready || !priced))} onClick={() => mutate('toggle-model', { id: row.id, revision: row.revision, enabled: !row.enabled }, row.enabled ? 'Đã tắt model.' : 'Đã bật model. Vào Cấu Hình Chatbot để chọn và Áp dụng.')} aria-label={`${row.enabled ? 'Tắt' : 'Bật'} ${row.id}`}>{row.enabled ? 'Tắt' : 'Bật'}</button>
+              <button className="btn-secondary" disabled={disabled || Boolean(form) || (!row.enabled && (!ready || !priced))} onClick={() => mutate('toggle-model', { id: row.id, revision: row.revision, enabled: !row.enabled }, row.enabled ? 'Đã tắt model.' : 'Đã bật model. Vào Cấu Hình Chatbot hoặc COD để chọn và Áp dụng.')} aria-label={`${row.enabled ? 'Tắt' : 'Bật'} ${row.id}`}>{row.enabled ? 'Tắt' : 'Bật'}</button>
             </div></td></tr>;
         })}</tbody></table></div>
       {!filtered.length && <p>Không có model phù hợp. Thử tìm tên khác hoặc đồng bộ từ OpenAI.</p>}

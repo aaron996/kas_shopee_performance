@@ -115,3 +115,19 @@ test('data failure produces a scoped fallback with observable basis', async () =
   assert.equal(data.scopeLabel, 'SPE · Tất cả tuyến');
   assert.equal(data.items.length, 3);
 });
+
+test('suggestion model uses the user effective registry config before requesting OpenAI', async () => {
+  let selected;
+  const handler = createSuggestionsHandler({
+    readConfig: () => ({ suggestionModelEnabled: true, model: 'legacy' }),
+    authenticate: async () => ({ user: { id: 'u1' }, serviceClient: {} }),
+    consumeQuota: async () => ({ allowed: true, count: 1, remaining: 9 }),
+    resolveEffectiveConfig: async (_client, config, user) => { assert.equal(user.id, 'u1'); return { ...config, model: 'new-enabled' }; },
+    createModel: config => { selected = config.model; return {}; },
+    buildSmartSuggestions: async ({ config }) => { assert.equal(config.model, 'new-enabled'); return { suggestions: ['Q1'] }; }
+  });
+  const res = new FakeResponse();
+  await handler({ method: 'GET', url: '/api/chat-suggestions', headers: {} }, res);
+  assert.equal(selected, 'new-enabled');
+  assert.equal(res.statusCode, 200);
+});

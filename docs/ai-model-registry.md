@@ -1,4 +1,4 @@
-# Quản lý model chatbot
+# Quản lý model Chatbot và COD
 
 ## Kích hoạt
 
@@ -12,13 +12,13 @@ Code mới có fallback danh sách cũ nếu bảng registry chưa tồn tại; 
 ## Sử dụng
 
 - Đồng bộ đọc toàn bộ danh sách mà API key truy cập được trước khi ghi snapshot vào database. Đồng bộ lỗi/rỗng giữ dữ liệu cũ. Sync không sửa definition, giá, reasoning hay trạng thái bật.
-- Model mới mặc định chưa bật. Bộ lọc tên chỉ gợi ý model chatbot; bật “Hiện cả model khác” để xem toàn bộ inventory. Model có tên mới khác quy ước vẫn tìm được tại đây hoặc thêm thủ công.
+- Model mới mặc định chưa bật. Bộ lọc tên chỉ gợi ý model chatbot; bật “Hiện cả model khác” để xem toàn bộ inventory. Có thể kết hợp lọc trạng thái, đủ/thiếu giá, khả dụng; sắp xếp tên, cập nhật, lần nhìn thấy gần nhất và giá input/output. Giá chưa biết luôn nằm cuối khi sắp xếp giá. Đặt lại bộ lọc đưa danh sách về mặc định.
 - Sửa tên, mức reasoning, mức mặc định và giá theo tài liệu OpenAI. Giá nhập USD / triệu token, tối đa 3 chữ số thập phân. Để trống là chưa biết, khác giá 0.
 - Kiểm tra thực hiện yêu cầu Responses/function calling nhỏ cho mỗi reasoning đã khai báo, tối đa 1024 output tokens/yêu cầu. Không gửi dữ liệu vận hành. Có thể phát sinh phí; phí probe không thuộc bảng quota/chat usage hiện có.
 - Probe xác nhận Responses, function calling và reasoning đã khai báo; không chứng minh chất lượng câu trả lời, web search, streaming hay mọi công cụ. Sau khi bật, thử một user trước với câu hỏi dữ liệu và tra cứu công khai.
-- Bật yêu cầu probe đạt ở revision hiện tại và đủ ba giá. Vào Cấu Hình Chatbot → Chatbot để chọn model cho All hoặc user rồi Áp dụng. Bật không tự thay model đang chạy.
-- Muốn sửa model đã bật: chuyển các cấu hình đang dùng sang model khác, tắt rồi sửa/kiểm tra lại. Không tắt được model mặc định môi trường hoặc model còn được config tham chiếu. Giữ các model mặc định môi trường trong danh sách cũ; model mới sử dụng qua cấu hình database.
-- Danh sách này phục vụ chatbot. COD SMS tiếp tục dùng danh sách model cũ và cấu hình độc lập.
+- Bật yêu cầu probe đạt ở revision hiện tại và đủ ba giá. Cả cấu hình Chatbot và COD SMS đọc danh sách model đã bật từ registry. Chatbot hỗ trợ All hoặc user; COD chỉ hỗ trợ All. Bật không tự thay model đang chạy, cần chọn model và Áp dụng riêng cho từng tính năng.
+- Muốn sửa model đã bật: chuyển các cấu hình Chatbot/COD đang dùng sang model khác, tắt rồi sửa/kiểm tra lại. Không tắt được model mặc định môi trường hoặc model còn được config tham chiếu. Model môi trường mới cũng được kiểm tra theo registry trước khi gọi OpenAI; danh sách cũ chỉ fallback khi chưa có bảng registry.
+- Áp dụng `20261006120200_share_ai_model_registry_with_cod.sql` để bảo vệ cấu hình COD bằng cùng trigger registry. Luồng chấm COD thủ công/cron và gợi ý Chatbot cũng kiểm tra cấu hình hiệu lực trước khi gọi model. Các giá registry là ước tính cơ bản, không thay đổi rubric COD hoặc schema kết quả chấm điểm.
 
 ## Xác minh và vận hành
 

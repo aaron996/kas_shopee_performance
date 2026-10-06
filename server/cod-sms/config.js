@@ -1,4 +1,4 @@
-import { ALLOWED_MODELS, resolveModelSelection } from '../chat/config.js';
+import { ALLOWED_MODELS, readEnvironmentModel } from '../chat/config.js';
 import { resolveEffectiveChatConfig } from '../chat/model-config.js';
 import { ChatError } from '../chat/errors.js';
 
@@ -41,7 +41,7 @@ export function readCodSmsConfig(env = process.env, options = {}) {
   const model = env.COD_SMS_AI_MODEL?.trim() || 'gpt-5.6-luna';
   let modelSelection;
   try {
-    modelSelection = resolveModelSelection(model, env.COD_SMS_AI_REASONING_EFFORT?.trim() || 'low');
+    modelSelection = readEnvironmentModel(model, env.COD_SMS_AI_REASONING_EFFORT?.trim());
   } catch (error) {
     throw new ChatError('COD_SMS_CONFIG_INVALID', error.message, 503, { cause: error });
   }
@@ -69,10 +69,10 @@ export function readCodSmsConfig(env = process.env, options = {}) {
  */
 export function readCodSmsModelEnvDefault(env = process.env) {
   const model = env.COD_SMS_AI_MODEL?.trim() || 'gpt-5.6-luna';
-  const reasoningEffort = env.COD_SMS_AI_REASONING_EFFORT?.trim() || 'low';
+  const reasoningEffort = env.COD_SMS_AI_REASONING_EFFORT?.trim();
   let modelSelection;
   try {
-    modelSelection = resolveModelSelection(model, reasoningEffort);
+    modelSelection = readEnvironmentModel(model, reasoningEffort);
   } catch (error) {
     throw new ChatError('COD_SMS_CONFIG_INVALID', error.message, 503, { cause: error });
   }

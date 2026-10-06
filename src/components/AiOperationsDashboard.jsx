@@ -1623,6 +1623,7 @@ export default function AiOperationsDashboard() {
                 <>
                   {/* Model Selection */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Danh sách dùng chung từ Quản lý model · {modelConfigData?.allowedModels?.length || 0} model đã bật. Model mới cần lưu giá, kiểm tra và bật tại tab Quản lý model.</p>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
                       {targetScope === 'user' ? '3.' : '2.'} Chọn Mô Hình (Model)
                     </label>
@@ -1929,7 +1930,7 @@ export default function AiOperationsDashboard() {
                   <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>Cấu Hình Mặc Định Server (Environment)</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.82rem' }}>
-                  <div>Model Env: <code>{modelConfigData?.envDefault?.model || 'gpt-5.6-luna'}</code></div>
+                  <div>Model Env: <code>{modelConfigData?.envDefault?.model || 'Chưa tải'}</code></div>
                   <div>Reasoning Env: <code>{modelConfigData?.envDefault?.reasoningEffort || 'null'}</code></div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Được tải từ <code>AI_CHAT_MODEL</code> và <code>AI_CHAT_REASONING_EFFORT</code>.
