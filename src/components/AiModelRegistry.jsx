@@ -19,6 +19,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
   const [showAll, setShowAll] = useState(false);
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [priceSource, setPriceSource] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +44,17 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
       if (action === 'probe-model') await load();
       setError(err.message || 'Không thực hiện được thao tác. Tải lại rồi thử lại.');
     } finally { setBusy(''); }
+  }
+
+  async function findPrices() {
+    setBusy('lookup-model-pricing'); setError(''); setNotice(''); setPriceSource(null);
+    try {
+      const result = await fetchWithAuth('/api/ai-ops', { method: 'POST', body: JSON.stringify({ action: 'lookup-model-pricing', id: form.id }) });
+      setForm(current => ({ ...current, pricing: Object.fromEntries(PRICES.map(([key]) => [key, result.pricing[key] / 1000])) }));
+      setPriceSource(result);
+      setNotice('Đã tìm và điền giá từ OpenAI. Xem lại giá, lưu cấu hình rồi kiểm tra model trước khi bật.');
+    } catch (err) { setError(err.message || 'Không tìm được giá từ OpenAI.'); }
+    finally { setBusy(''); }
   }
 
   function save(event) {
@@ -75,7 +87,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
       <div className="model-registry-actions">
         <button className="btn-secondary" disabled={loading || Boolean(busy)} onClick={load}><RefreshCw size={16} /> Tải lại</button>
         <button className="btn-primary" disabled={disabled} onClick={() => mutate('sync-models', {}, result => `Đã đồng bộ ${result.total} model, phát hiện ${result.added} model mới.`)}><RefreshCw size={16} /> {busy === 'sync-models' ? 'Đang đồng bộ…' : 'Đồng bộ từ OpenAI'}</button>
-        <button className="btn-secondary" disabled={disabled} onClick={() => { setForm(blank()); setEditing(false); setError(''); }}><Plus size={16} /> Thêm thủ công</button>
+        <button className="btn-secondary" disabled={disabled} onClick={() => { setForm(blank()); setPriceSource(null); setEditing(false); setError(''); }}><Plus size={16} /> Thêm thủ công</button>
       </div>
     </header>
     {error && <div className="model-registry-error" role="alert">{error}</div>}
@@ -85,7 +97,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
     {form && <form className="model-registry-form" onSubmit={save}>
       <h4>{editing ? `Cấu hình ${form.id}` : 'Thêm model'}</h4>
       <div className="model-registry-fields">
-        <label>Model ID<input required maxLength={200} value={form.id} disabled={editing || Boolean(busy)} onChange={e => setForm({ ...form, id: e.target.value })} placeholder="Model ID từ OpenAI API" /></label>
+        <label>Model ID<input required maxLength={200} value={form.id} disabled={editing || Boolean(busy)} onChange={e => { setForm({ ...form, id: e.target.value }); setPriceSource(null); }} placeholder="Model ID từ OpenAI API" /></label>
         <label>Tên hiển thị<input required maxLength={120} value={form.label} disabled={Boolean(busy)} onChange={e => setForm({ ...form, label: e.target.value })} /></label>
       </div>
       <fieldset disabled={Boolean(busy)}><legend>Reasoning được hỗ trợ</legend>
@@ -97,7 +109,15 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
         {form.reasoningEfforts.length > 0 && <label>Reasoning mặc định<select value={form.defaultReasoningEffort || ''} onChange={e => setForm({ ...form, defaultReasoningEffort: e.target.value })}>{form.reasoningEfforts.map(effort => <option key={effort}>{effort}</option>)}</select></label>}
       </fieldset>
       <fieldset disabled={Boolean(busy)}><legend>Giá token — USD / 1 triệu token</legend>
-        <p>Lấy giá từ bảng giá OpenAI. Giá chưa biết có thể để trống, nhưng phải điền đủ trước khi bật.</p>
+        <p>Tìm giá cơ bản từ tài liệu chính thức của model. Xem lại và lưu trước khi bật.</p>
+        <div className="model-registry-actions model-registry-pricing-tools">
+          <button type="button" className="btn-secondary" disabled={!form.id || Boolean(busy)} onClick={findPrices}><RefreshCw size={14} />{busy === 'lookup-model-pricing' ? 'Đang tìm giá…' : 'Tìm giá từ OpenAI'}</button>
+          <a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noopener noreferrer">Bảng giá chính thức</a>
+        </div>
+        {priceSource && <div className="model-registry-pricing-source">
+          <p>Đã điền giá từ <a href={priceSource.sourceUrl} target="_blank" rel="noopener noreferrer">OpenAI · {priceSource.id}</a> lúc {date(priceSource.fetchedAt)}. Giá cơ bản dùng để ước tính chi phí.</p>
+          {priceSource.notes.length > 0 && <details><summary>Điều kiện giá và phụ phí từ OpenAI</summary><ul>{priceSource.notes.map(note => <li key={note}>{note}</li>)}</ul></details>}
+        </div>}
         <div className="model-registry-fields">{PRICES.map(([key, label]) => <label key={key}>{label}<input type="number" min="0" max="1000" step="0.001" value={form.pricing[key] ?? ''} onChange={e => setForm({ ...form, pricing: { ...form.pricing, [key]: e.target.value } })} /></label>)}</div>
       </fieldset>
       <div className="model-registry-actions"><button type="submit" className="btn-primary" disabled={Boolean(busy)}>{busy === 'save-model' ? 'Đang lưu…' : 'Lưu cấu hình'}</button><button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => setForm(null)}>Hủy</button></div>
@@ -116,10 +136,11 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
               {row.source === 'legacy' && !row.tested_at && <small>Cấu hình có sẵn</small>}
               {row.available === false && <small>Không có trong lần đồng bộ gần nhất</small>}
               {row.tested_at && <small>Kiểm tra: {date(row.tested_at)}</small>}
+              {!row.enabled && !priced && <small>Còn thiếu giá token. Bấm Sửa → Tìm giá từ OpenAI.</small>}
             </td><td>{PRICES.map(([key, label]) => <small key={key}>{label}: {row.definition.pricing?.[key] == null ? 'Chưa khai báo' : `$${row.definition.pricing[key] / 1000}`}</small>)}</td>
             <td><div className="model-registry-actions">
               <button className="btn-secondary" disabled={disabled || row.enabled} title={row.enabled ? 'Tắt model trước khi sửa. Model đang được dùng cần đổi cấu hình trước.' : ''} onClick={() => {
-                setEditing(true); setError(''); setForm({ ...row.definition, id: row.id, revision: row.revision, pricing: Object.fromEntries(PRICES.map(([key]) => [key, row.definition.pricing?.[key] == null ? '' : row.definition.pricing[key] / 1000])) });
+                setEditing(true); setError(''); setNotice(''); setPriceSource(null); setForm({ ...row.definition, id: row.id, revision: row.revision, pricing: Object.fromEntries(PRICES.map(([key]) => [key, row.definition.pricing?.[key] == null ? '' : row.definition.pricing[key] / 1000])) });
               }} aria-label={`Sửa ${row.id}`}><Pencil size={14} /> Sửa</button>
               <button className="btn-secondary" disabled={disabled || Boolean(form) || row.enabled} onClick={() => mutate('probe-model', { id: row.id, revision: row.revision }, 'Kiểm tra đạt. Bạn có thể bật model sau khi khai báo đủ giá token.')} aria-label={`Kiểm tra ${row.id}`}><CheckCircle2 size={14} /> Kiểm tra</button>
               <button className="btn-secondary" disabled={disabled || Boolean(form) || (!row.enabled && (!ready || !priced))} onClick={() => mutate('toggle-model', { id: row.id, revision: row.revision, enabled: !row.enabled }, row.enabled ? 'Đã tắt model.' : 'Đã bật model. Vào Cấu Hình Chatbot để chọn và Áp dụng.')} aria-label={`${row.enabled ? 'Tắt' : 'Bật'} ${row.id}`}>{row.enabled ? 'Tắt' : 'Bật'}</button>

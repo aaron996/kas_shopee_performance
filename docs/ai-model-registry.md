@@ -28,3 +28,8 @@ Code mới có fallback danh sách cũ nếu bảng registry chưa tồn tại; 
 - Audit ghi sync/save/probe/toggle và actor. Không lưu API key hoặc thông báo lỗi gốc của provider.
 - Tests: `npm test`, `npm run build`, `npm run lint`. SQL regression dùng PGlite kiểm tra grants, probe/giá/revision, giữ nguyên definition khi sync và chặn model đang dùng.
 - Trước khi production: kiểm tra migration đã áp dụng, manual sync thật, probe thật, Apply cho user thử, một lượt chat có usage/giá đúng và cron log ở lần chạy kế tiếp.
+# Tìm giá token
+
+Trong form sửa model, **Tìm giá từ OpenAI** đọc mục Text tokens trên trang tài liệu chính thức đúng Model ID và điền Input, Cached input, Output. Không cần API key cho thao tác đọc giá công khai. Nguồn, thời điểm tra cứu và điều kiện phụ phí được hiển thị để Dev xem lại trước khi lưu. Giá chỉ là giá cơ bản để ước tính; Batch/Flex/Fast, cache writes, ngữ cảnh dài và xử lý theo vùng có thể có mức giá khác.
+
+Tra cứu không tự lưu, bật model hoặc sửa reasoning. Khi nguồn thiếu giá, sai đơn vị hoặc không xác định được đúng model, form giữ nguyên giá đang nhập và báo lỗi. Sau khi lưu thay đổi cần kiểm tra lại model trước khi bật.
