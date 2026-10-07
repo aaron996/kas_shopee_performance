@@ -1,27 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchCodSmsThreshold, saveCodSmsThreshold } from '../utils/codSmsThresholdClient.js';
+import { clearDevDataCache, peekDevResource, readDevResource } from '../utils/devDataClient.js';
 
-export default function CodSmsThresholdSettings() {
-  const [current, setCurrent] = useState(null);
-  const [draft, setDraft] = useState('');
-  const [status, setStatus] = useState('loading');
+export default function CodSmsThresholdSettings({ currentUser }) {
+  const cached = peekDevResource(currentUser, 'sms-threshold');
+  const [current, setCurrent] = useState(cached || null);
+  const [draft, setDraft] = useState(cached ? String(cached.threshold) : '');
+  const [status, setStatus] = useState(cached ? 'ready' : 'loading');
   const [message, setMessage] = useState('');
+  const request = useRef(null);
 
-  async function load() {
-    setStatus('loading');
+  const load = useCallback(async ({ forceRefresh = false } = {}) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    if (forceRefresh || !peekDevResource(currentUser, 'sms-threshold')) setStatus('loading');
     setMessage('');
     try {
-      const value = await fetchCodSmsThreshold();
+      const value = await readDevResource(currentUser, 'sms-threshold', fetchCodSmsThreshold, { forceRefresh, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setCurrent(value);
       setDraft(String(value.threshold));
       setStatus('ready');
     } catch (error) {
+      if (controller.signal.aborted) return;
       setStatus('error');
       setMessage(error.message);
     }
-  }
+  }, [currentUser]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); return () => request.current?.abort(); }, [load]);
 
   async function save(value) {
     if (!Number.isInteger(value) || value < 1 || value > 9) {
@@ -31,12 +39,15 @@ export default function CodSmsThresholdSettings() {
     setStatus('saving');
     setMessage('');
     try {
+      clearDevDataCache();
       const saved = await saveCodSmsThreshold(value);
+      clearDevDataCache();
       setCurrent(saved);
       setDraft(String(saved.threshold));
       setStatus('ready');
       setMessage(value === 1 ? 'Đã khôi phục mốc mặc định 1 điểm.' : 'Đã lưu mốc điểm SMS.');
     } catch (error) {
+      clearDevDataCache();
       setStatus('ready');
       setMessage(error.message);
     }
@@ -47,13 +58,14 @@ export default function CodSmsThresholdSettings() {
       <h2 id="cod-threshold-title">Mốc điểm SMS để nâng mức nghi ngờ</h2>
       <p>Tài xế có ít nhất 1 đơn đạt mốc được nâng 1 bậc so với mức theo SQL (Thấp → Vừa, Vừa → Cao). Mốc này cũng áp dụng cho sheet nghi_ngo_COD. Đổi mốc không chấm SMS lại hoặc thay điểm đã lưu.</p>
       {status === 'loading' && <p role="status">Đang tải mốc đang áp dụng…</p>}
-      {status === 'error' && <p role="alert">{message} <button type="button" onClick={load}>Thử lại</button></p>}
+      {status === 'error' && <p role="alert">{message} <button type="button" onClick={() => load({ forceRefresh: true })}>Thử lại</button></p>}
       {current && status !== 'error' && status !== 'loading' && (
         <>
           <p>Mốc đang áp dụng: <strong>{current.threshold} điểm</strong></p>
           <p className="cod-threshold-meta">{current.updatedAt ? `Cập nhật: ${new Date(current.updatedAt).toLocaleString('vi-VN')}` : 'Mặc định'}{current.updatedBy ? ` · Người sửa: ${current.updatedBy}` : ''}</p>
           <label htmlFor="cod-sms-threshold-input">Mốc mới (1–9)</label>
           <div className="cod-threshold-actions">
+            <button type="button" className="btn-secondary" disabled={status === 'saving'} onClick={() => load({ forceRefresh: true })}>Tải lại</button>
             <input id="cod-sms-threshold-input" type="number" min="1" max="9" step="1" value={draft} disabled={status === 'saving'} onChange={event => { setDraft(event.target.value); setMessage(''); }} />
             <button type="button" className="nav-btn primary" disabled={status === 'saving' || draft === String(current.threshold)} onClick={() => save(Number(draft))}>Lưu</button>
             <button type="button" className="btn-secondary" disabled={status === 'saving' || current.threshold === 1} onClick={() => save(1)}>Khôi phục mặc định</button>

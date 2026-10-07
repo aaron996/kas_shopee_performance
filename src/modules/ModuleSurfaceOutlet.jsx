@@ -7,7 +7,7 @@ function ModuleSurface({ module, runtime, onBackToOverview }) {
   const Surface = module.surface;
   const content = (
     <Suspense fallback={<LoadingScreen variant="page" />}>
-      <Surface key={module.id === 'cod-suspicion' ? `${runtime.userEmail}:${runtime.role}` : module.id} {...runtime} />
+      <Surface key={module.id === 'cod-suspicion' ? `${runtime.userEmail}:${runtime.role}` : module.id === 'dev-admin' ? `${runtime.currentUser?.email}:${runtime.currentUser?.role}` : module.id} {...runtime} />
     </Suspense>
   );
 
@@ -30,6 +30,7 @@ export default function ModuleSurfaceOutlet({ activeModuleId, runtimeByModule, c
     .map(getModule)
     .filter(Boolean)
     .filter(module => module.keepMounted)
+    .filter(module => !module.requiresDevAdmin || currentUser?.isDevAdmin)
     .filter(module => !module.requiresAuth || currentUser);
   const regularModule = activeModule.keepMounted ? null : activeModule;
 
