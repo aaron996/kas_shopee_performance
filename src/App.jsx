@@ -24,6 +24,7 @@ import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
+import { clientVisitToken, needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
 import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay } from './utils/syncCache.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
@@ -125,14 +126,19 @@ export default function App() {
   const [clientFilter, setClientFilter] = useState(initialView.client);
   const [expandAllHubs] = useState(false);
 
-  // Ask "SPE or SPB?" once per browser session, right after login. The
-  // dashboard itself stays mounted underneath (same pattern as AuthModal)
-  // so it's ready to fade in the instant a choice is made.
-  // When a valid ?scope= is present (embedded mode), skip this prompt
-  // entirely — the host app already made the choice.
-  const [hasPickedClient, setHasPickedClient] = useState(() => (
-    Boolean(LOCAL_PREVIEW_USER) || initialView.hasPickedClient
-  ));
+  // A saved filter does not acknowledge today's/build's client prompt.
+  // Embedded scope remains authoritative: the host already chose the client.
+  const [clientChoiceToken, setClientChoiceToken] = useState(null);
+  const [hostPickedClient, setHostPickedClient] = useState(() =>
+    ['SPB', 'SPE', 'ALL'].includes(new URLSearchParams(window.location.search).get('scope')?.trim().toUpperCase())
+  );
+  const [introCompletedFor, setIntroCompletedFor] = useState(null);
+  const userEmail = currentUser?.email?.trim().toLowerCase();
+  const introVisible = !!userEmail && introCompletedFor !== userEmail;
+  const hasPickedClient = hostPickedClient || !userEmail ||
+    clientChoiceToken === clientVisitToken(userEmail, __APP_BUILD_ID__) ||
+    !needsClientChoice(localStorage, userEmail, __APP_BUILD_ID__);
+  const handleIntroComplete = useCallback(() => setIntroCompletedFor(userEmail), [userEmail]);
 
   // Let the host page (Control Tower) update the scope live via postMessage
   // instead of reloading the iframe. Expected shape:
@@ -148,7 +154,7 @@ export default function App() {
         const scope = typeof data.scope === 'string' ? data.scope.trim().toUpperCase() : null;
         if (scope === 'SPB' || scope === 'SPE') {
           setClientFilter(scope);
-          setHasPickedClient(true);
+          setHostPickedClient(true);
           sessionStorage.setItem('ghn_client_choice', 'true');
         }
       }
@@ -182,7 +188,7 @@ export default function App() {
   const handleClientPick = (key) => {
     setClientFilter(key);
     sessionStorage.setItem('ghn_client_choice', 'true');
-    setHasPickedClient(true);
+    setClientChoiceToken(saveClientChoice(localStorage, userEmail, __APP_BUILD_ID__));
   };
 
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
@@ -193,6 +199,7 @@ export default function App() {
   // 1 input/textarea khác (không cướp phím của ô tìm kiếm khác nếu có).
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
+      if (introVisible) return;
       const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
       if (!isCmdK) return;
       e.preventDefault();
@@ -200,7 +207,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [introVisible]);
 
   // Chọn 1 vùng từ command palette: mở Report 1 (grain hub, nơi Vùng thực sự
   // có tác dụng lọc), thu hẹp bộ lọc Vùng về đúng vùng đó, rồi báo Report1 tự
@@ -330,6 +337,7 @@ export default function App() {
   // failure). The cache restore does not count: the brand intro is there to cover
   // the wait for fresh data, so it keeps playing over a cache hit.
   const [liveSyncSettled, setLiveSyncSettled] = useState(!!LOCAL_PREVIEW_USER);
+  const [overviewDataReady, setOverviewDataReady] = useState(!!LOCAL_PREVIEW_USER);
   // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
   // chỉ tab Leadtime có "syncedAt" riêng). Không dùng cho việc chặn UI: sync
   // chạy nền, số cũ vẫn hiển thị, không còn full-screen overlay mỗi lần mở app.
@@ -478,6 +486,7 @@ export default function App() {
     const supaRes = await fetchSupabaseSheetSync();
     if (supaRes.success) {
       applySupabaseRows(supaRes, 'Supabase');
+      setOverviewDataReady(true);
       liveSyncDoneRef.current = true;
       window.clearTimeout(quietRetryRef.current.timer);
       quietRetryRef.current.count = 0;
@@ -493,6 +502,7 @@ export default function App() {
     const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA');
 
     if (res.success) {
+      setOverviewDataReady(true);
       setPickRows(normalizeRows(res.pickData));
       setDeliRows(normalizeRows(res.deliData));
       setDataSources(prev => ({ pick: 'Google Sheet', deli: 'Google Sheet', ca1: res.ca1Data ? 'Google Sheet' : `${prev.ca1.replace(' (chưa cập nhật)', '')} (chưa cập nhật)` }));
@@ -636,6 +646,11 @@ export default function App() {
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
     liveSyncDoneRef.current = false;
+    setIntroCompletedFor(null);
+    setLiveSyncSettled(false);
+    setOverviewDataReady(false);
+    setHasCompletedInitialSync(false);
+    setClientChoiceToken(null);
     setCurrentUser(null);
   };
 
@@ -756,22 +771,22 @@ export default function App() {
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1 };
   return (
-    <div className="app-container">
+    <div className="app-container" inert={introVisible} aria-hidden={introVisible ? true : undefined}>
       <IconInteractions />
       {/* Authentication Protection Modal */}
       <AuthModal
         isOpen={!currentUser}
       />
 
-      {/* First-run "Which client?" prompt — shown right after login, once
-          per browser session, before the dashboard is usable. */}
-      <ClientSelectModal
+      {/* Mount only after the intro fully exits, so its focus trap cannot compete. */}
+      {!introVisible && <ClientSelectModal
+        key={userEmail}
         isOpen={!!currentUser && !hasPickedClient}
         onSelect={handleClientPick}
-      />
+      />}
 
       {/* Brand intro over the first live data sync of every load (10–15s); skippable. */}
-      {currentUser && <BrandSplash ready={activeTab === 'dev-admin' || liveSyncSettled} />}
+      {introVisible && <BrandSplash key={userEmail} ready={liveSyncSettled} canSkip={overviewDataReady} onComplete={handleIntroComplete} />}
 
       {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
       <CommandPalette

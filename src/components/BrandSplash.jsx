@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './BrandSplash.css';
 
 /**
@@ -15,8 +16,8 @@ import './BrandSplash.css';
  *    not count — the intro exists to cover the wait for fresh data). The splash
  *    then fades out (400ms), but never before MIN_SHOW_MS so a fast sync does not
  *    flash the video.
- *  - "Bỏ qua" (bottom-right) lets the user enter the app early; the app then shows
- *    the cached numbers, or the skeleton loading state, while the sync finishes.
+ *  - "Bỏ qua" appears only after the live sync finishes, and skips the remaining
+ *    video time. onComplete runs after the fade, before client onboarding opens.
  *  - prefers-reduced-motion, or a blocked/failed autoplay, shows the static
  *    logo instead of the video.
  */
@@ -24,24 +25,21 @@ export const LOOP_START = 8;
 export const LOOP_END = 10;
 const LEAVE_MS = 400;
 const MIN_SHOW_MS = 10000;
-const SKIP_DELAY_MS = 700;
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }
 
-export default function BrandSplash({ ready }) {
-  // show → (ready) → leaving → gone.  Already-ready at mount (e.g. local preview) skips it.
-  const [phase, setPhase] = useState(ready ? 'gone' : 'show');
+export default function BrandSplash({ ready, canSkip = ready, onComplete }) {
+  const [phase, setPhase] = useState('show');
   const [useStatic, setUseStatic] = useState(prefersReducedMotion);
   const [minElapsed, setMinElapsed] = useState(false);
-  const [skipVisible, setSkipVisible] = useState(false);
+  const skipVisible = ready && canSkip && phase === 'show';
   const videoRef = useRef(null);
 
   useEffect(() => {
     const minTimer = setTimeout(() => setMinElapsed(true), MIN_SHOW_MS);
-    const skipTimer = setTimeout(() => setSkipVisible(true), SKIP_DELAY_MS);
-    return () => { clearTimeout(minTimer); clearTimeout(skipTimer); };
+    return () => clearTimeout(minTimer);
   }, []);
 
   useEffect(() => {
@@ -55,6 +53,10 @@ export default function BrandSplash({ ready }) {
     const timer = setTimeout(() => setPhase('gone'), LEAVE_MS);
     return () => clearTimeout(timer);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'gone') onComplete?.();
+  }, [phase, onComplete]);
 
   // Keep the idle tail looping until the splash leaves.
   useEffect(() => {
@@ -79,12 +81,13 @@ export default function BrandSplash({ ready }) {
 
   if (phase === 'gone') return null;
 
-  return (
+  // Escape every app stacking/transform context, including mobile shells.
+  return createPortal(
     <div
       className={`brand-splash${phase === 'leaving' ? ' brand-splash--leaving' : ''}`}
       role="status"
       aria-live="polite"
-      aria-busy="true"
+      aria-busy={!ready}
       aria-label="Đang tải dữ liệu"
     >
       {useStatic ? (
@@ -106,16 +109,15 @@ export default function BrandSplash({ ready }) {
           <source src="/brand-intro.webm" type="video/webm" />
         </video>
       )}
-      {phase === 'show' && (
+      {skipVisible && (
         <button
           type="button"
-          className={`brand-splash__skip${skipVisible ? ' brand-splash__skip--visible' : ''}`}
+          className="brand-splash__skip brand-splash__skip--visible"
           onClick={() => setPhase('leaving')}
-          tabIndex={skipVisible ? 0 : -1}
         >
           Bỏ qua <span aria-hidden="true">→</span>
         </button>
       )}
-    </div>
+    </div>, document.body
   );
 }

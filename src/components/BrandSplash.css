@@ -4,7 +4,7 @@
 .brand-splash {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,7 +15,6 @@
 
 .brand-splash--leaving {
   opacity: 0;
-  pointer-events: none;
 }
 
 .brand-splash__media {
@@ -25,8 +24,8 @@
   display: block;
 }
 
-/* Skip: quiet pill in the bottom-right corner, fades in after a beat so it does
-   not compete with the opening frames. Light surface because the splash is
+/* Skip: quiet pill in the bottom-right corner, available after data settles.
+   Light surface because the splash is
    always white, even in dark mode. */
 .brand-splash__skip {
   position: absolute;
