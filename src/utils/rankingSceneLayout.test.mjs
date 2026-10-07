@@ -7,6 +7,7 @@ import {
   assignRegionLanes,
   computeReplayFrames,
   computeTransitionFrames,
+  snapshotSceneFleet,
   easeInOutCubic,
   interpolateFrame,
   START_GATE_FRACTION,
@@ -278,9 +279,12 @@ test('transition: moved, new and removed trucks', () => {
   assert.deepEqual(byId.get('a').from, { x: 1, z: 0 });
   assert.deepEqual(byId.get('a').to, { x: 5, z: 0 });
   assert.equal(byId.get('fresh').alphaFrom, 0);
-  assert.deepEqual(byId.get('fresh').from, byId.get('fresh').to);
+  assert.ok(byId.get('fresh').from.x < Math.min(...prev.map(t => t.x), ...next.map(t => t.x)));
+  assert.equal(byId.get('fresh').phase, 'enter');
   assert.equal(byId.get('gone').ghost, true);
   assert.equal(byId.get('gone').alphaTo, 0);
+  assert.ok(byId.get('gone').to.x < Math.min(...next.map(t => t.x)));
+  assert.equal(byId.get('gone').phase, 'exit');
   assert.equal(items.filter((i) => !i.ghost).length, 2);
 });
 
@@ -295,4 +299,42 @@ test('easing and interpolation are bounded and monotonic', () => {
   assert.deepEqual(interpolateFrame(frame, 0), { x: 0, z: 0, alpha: 0 });
   assert.deepEqual(interpolateFrame(frame, 0.5), { x: 5, z: -2, alpha: 0.5 });
   assert.deepEqual(interpolateFrame(frame, 1), { x: 10, z: -4, alpha: 1 });
+});
+
+test('podium lead preserves rank order, rear slot and replay endpoints', () => {
+  for (const n of [1, 2, 10, 20, 30, 1200]) {
+    const rows = baseline(n, i => n - i);
+    const opts = { leaderGap: 6, laneWidth: 2.6 };
+    const slots = computeSceneLayout(rows, opts);
+    const replay = computeReplayFrames(rows, opts);
+    slots.forEach((slot, i) => {
+      if (i) assert.ok(slots[i - 1].x > slot.x);
+      assert.deepEqual(replay[i].to, { x: slot.x, z: slot.z });
+    });
+    if (n > 1) assert.ok(Math.abs(slots[0].x - slots[1].x - 6) < 1e-8);
+    if (n > 2) assert.equal(slots.at(-1).x, computeSceneLayout(rows).at(-1).x);
+  }
+});
+
+test('rapid KPI changes retain actual positions and opacity of incoming/outgoing trucks', () => {
+  const first = computeTransitionFrames([{ id: 'a', x: 12, z: 0 }, { id: 'b', x: -12, z: 2 }], [{ id: 'b', x: 12, z: 0 }, { id: 'c', x: -12, z: 2 }]);
+  const poses = new Map([['a', { roadX: 2, roadZ: 0, alpha: 0.7 }], ['b', { roadX: 0, roadZ: 1, alpha: 1 }], ['c', { roadX: -16, roadZ: 2, alpha: 0.6 }]]);
+  const snapshot = snapshotSceneFleet(first.items, poses);
+  const second = computeTransitionFrames(snapshot, [{ id: 'a', x: 12, z: 0 }, { id: 'b', x: -12, z: 2 }]);
+  assert.equal(second.items.length, 3);
+  second.items.forEach(item => {
+    const pose = poses.get(item.id);
+    assert.deepEqual(item.from, { x: pose.roadX, z: pose.roadZ });
+    assert.equal(item.alphaFrom, pose.alpha);
+  });
+  assert.equal(second.items.find(i => i.id === 'a').ghost, false);
+  assert.equal(second.items.find(i => i.id === 'c').ghost, true);
+  const third = computeTransitionFrames(snapshotSceneFleet(second.items, poses), [{ id: 'a', x: 12, z: 0 }, { id: 'b', x: -12, z: 2 }]);
+  assert.deepEqual(third.items.find(i => i.id === 'c').to, second.items.find(i => i.id === 'c').to);
+});
+
+test('leader space does not overlap adjacent trucks in a single region lane', () => {
+  const rows = makeTrucks(20).map(t => ({ ...t, region: 'HNO' }));
+  const slots = computeSceneLayout(rows, { laneMode: 'region', roadLength: getRegionRoadLength(rows) + 6 / 0.83, leaderGap: 6 });
+  slots.slice(1).forEach((slot, i) => assert.ok(slots[i].x - slot.x >= 3.4 - 1e-8));
 });

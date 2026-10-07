@@ -25,6 +25,10 @@ export function sampleDrivePose(item, t) {
   if (!item.from) return { x: item.x, z: item.z, alpha: 1 };
   const pose = interpolateFrame(item, easeInOutCubic(t));
   pose.z = item.from.z + (item.to.z - item.from.z) * easeInOutCubic(clamp01((t - 0.15) / 0.7));
+  // Become visible at the rear, then drive forward. Departures remain readable
+  // until they have fallen behind, rather than fading in their old rank slot.
+  const fade = item.phase === 'enter' ? clamp01(t / 0.22) : item.phase === 'exit' ? clamp01((t - 0.68) / 0.32) : null;
+  if (fade !== null) pose.alpha = item.alphaFrom + (item.alphaTo - item.alphaFrom) * easeInOutCubic(fade);
   return pose;
 }
 
@@ -49,7 +53,7 @@ export function advanceDriveClock(clock, items, motion, delta, running, playback
     const toT = clamp01((clock.motionElapsed + step * 1000) / motion.durationMs);
     const change = easeInOutCubic(toT) - easeInOutCubic(fromT);
     for (const item of items) {
-      if (item.from && !item.ghost) backwards = Math.max(backwards, (item.from.x - item.to.x) * change);
+      if (item.from) backwards = Math.max(backwards, (item.from.x - item.to.x) * change);
     }
     clock.motionElapsed += step * 1000;
   }

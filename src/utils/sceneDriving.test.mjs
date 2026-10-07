@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { computeTransitionFrames, computeSceneLayout } from './rankingSceneLayout.js';
 import {
   advanceDriveClock, createDriveClock, sampleDrivePose, driveHeading, CRUISE_SPEED,
   wrapRoadTravel, roadsideAlpha, ROADSIDE_BUFFER
@@ -127,5 +128,50 @@ test('roadside recycling is invisible at both ends and stable after many loops',
     const afterWrap = wrapRoadTravel(0, half + 0.01, -half, span);
     assert.ok(roadsideAlpha(nearExit, length) < 0.002);
     assert.ok(roadsideAlpha(afterWrap, length) < 0.002);
+  }
+});
+
+test('new trucks become visible behind the pack; exits retreat before fading', () => {
+  const { items } = computeTransitionFrames([{ id: 'gone', x: 12, z: 0 }], [{ id: 'new', x: 12, z: 0 }, { id: 'last', x: -12, z: 2 }]);
+  const entering = items.find(i => i.id === 'new'), leaving = items.find(i => i.id === 'gone');
+  assert.equal(sampleDrivePose(entering, 0).alpha, 0);
+  assert.equal(sampleDrivePose(entering, 0.22).alpha, 1);
+  assert.ok(sampleDrivePose(entering, 0.22).x < -12);
+  assert.equal(sampleDrivePose(leaving, 0.68).alpha, 1);
+  assert.ok(sampleDrivePose(leaving, 0.68).x < -12);
+  assert.equal(sampleDrivePose(leaving, 1).alpha, 0);
+  for (const item of items) {
+    assert.equal(sampleDrivePose(item, 1).x, item.to.x);
+    assert.equal(sampleDrivePose(item, 1).z, item.to.z);
+  }
+});
+
+test('departing trucks drive forward against the moving road and freeze on pause', () => {
+  const item = { ...moving('exit', 15, -24), ghost: true, phase: 'exit', alphaTo: 0 };
+  const clock = createDriveClock(), motion = { durationMs: 3200 };
+  let previousX = item.from.x;
+  while (clock.motionElapsed < motion.durationMs) {
+    const distance = clock.distance;
+    advanceDriveClock(clock, [item], motion, 0.05, true, 4);
+    const x = sampleDrivePose(item, Math.min(1, clock.motionElapsed / motion.durationMs)).x;
+    assert.ok(clock.distance - distance + x - previousX > 0);
+    previousX = x;
+    const frozen = { ...clock, step: 0 };
+    advanceDriveClock(clock, [item], motion, 0.05, false, 4);
+    assert.deepEqual(clock, frozen);
+  }
+});
+
+test('incoming convoy keeps same-lane trucks spaced through the entire entrance', () => {
+  const next = computeSceneLayout(Array.from({ length: 20 }, (_, id) => ({ id })), { leaderGap: 6, laneWidth: 2.6 });
+  const { items } = computeTransitionFrames([], next);
+  for (let t = 0; t <= 1; t += 0.02) {
+    const lastByLane = new Map();
+    for (const item of items) {
+      const pose = sampleDrivePose(item, t);
+      const last = lastByLane.get(pose.z);
+      if (last !== undefined) assert.ok(last - pose.x >= 3.4 - 1e-8);
+      lastByLane.set(pose.z, pose.x);
+    }
   }
 });

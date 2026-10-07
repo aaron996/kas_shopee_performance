@@ -1,5 +1,130 @@
 # BXH Performance dạng 3D
 
+## Chuyển KPI, Top 3 và nitro (2026-10-07)
+
+- KPI/filter đổi trong cùng cảnh 3D: xe mới nhập từ sau đoàn; xe còn trong
+  Top tiến/lùi tới slot mới; xe rời Top tụt về sau rồi mờ đi và được gỡ khỏi
+  fleet khi kết thúc. Xe mới cùng làn xếp hàng cách nhau ít nhất 3,4 đơn vị.
+  Transition dài 3.200 ms theo thời gian mô phỏng, tương đương khoảng 1,6 giây
+  ở tốc độ mặc định 2×. Pause đóng băng, resume tiếp tục tại vị trí đang dừng.
+- Đổi KPI giữa animation lấy tọa độ đường gốc và alpha đang hiển thị của cả
+  xe vào/ra; xe đang rời Top mà quay lại được nối tiếp từ pose hiện tại.
+  Bánh xe tiếp tục quay về trước ngay cả khi xe tụt hạng tương đối với đoàn.
+- Hạng 1–3 có huy chương vàng/bạc/đồng, số hạng, nhãn lớn hơn và đường nối
+  tới xe. Ưu tiên đặt Top 3 trước, tìm vị trí nhãn khác khi chồng nhau.
+  Khởi tạo font khi overlay canvas thực sự sẵn sàng để tránh mất toàn bộ nhãn.
+- Hạng 1 cách hạng 2 sáu đơn vị (hai chiều dài xe); các hạng còn lại giữ
+  thứ tự. Làn theo Vùng tăng chiều dài để giữ khoảng cách cùng làn. Replay
+  và cảnh tĩnh dùng chung layout, kết thúc không nhảy về slot khác.
+  Đây là nhấn mạnh thứ hạng, không biểu diễn chênh lệch KPI bằng khoảng cách.
+- Hai luồng nitro xanh/trắng sau xe hạng 1: mạnh hơn khi vượt lên, nhịp theo
+  clock chung và đứng yên khi pause. Chỉ thêm hai mesh instanced đơn giản,
+  không tạo GLB/texture mới hay gọi Meshy. Reduced Motion bỏ transition/nitro.
+- 65 test ranking/layout/driving/camera/curve đạt; lint file thay đổi và build
+  đạt. QA bằng Codex IAB riêng với 30 Hub mẫu, hai KPI có Top khác nhau:
+  10 xe vào + 10 xe rời Top, đổi KPI giữa chừng, pause/resume, replay,
+  Top 3 desktop/mobile 390 px. Ảnh `output/playwright/ghn-ranking-podium-*.png`.
+  Đây là fixture cục bộ, chưa kiểm dữ liệu đăng nhập/production hay FPS thiết bị.
+  Thay đổi chưa commit/push/deploy. Cảnh 2D giữ hành vi hiện có.
+
+## Góc mặc định TV cam (2026-10-07)
+
+- Sau phản hồi về cung quá gắt: bán kính đường tăng từ `max(26, L × 0,72)`
+  lên `max(48, L × 1,35)`; bán kính nền tăng từ `R × 3,6` lên `R × 4,5`.
+  Đường cong nhẹ hơn và nền bớt vồng; giữ nguyên góc/FOV của TV cam.
+  Đã kiểm tra lại desktop/mobile và 5 test curve/camera; ảnh bản thoải ở
+  `output/playwright/ghn-tv-camera-gentle-*.png`.
+- Cảnh mở bằng **TV cam**: camera nhìn chéo 28° theo hệ trục của đoạn đường,
+  góc cao 34°, FOV 58°. Điểm nhìn hướng về nhóm dẫn đầu; khoảng cách dựa vào
+  bề rộng đường và viewport, không lùi vô hạn để chứa hàng nghìn xe.
+  `sceneCamera.js` giữ phép tính độc lập để kiểm tra các kích thước đội xe.
+- **Toàn cảnh** vẫn xem toàn tuyến ở desktop hoặc phần đầu tuyến trên mobile;
+  **Bám xe** giữ hành vi chọn Hub. Khi đóng chi tiết, camera trở về góc TV hoặc
+  Toàn cảnh đã chọn trước đó. Chuyển camera hoạt động khi đang tạm dừng xe.
+- Làn rộng 2,6 đơn vị thay cho 1,8 để xe tải cao có thêm khoảng trống. Nhựa
+  đường/vai đường/vạch tiếp tục qua hai đầu vùng xếp hạng, tạo đoạn đường
+  chạy ra ngoài khung. Phần kéo dài chỉ là nền cảnh; không thay đổi slot
+  thứ hạng hay thêm Hub. Vị trí vẫn biểu thị thứ hạng, không phải khoảng KPI.
+- Canvas desktop cao `clamp(440px, 58dvh, 560px)`, mobile
+  `clamp(300px, 48dvh, 400px)`. Canvas dưới 400 px chừa 140 px cuối cho ba
+  hàng nút và link bảng; nhãn không vẽ dưới điều khiển.
+- 59 test camera/ranking/layout/driving/curve và build/lint đạt. Test chiếu
+  nhóm dẫn đầu vào khung với 10/20/30/200/1.200 xe và bốn tỷ lệ viewport.
+  Đây là kiểm tra toán học, không phải FPS hay kiểm tra thiết bị thật.
+- QA tab riêng Codex IAB với 30 Hub mẫu: tải lại mặc định TV cam, chuyển
+  Toàn cảnh/Bám xe, đóng Hub trở lại TV, pause/replay, desktop và 390 × 844.
+  Ảnh ở `output/playwright/ghn-tv-camera-*.png`, trạng thái camera ở
+  `output/imagegen/ghn-tv-camera-browser-qa.json`. Probe đã gỡ khỏi fixture.
+  Dữ liệu cục bộ, chưa live; thay đổi chưa commit/push/deploy.
+
+## Đường cong và màu riêng theo Hub (2026-10-07)
+
+- Theo hướng thị giác của Airace: đường ôm cung, mặt đất vồng và camera góc
+  rộng 64°. Đây là phối cảnh gần cảm giác mắt cá, không phải bộ lọc fisheye
+  quang học. Nhãn vẫn vẽ phẳng trên canvas để đọc rõ.
+- `sceneRoadCurve.js` giữ phép biến đổi chung cho nhựa đường, vai đường,
+  vạch, xe, ven đường và nhãn. Xe xoay theo tiếp tuyến và độ dốc; hitbox chọn
+  xe đưa ray về hệ tọa độ của xe. Camera bám cả chiều cao của cung đường.
+  Tọa độ xếp hạng và replay vẫn nằm trong hệ đường thẳng, nên thứ hạng/KPI
+  và logic đối soát không thay đổi. Chuyển làn/bộ lọc giữa replay lấy tọa độ
+  đường gốc của pose hiện tại, tránh uốn hai lần.
+- Nút **GHN / Theo Hub**: GHN giữ texture gốc, Theo Hub thêm màu sơn ổn định
+  theo composite Hub ID. Shader chỉ thay phần sơn cam ở cabin/panel; bảo vệ
+  dải logo và decal nóc theo tọa độ model, giữ xanh, trắng, kính và lốp.
+  Mask kiểm tra theo fragment để logo không bị nhuộm khi tam giác lớn đi
+  xuyên qua dải chữ. Mask này dành riêng cho GLB hiện tại.
+- Không gen thêm GLB hoặc texture, không gọi Meshy. Xe vẫn dùng một model
+  và một texture chung với màu riêng trên từng instance; không tăng số mesh
+  hay draw call do đổi màu. Màu là nhận diện Hub, trạng thái KPI vẫn ở nhãn,
+  beacon và bảng. Màu có thể gần nhau khi có nhiều Hub.
+- Các nút mobile xuống hai hàng và nằm trên link xem bảng; vùng nhãn chừa
+  100 px cuối canvas hẹp để không vẽ dưới các nút.
+- QA bằng tab riêng Codex IAB với 30 Hub mẫu: chuyển GHN/Theo Hub, Top 10/30
+  giữ màu; chọn xe trên cung mở chi tiết và bám xe; replay chạy/kết thúc;
+  pause giữ clock và ma trận bánh; chuyển làn theo Vùng và xen kẽ. Desktop
+  và viewport 390 × 844 không có lỗi console. Frame chạy nền 30 xe đo được
+  17 draw call, 157.620 tam giác; đây không phải số đo FPS thiết bị thật.
+- Build, lint các file thay đổi và 57 test ranking/layout/driving/curve đạt.
+  Bằng chứng ảnh: `output/playwright/ghn-curved-road-hub-colors-*.png`.
+  Số đo: `output/imagegen/ghn-curved-road-browser-qa.json`; đối chiếu ma trận
+  của cả 30 xe sau replay với layout D-1 đã uốn, sai số X/Z lớn nhất dưới
+  0,000001 đơn vị. Probe QA đã gỡ khỏi fixture.
+  Thay đổi cục bộ, chưa commit/push/deploy; chưa kiểm tra dữ liệu live.
+
+## Model xe GHN từ Meshy (2026-10-07)
+
+- Cảnh 3D dùng `/models/ghn-truck-wheels-v1.glb`, tạo từ ảnh xe GHN cartoon
+  bằng Meshy T2 Smart Topology, task `01a11518-e035-74ae-8ce1-49bb0880fa3d`,
+  đã dùng 15 credit. GLB runtime khoảng 2,35 MB, 5.018 tam giác, một material
+  nguồn và một texture JPEG 2048 × 2048.
+- `tools/prepare-ghn-truck.mjs` tách các connected component nguyên vẹn thành
+  thân và bốn bánh (bao gồm lốp đôi phía sau), giữ mọi tam giác, normal và UV.
+  Nguồn gốc ở `output/imagegen/ghn-truck-meshy-v1.glb`; báo cáo tách bánh ở
+  `output/imagegen/ghn-truck-wheel-split.json`. Các tâm/trục được hiệu chỉnh
+  riêng cho model này; script không dùng để tách tùy ý mọi xe.
+- Chuẩn hóa xe dài 3 đơn vị, cabin quay về +X, đáy mesh nguồn ở mặt đường.
+  Bốn bánh có pivot riêng và quay quanh Z theo khoảng đường đã đi / bán kính;
+  dùng clock hiện có nên tốc độ, pause, replay và reduced motion giữ chung
+  quy tắc với mặt đường. Bánh không nhận nhún của thân.
+- Fleet dùng một InstancedMesh thân, bốn InstancedMesh bánh và một beacon màu
+  KPI. Mọi phần xe dùng chung texture đã cache; geometry có alpha riêng theo
+  fleet để giữ fade replay mà không sửa GLTF cache. Picking vẫn dùng hitbox
+  hiện có; bảng, số liệu và composite Hub identity không đổi.
+- QA trong tab riêng Codex IAB, fixture 30 Hub: cả bốn ma trận bánh thay góc
+  nhưng giữ tâm trong chạy nền; pause đóng băng clock/ma trận/frame; chọn xe
+  trực tiếp mở đúng Hub và camera bám; replay hoàn tất; chuyển 2D/3D giữ Hub.
+  Đã kiểm tra hiển thị ở desktop và viewport 390 × 844, không có lỗi console.
+  Cảnh 30 xe có 17 draw call và 151.976 tam giác ở frame chạy nền không cập nhật
+  shadow map. Frame có shadow/replay có thể nhiều draw call hơn.
+- Build, lint file thay đổi và 54 test ranking/layout/driving đạt. Đây là bằng
+  chứng cục bộ với fixture, chưa phải kiểm tra dữ liệu live, FPS thiết bị thật,
+  hay hiệu năng khi chọn hàng trăm/hàng nghìn xe. Thay đổi chưa push/deploy.
+- `node tools/verify-ghn-truck.mjs` đối chiếu toàn bộ tam giác, winding, UV,
+  normal và byte texture với bản gốc; kiểm tra tâm của cả bốn bánh. Đã đạt.
+  Bằng chứng renderer ở `output/imagegen/ghn-truck-browser-qa.json`; ảnh desktop
+  và mobile ở `output/playwright/ghn-truck-*.png`. Probe QA đã gỡ khỏi preview;
+  giữ fixture xem trực quan ở `extracted/ranking-preview/` (Git ignore).
+
 ## Chuyển động xe (2026-10-06)
 
 - Toolbar có thanh tốc độ 0,25×–4×, bước 0,25×, mặc định 2× so với tốc độ gốc;

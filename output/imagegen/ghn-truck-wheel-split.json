@@ -1,0 +1,59 @@
+{
+  "input": "output/imagegen/ghn-truck-meshy-v1.glb",
+  "output": "public/models/ghn-truck-wheels-v1.glb",
+  "triangles": 5018,
+  "materialCount": 1,
+  "textureCount": 1,
+  "parts": [
+    {
+      "name": "body",
+      "triangles": 3136,
+      "pivot": [
+        0,
+        0,
+        0
+      ],
+      "radius": null
+    },
+    {
+      "name": "wheel-front-left",
+      "triangles": 398,
+      "pivot": [
+        0.9457499999999999,
+        0.22852502657890322,
+        0.4998
+      ],
+      "radius": 0.22649999999999998
+    },
+    {
+      "name": "wheel-front-right",
+      "triangles": 376,
+      "pivot": [
+        0.9457499999999999,
+        0.22852502657890322,
+        -0.48810000000000003
+      ],
+      "radius": 0.22649999999999998
+    },
+    {
+      "name": "wheel-rear-left",
+      "triangles": 542,
+      "pivot": [
+        -0.8295000000000001,
+        0.21220502657890322,
+        0.42599999999999993
+      ],
+      "radius": 0.22649999999999998
+    },
+    {
+      "name": "wheel-rear-right",
+      "triangles": 566,
+      "pivot": [
+        -0.8295000000000001,
+        0.21220502657890322,
+        -0.40800000000000003
+      ],
+      "radius": 0.22649999999999998
+    }
+  ]
+}
