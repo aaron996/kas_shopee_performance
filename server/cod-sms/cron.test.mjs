@@ -98,12 +98,14 @@ test('createCodSmsCronHandler rejects requests without a valid Bearer secret bef
 });
 
 test('createCodSmsCronHandler runs the batch and returns totals for an authorized cron call', async () => {
+  const finished = [];
   const handler = createCodSmsCronHandler({
     cronSecret: 'correct-secret',
+    createDispatchRepository: () => ({ claim: async () => true, finish: async (...args) => finished.push(args) }),
     runDailyBatch: async () => ({ pages: 1, scored: 4, noEvidence: 1, failed: 0 })
   });
 
-  const req = { method: 'GET', headers: { authorization: 'Bearer correct-secret' } };
+  const req = { method: 'POST', headers: { authorization: 'Bearer correct-secret' }, body: { dispatchId: '00000000-0000-0000-0000-000000000001' } };
   const res = makeRes();
   await handler(req, res);
 
@@ -111,6 +113,39 @@ test('createCodSmsCronHandler runs the batch and returns totals for an authorize
   const body = JSON.parse(res.body);
   assert.equal(body.cron, true);
   assert.equal(body.totals.scored, 4);
+  assert.equal(finished[0][1], 'completed');
+});
+
+test('duplicate scheduler delivery and old Vercel cron cannot invoke scoring', async () => {
+  let ran = 0;
+  const handler = createCodSmsCronHandler({ cronSecret: 's', runDailyBatch: async () => { ran++; },
+    createDispatchRepository: () => ({ claim: async () => false }) });
+  const invalid = makeRes(); await handler({ method: 'GET', headers: { authorization: 'Bearer s' } }, invalid);
+  assert.equal(invalid.statusCode, 400);
+  const duplicate = makeRes(); await handler({ method: 'POST', headers: { authorization: 'Bearer s' }, body: { dispatchId: '00000000-0000-0000-0000-000000000001' } }, duplicate);
+  assert.equal(duplicate.statusCode, 200); assert.equal(ran, 0);
+});
+
+test('dedicated scheduler secret takes precedence without rotating the legacy cron secret', async () => {
+  let claims = 0;
+  const handler = createCodSmsCronHandler({ env: { COD_SMS_SCHEDULER_SECRET: 'scheduler', CRON_SECRET: 'legacy' },
+    createDispatchRepository: () => ({ claim: async () => { claims++; return false; } }) });
+  const body = { dispatchId: '00000000-0000-0000-0000-000000000001' };
+  const denied = makeRes(); await handler({ method: 'POST', headers: { authorization: 'Bearer legacy' }, body }, denied);
+  assert.equal(denied.statusCode, 401); assert.equal(claims, 0);
+  const allowed = makeRes(); await handler({ method: 'POST', headers: { authorization: 'Bearer scheduler' }, body }, allowed);
+  assert.equal(allowed.statusCode, 200); assert.equal(claims, 1);
+});
+
+test('scheduler persists batch failures and partial completion without leaking secrets', async () => {
+  for (const fail of [true, false]) {
+    const finished = [];
+    const handler = createCodSmsCronHandler({ cronSecret: 's',
+      createDispatchRepository: () => ({ claim: async () => true, finish: async (...args) => finished.push(args) }),
+      runDailyBatch: async () => { if (fail) throw new Error('private-secret'); return { failed: 1, scored: 3 }; } });
+    const res = makeRes(); await handler({ method: 'POST', headers: { authorization: 'Bearer s' }, body: { dispatchId: '00000000-0000-0000-0000-000000000001' } }, res);
+    assert.equal(finished[0][1], fail ? 'failed' : 'partial'); assert.ok(!res.body.includes('private-secret'));
+  }
 });
 
 test('sweepCodSmsSources passes force through to each page of runBatch', async () => {

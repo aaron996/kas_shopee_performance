@@ -13,6 +13,7 @@ Panel dùng hệ thống màu, typography và token hiện có của GHN. Mục 
 | Chatbot | Nhật ký câu hỏi | Câu hỏi, trạng thái và xuất CSV; giữ chức năng retention hiện có |
 | COD SMS | Model chấm SMS | `feature=cod_sms`, chỉ phạm vi toàn bộ tác vụ |
 | COD SMS | Mốc nâng nghi ngờ | Mốc điểm SMS; không thay đổi điểm đã chấm |
+| COD SMS | Lịch chấm SMS | Giờ VN, bật/tắt, lần chạy kế tiếp và audit; Supabase Cron gọi API chấm trên Vercel |
 | Tài khoản & truy cập | Phân quyền | RPC và kiểm tra quyền hiện có |
 | Tài khoản & truy cập | Lịch sử truy cập | Access logs và presence; xuất cả dữ liệu tải được |
 

@@ -74,6 +74,18 @@
 .dev-access-pagination { margin-top: 16px; }
 .dev-access-pagination span { flex: 1; color: var(--text-muted); font-size: .85rem; }
 .dev-panel-error { padding: 12px; background: var(--bad-red-bg); color: var(--bad-red-text); border-radius: var(--radius-control); }
+.cod-schedule-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 20px; margin: 0 0 24px; }
+.cod-schedule-summary dt { font-size: .85rem; color: var(--text-muted); }
+.cod-schedule-summary dd { margin: 6px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cod-schedule-settings form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.cod-schedule-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.cod-schedule-toggle input { width: 18px; height: 18px; accent-color: var(--ghn-blue); }
+.cod-schedule-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.cod-schedule-actions input { min-height: 44px; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); color: var(--text-main); background: var(--card-bg); font: inherit; }
+.cod-schedule-history { padding-left: 20px; font-size: .85rem; overflow-wrap: anywhere; }
+.cod-schedule-history li { margin-bottom: 14px; }
+.cod-schedule-history span { color: var(--text-muted); }
+.cod-schedule-settings input:focus-visible { outline: 2px solid var(--ghn-blue); outline-offset: 3px; }
 @media (max-width: 1100px) {
   .dev-panel-layout { grid-template-columns: 190px minmax(0, 1fr); gap: 20px; }
   .dev-panel { padding: 16px; }
