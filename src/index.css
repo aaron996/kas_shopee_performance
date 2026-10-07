@@ -6729,7 +6729,7 @@ body.dark-mode .prr-scope-chip.highlight {
 .prr-scene3d {
   position: relative;
   width: 100%;
-  height: 340px;
+  height: clamp(440px, 58dvh, 560px);
   container-type: inline-size;
   border-radius: var(--radius-control);
   border: 1px solid #334155;
@@ -6770,25 +6770,7 @@ body.dark-mode .prr-scope-chip.highlight {
 /* Phones: a canvas that fits the screen (the table stays close) and tighter controls. */
 @media (max-width: 640px) {
   .prr-scene3d {
-    height: clamp(240px, 44dvh, 340px);
-  }
-}
-
-@container (max-width: 560px) {
-  .prr-3d-controls {
-    left: 0.5rem;
-    justify-content: flex-start;
-    bottom: 1.9rem;
-  }
-
-  .prr-3d-controls .seg-btn,
-  .prr-replay-btn {
-    font-size: 0.68rem;
-    padding: 0.2rem 0.5rem;
-  }
-
-  .prr-3d-caption span {
-    display: none;
+    height: clamp(300px, 48dvh, 400px);
   }
 }
 
@@ -6818,6 +6800,23 @@ body.dark-mode .prr-scope-chip.highlight {
   justify-content: flex-end;
   gap: 0.4rem;
   z-index: 5;
+}
+
+/* Keep both wrapped control rows above the table link on narrow scenes. */
+@container (max-width: 560px) {
+  .prr-3d-controls {
+    left: 0.5rem;
+    justify-content: flex-start;
+    bottom: 1.9rem;
+  }
+
+  .prr-3d-controls .seg-btn,
+  .prr-3d-controls .prr-replay-btn {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .prr-3d-caption span { display: none; }
 }
 
 /* The shared segmented-control colour (text-secondary on surface-subtle) is 4.4:1 in the light theme and

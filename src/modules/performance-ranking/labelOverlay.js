@@ -57,6 +57,7 @@ export function layoutLabel(ctx, spec, fonts, compact) {
     return { w: Math.ceil(ctx.measureText(spec.text).width) + 12, h: compact ? 16 : 18, m };
   }
   // tag
+  if (spec.medal) { m.name += 1; m.rank += 1; m.kpi += 1; m.nameMax += compact ? 8 : 16; }
   ctx.font = `700 ${m.rank}px ${fonts.family}`;
   const rankText = `#${spec.rank}`;
   const rankW = ctx.measureText(rankText).width;
@@ -78,12 +79,32 @@ export function layoutLabel(ctx, spec, fonts, compact) {
   const w = Math.ceil(Math.max(row1W, row2W) + m.padX * 2);
   const rowH = Math.ceil(m.name + 3);
   const h = m.padY * 2 + rowH * 2 + m.rowGap + 2; // + 2px accent bar
-  return { w, h, m, rankText, rankW, nameText, kpiW, chips, rowH };
+  const medalH = spec.medal ? compact ? 30 : 36 : 0;
+  return { w, h: h + medalH, medalH, m, rankText, rankW, nameText, kpiW, chips, rowH };
 }
 
 /** Draws a label with its top-left corner at (x, y). `box` comes from layoutLabel. */
 export function drawLabel(ctx, spec, box, x, y, fonts) {
-  const { w, h } = box;
+  const { w } = box;
+  const h = box.h - (box.medalH || 0);
+  if (box.medalH) {
+    const r = box.medalH === 30 ? 12 : 15;
+    const cx = x + w / 2, cy = y + r + 1;
+    ctx.save();
+    ctx.fillStyle = '#2476c0';
+    for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(cx + side * 4, cy + 5); ctx.lineTo(cx + side * 12, cy + r + 5);
+      ctx.lineTo(cx + side * 6, cy + r + 2); ctx.lineTo(cx, cy + 7); ctx.closePath(); ctx.fill();
+    }
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = spec.medal; ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff5d6'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r - 4, 0, Math.PI * 2); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(62,43,17,0.35)'; ctx.stroke();
+    ctx.font = `800 ${r + 2}px ${fonts.family}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#302818';
+    ctx.fillText(String(spec.rank), cx, cy + 1); ctx.restore();
+    y += box.medalH;
+  }
   if (spec.kind === 'pill') {
     ctx.save();
     roundRect(ctx, x, y, w, h, h / 2);

@@ -102,7 +102,7 @@ function laneForIndex(idx, laneCount) {
  *   x runs along the road (rank 1 at the largest x), z across lanes. The road is
  *   centred on the origin and spans x in [-roadLength/2, roadLength/2].
  */
-export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, laneWidth = 1.8, laneMode = 'stagger' } = {}) {
+export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, laneWidth = 1.8, laneMode = 'stagger', leaderGap = 0 } = {}) {
   const list = Array.isArray(sceneTrucks) ? sceneTrucks : [];
   const n = list.length;
   const regionMode = laneMode === 'region';
@@ -114,9 +114,16 @@ export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, lan
     const progress = n > 1 ? 1 - idx / (n - 1) : 0.5;
     const fraction = START_FRACTION + progress * (END_FRACTION - START_FRACTION);
     const lane = regionMode ? regionLanes.laneOf.get(truck.id) : laneForIndex(idx, lanes);
+    // Reserve a visible lead without extending the road or changing the rank order.
+    const frontX = (END_FRACTION - 0.5) * length;
+    const rearX = (START_FRACTION - 0.5) * length;
+    const gap = Math.min(Math.max(0, leaderGap), (frontX - rearX) / 2);
+    const x = gap > 0 && n > 1
+      ? idx === 0 ? frontX : n === 2 ? frontX - gap : frontX - gap - (idx - 1) / (n - 2) * (frontX - gap - rearX)
+      : (fraction - 0.5) * length;
     return {
       id: truck.id,
-      x: (fraction - 0.5) * length,
+      x,
       z: (lane - (lanes - 1) / 2) * laneWidth,
       lane,
       progress
@@ -129,7 +136,7 @@ export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, lan
 // ---------------------------------------------------------------------------
 
 export const REPLAY_DURATION_MS = 3000;
-export const TRANSITION_DURATION_MS = 800;
+export const TRANSITION_DURATION_MS = 3200; // 1.6s at the default 2x playback rate
 export const REPLAY_ARROWS_MS = 2000; // arrows over moving trucks during the last N ms of a replay
 
 export function easeInOutCubic(t) {
@@ -206,7 +213,7 @@ export function computeReplayFrames(sceneTrucks, opts = {}) {
 /**
  * Transition between two scene states (KPI / filter / lane-mode change).
  * Trucks present in both slide from their old to their new position; new ones
- * fade in where they end up; removed ones fade out where they were (returned as
+ * drive in from behind the pack; removed ones retreat behind it (returned as
  * `ghost` items so the scene can keep drawing them until the transition ends).
  *
  * @param prevTrucks Array<{id, x, z, meetsTarget}> last rendered trucks
@@ -217,6 +224,9 @@ export function computeTransitionFrames(prevTrucks, nextTrucks) {
   const prev = new Map((prevTrucks || []).map((t) => [t.id, t]));
   const next = Array.isArray(nextTrucks) ? nextTrucks : [];
   const nextIds = new Set(next.map((t) => t.id));
+  const rearX = Math.min(...next.map(t => t.x), ...[...prev.values()].filter(t => !t.ghost).map(t => t.to?.x ?? t.x), 0) - 6;
+  const incomingByLane = new Map();
+  const outgoingByLane = new Map();
   let changed = false;
 
   const items = next.map((t) => {
@@ -224,17 +234,34 @@ export function computeTransitionFrames(prevTrucks, nextTrucks) {
     const to = { x: t.x, z: t.z };
     if (!before) {
       changed = true;
-      return { ...t, ghost: false, from: to, to, alphaFrom: 0, alphaTo: 1, dir: 0 };
+      const queued = incomingByLane.get(to.z) || 0;
+      incomingByLane.set(to.z, queued + 1);
+      return { ...t, ghost: false, phase: 'enter', from: { x: rearX - queued * MIN_TRUCK_GAP, z: to.z }, to, alphaFrom: 0, alphaTo: 1, dir: 1 };
     }
-    if (before.x !== t.x || before.z !== t.z) changed = true;
-    return { ...t, ghost: false, from: { x: before.x, z: before.z }, to, alphaFrom: 1, alphaTo: 1, dir: 0 };
+    const alphaFrom = before.alpha ?? 1;
+    if (before.x !== t.x || before.z !== t.z || alphaFrom !== 1) changed = true;
+    return { ...t, ghost: false, phase: alphaFrom < 1 ? 'enter' : 'move', from: { x: before.x, z: before.z }, to, alphaFrom, alphaTo: 1, dir: Math.sign(to.x - before.x) };
   });
 
-  for (const before of prev.values()) {
+  for (const before of [...prev.values()].sort((a, b) => b.x - a.x)) {
     if (nextIds.has(before.id)) continue;
     changed = true;
-    const at = { x: before.x, z: before.z };
-    items.push({ ...before, ghost: true, from: at, to: at, alphaFrom: 1, alphaTo: 0, dir: 0 });
+    if (before.alpha === 0) continue;
+    const from = { x: before.x, z: before.z };
+    // An interrupted exit retains its original destination instead of drifting
+    // another six units backwards on each rapid KPI change.
+    const queued = outgoingByLane.get(before.z) || 0;
+    outgoingByLane.set(before.z, queued + 1);
+    const to = { x: before.ghost && before.to ? before.to.x : rearX - queued * MIN_TRUCK_GAP, z: before.z };
+    items.push({ ...before, ghost: true, phase: 'exit', from, to, alphaFrom: before.alpha ?? 1, alphaTo: 0, dir: -1 });
   }
   return { changed, items };
+}
+
+/** Snapshot the actual fleet, including departing trucks, for an interrupted change. */
+export function snapshotSceneFleet(items, positions) {
+  return items.map(truck => {
+    const pose = positions.get(truck.id);
+    return pose ? { ...truck, x: pose.roadX, z: pose.roadZ, alpha: pose.alpha } : truck;
+  });
 }

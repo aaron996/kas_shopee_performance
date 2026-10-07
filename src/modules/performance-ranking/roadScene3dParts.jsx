@@ -1,8 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
 import { computeRoadside } from '../../utils/sceneThemes.js';
+import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
+import { hubPaintColor, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
@@ -13,37 +16,9 @@ import {
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 
-const CARGO = '#2d3b50'; // lighter than the old slate-800 so cargo separates from the dark ground
-const DARK = '#0f172a';
-const GHN_ORANGE = '#f15a22';
 const ARROW_UP = '#34d399';
 const ARROW_DOWN = '#f87171';
-// Roof badges for ranks 1-3 (same hues as the 2D DeliveryTruckIcon crown; silver is lighter for contrast).
-const BADGE_COLORS = ['#f5b800', '#b8c4d0', '#a0522d'];
-const LOGO_URL = '/ghn-icon.svg';
-
-// Truck facing +x, ~3 long, ~1.3 wide. `color: 'status'` is tinted per truck
-// (meets target / below target); `basic` parts are unlit so the theme token
-// colour is shown as-is.
-const TRUCK_PARTS = [
-  { key: 'chassis', geo: 'box', args: [3.0, 0.15, 1.2], position: [0, 0.35, 0], color: DARK },
-  { key: 'cargo', geo: 'box', args: [2.0, 1.1, 1.3], position: [-0.45, 1.0, 0], color: CARGO },
-  { key: 'stripe', geo: 'box', args: [2.02, 0.18, 1.32], position: [-0.45, 0.9, 0], color: GHN_ORANGE },
-  { key: 'cab', geo: 'box', args: [0.9, 0.85, 1.25], position: [1.0, 0.82, 0], color: '#e2e8f0' },
-  { key: 'glass', geo: 'box', args: [0.06, 0.38, 1.0], position: [1.46, 1.0, 0], color: '#bae6fd' },
-  { key: 'beacon', geo: 'box', args: [0.5, 0.08, 0.9], position: [1.0, 1.28, 0], color: 'status', basic: true },
-  { key: 'lightL', geo: 'box', args: [0.06, 0.14, 0.22], position: [1.47, 0.55, 0.42], color: '#fef08a', basic: true },
-  { key: 'lightR', geo: 'box', args: [0.06, 0.14, 0.22], position: [1.47, 0.55, -0.42], color: '#fef08a', basic: true },
-  // GHN mark on both cargo sides (texture drawn once from /ghn-icon.svg)
-  { key: 'logoL', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, 0.655], color: '#ffffff', basic: true, logo: true },
-  { key: 'logoR', geo: 'plane', args: [0.6, 0.6], position: [-0.7, 1.22, -0.655], rotation: [0, Math.PI, 0], color: '#ffffff', basic: true, logo: true },
-  // 3 axles; a cylinder spans the body width so each reads as a wheel on both sides
-  { key: 'axle1', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
-  { key: 'axle2', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [-0.2, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
-  { key: 'axle3', geo: 'cyl', args: [0.3, 0.3, 1.4, 14], position: [1.0, 0.3, 0], rotation: [Math.PI / 2, 0, 0], color: DARK, wheel: true },
-  // A visible rim bar on each side makes rotation legible on otherwise uniform tyres.
-  ...[-1.0, -0.2, 1.0].map((x, i) => ({ key: `rim${i}`, geo: 'box', args: [0.42, 0.065, 1.43], position: [x, 0.3, 0], color: '#cbd5e1', wheel: true, spin: true }))
-];
+const TRUCK_MODEL_URL = '/models/ghn-truck-wheels-v1.glb';
 
 const HOVER_LIFT = 0.025;
 const SELECT_LIFT = 0.015;
@@ -79,6 +54,14 @@ const _scale = new THREE.Vector3(1, 1, 1);
 const _pos = new THREE.Vector3();
 const _arrowColor = new THREE.Color();
 const _upAxis = new THREE.Vector3(0, 1, 0);
+const _pitchAxis = new THREE.Vector3(0, 0, 1);
+const _pitchQuat = new THREE.Quaternion();
+const _ringQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+function roadQuaternion(heading, pitch) {
+  return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
+}
+function patchPaintedAlpha(shader) { patchInstanceAlpha(shader); patchTruckPaint(shader); }
+const paintCacheKey = () => 'instanceAlpha-truckPaint-v1';
 
 const noRaycast = () => {};
 
@@ -116,14 +99,17 @@ function pickedId(e, items) {
 }
 
 /** One InstancedMesh for a truck part. Registers itself (mesh + material) with the fleet. */
-function FleetPart({ part, index, count, alphaArray, register, castShadow, logoTexture }) {
+function FleetPart({ part, index, count, alphaArray, paintArray, register, castShadow }) {
+  const painted = part.key === 'body';
   const geometry = useMemo(() => {
-    const g = part.geo === 'cyl'
-      ? new THREE.CylinderGeometry(...part.args)
-      : part.geo === 'plane' ? new THREE.PlaneGeometry(...part.args) : new THREE.BoxGeometry(...part.args);
+    // Fleet-owned geometry carries its alpha attribute; the cached GLTF stays unchanged.
+    const g = part.sourceGeometry ? part.sourceGeometry.clone() : new THREE.BoxGeometry(...part.args);
     g.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alphaArray, 1));
+    if (painted) {
+      g.setAttribute('instancePaint', new THREE.InstancedBufferAttribute(paintArray, 3));
+    }
     return g;
-  }, [part, alphaArray]);
+  }, [part, alphaArray, painted, paintArray]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   // transparent from the start: flipping `transparent` at runtime changes three's program key
@@ -131,8 +117,8 @@ function FleetPart({ part, index, count, alphaArray, register, castShadow, logoT
   // hitch. At alpha 1 a transparent material renders the same as an opaque one.
   const materialProps = {
     transparent: true,
-    onBeforeCompile: patchInstanceAlpha,
-    customProgramCacheKey: alphaCacheKey
+    onBeforeCompile: painted ? patchPaintedAlpha : patchInstanceAlpha,
+    customProgramCacheKey: painted ? paintCacheKey : alphaCacheKey
   };
   const color = part.color === 'status' ? '#ffffff' : part.color;
 
@@ -145,11 +131,9 @@ function FleetPart({ part, index, count, alphaArray, register, castShadow, logoT
       frustumCulled={false}
       raycast={noRaycast}
     >
-      {part.logo
-        ? <meshBasicMaterial {...materialProps} map={logoTexture} toneMapped={false} depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
-        : part.basic
+      {part.basic
         ? <meshBasicMaterial {...materialProps} color={color} />
-        : <meshStandardMaterial {...materialProps} color={color} roughness={0.7} metalness={0.1} />}
+        : <meshStandardMaterial {...materialProps} color={color} map={part.map} roughness={0.85} metalness={0} />}
     </instancedMesh>
   );
 }
@@ -170,22 +154,24 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
     const items = itemsRef.current;
     const alpha = alphaRef.current;
     const { origin, direction } = raycaster.ray;
-    const inv = { x: 1 / direction.x, y: 1 / direction.y, z: 1 / direction.z };
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.ghost || alpha[i] < PICK_MIN_ALPHA) continue;
       const p = positionsRef.current.get(item.id);
       if (!p) continue;
-      let t1 = (p.x - PICK_HALF_X - origin.x) * inv.x;
-      let t2 = (p.x + PICK_HALF_X - origin.x) * inv.x;
+      const o = toRoadLocalVector(origin.x - p.x, origin.y - p.lift, origin.z - p.z, p.heading, p.pitch);
+      const d = toRoadLocalVector(direction.x, direction.y, direction.z, p.heading, p.pitch);
+      const inv = { x: 1 / d.x, y: 1 / d.y, z: 1 / d.z };
+      let t1 = (-PICK_HALF_X - o.x) * inv.x;
+      let t2 = (PICK_HALF_X - o.x) * inv.x;
       let tmin = Math.min(t1, t2);
       let tmax = Math.max(t1, t2);
-      t1 = (p.lift - origin.y) * inv.y;
-      t2 = (p.lift + PICK_HEIGHT - origin.y) * inv.y;
+      t1 = -o.y * inv.y;
+      t2 = (PICK_HEIGHT - o.y) * inv.y;
       tmin = Math.max(tmin, Math.min(t1, t2));
       tmax = Math.min(tmax, Math.max(t1, t2));
-      t1 = (p.z - PICK_HALF_Z - origin.z) * inv.z;
-      t2 = (p.z + PICK_HALF_Z - origin.z) * inv.z;
+      t1 = (-PICK_HALF_Z - o.z) * inv.z;
+      t2 = (PICK_HALF_Z - o.z) * inv.z;
       tmin = Math.max(tmin, Math.min(t1, t2));
       tmax = Math.min(tmax, Math.max(t1, t2));
       if (tmax < Math.max(tmin, 0)) continue;
@@ -212,48 +198,42 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
  */
 export function TruckFleet({
   items, motion, goodColor, badColor, castShadow, hoveredId, selectedId,
-  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion
+  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion, roadLength, paintMode
 }) {
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
   const count = items.length;
+  const model = useLoader(GLTFLoader, TRUCK_MODEL_URL);
+  const truckParts = useMemo(() => {
+    const parts = [];
+    model.scene.traverse(node => {
+      if (!node.isMesh) return;
+      parts.push({ key: node.name, sourceGeometry: node.geometry, map: node.material.map,
+        position: node.position.toArray(), color: '#ffffff', wheel: Boolean(node.userData.wheel),
+        spin: Boolean(node.userData.wheel), radius: node.userData.radius });
+    });
+    // Preserve the existing KPI colour cue without tinting GHN's brand texture.
+    parts.push({ key: 'beacon', args: [0.45, 0.045, 0.8], position: [0.95, 1.30, 0], color: 'status', basic: true });
+    return parts;
+  }, [model]);
   const hoverEnabled = useMemo(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches, []);
   const buffers = useMemo(() => ({
     xs: new Float32Array(count), ys: new Float32Array(count), zs: new Float32Array(count),
-    headings: new Float32Array(count), bobs: new Float32Array(count)
+    travelXs: new Float32Array(count), pitches: new Float32Array(count), headings: new Float32Array(count), bobs: new Float32Array(count)
   }), [count]);
   const alphaArray = useMemo(() => new Float32Array(count).fill(1), [count]);
+  const paintArray = useMemo(() => {
+    const array = new Float32Array(count * 3).fill(-1);
+    if (paintMode === 'hub') items.forEach((item, i) => new THREE.Color(hubPaintColor(item.id)).toArray(array, i * 3));
+    return array;
+  }, [items, count, paintMode]);
   const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
-  const badgeGeometry = useMemo(() => new THREE.CylinderGeometry(0.4, 0.4, 0.1, 20), []);
-  useEffect(() => () => badgeGeometry.dispose(), [badgeGeometry]);
-  const badgeMesh = useRef(null);
-
-  // The GHN mark: drawn once from the app icon (same file as the sidebar), shared by both decals.
-  const logoTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-  }, []);
-  useEffect(() => {
-    let cancelled = false;
-    const image = new Image();
-    image.onload = () => {
-      if (cancelled) return;
-      const canvas = logoTexture.image;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, 128, 128);
-      ctx.drawImage(image, 0, 0, 128, 128);
-      logoTexture.needsUpdate = true;
-      invalidate();
-    };
-    image.src = LOGO_URL; // if it fails the decals simply stay transparent
-    return () => { cancelled = true; logoTexture.dispose(); };
-  }, [logoTexture, invalidate]);
+  const nitroGeometry = useMemo(() => new THREE.ConeGeometry(1, 1, 8), []);
+  useEffect(() => () => nitroGeometry.dispose(), [nitroGeometry]);
+  const nitroOuter = useRef(null);
+  const nitroInner = useRef(null);
+  const flameScale = useMemo(() => new THREE.Vector3(), []);
 
   const meshes = useRef([]);
   const itemsRef = useRef(items);
@@ -303,7 +283,7 @@ export function TruckFleet({
     const positions = positionsRef.current;
     positions.clear();
 
-    const { xs, ys, zs, headings, bobs } = buffers;
+    const { xs, ys, zs, travelXs, pitches, headings, bobs } = buffers;
     for (let i = 0; i < count; i++) {
       const item = items[i];
       let x = item.x;
@@ -314,17 +294,18 @@ export function TruckFleet({
         x = f.x; z = f.z; a = f.alpha;
       }
       const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
-      xs[i] = x; ys[i] = lift; zs[i] = z;
-      headings[i] = animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0;
+      const frame = sampleRoadFrame(x, z, roadLength);
+      xs[i] = frame.x; ys[i] = frame.y + lift; zs[i] = frame.z; travelXs[i] = x; pitches[i] = frame.pitch;
+      headings[i] = frame.heading + (animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0);
       bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : Math.sin(clock.time * 8 + i * 2.399) * 0.012;
       alphaArray[i] = a;
-      if (!item.ghost) positions.set(item.id, { x, z, lift });
+      positions.set(item.id, { x: frame.x, z: frame.z, lift: frame.y + lift, heading: headings[i], pitch: frame.pitch, roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost) });
     }
 
-    TRUCK_PARTS.forEach((part, p) => {
+    truckParts.forEach((part, p) => {
       const mesh = meshes.current[p];
       if (!mesh) return;
-      // A large fleet keeps suspension at rest: only the three rim meshes
+      // A large fleet keeps suspension at rest: only the four wheel meshes
       // need matrix uploads during cruise, rather than all body meshes.
       if (count > SHADOW_MAX_TRUCKS && !animated && !updateColors && !part.spin) return;
       _euler.set(...(part.rotation || [0, 0, 0]));
@@ -332,10 +313,10 @@ export function TruckFleet({
       _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
       const tinted = part.color === 'status';
       for (let i = 0; i < count; i++) {
-        _quat.setFromAxisAngle(_upAxis, headings[i]);
+        roadQuaternion(headings[i], pitches[i]);
         _truckMatrix.compose(_pos.set(xs[i], ys[i] + (part.wheel ? 0 : bobs[i]), zs[i]), _quat, _scale);
         if (part.spin) {
-          _euler.set(0, 0, -(clock.distance + xs[i]) / WHEEL_RADIUS);
+          _euler.set(0, 0, -(clock.distance + travelXs[i]) / (part.radius || WHEEL_RADIUS));
           _quat.setFromEuler(_euler);
           _wheelMatrix.compose(_pos.set(...part.position), _quat, _scale);
           _matrix.copy(_truckMatrix).multiply(_wheelMatrix);
@@ -363,7 +344,9 @@ export function TruckFleet({
           if (!item.dir || item.ghost) continue;
           _euler.set(item.dir < 0 ? Math.PI : 0, 0, 0);
           _quat.setFromEuler(_euler);
-          _matrix.compose(_pos.set(xs[i] + 0.3, 2.3 + bob + ys[i], zs[i]), _quat, _scale);
+          _partMatrix.compose(_pos.set(0.3, 2.3 + bob, 0), _quat, _scale);
+          _truckMatrix.compose(_pos.set(xs[i], ys[i], zs[i]), roadQuaternion(headings[i], pitches[i]), _scale);
+          _matrix.copy(_truckMatrix).multiply(_partMatrix);
           arrows.setMatrixAt(shown, _matrix);
           arrows.setColorAt(shown, _arrowColor.set(item.dir > 0 ? ARROW_UP : ARROW_DOWN));
           shown++;
@@ -374,22 +357,31 @@ export function TruckFleet({
       if (arrows.instanceColor) arrows.instanceColor.needsUpdate = true;
     }
 
-    // Gold / silver / bronze badge on the roof of ranks 1-3.
-    const badges = badgeMesh.current;
-    if (badges) {
-      let shown = 0;
-      for (let i = 0; i < count && shown < BADGE_COLORS.length; i++) {
-        const rank = items[i].item ? items[i].item.rank : null;
-        if (items[i].ghost || !(rank >= 1 && rank <= 3)) continue;
-        _quat.identity();
-        _matrix.compose(_pos.set(xs[i] - 0.45, 1.66 + ys[i], zs[i]), _quat, _scale);
-        badges.setMatrixAt(shown, _matrix);
-        badges.setColorAt(shown, _arrowColor.set(BADGE_COLORS[rank - 1]));
-        shown++;
+    // Two exhaust jets, two shared meshes: no particle system or extra GLB.
+    const leader = items.findIndex(item => !item.ghost && item.item?.rank === 1);
+    [nitroOuter.current, nitroInner.current].forEach((mesh, layer) => {
+      if (!mesh) return;
+      const visible = !reducedMotion && leader >= 0 && alphaArray[leader] > 0.3;
+      mesh.count = visible ? 2 : 0;
+      if (!visible) return;
+      const item = items[leader];
+      const accelerating = motion && item.from && item.to.x > item.from.x && t < 1;
+      const pulse = 1 + Math.sin(clock.time * 22) * 0.12;
+      const length = (accelerating ? 2.8 : 1.8) * pulse * (layer ? 0.7 : 1);
+      const width = layer ? 0.12 : 0.23;
+      _truckMatrix.compose(_pos.set(xs[leader], ys[leader], zs[leader]), roadQuaternion(headings[leader], pitches[leader]), _scale);
+      _quat.setFromAxisAngle(_pitchAxis, Math.PI / 2); // cone tip trails towards -x
+      for (let jet = 0; jet < 2; jet++) {
+        _partMatrix.compose(_pos.set(-1.43 - length / 2, 0.42, jet ? 0.32 : -0.32), _quat, flameScale.set(width, length, width));
+        mesh.setMatrixAt(jet, _matrix.copy(_truckMatrix).multiply(_partMatrix));
       }
-      badges.count = shown;
-      badges.instanceMatrix.needsUpdate = true;
-      if (badges.instanceColor) badges.instanceColor.needsUpdate = true;
+      mesh.material.opacity = (layer ? 0.95 : 0.6) * alphaArray[leader];
+      mesh.instanceMatrix.needsUpdate = true;
+    });
+
+    if (import.meta.env.DEV) {
+      const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
+      handle.fleet = { items, positions, motion, t };
     }
 
     // Suspension is too small to warrant a new 2048px shadow map every cruise frame.
@@ -407,7 +399,7 @@ export function TruckFleet({
     invalidate();
     // write() closes over the props listed here; it is intentionally not a dependency itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, invalidate]);
+  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, roadLength, paintMode, invalidate]);
 
   useFrame((_, delta) => {
     if (!clockRef.current.step) return;
@@ -430,24 +422,27 @@ export function TruckFleet({
 
   return (
     <group>
-      {TRUCK_PARTS.map((part, index) => (
+      {truckParts.map((part, index) => (
         <FleetPart
           key={part.key}
           part={part}
           index={index}
           count={count}
           alphaArray={alphaArray}
+          paintArray={paintArray}
           register={register}
           castShadow={castShadow}
-          logoTexture={logoTexture}
         />
       ))}
       <mesh visible={false} raycast={pickRaycast} {...pickHandlers}>
         <boxGeometry args={[0.1, 0.1, 0.1]} />
         <meshBasicMaterial />
       </mesh>
-      <instancedMesh ref={badgeMesh} args={[badgeGeometry, undefined, BADGE_COLORS.length]} frustumCulled={false} raycast={noRaycast}>
-        <meshBasicMaterial color="#ffffff" />
+      <instancedMesh name="prr-nitro-outer" ref={nitroOuter} args={[nitroGeometry, undefined, 2]} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial color="#16bfff" transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+      </instancedMesh>
+      <instancedMesh name="prr-nitro-inner" ref={nitroInner} args={[nitroGeometry, undefined, 2]} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial color="#d9fbff" transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </instancedMesh>
       <instancedMesh ref={arrowMesh} args={[arrowGeometry, undefined, Math.max(1, count)]} frustumCulled={false}>
         <meshBasicMaterial color="#ffffff" />
@@ -457,23 +452,49 @@ export function TruckFleet({
 }
 
 /** Flat highlight ring on the asphalt under the selected truck (same cyan as the 2D spotlight). */
-export function SelectionRing({ id, x, z, positionsRef }) {
+export function SelectionRing({ id, x, z, positionsRef, roadLength }) {
   const ref = useRef(null);
+  const initial = sampleRoadFrame(x, z, roadLength);
   useFrame(() => {
     const p = positionsRef.current.get(id);
-    if (p && ref.current) ref.current.position.set(p.x, 0.04, p.z);
+    if (p && ref.current) {
+      ref.current.position.set(p.x, p.lift + 0.04, p.z);
+      ref.current.quaternion.copy(roadQuaternion(p.heading, p.pitch)).multiply(_ringQuat);
+    }
   });
   return (
-    <mesh ref={ref} position={[x, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.62, 1]}>
+    <mesh ref={ref} position={[initial.x, initial.y + 0.04, initial.z]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.62, 1]}>
       <ringGeometry args={[2.0, 2.25, 48]} />
       <meshBasicMaterial color="#38bdf8" />
     </mesh>
   );
 }
 
+function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
+  const g = new THREE.PlaneGeometry(length, width, Math.min(512, Math.max(64, Math.ceil(length / 0.75))), across);
+  g.rotateX(-Math.PI / 2);
+  const p = g.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const f = sampleRoadFrame(p.getX(i), p.getZ(i) + centreZ, roadLength);
+    p.setXYZ(i, f.x, f.y + height, f.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
 export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
   const roadWidth = laneCount * laneWidth + 0.6;
+  const pavedLength = roadLength + Math.max(18, Math.min(40, roadLength * 0.4)) * 2;
+  const edgeZ = roadWidth / 2 + 0.25;
+  const surfaces = useMemo(() => ({
+    ground: curvedStrip(Math.min(roadLength + 100, getRoadCurveRadius(roadLength) * 2.8), getRoadCurveRadius(roadLength) * 1.8, 0, -0.04, roadLength, 20),
+    asphalt: curvedStrip(pavedLength, roadWidth, 0, 0, roadLength),
+    shoulders: [edgeZ, -edgeZ].map(z => curvedStrip(pavedLength, 0.5, z, 0.04, roadLength))
+  }), [roadLength, roadWidth, edgeZ, pavedLength]);
+  useEffect(() => () => {
+    surfaces.ground.dispose(); surfaces.asphalt.dispose(); surfaces.shoulders.forEach(g => g.dispose());
+  }, [surfaces]);
   const dashRef = useRef(null);
   const invalidate = useThree((s) => s.invalidate);
   const asphaltTexture = useMemo(() => {
@@ -488,30 +509,31 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
     }
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set((roadLength + 6) / 4, roadWidth / 4);
+    texture.repeat.set(pavedLength / 4, roadWidth / 4);
     return texture;
-  }, [roadLength, roadWidth]);
+  }, [pavedLength, roadWidth]);
   useEffect(() => () => asphaltTexture.dispose(), [asphaltTexture]);
 
   const dashes = useMemo(() => {
     const list = [];
     const step = 4;
-    const count = Math.floor((roadLength + 6) / step);
+    const count = Math.floor(pavedLength / step);
     for (let boundary = 1; boundary < laneCount; boundary++) {
       const z = (boundary - laneCount / 2) * laneWidth;
-      for (let i = 0; i < count; i++) list.push([-roadLength / 2 - 3 + step / 2 + i * step, z]);
+      for (let i = 0; i < count; i++) list.push([-pavedLength / 2 + step / 2 + i * step, z]);
     }
     return list;
-  }, [roadLength, laneCount, laneWidth]);
+  }, [pavedLength, laneCount, laneWidth]);
 
   const writeRoad = () => {
     const mesh = dashRef.current;
     if (!mesh) return;
     const distance = clockRef.current.distance;
-    const minX = -roadLength / 2 - 3;
-    const span = Math.floor((roadLength + 6) / 4) * 4;
+    const minX = -pavedLength / 2;
+    const span = Math.floor(pavedLength / 4) * 4;
     dashes.forEach(([x, z], i) => {
-      _matrix.makeTranslation(wrapRoadTravel(x, distance, minX, span), 0.012, z);
+      const f = sampleRoadFrame(wrapRoadTravel(x, distance, minX, span), z, roadLength);
+      _matrix.compose(_pos.set(f.x, f.y + 0.012, f.z), roadQuaternion(f.heading, f.pitch), _scale);
       mesh.setMatrixAt(i, _matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -527,21 +549,17 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
     if (clockRef.current.step) writeRoad();
   });
 
-  const edgeZ = roadWidth / 2 + 0.25;
   return (
     <group>
       {/* ground: unlit, fades into the sky colour through the scene fog, so there is no horizon band */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]}>
-        <planeGeometry args={[roadLength * 4 + 400, 600]} />
+      <mesh geometry={surfaces.ground}>
         <meshBasicMaterial color={theme.ground} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[roadLength + 6, roadWidth]} />
+      <mesh geometry={surfaces.asphalt} receiveShadow>
         <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} roughness={0.95} />
       </mesh>
-      {[edgeZ, -edgeZ].map((z) => (
-        <mesh key={z} position={[0, 0.05, z]}>
-          <boxGeometry args={[roadLength + 6, 0.1, 0.5]} />
+      {surfaces.shoulders.map((geometry, i) => (
+        <mesh key={i} geometry={geometry}>
           <meshStandardMaterial color={theme.shoulder} />
         </mesh>
       ))}
@@ -578,11 +596,12 @@ function Roadside({ roadLength, roadWidth, theme, clockRef }) {
     if (trunk && canopy) {
       trees.forEach((t, i) => {
         const x = wrapRoadTravel(t.x, distance, -span / 2, span);
+        const f = sampleRoadFrame(x, t.z, roadLength);
         treeAlpha[i] = roadsideAlpha(x, roadLength);
         _quat.setFromAxisAngle(_upAxis, (i * 2.399) % (Math.PI * 2));
-        _matrix.compose(_pos.set(x, 0.4 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        _matrix.compose(_pos.set(f.x, f.y + 0.4 * t.scale, f.z), _quat, _scale.set(t.scale, t.scale, t.scale));
         trunk.setMatrixAt(i, _matrix);
-        _matrix.compose(_pos.set(x, 1.6 * t.scale, t.z), _quat, _scale.set(t.scale, t.scale, t.scale));
+        _matrix.compose(_pos.set(f.x, f.y + 1.6 * t.scale, f.z), _quat, _scale.set(t.scale, t.scale, t.scale));
         canopy.setMatrixAt(i, _matrix);
         if (updateColors) canopy.setColorAt(i, color.set(theme.treeCanopy[t.tint % theme.treeCanopy.length]));
       });
@@ -593,13 +612,14 @@ function Roadside({ roadLength, roadWidth, theme, clockRef }) {
     if (pole && plate) {
       signs.forEach((sg, i) => {
         const x = wrapRoadTravel(sg.x, distance, -span / 2, span);
+        const f = sampleRoadFrame(x, sg.z, roadLength);
         signAlpha[i] = roadsideAlpha(x, roadLength);
         _quat.identity();
-        _matrix.compose(_pos.set(x, 1.3, sg.z), _quat, _scale.set(1, 1, 1));
+        _matrix.compose(_pos.set(f.x, f.y + 1.3, f.z), _quat, _scale.set(1, 1, 1));
         pole.setMatrixAt(i, _matrix);
         // the plate faces the road
-        _quat.setFromAxisAngle(_upAxis, sg.side > 0 ? Math.PI : 0);
-        _matrix.compose(_pos.set(x, 2.55, sg.z), _quat, _scale.set(1, 1, 1));
+        _quat.setFromAxisAngle(_upAxis, f.heading + (sg.side > 0 ? Math.PI : 0));
+        _matrix.compose(_pos.set(f.x, f.y + 2.55, f.z), _quat, _scale.set(1, 1, 1));
         plate.setMatrixAt(i, _matrix);
       });
     }
@@ -707,8 +727,14 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
 
   useFrame(({ camera, size, controls, gl }) => {
     const canvas = overlayRef.current;
+    if (!canvas) return;
+    // The DOM canvas can commit after the Fiber scene (especially a cached
+    // GLB mount). Initialise once it exists, rather than losing every label.
+    if (!fontsRef.current) {
+      const style = getComputedStyle(canvas);
+      fontsRef.current = { family: style.fontFamily || 'sans-serif', mono: style.getPropertyValue('--font-mono').trim() || 'ui-monospace, Consolas, monospace' };
+    }
     const fonts = fontsRef.current;
-    if (!canvas || !fonts) return;
     const ctx = canvas.getContext('2d');
     const dpr = gl.getPixelRatio();
     const pxW = Math.round(size.width * dpr);
@@ -730,10 +756,12 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
     const nearRange = Math.max(MIN_NEAR_RANGE, (target ? camera.position.distanceTo(target) : 0) * NEAR_RANGE_FACTOR);
 
     // The bottom strip holds the caption and the controls: labels never sit under them.
-    const placed = [{ l: 0, r: size.width, t: size.height - BOTTOM_RESERVED, b: size.height }];
+    const reserved = size.width < 400 ? 140 : compact ? 100 : BOTTOM_RESERVED;
+    const placed = [{ l: 0, r: size.width, t: size.height - reserved, b: size.height }];
     const debug = [];
     for (const label of order) {
       const followed = label.followId ? positionsRef.current.get(label.followId) : null;
+      if (followed && (followed.ghost || followed.alpha < 0.08)) continue;
       if (followed) vec.set(followed.x, (label.baseY || 0) + followed.lift, followed.z);
       else vec.set(...label.position);
       const distance = camera.position.distanceTo(vec);
@@ -751,12 +779,35 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       const above = label.anchor !== 'center';
       const rawY = (-vec.y * 0.5 + 0.5) * size.height;
       const anchorY = above ? Math.max(rawY, box.h + LABEL_PADDING) : Math.max(rawY, box.h / 2 + LABEL_PADDING);
-      const left = cx - half;
-      const top = above ? anchorY - box.h : anchorY - box.h / 2;
-      const hit = { l: left - LABEL_PADDING, r: left + box.w + LABEL_PADDING, t: top - LABEL_PADDING, b: top + box.h + LABEL_PADDING };
-      if (placed.some((o) => hit.l < o.r && hit.r > o.l && hit.t < o.b && hit.b > o.t)) continue;
+      let left = cx - half;
+      let top = above ? anchorY - box.h : anchorY - box.h / 2;
+      const collides = h => placed.some(o => h.l < o.r && h.r > o.l && h.t < o.b && h.b > o.t);
+      const bounds = (x, y) => ({ l: x - LABEL_PADDING, r: x + box.w + LABEL_PADDING, t: y - LABEL_PADDING, b: y + box.h + LABEL_PADDING });
+      let hit = bounds(left, top);
+      if (label.spec.medal && collides(hit)) {
+        // Keep all three podium labels legible, with a tether to the real truck.
+        let candidate = null;
+        for (const dy of [0, -box.h - 8, -2 * (box.h + 8), box.h + 8]) {
+          for (const dx of [0, -box.w - 8, box.w + 8]) {
+            const x = Math.max(LABEL_PADDING, Math.min(size.width - box.w - LABEL_PADDING, left + dx));
+            const y = Math.max(LABEL_PADDING, top + dy);
+            const h = bounds(x, y);
+            if (!collides(h)) { candidate = { x, y, h }; break; }
+          }
+          if (candidate) break;
+        }
+        if (candidate) { left = candidate.x; top = candidate.y; hit = candidate.h; }
+      }
+      if (collides(hit)) continue;
       placed.push(hit);
+      ctx.save();
+      ctx.globalAlpha = followed?.alpha ?? 1;
+      if (label.spec.medal) {
+        ctx.beginPath(); ctx.moveTo(left + box.w / 2, top + box.h); ctx.lineTo(cx, rawY + 8);
+        ctx.strokeStyle = label.spec.medal; ctx.lineWidth = 1.5; ctx.stroke();
+      }
       drawLabel(ctx, label.spec, box, left, top, fonts);
+      ctx.restore();
       if (import.meta.env.DEV) {
         debug.push({ key: label.key, kind: label.spec.kind, state: label.spec.state || '', text: label.spec.name || label.spec.text || '', x: left, y: top, w: box.w, h: box.h });
       }
