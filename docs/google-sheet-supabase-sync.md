@@ -49,6 +49,12 @@ nào là unique key tự nhiên (vd `report_date+hub+client_name` hay
 Code đã có sẵn trong repo:
 - `src/utils/supabaseSheetSync.js` — app đọc từ các bảng Supabase (`select *`
   mỗi bảng), format ra đúng shape mà `App.jsx` đang cần.
+- `src/utils/supabaseTableReader.js` — phân trang theo khóa chính `id` (tối đa
+  1.000 dòng/request), dùng `id > cursor` và giới hạn ở ID cuối của lượt tải.
+  Sau khi đọc, kiểm tra lại `id,synced_at` của dòng cuối; nếu job sync thay dữ
+  liệu giữa chừng thì bỏ kết quả cũ và thử lại một lần. Timeout 15 giây hủy
+  request; vượt 100 trang hoặc thiếu dòng cuối trả lỗi, không báo dữ liệu thiếu
+  là một snapshot thành công. Vẫn lấy đủ lịch sử, khách hàng và cột hiện có.
 - `src/App.jsx` — tự động gọi Supabase trước, fallback qua CSV cũ nếu chưa
   có data (chỉ hữu ích cho sheet test còn public, không phải sheet nội bộ).
 - `scripts/apps-script/sync-to-supabase.gs` — script cần cài **vào chính
