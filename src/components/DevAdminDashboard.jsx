@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Activity, Bot, ChevronRight, Layers, MessageSquare, Search, ShieldCheck, SlidersHorizontal, Users, Wallet } from 'lucide-react';
+import { Activity, Bot, ChevronRight, Clock, Layers, MessageSquare, Search, ShieldCheck, SlidersHorizontal, Users, Wallet } from 'lucide-react';
 import AiOperationsDashboard from './AiOperationsDashboard';
 import AppRoleSettings from './AppRoleSettings';
 import CodSmsThresholdSettings from './CodSmsThresholdSettings';
+import CodSmsScheduleSettings from './CodSmsScheduleSettings';
 import DevAccessActivity from './DevAccessActivity';
 import { clearDevDataCache } from '../utils/devDataClient.js';
 import './DevAdminDashboard.css';
@@ -21,7 +22,8 @@ const GROUPS = [
   ] },
   { label: 'COD SMS', items: [
     { id: 'cod-config', label: 'Model chấm SMS', icon: MessageSquare, view: 'model-config', feature: 'cod_sms', description: 'Chọn model và mức suy luận cho tác vụ chấm SMS. Cấu hình áp dụng cho toàn bộ tác vụ.' },
-    { id: 'cod-threshold', label: 'Mốc nâng nghi ngờ', icon: SlidersHorizontal, description: 'Điều chỉnh mốc điểm SMS dùng để nâng mức nghi ngờ COD.' }
+    { id: 'cod-threshold', label: 'Mốc nâng nghi ngờ', icon: SlidersHorizontal, description: 'Điều chỉnh mốc điểm SMS dùng để nâng mức nghi ngờ COD.' },
+    { id: 'cod-schedule', label: 'Lịch chấm SMS', icon: Clock, description: 'Bật/tắt và chọn giờ chấm SMS hằng ngày theo giờ Việt Nam.' }
   ] },
   { label: 'Tài khoản & truy cập', items: [
     { id: 'roles', label: 'Phân quyền', icon: ShieldCheck, description: 'Quản lý quyền User, Admin và Dev cho tài khoản đã đăng nhập.' },
@@ -57,7 +59,8 @@ export default function DevAdminDashboard({ onlineUsers = [], currentUser, activ
         {active && (section.view ? <AiOperationsDashboard key={section.id} currentUser={currentUser} view={section.view} feature={section.feature || 'chat'} />
           : section.id === 'roles' ? <AppRoleSettings currentUser={currentUser} />
             : section.id === 'cod-threshold' ? <CodSmsThresholdSettings currentUser={currentUser} />
-              : <DevAccessActivity onlineUsers={onlineUsers} currentUser={currentUser} />)}
+              : section.id === 'cod-schedule' ? <CodSmsScheduleSettings currentUser={currentUser} />
+                : <DevAccessActivity onlineUsers={onlineUsers} currentUser={currentUser} />)}
       </section>
     </div>
   </div>;

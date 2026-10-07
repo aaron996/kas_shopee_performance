@@ -6,10 +6,6 @@
     {
       "path": "/api/cron/ai-model-sync",
       "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/cron/cod-sms-score",
-      "schedule": "0 2 * * *"
     }
   ],
   "rewrites": [

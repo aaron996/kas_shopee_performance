@@ -3,6 +3,7 @@ import { ChatError, toPublicError } from '../chat/errors.js';
 import { sendJson } from '../chat/sse.js';
 import { readCodSmsConfig, resolveCodSmsModelConfig } from './config.js';
 import { createCodSmsRepository, runAssessmentBatch, withLoggedRun } from './service.js';
+import { createDispatchRepository, readDispatchId } from './schedule.js';
 
 // Safety cap on how many pages a single cron run will walk through the
 // source table. At the default maxBatchLimit (<=500/page) this still covers
@@ -12,7 +13,7 @@ const MAX_PAGES_PER_RUN = 20;
 
 export function verifyCronSecret(authHeader, expectedSecret) {
   if (!expectedSecret) {
-    throw new ChatError('COD_SMS_CRON_CONFIG_MISSING', 'CRON_SECRET chưa được cấu hình.', 503);
+    throw new ChatError('COD_SMS_CRON_CONFIG_MISSING', 'Secret của scheduler SMS chưa được cấu hình.', 503);
   }
   if (authHeader !== `Bearer ${expectedSecret}`) {
     throw new ChatError('COD_SMS_CRON_UNAUTHORIZED', 'Không có quyền gọi cron job SMS.', 401);
@@ -121,8 +122,10 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
 }
 
 export function createCodSmsCronHandler(dependencies = {}) {
-  const cronSecret = dependencies.cronSecret ?? process.env.CRON_SECRET;
+  const env = dependencies.env ?? process.env;
+  const cronSecret = dependencies.cronSecret ?? env.COD_SMS_SCHEDULER_SECRET ?? env.CRON_SECRET;
   const runDailyBatch = dependencies.runDailyBatch ?? runDailyCodSmsBatch;
+  const makeDispatchRepository = dependencies.createDispatchRepository ?? createDispatchRepository;
 
   return async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -133,8 +136,18 @@ export function createCodSmsCronHandler(dependencies = {}) {
       return;
     }
 
+    let dispatchId;
+    let dispatchRepository;
+    let claimed = false;
     try {
       verifyCronSecret(req.headers.authorization, cronSecret);
+      dispatchId = readDispatchId(req.body);
+      dispatchRepository = makeDispatchRepository(dependencies.env ?? process.env);
+      claimed = await dispatchRepository.claim(dispatchId);
+      if (!claimed) {
+        sendJson(res, 200, { contractVersion: '1', cron: true, skipped: 'dispatch_already_claimed_or_expired' });
+        return;
+      }
 
       const controller = new AbortController();
       res.on?.('close', () => {
@@ -147,13 +160,18 @@ export function createCodSmsCronHandler(dependencies = {}) {
         readConfig: dependencies.readConfig,
         createServiceClient: dependencies.createServiceClient,
         createRepository: dependencies.createRepository,
+        resolveModelConfig: dependencies.resolveModelConfig,
         runBatch: dependencies.runBatch,
         maxPages: dependencies.maxPages
       });
-
+      await dispatchRepository.finish(dispatchId, totals.failed > 0 || totals.aborted ? 'partial' : 'completed', totals);
       sendJson(res, 200, { contractVersion: '1', cron: true, totals });
     } catch (error) {
       const failure = toPublicError(error);
+      if (claimed) {
+        try { await dispatchRepository.finish(dispatchId, 'failed', null, failure.code); }
+        catch { console.error('COD_SMS_DISPATCH_LOG_FAILED', dispatchId); }
+      }
       sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });
     }
   };

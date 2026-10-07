@@ -54,8 +54,11 @@ backfilled into the table with that timestamp.
 
 ## Schedule
 
-The SMS cron (`0 2 * * *` UTC) fires somewhere in 09:00–09:59 VN on the Hobby
-plan, so the Apps Script trigger runs at ~10:15 VN. The response carries
+The Apps Script export trigger runs at ~10:15 VN, originally after the Vercel
+SMS cron's 09:00–09:59 VN window. SMS scheduling now moves to the Dev-managed
+[Supabase Cron schedule](cod-sms-schedule.md). Changing the SMS time does not
+reschedule the Apps Script export: keep scoring before export, or adjust that
+trigger separately. The response carries
 `snapshotSyncedAt` and `lastSmsRun`; the script logs a note if scoring is
 still running.
 
