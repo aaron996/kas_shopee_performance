@@ -331,7 +331,7 @@ export default function RoadScene3D({
   const theme = pickSceneTheme(colors.isDark);
   const clockRef = useRef(createDriveClock());
   const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
-  const [paintMode, setPaintMode] = useState('ghn'); // brand paint or stable Hub identity
+  const [paintMode, setPaintMode] = useState('hub'); // stable roof identity by default
   const [hoveredId, setHoveredId] = useState(null);
   const [camMode, setCamMode] = useState(selectedHubId ? 'follow' : 'tv');
   const sceneCamMode = useRef('tv'); // restore the chosen scene view after clearing a Hub
@@ -599,7 +599,7 @@ export default function RoadScene3D({
       <div className="prr-3d-controls">
         <div className="prr-segmented-limit" role="group" aria-label="Màu xe">
           <button type="button" className={`seg-btn ${paintMode === 'ghn' ? 'active' : ''}`} aria-pressed={paintMode === 'ghn'} onClick={() => setPaintMode('ghn')}>GHN</button>
-          <button type="button" className={`seg-btn ${paintMode === 'hub' ? 'active' : ''}`} aria-pressed={paintMode === 'hub'} title="Mỗi Hub có màu sơn cố định, độc lập với KPI và thứ hạng" onClick={() => setPaintMode('hub')}>Theo Hub</button>
+          <button type="button" className={`seg-btn ${paintMode === 'hub' ? 'active' : ''}`} aria-pressed={paintMode === 'hub'} title="Mỗi Hub có dải màu nóc cố định, độc lập với KPI và thứ hạng" onClick={() => setPaintMode('hub')}>Theo Hub</button>
         </div>
         <button
           type="button"

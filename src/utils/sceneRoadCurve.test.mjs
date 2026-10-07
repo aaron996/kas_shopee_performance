@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from './sceneRoadCurve.js';
-import { hubPaintColor, truckPaintMask } from './sceneTruckPaint.js';
+import { hubPaintColor, hubRoofCode, truckPaintMask } from './sceneTruckPaint.js';
 
 test('curve preserves lane separation, road centre and monotonic rank order', () => {
   for (const length of [36, 48, 120, 1400, 2400]) {
@@ -37,10 +37,17 @@ test('truck frame follows the road tangent and its inverse keeps picking local',
 test('paint identity survives ranking/filter changes and logo regions stay protected', () => {
   const ids=Array.from({length:30},(_,i)=>`HNO::Hub mẫu ${i}::Hub LM`);
   const colors=new Map(ids.map(id=>[id,hubPaintColor(id)]));
+  const codes=new Map(ids.map(id=>[id,hubRoofCode(id)]));
   assert.equal(new Set(colors.values()).size,30);
-  for (const id of ids.reverse().slice(0,20)) assert.equal(hubPaintColor(id),colors.get(id));
+  for (const id of ids.reverse().slice(0,20)) {
+    assert.equal(hubPaintColor(id),colors.get(id));
+    assert.equal(hubRoofCode(id),codes.get(id));
+    assert.match(hubRoofCode(id), /^[0-9A-F]{4}$/);
+  }
   assert.equal(truckPaintMask(-0.4,0.9),0);
   assert.equal(truckPaintMask(-0.4,1.53),0);
-  assert.equal(truckPaintMask(1.1,0.9),1);
-  assert.equal(truckPaintMask(-0.4,1.35),1);
+  assert.equal(truckPaintMask(1.1,0.9),0);
+  assert.equal(truckPaintMask(-0.4,1.35),0);
+  assert.equal(truckPaintMask(0.4,1.53),1);
+  assert.equal(truckPaintMask(0.4,1.53,0),0);
 });

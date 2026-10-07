@@ -1,37 +1,62 @@
-// Identity colours are independent of KPI, rank, filters and array order.
-export function hubPaintColor(id) {
+// Identity is independent of KPI, rank, filters and array order.
+function hubHash(id) {
   let hash = 2166136261;
   for (const character of String(id)) {
     hash ^= character.codePointAt(0);
     hash = Math.imul(hash, 16777619);
   }
-  const hue = (hash >>> 0) / 4294967296 * 360;
-  return `hsl(${hue.toFixed(4)}, 68%, 53%)`;
+  return hash >>> 0;
 }
-
-// Preserve the model's logo band and roof decals; change cabin and plain panels.
-// This mask is calibrated to /models/ghn-truck-wheels-v1.glb (3 units long).
-const CABIN_X = 0.65, LOGO_BOTTOM = 0.69, LOGO_TOP = 1.19, ROOF_Y = 1.49;
-export function truckPaintMask(x, y) {
-  if (x > CABIN_X) return 1;
-  return y >= LOGO_BOTTOM && y < LOGO_TOP || y >= ROOF_Y ? 0 : 1;
+export function hubPaintColor(id) {
+  return `hsl(${(hubHash(id) / 4294967296 * 360).toFixed(4)}, 68%, 53%)`;
 }
-
-export function patchTruckPaint(shader) {
+// Visual identifier, not the business Hub code or current rank.
+export function hubRoofCode(id) {
+  return hubHash(id).toString(16).toUpperCase().padStart(8, '0').slice(-4);
+}
+// Calibrated to the current 3-unit GLB, cab towards +X.
+export const TRUCK_ROOF = { minX: -1.5, maxX: 0.65, minY: 1.49, bandX: 0.263 };
+export function truckPaintMask(x, y, normalY = 1) {
+  return x <= TRUCK_ROOF.maxX && y >= TRUCK_ROOF.minY && normalY > 0.5 && x >= TRUCK_ROOF.bandX ? 1 : 0;
+}
+export function patchTruckPaint(shader, glyphTexture) {
+  shader.uniforms.roofGlyphs = { value: glyphTexture };
   shader.vertexShader = shader.vertexShader
-    .replace('#include <common>', '#include <common>\nattribute vec3 instancePaint;\nvarying vec3 vInstancePaint;\nvarying vec2 vPaintPosition;')
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvInstancePaint = instancePaint;\nvPaintPosition = position.xy;');
+    .replace('#include <common>', `#include <common>
+      attribute vec3 instancePaint;
+      attribute vec4 instanceRoofCode;
+      varying vec3 vInstancePaint;
+      varying vec4 vRoofCode;
+      varying vec3 vPaintPosition;
+      varying float vRoofNormal;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+      vInstancePaint = instancePaint;
+      vRoofCode = instanceRoofCode;
+      vPaintPosition = position;
+      vRoofNormal = normal.y;`);
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nvarying vec3 vInstancePaint;\nvarying vec2 vPaintPosition;')
+    .replace('#include <common>', `#include <common>
+      uniform sampler2D roofGlyphs;
+      varying vec3 vInstancePaint;
+      varying vec4 vRoofCode;
+      varying vec3 vPaintPosition;
+      varying float vRoofNormal;`)
     .replace('#include <map_fragment>', `#include <map_fragment>
-      // Source paint is orange. Keep white, blue, glass and rubber unchanged.
-      float orangePaint = smoothstep(0.12, 0.28, diffuseColor.r - max(diffuseColor.g, diffuseColor.b));
-      float paintEnabled = step(0.0, vInstancePaint.r);
-      // Evaluate the band per fragment: large panel triangles span the logo.
-      float logoBand = step(${LOGO_BOTTOM}, vPaintPosition.y) * (1.0 - step(${LOGO_TOP}, vPaintPosition.y));
-      float roofDecal = step(${ROOF_Y}, vPaintPosition.y);
-      float paintMask = vPaintPosition.x > ${CABIN_X} ? 1.0 : 1.0 - max(logoBand, roofDecal);
-      float paintShade = clamp(diffuseColor.r / 0.9, 0.18, 1.15);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vInstancePaint * paintShade, orangePaint * paintMask * paintEnabled);
+      // Replace only upward cargo roof, including its upside-down source decal.
+      if (vPaintPosition.x <= ${TRUCK_ROOF.maxX} && vPaintPosition.y >= ${TRUCK_ROOF.minY} && vRoofNormal > 0.5) {
+        vec3 roofColor = vec3(0.91, 0.90, 0.86);
+        if (vPaintPosition.x >= ${TRUCK_ROOF.bandX}) {
+          roofColor = vInstancePaint.r >= 0.0 ? vInstancePaint : vec3(0.88, 0.19, 0.025);
+        }
+        // Text reads across the truck, top towards the cab.
+        vec2 codeUV = vec2((vPaintPosition.z + 0.44) / 0.88, (vPaintPosition.x + 0.84) / 0.48);
+        if (codeUV.x >= 0.0 && codeUV.x < 1.0 && codeUV.y >= 0.0 && codeUV.y <= 1.0) {
+          float cell = floor(codeUV.x * 4.0);
+          float glyph = cell < 1.0 ? vRoofCode.x : cell < 2.0 ? vRoofCode.y : cell < 3.0 ? vRoofCode.z : vRoofCode.w;
+          float ink = texture2D(roofGlyphs, vec2((glyph + fract(codeUV.x * 4.0)) / 16.0, codeUV.y)).a;
+          roofColor = mix(roofColor, vec3(0.018, 0.028, 0.045), ink);
+        }
+        diffuseColor.rgb = roofColor;
+      }
     `);
 }

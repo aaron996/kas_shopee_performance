@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
 import Roadside from './Roadside.jsx';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
-import { hubPaintColor, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
+import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
@@ -60,8 +60,7 @@ const _ringQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0
 function roadQuaternion(heading, pitch) {
   return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
 }
-function patchPaintedAlpha(shader) { patchInstanceAlpha(shader); patchTruckPaint(shader); }
-const paintCacheKey = () => 'instanceAlpha-truckPaint-v1';
+const paintCacheKey = () => 'instanceAlpha-truckRoof-v2';
 
 const noRaycast = () => {};
 
@@ -99,7 +98,7 @@ function pickedId(e, items) {
 }
 
 /** One InstancedMesh for a truck part. Registers itself (mesh + material) with the fleet. */
-function FleetPart({ part, index, count, alphaArray, paintArray, register, castShadow }) {
+function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyphTexture, register, castShadow }) {
   const painted = part.key === 'body';
   const geometry = useMemo(() => {
     // Fleet-owned geometry carries its alpha attribute; the cached GLTF stays unchanged.
@@ -107,9 +106,10 @@ function FleetPart({ part, index, count, alphaArray, paintArray, register, castS
     g.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alphaArray, 1));
     if (painted) {
       g.setAttribute('instancePaint', new THREE.InstancedBufferAttribute(paintArray, 3));
+      g.setAttribute('instanceRoofCode', new THREE.InstancedBufferAttribute(codeArray, 4));
     }
     return g;
-  }, [part, alphaArray, painted, paintArray]);
+  }, [part, alphaArray, painted, paintArray, codeArray]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   // transparent from the start: flipping `transparent` at runtime changes three's program key
@@ -117,7 +117,7 @@ function FleetPart({ part, index, count, alphaArray, paintArray, register, castS
   // hitch. At alpha 1 a transparent material renders the same as an opaque one.
   const materialProps = {
     transparent: true,
-    onBeforeCompile: painted ? patchPaintedAlpha : patchInstanceAlpha,
+    onBeforeCompile: painted ? (shader) => { patchInstanceAlpha(shader); patchTruckPaint(shader, glyphTexture); } : patchInstanceAlpha,
     customProgramCacheKey: painted ? paintCacheKey : alphaCacheKey
   };
   const color = part.color === 'status' ? '#ffffff' : part.color;
@@ -227,6 +227,23 @@ export function TruckFleet({
     if (paintMode === 'hub') items.forEach((item, i) => new THREE.Color(hubPaintColor(item.id)).toArray(array, i * 3));
     return array;
   }, [items, count, paintMode]);
+  const codeArray = useMemo(() => Float32Array.from(items.flatMap(item =>
+    [...hubRoofCode(item.id)].map(digit => parseInt(digit, 16)))), [items]);
+  const glyphTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 96;
+    const context = canvas.getContext('2d');
+    context.font = 'bold 72px monospace';
+    context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.fillStyle = '#ffffff';
+    [...'0123456789ABCDEF'].forEach((glyph, i) => context.fillText(glyph, i * 64 + 32, 48));
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }, []);
+  useEffect(() => () => glyphTexture.dispose(), [glyphTexture]);
   const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
   const nitroGeometry = useMemo(() => new THREE.ConeGeometry(1, 1, 8), []);
@@ -430,6 +447,8 @@ export function TruckFleet({
           count={count}
           alphaArray={alphaArray}
           paintArray={paintArray}
+          codeArray={codeArray}
+          glyphTexture={glyphTexture}
           register={register}
           castShadow={castShadow}
         />

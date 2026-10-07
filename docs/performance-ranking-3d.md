@@ -858,3 +858,20 @@ So với Sprint 0: chunk 3D 912,6 → 961,7 kB (+49 kB) cho toàn bộ cảnh, t
 Playwright + Chrome (GPU thật), dữ liệu tổng hợp: bộ kiểm tra tương tác (Sprint 2), Replay/chuyển cảnh (Sprint 3),
 đường lui/rò tài nguyên/chạm (Sprint 4) và độ tương phản nút điều khiển chạy lại sau các thay đổi, đều đạt.
 Ảnh: `docs/evidence/ranking-3d-sprint5/` (sáng/tối × tổng quan, chân trời, bám xe hạng 1; mobile sáng/tối).
+
+## Nóc xe — template 03 (2026-10-07)
+
+- Nóc trắng ngà với một dải ngang sát cabin, chiếm 18% chiều dài nóc.
+  Thay decal/logo bị ngược trên bề mặt hướng lên; cabin và logo hông giữ
+  texture GHN gốc. Theo Hub chỉ đổi dải nóc, mở mặc định; GHN dùng dải cam.
+- Màu và mã bốn ký tự hex cố định theo composite Hub ID, độc lập với
+  thứ hạng/KPI/bộ lọc. Mã này là ký hiệu thị giác, không phải mã Hub nghiệp vụ;
+  hash rút gọn có thể trùng, nên nhãn Hub vẫn là thông tin xác định chính thức.
+- Dùng shader trên thân instanced và một atlas glyph CanvasTexture dùng chung,
+  không thêm mesh/draw call cho nóc, không sửa GLB. Atlas dispose khi unmount.
+- QA trong tab Codex IAB riêng, fixture 20 Hub: TV cam, chọn/bám xe,
+  chuyển GHN/Theo Hub; desktop 1280 × 720 và mobile 390 × 844.
+  Không ghi nhận lỗi console/shader. Ảnh ở output/playwright/truck-roof-*.png.
+  Đây là fixture cục bộ, chưa kiểm tra trang production đăng nhập hoặc thiết bị thật.
+- Build đạt, 539/539 test đạt; lint không báo lỗi ở các file sửa.
+  Detector thiết kế không có finding; cảnh báo lint có sẵn ngoài phạm vi giữ nguyên.
