@@ -10,9 +10,10 @@ const PRICES = [
 const blank = () => ({ id: '', label: '', revision: null, reasoningEfforts: [], defaultReasoningEffort: null, pricing: {} });
 const date = value => value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đồng bộ';
 
-export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
-  const [registry, setRegistry] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function AiModelRegistry({ fetchWithAuth, peekData, onChanged }) {
+  const cached = peekData?.('/api/ai-ops?view=model-registry');
+  const [registry, setRegistry] = useState(cached || null);
+  const [loading, setLoading] = useState(!cached);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -26,13 +27,13 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [priceSource, setPriceSource] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ forceRefresh = false } = {}) => {
+    setLoading(forceRefresh || !peekData?.('/api/ai-ops?view=model-registry'));
     setError('');
-    try { setRegistry(await fetchWithAuth('/api/ai-ops?view=model-registry')); }
+    try { setRegistry(await fetchWithAuth('/api/ai-ops?view=model-registry', { forceRefresh })); }
     catch (err) { setRegistry(null); setError(err.message || 'Không tải được danh sách model.'); }
     finally { setLoading(false); }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, peekData]);
   useEffect(() => { load(); }, [load]);
 
   async function mutate(action, payload, success) {
@@ -41,12 +42,12 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
     try {
       const result = await fetchWithAuth('/api/ai-ops', { method: 'POST', body: JSON.stringify({ action, ...payload }) });
       if (action === 'save-model') setForm(null);
-      await load();
+      await load({ forceRefresh: true });
       onChanged?.();
       setNotice(typeof success === 'function' ? success(result) : success);
     } catch (err) {
       // A failed probe is persisted, so refresh its visible state too.
-      if (action === 'probe-model') await load();
+      if (action === 'probe-model') await load({ forceRefresh: true });
       setError(err.message || 'Không thực hiện được thao tác. Tải lại rồi thử lại.');
     } finally { setBusy(''); }
   }
@@ -89,7 +90,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
         <span className="model-registry-meta">Đồng bộ gần nhất: {date(syncedAt)} · {models.filter(row => row.enabled).length} model đã bật</span>
       </div>
       <div className="model-registry-actions">
-        <button className="btn-secondary" disabled={loading || Boolean(busy)} onClick={load}><RefreshCw size={16} /> Tải lại</button>
+        <button className="btn-secondary" disabled={loading || Boolean(busy)} onClick={() => load({ forceRefresh: true })}><RefreshCw size={16} /> Tải lại</button>
         <button className="btn-primary" disabled={disabled} onClick={() => mutate('sync-models', {}, result => `Đã đồng bộ ${result.total} model, phát hiện ${result.added} model mới.`)}><RefreshCw size={16} /> {busy === 'sync-models' ? 'Đang đồng bộ…' : 'Đồng bộ từ OpenAI'}</button>
         <button className="btn-secondary" disabled={disabled} onClick={() => { setForm(blank()); setPriceSource(null); setEditing(false); setError(''); }}><Plus size={16} /> Thêm thủ công</button>
       </div>

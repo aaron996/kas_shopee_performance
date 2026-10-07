@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, RefreshCw } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import LoadingScreen from './LoadingScreen';
+import { clearDevDataCache, peekDevResource, readDevResource } from '../utils/devDataClient.js';
 
 const ERRORS = {
   ROLE_MANAGEMENT_FORBIDDEN: 'Chỉ Dev được phân quyền. Hãy tải lại phiên đăng nhập.',
@@ -17,32 +18,37 @@ function errorMessage(error) {
 export default function AppRoleSettings({ currentUser }) {
   const [query, setQuery] = useState('');
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState({ users: [], total: 0 });
-  const [loading, setLoading] = useState(true);
+  const resource = `roles:${JSON.stringify([query.trim(), offset])}`;
+  const cached = peekDevResource(currentUser, resource);
+  const [data, setData] = useState(cached || { users: [], total: 0 });
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [drafts, setDrafts] = useState({});
   const [saving, setSaving] = useState(null);
   const generation = useRef(0);
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ forceRefresh = false } = {}) => {
     const request = ++generation.current;
-    setLoading(true);
+    setLoading(forceRefresh || !peekDevResource(currentUser, resource));
     setError('');
     try {
-      const { data: result, error: rpcError } = await supabase.rpc('dev_list_app_users', { p_search: query.trim(), p_offset: offset });
+      const result = await readDevResource(currentUser, resource, async () => {
+        const { data, error: rpcError } = await supabase.rpc('dev_list_app_users', { p_search: query.trim(), p_offset: offset });
+        if (rpcError) throw rpcError;
+        return data;
+      }, { forceRefresh });
       if (request !== generation.current) return;
-      if (rpcError) throw rpcError;
       setData(result);
       setDrafts({});
     } catch (err) {
       if (request === generation.current) { setData({ users: [], total: 0 }); setError(errorMessage(err)); }
     } finally { if (request === generation.current) setLoading(false); }
-  }, [query, offset]);
+  }, [query, offset, currentUser, resource]);
   useEffect(() => {
     const requests = generation;
-    const timer = setTimeout(load, 250);
+    const timer = setTimeout(load, peekDevResource(currentUser, resource) ? 0 : 250);
     return () => { clearTimeout(timer); requests.current++; };
-  }, [load]);
+  }, [load, currentUser, resource]);
   const save = async user => {
     const role = drafts[user.email];
     if (!role || role === user.role || saving) return;
@@ -50,11 +56,13 @@ export default function AppRoleSettings({ currentUser }) {
     setError('');
     setNotice('');
     try {
+      clearDevDataCache();
       const { error: rpcError } = await supabase.rpc('dev_set_app_user_role', { p_email: user.email, p_role: role, p_expected_role: user.role });
+      clearDevDataCache();
       if (rpcError) throw rpcError;
       setNotice(`Đã đổi ${user.email} sang ${role}. Phiên đang mở cập nhật khi quay lại app hoặc trong 1 phút.`);
-      await load();
-    } catch (err) { setError(errorMessage(err)); }
+      await load({ forceRefresh: true });
+    } catch (err) { clearDevDataCache(); setError(errorMessage(err)); }
     finally { setSaving(null); }
   };
   return <section className="role-settings" aria-labelledby="role-settings-title">
@@ -63,7 +71,7 @@ export default function AppRoleSettings({ currentUser }) {
     <p>Danh sách gồm tài khoản đã đăng nhập. Chỉ Dev được đổi quyền; không thể tự hạ quyền Dev.</p>
     <div className="role-settings-toolbar">
       <label className="role-search"><Search size={17} aria-hidden="true" /><input type="search" aria-label="Tìm tài khoản theo email" placeholder="Tìm email…" value={query} disabled={Boolean(saving)} onChange={event => { setQuery(event.target.value); setOffset(0); }} /></label>
-      <button type="button" className="btn-secondary" onClick={load} disabled={loading || Boolean(saving)}><RefreshCw size={16} /> Tải lại</button>
+      <button type="button" className="btn-secondary" onClick={() => load({ forceRefresh: true })} disabled={loading || Boolean(saving)}><RefreshCw size={16} /> Tải lại</button>
     </div>
     {error && <p role="alert" className="role-settings-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}

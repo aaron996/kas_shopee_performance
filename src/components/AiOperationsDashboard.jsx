@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import AiModelRegistry from './AiModelRegistry';
+import { fetchDevApi, peekDevResource } from '../utils/devDataClient.js';
 import {
   getModelConfigTargetKey,
   getInheritanceLabel,
@@ -32,9 +33,11 @@ const REASONING_LABELS = {
   max: 'Tối đa'
 };
 
-export default function AiOperationsDashboard({ view = 'overview', feature = 'chat' }) {
+export default function AiOperationsDashboard({ view = 'overview', feature = 'chat', currentUser }) {
   const activeSubtab = view;
   const configFeature = feature;
+  const cachedConfig = peekDevResource(currentUser, `/api/ai-ops?view=model-config&feature=${encodeURIComponent(feature)}`);
+  const cachedSetting = cachedConfig?.globalConfig || cachedConfig?.envDefault;
 
   // Common Date Filter
   const [dateRange, setDateRange] = useState('7d'); // 'today' | '7d' | 'month' | 'custom'
@@ -83,19 +86,20 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const userSearchContainerRef = useRef(null);
 
-  const [modelConfigData, setModelConfigData] = useState(null);
-  const [loadedTargetKey, setLoadedTargetKey] = useState(null);
+  const [modelConfigData, setModelConfigData] = useState(cachedConfig || null);
+  const [loadedTargetKey, setLoadedTargetKey] = useState(cachedConfig ? `${feature}:all` : null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [isModelConfigLoading, setIsModelConfigLoading] = useState(false);
   const [modelConfigError, setModelConfigError] = useState('');
-  const [formModel, setFormModel] = useState('');
-  const [formReasoningEffort, setFormReasoningEffort] = useState(null);
+  const [formModel, setFormModel] = useState(cachedSetting?.model || cachedConfig?.allowedModels?.[0]?.id || '');
+  const [formReasoningEffort, setFormReasoningEffort] = useState(cachedSetting?.reasoningEffort ?? null);
   const [formReason, setFormReason] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configFeedback, setConfigFeedback] = useState(null);
   const [showAllConfirmModal, setShowAllConfirmModal] = useState(false);
 
   const requestSeqRef = useRef(0);
+  const configReloadRef = useRef(0);
   const activeControllerRef = useRef(null);
 
   const currentTargetKey = useMemo(
@@ -153,81 +157,73 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
   }, [dateRange, customFrom, customTo]);
 
   // Auth fetch helper
-  const fetchWithAuth = useCallback(async (url, options = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Chưa đăng nhập hoặc phiên đã hết hạn.');
-
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${session.access_token}`
-      }
-    });
-
-    if (!res.ok) {
-      let errPayload;
-      try { errPayload = await res.json(); } catch { /* ignore */ }
-      throw new Error(errPayload?.error?.message || `Lỗi yêu cầu (${res.status})`);
-    }
-
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return res.json();
-    }
-    return res;
-  }, []);
+  const fetchWithAuth = useCallback((url, options = {}) => fetchDevApi(currentUser, url, options), [currentUser]);
+  const peekData = useCallback(url => peekDevResource(currentUser, url), [currentUser]);
+  const listController = useRef(null);
+  useEffect(() => () => listController.current?.abort(), []);
 
 
   // 1. Fetch Overview
-  const fetchOverview = useCallback(async () => {
-    setIsOverviewLoading(true);
+  const fetchOverview = useCallback(async ({ forceRefresh = false } = {}) => {
+    listController.current?.abort();
+    const controller = new AbortController();
+    listController.current = controller;
+    const { from, to } = getComputedDates();
+    const url = `/api/ai-ops?view=overview&from=${from}&to=${to}`;
+    setIsOverviewLoading(forceRefresh || !peekData(url));
     setOverviewError('');
     try {
-      const { from, to } = getComputedDates();
-      const data = await fetchWithAuth(`/api/ai-ops?view=overview&from=${from}&to=${to}`);
+      const data = await fetchWithAuth(url, { forceRefresh, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setOverviewData(data);
     } catch (err) {
-      setOverviewError(err.message || 'Không thể tải dữ liệu tổng quan.');
+      if (!controller.signal.aborted) setOverviewError(err.message || 'Không thể tải dữ liệu tổng quan.');
     } finally {
-      setIsOverviewLoading(false);
+      if (!controller.signal.aborted) setIsOverviewLoading(false);
     }
-  }, [fetchWithAuth, getComputedDates]);
+  }, [fetchWithAuth, getComputedDates, peekData]);
 
   // 2. Fetch User Quotas
-  const fetchUserQuotas = useCallback(async () => {
-    setIsQuotasLoading(true);
+  const fetchUserQuotas = useCallback(async ({ forceRefresh = false } = {}) => {
+    listController.current?.abort();
+    const controller = new AbortController();
+    listController.current = controller;
+    const url = `/api/ai-ops?view=user-quotas${quotaSearch ? `&search=${encodeURIComponent(quotaSearch)}` : ''}`;
+    setIsQuotasLoading(forceRefresh || !peekData(url));
     setQuotasError('');
     try {
-      const url = `/api/ai-ops?view=user-quotas${quotaSearch ? `&search=${encodeURIComponent(quotaSearch)}` : ''}`;
-      const data = await fetchWithAuth(url);
+      const data = await fetchWithAuth(url, { forceRefresh, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setQuotasData(data);
     } catch (err) {
-      setQuotasError(err.message || 'Không thể tải danh sách quota.');
+      if (!controller.signal.aborted) setQuotasError(err.message || 'Không thể tải danh sách quota.');
     } finally {
-      setIsQuotasLoading(false);
+      if (!controller.signal.aborted) setIsQuotasLoading(false);
     }
-  }, [fetchWithAuth, quotaSearch]);
+  }, [fetchWithAuth, quotaSearch, peekData]);
 
   // 3. Fetch Research
-  const fetchResearch = useCallback(async () => {
-    setIsResearchLoading(true);
+  const fetchResearch = useCallback(async ({ forceRefresh = false } = {}) => {
+    listController.current?.abort();
+    const controller = new AbortController();
+    listController.current = controller;
+    const { from, to } = getComputedDates();
+    let url = `/api/ai-ops?view=research&from=${from}&to=${to}&status=${researchStatusFilter}&limit=100`;
+    if (researchSearch.trim()) url += `&search=${encodeURIComponent(researchSearch.trim())}`;
+    setIsResearchLoading(forceRefresh || !peekData(url));
     setResearchError('');
     try {
-      const { from, to } = getComputedDates();
-      let url = `/api/ai-ops?view=research&from=${from}&to=${to}&status=${researchStatusFilter}&limit=100`;
-      if (researchSearch.trim()) url += `&search=${encodeURIComponent(researchSearch.trim())}`;
-
-      const data = await fetchWithAuth(url);
+      const data = await fetchWithAuth(url, { forceRefresh, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setResearchLogs(data.rows || []);
       setResearchTotal(data.totalCount || 0);
       setResearchTopFingerprints(data.topFingerprints || []);
     } catch (err) {
-      setResearchError(err.message || 'Không thể tải dữ liệu nghiên cứu.');
+      if (!controller.signal.aborted) setResearchError(err.message || 'Không thể tải dữ liệu nghiên cứu.');
     } finally {
-      setIsResearchLoading(false);
+      if (!controller.signal.aborted) setIsResearchLoading(false);
     }
-  }, [fetchWithAuth, getComputedDates, researchStatusFilter, researchSearch]);
+  }, [fetchWithAuth, getComputedDates, researchStatusFilter, researchSearch, peekData]);
 
   // Debounced User Search for Model Config
   useEffect(() => {
@@ -237,22 +233,24 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
       setHighlightedIndex(-1);
       return undefined;
     }
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsSearchingUsers(true);
       setUserSearchError('');
       try {
-        const data = await fetchWithAuth(`/api/ai-ops?view=model-users&search=${encodeURIComponent(userSearchTerm.trim())}`);
+        const data = await fetchWithAuth(`/api/ai-ops?view=model-users&search=${encodeURIComponent(userSearchTerm.trim())}`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
         setUserSearchResults(data.users || []);
         setIsUserMenuOpen(true);
         setHighlightedIndex(-1);
       } catch (err) {
-        setUserSearchError(err.message || 'Lỗi tìm kiếm user.');
+        if (!controller.signal.aborted) setUserSearchError(err.message || 'Lỗi tìm kiếm user.');
       } finally {
-        setIsSearchingUsers(false);
+        if (!controller.signal.aborted) setIsSearchingUsers(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [userSearchTerm, fetchWithAuth]);
 
   const handleSelectScope = (scope) => {
@@ -537,13 +535,15 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
     const thisSeq = ++requestSeqRef.current;
     const thisTargetKey = currentTargetKey;
 
-    setIsModelConfigLoading(true);
     setModelConfigError('');
 
     const targetUserId = (targetScope === 'user' && selectedUser?.userId) ? selectedUser.userId : null;
     const url = `/api/ai-ops?view=model-config&feature=${encodeURIComponent(configFeature)}${targetUserId ? `&userId=${encodeURIComponent(targetUserId)}` : ''}`;
+    const forceRefresh = reloadNonce !== configReloadRef.current;
+    configReloadRef.current = reloadNonce;
+    setIsModelConfigLoading(forceRefresh || !peekData(url));
 
-    fetchWithAuth(url, { signal: controller.signal })
+    fetchWithAuth(url, { signal: controller.signal, forceRefresh })
       .then((data) => {
         if (!shouldAcceptConfigResponse({
           requestSeq: thisSeq,
@@ -595,7 +595,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
         activeControllerRef.current = null;
       }
     };
-  }, [activeSubtab, currentTargetKey, reloadNonce, fetchWithAuth, targetScope, selectedUser, configFeature]);
+  }, [activeSubtab, currentTargetKey, reloadNonce, fetchWithAuth, targetScope, selectedUser, configFeature, peekData]);
 
   // Load active tab data (Overview, Quotas, Research)
   useEffect(() => {
@@ -765,7 +765,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
             <button
               type="button"
               className="btn-secondary"
-              onClick={activeSubtab === 'overview' ? fetchOverview : fetchResearch}
+              onClick={() => (activeSubtab === 'overview' ? fetchOverview : fetchResearch)({ forceRefresh: true })}
               disabled={isOverviewLoading || isResearchLoading}
               style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
             >
@@ -952,7 +952,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
           <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>DANH SÁCH USER CÓ HẠN MỨC RIÊNG ({quotasData.overrides.length})</span>
-              <button type="button" className="btn-secondary" onClick={fetchUserQuotas} disabled={isQuotasLoading} style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => fetchUserQuotas({ forceRefresh: true })} disabled={isQuotasLoading} style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem' }}>
                 <RefreshCw size={12} className={isQuotasLoading ? 'spin' : ''} /> Làm mới
               </button>
             </div>
@@ -1060,7 +1060,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
       )}
 
       {/* ======================= TAB 2: MODEL & REASONING CONFIGURATION ======================= */}
-      {activeSubtab === 'model-registry' && <AiModelRegistry fetchWithAuth={fetchWithAuth} onChanged={() => setReloadNonce(n => n + 1)} />}
+      {activeSubtab === 'model-registry' && <AiModelRegistry fetchWithAuth={fetchWithAuth} peekData={peekData} onChanged={() => setReloadNonce(n => n + 1)} />}
       {activeSubtab === 'model-config' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
@@ -1855,7 +1855,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                 <option value="rejected_by_quota">Chặn Quota</option>
               </select>
 
-              <button type="button" className="btn-secondary" onClick={fetchResearch} style={{ fontSize: '0.85rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => fetchResearch({ forceRefresh: true })} style={{ fontSize: '0.85rem' }}>
                 Lọc dữ liệu
               </button>
             </div>

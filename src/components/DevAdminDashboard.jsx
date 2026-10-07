@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Bot, ChevronRight, Layers, MessageSquare, Search, ShieldCheck, SlidersHorizontal, Users, Wallet } from 'lucide-react';
 import AiOperationsDashboard from './AiOperationsDashboard';
 import AppRoleSettings from './AppRoleSettings';
 import CodSmsThresholdSettings from './CodSmsThresholdSettings';
 import DevAccessActivity from './DevAccessActivity';
+import { clearDevDataCache } from '../utils/devDataClient.js';
 import './DevAdminDashboard.css';
 
 // One directory owns every entry point. Feature configuration is separate from
@@ -30,7 +31,8 @@ const GROUPS = [
 const SECTIONS = GROUPS.flatMap(group => group.items.map(item => ({ ...item, group: group.label })));
 const normalize = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/gi, 'd').toLowerCase();
 
-export default function DevAdminDashboard({ onlineUsers = [], currentUser }) {
+export default function DevAdminDashboard({ onlineUsers = [], currentUser, active = true }) {
+  useEffect(() => () => clearDevDataCache(), []);
   const [sectionId, setSectionId] = useState('chat-config');
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -52,10 +54,10 @@ export default function DevAdminDashboard({ onlineUsers = [], currentUser }) {
       </details>
       <section id="dev-panel-content" className="dev-panel-content" aria-labelledby="dev-panel-section-title">
         <header className="dev-panel-section-header"><h2 id="dev-panel-section-title">{section.label}</h2><div>{section.description}</div></header>
-        {section.view ? <AiOperationsDashboard key={section.id} view={section.view} feature={section.feature || 'chat'} />
+        {active && (section.view ? <AiOperationsDashboard key={section.id} currentUser={currentUser} view={section.view} feature={section.feature || 'chat'} />
           : section.id === 'roles' ? <AppRoleSettings currentUser={currentUser} />
-            : section.id === 'cod-threshold' ? <CodSmsThresholdSettings />
-              : <DevAccessActivity onlineUsers={onlineUsers} />}
+            : section.id === 'cod-threshold' ? <CodSmsThresholdSettings currentUser={currentUser} />
+              : <DevAccessActivity onlineUsers={onlineUsers} currentUser={currentUser} />)}
       </section>
     </div>
   </div>;

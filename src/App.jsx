@@ -100,6 +100,7 @@ export default function App() {
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
   const [hasOpenedCodTab, setHasOpenedCodTab] = useState(initialView.tab === 'cod-suspicion');
+  const [hasOpenedDevTab, setHasOpenedDevTab] = useState(initialView.tab === 'dev-admin');
   const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', region: 'ALL', province: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
   const [codSuspicionRegions, setCodSuspicionRegions] = useState([]);
@@ -109,6 +110,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === 'cod-suspicion') setHasOpenedCodTab(true);
+    if (activeTab === 'dev-admin') setHasOpenedDevTab(true);
   }, [activeTab]);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
@@ -853,7 +855,7 @@ export default function App() {
                   activeModuleId={activeTab}
                   runtimeByModule={runtimeByModule}
                   currentUser={currentUser}
-                  warmModuleIds={hasOpenedCodTab ? ['cod-suspicion'] : []}
+                  warmModuleIds={[...(hasOpenedCodTab ? ['cod-suspicion'] : []), ...(hasOpenedDevTab ? ['dev-admin'] : [])]}
                   onBackToOverview={() => setActiveTab('home')}
                 />
               </>
