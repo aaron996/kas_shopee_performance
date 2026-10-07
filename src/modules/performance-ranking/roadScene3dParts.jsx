@@ -3,7 +3,7 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
-import { computeRoadside } from '../../utils/sceneThemes.js';
+import Roadside from './Roadside.jsx';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
 import { hubPaintColor, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../../utils/rankingSceneLayout.js';
 import {
   advanceDriveClock, driveHeading, sampleDrivePose, WHEEL_RADIUS,
-  wrapRoadTravel, roadsideAlpha, ROADSIDE_BUFFER
+  wrapRoadTravel
 } from '../../utils/sceneDriving.js';
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
@@ -568,107 +568,6 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
         <meshBasicMaterial color={theme.dash} />
       </instancedMesh>
       <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} />
-    </group>
-  );
-}
-
-/**
- * Low-poly trees and road signs along the far shoulder. Four instanced meshes in total (trunks,
- * canopies, sign poles, sign plates), so the draw-call cost does not depend on how many there are.
- * Share the road's travelled distance; recycling fades outside the asphalt.
- */
-function Roadside({ roadLength, roadWidth, theme, clockRef }) {
-  const trunkRef = useRef(null);
-  const canopyRef = useRef(null);
-  const poleRef = useRef(null);
-  const plateRef = useRef(null);
-  const invalidate = useThree((s) => s.invalidate);
-  const span = roadLength + ROADSIDE_BUFFER * 2;
-  const { trees, signs } = useMemo(() => computeRoadside(span, roadWidth), [span, roadWidth]);
-  const treeAlpha = useMemo(() => new Float32Array(trees.length), [trees]);
-  const signAlpha = useMemo(() => new Float32Array(signs.length), [signs]);
-  const color = useMemo(() => new THREE.Color(), []);
-
-  const writeRoadside = (updateColors = false) => {
-    const distance = clockRef.current.distance;
-    const trunk = trunkRef.current;
-    const canopy = canopyRef.current;
-    if (trunk && canopy) {
-      trees.forEach((t, i) => {
-        const x = wrapRoadTravel(t.x, distance, -span / 2, span);
-        const f = sampleRoadFrame(x, t.z, roadLength);
-        treeAlpha[i] = roadsideAlpha(x, roadLength);
-        _quat.setFromAxisAngle(_upAxis, (i * 2.399) % (Math.PI * 2));
-        _matrix.compose(_pos.set(f.x, f.y + 0.4 * t.scale, f.z), _quat, _scale.set(t.scale, t.scale, t.scale));
-        trunk.setMatrixAt(i, _matrix);
-        _matrix.compose(_pos.set(f.x, f.y + 1.6 * t.scale, f.z), _quat, _scale.set(t.scale, t.scale, t.scale));
-        canopy.setMatrixAt(i, _matrix);
-        if (updateColors) canopy.setColorAt(i, color.set(theme.treeCanopy[t.tint % theme.treeCanopy.length]));
-      });
-      if (canopy.instanceColor && updateColors) canopy.instanceColor.needsUpdate = true;
-    }
-    const pole = poleRef.current;
-    const plate = plateRef.current;
-    if (pole && plate) {
-      signs.forEach((sg, i) => {
-        const x = wrapRoadTravel(sg.x, distance, -span / 2, span);
-        const f = sampleRoadFrame(x, sg.z, roadLength);
-        signAlpha[i] = roadsideAlpha(x, roadLength);
-        _quat.identity();
-        _matrix.compose(_pos.set(f.x, f.y + 1.3, f.z), _quat, _scale.set(1, 1, 1));
-        pole.setMatrixAt(i, _matrix);
-        // the plate faces the road
-        _quat.setFromAxisAngle(_upAxis, f.heading + (sg.side > 0 ? Math.PI : 0));
-        _matrix.compose(_pos.set(f.x, f.y + 2.55, f.z), _quat, _scale.set(1, 1, 1));
-        plate.setMatrixAt(i, _matrix);
-      });
-    }
-    for (const mesh of [trunk, canopy, pole, plate]) {
-      if (!mesh) continue;
-      mesh.instanceMatrix.needsUpdate = true;
-      const alpha = mesh.geometry.getAttribute('instanceAlpha');
-      if (alpha) alpha.needsUpdate = true;
-    }
-    _scale.set(1, 1, 1);
-  };
-  useLayoutEffect(() => {
-    writeRoadside(true);
-    invalidate();
-    // Colours are uploaded on theme/layout changes, never on each cruise frame.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trees, signs, theme, invalidate]);
-  useFrame(() => {
-    if (clockRef.current.step) writeRoadside();
-  });
-
-  const fadeMaterial = { transparent: true, depthWrite: false, onBeforeCompile: patchInstanceAlpha, customProgramCacheKey: alphaCacheKey };
-
-  return (
-    <group>
-      <instancedMesh name="prr-roadside-trunks" key={`t-${trees.length}`} ref={trunkRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
-        <cylinderGeometry args={[0.13, 0.18, 0.8, 6]}>
-          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[treeAlpha, 1]} />
-        </cylinderGeometry>
-        <meshStandardMaterial {...fadeMaterial} color={theme.treeTrunk} flatShading />
-      </instancedMesh>
-      <instancedMesh name="prr-roadside-canopies" key={`c-${trees.length}`} ref={canopyRef} args={[undefined, undefined, trees.length]} frustumCulled={false} raycast={noRaycast}>
-        <coneGeometry args={[0.8, 2.0, 7]}>
-          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[treeAlpha, 1]} />
-        </coneGeometry>
-        <meshStandardMaterial {...fadeMaterial} color="#ffffff" flatShading roughness={0.9} />
-      </instancedMesh>
-      <instancedMesh name="prr-roadside-poles" key={`p-${signs.length}`} ref={poleRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
-        <cylinderGeometry args={[0.07, 0.07, 2.6, 6]}>
-          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[signAlpha, 1]} />
-        </cylinderGeometry>
-        <meshStandardMaterial {...fadeMaterial} color={theme.signPole} />
-      </instancedMesh>
-      <instancedMesh name="prr-roadside-signs" key={`s-${signs.length}`} ref={plateRef} args={[undefined, undefined, signs.length]} frustumCulled={false} raycast={noRaycast}>
-        <boxGeometry args={[1.1, 0.75, 0.08]}>
-          <instancedBufferAttribute attach="attributes-instanceAlpha" args={[signAlpha, 1]} />
-        </boxGeometry>
-        <meshStandardMaterial {...fadeMaterial} color={theme.signPlate} />
-      </instancedMesh>
     </group>
   );
 }

@@ -7,11 +7,14 @@ export const SCENE_THEMES = {
     skyTop: '#04080f',
     skyBottom: '#1b2c4a',
     horizon: '#1b2c4a',
-    ground: '#0d1626',
+    ground: '#23372f',
     asphalt: '#334155',
     shoulder: '#64748b',
     dash: '#cbd5e1',
-    treeCanopy: ['#1d4a38', '#225a43', '#1a4232'],
+    treeCanopy: ['#376249', '#4b7051', '#365b43', '#697449'],
+    hill: ['#2d4637', '#334d3c'],
+    cloud: '#6c7e8c',
+    props: { orange: '#c65c2b', blue: '#315881', cream: '#a6ac9c', white: '#ffffff', curbOrange: '#d06b39', curbWhite: '#aab7b5', rail: '#81948e', stone: '#899b96', apron: '#45504e', wood: '#77634a', carton: '#a98b5a', door: '#1c2c35', doorRib: '#3e4f58' },
     treeTrunk: '#3b2a1e',
     signPole: '#94a3b8',
     signPlate: '#1d4ed8',
@@ -22,11 +25,14 @@ export const SCENE_THEMES = {
     skyTop: '#8fb7e3',
     skyBottom: '#e4eef8',
     horizon: '#e4eef8',
-    ground: '#d3dce6',
+    ground: '#c5d899',
     asphalt: '#4b5a6e',
-    shoulder: '#9aa8b8',
+    shoulder: '#d6dfc0',
     dash: '#f1f5f9',
-    treeCanopy: ['#5f8f6e', '#6a9b79', '#547f63'],
+    treeCanopy: ['#668b4e', '#88a95b', '#55794b', '#a0b55f'],
+    hill: ['#adc879', '#b8cf88'],
+    cloud: '#f5f7eb',
+    props: { orange: '#f15a22', blue: '#2d629a', cream: '#eee9d7', white: '#ffffff', curbOrange: '#f28b53', curbWhite: '#f5f4e9', rail: '#b3c3bd', stone: '#e1e5d6', apron: '#a9b7b0', wood: '#a78a5f', carton: '#c9ab72', door: '#263c4b', doorRib: '#516574' },
     treeTrunk: '#6b4a32',
     signPole: '#64748b',
     signPlate: '#2563eb',
@@ -46,36 +52,4 @@ export function hash01(n) {
   x = Math.imul(x, 0xc2b2ae35);
   x ^= x >>> 16;
   return (x >>> 0) / 4294967296;
-}
-
-/**
- * Roadside props along the far shoulder: trees every ~TREE_STEP units, signs every ~SIGN_STEP.
- * @returns {{trees: Array<{x, z, scale, tint}>, signs: Array<{x, z, side}>}}
- */
-export const TREE_STEP = 11;
-export const SIGN_STEP = 52;
-export function computeRoadside(roadLength, roadWidth) {
-  const half = roadLength / 2 + 3;
-  const trees = [];
-  const signs = [];
-  const edge = roadWidth / 2 + 0.5;
-  let i = 0;
-  // The camera looks from the +z side, so props stand on the far (-z) side only: they frame the
-  // road without ever covering a truck or a label.
-  for (let x = -half; x <= half; x += TREE_STEP, i++) {
-    const h = hash01(i * 2 + 1);
-    // skip some slots so the line of trees is not a fence
-    if (h < 0.22) continue;
-    trees.push({
-      x: x + (hash01(i * 7 + 2) - 0.5) * 5,
-      z: -(edge + 2.4 + hash01(i * 5 + 11) * 3.6),
-      scale: 0.7 + hash01(i * 13 + 5) * 0.5,
-      tint: Math.floor(hash01(i * 3 + 17) * 3)
-    });
-  }
-  let j = 0;
-  for (let x = -half + SIGN_STEP / 2; x <= half; x += SIGN_STEP, j++) {
-    signs.push({ x, z: -(edge + 0.9), side: -1 });
-  }
-  return { trees, signs };
 }

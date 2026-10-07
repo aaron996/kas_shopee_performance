@@ -1,5 +1,56 @@
 # BXH Performance dạng 3D
 
+## Ven đường theo concept logistics GHN (2026-10-07)
+
+- Nền cỏ xanh nhạt (sáng) / xanh trầm (tối), đồi thấp dạng đa giác, mây thưa;
+  lề trắng–cam GHN và hàng rào thấp ở hai phía. Cây có ba dáng: thông cao,
+  thông lùn và tán tròn; đá/bụi rải theo cụm, phía gần camera chỉ dùng vật thấp.
+- Nhịp tuyến: cụm cây → billboard GHN → đoạn thoáng → kho trung chuyển →
+  cụm cây → bãi container. Billboard/kho nhỏ hơn concept 2D để giữ xe/nhãn
+  làm trọng tâm. Công trình và cây cao nằm phía xa; không gắn số liệu giả vào
+  trang trí. Kho có mái dốc, ba cửa xuất hàng, pallet và xe đỗ; bãi có container
+  xếp tầng, gân mặt thùng, đèn sân và pallet.
+- `sceneRoadside.js` tạo tuyến deterministic, độc lập với Hub/KPI. Chu kỳ ít
+  nhất 192 đơn vị cho cả Top 10/20, mở rộng theo toàn tuyến khi xem tất cả.
+  Giữ chung clock với đường/xe; mỗi công trình tái sử dụng và mờ đi theo một
+  anchor. Phép biến đổi cứng giữ mái/tường và tầng container khớp nhau khi
+  qua cung đường, tránh uốn từng mảnh gây hở mái. Lề/hàng rào theo chiều dài
+  cung trong/ngoài. Test kiểm tra clearance, seam, seed và khoảng cách cứng.
+- `Roadside.jsx` dùng bảy InstancedMesh (box, cone, round, rock, hill, pole,
+  sign) và một CanvasTexture dùng chung cho biển GHN, không gen thêm GLB
+  hoặc texture mạng. Không thêm shadow pass cho props. Geometry/texture
+  được dispose khi thay layout hoặc unmount.
+- QA bằng Codex IAB riêng: bốn đoạn cảnh sáng/tối, desktop 1280 × 720 và
+  mobile 390 × 844; mobile tích hợp không tràn ngang. Chạy thử GHN/Theo Hub,
+  làn Vùng, đổi KPI, replay, chọn/bám xe và pause/resume. Pause giữ clock và
+  mẫu ma trận/alpha đã lấy. Không có lỗi console; có cảnh báo THREE.Clock
+  deprecated từ runtime có sẵn.
+- Frame chạy nền của fixture 20 xe: **21 draw call, 120.088 tam giác**;
+  fixture 1.200 xe: **21 draw call, 6.153.626 tam giác**. Đây là số đo trong
+  renderer callback; timing submission không bao gồm toàn bộ useFrame hay
+  GPU, callback cadence IAB không chứng minh FPS thiết bị. Không tuyên bố
+  đạt hiệu năng trên điện thoại thật hoặc tất cả Hub live.
+- Preview mẫu: `extracted/ranking-preview/` (Git ignore), gồm cảnh tích hợp
+  và trang chọn bốn đoạn. Ảnh `output/playwright/ghn-roadside-*.png`; số đo
+  `output/playwright/ghn-roadside-browser-qa.json`. Đây là fixture cục bộ,
+  không thay thế kiểm tra dữ liệu production sau triển khai.
+
+## Sửa texture xe trắng trên production (2026-10-07)
+
+- Kiểm tra trực tiếp tab BXH của `kas-shopee-performance.vercel.app`: console
+  báo `THREE.GLTFLoader: Couldn't load texture blob:…`. CSP live thiếu `blob:`
+  trong `connect-src` và `img-src`. GLTFLoader chuyển JPEG nhúng trong GLB thành
+  blob URL; ImageBitmapLoader fetch URL đó, còn đường lui HTML image dùng img-src.
+  Khi ảnh bị chặn, model vẫn dựng hình khối nhưng mất màu sơn/logo/lốp.
+- Bổ sung `blob:` cho hai directive của trang chính trong `vercel.json`.
+  Script, object, frame-ancestors và policy riêng của popup callback giữ nguyên.
+- QA bằng Codex IAB với đúng GLB runtime và CSP production: policy cũ tải
+  texture 0/5 phần xe, policy sửa tải 5/5; cả ImageBitmapLoader và HTML image
+  fallback đạt, thấy màu cam/xanh và logo. Fixture ở `extracted/truck-csp-qa/`
+  (Git ignore); ảnh `output/playwright/truck-csp-fixed.png`.
+- Test `src/utils/truckTextureCsp.test.mjs` và build đạt. Bản sửa cục bộ,
+  chưa commit/push/deploy; chưa xác nhận production sau triển khai.
+
 ## Chuyển KPI, Top 3 và nitro (2026-10-07)
 
 - KPI/filter đổi trong cùng cảnh 3D: xe mới nhập từ sau đoàn; xe còn trong
