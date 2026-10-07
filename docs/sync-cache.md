@@ -83,7 +83,28 @@ Lưu 88ms · probe 1ms · nạp 77ms.
 
 ## Việc chưa làm (chữa gốc)
 
-Cache chỉ che độ trễ, không giảm tải DB. Hướng chữa gốc nên làm riêng:
+Cache chỉ che độ trễ, không giảm tải DB. Luồng đọc đã được tối ưu thêm ngày
+07/10/2026 bằng phân trang theo khóa chính `id` trong
+`src/utils/supabaseTableReader.js`: mỗi trang dùng `id > cursor`, tránh việc
+OFFSET đọc lại toàn bộ dòng ở các trang trước. Hai probe nhỏ đầu/cuối bảng
+kiểm tra lượt tải có bị job sync thay dữ liệu giữa chừng hay không. Số request
+và dung lượng toàn bộ snapshot chưa giảm; KPI vẫn nhận đủ dữ liệu như trước.
+
+Đo `EXPLAIN (ANALYZE, BUFFERS)` trực tiếp trên DB, truy vấn Pickup lấy cùng
+1.000 dòng tại offset 27.000:
+
+| Cách đọc | Dòng tại node Index Scan | Shared buffers | Execution time |
+|---|---:|---:|---:|
+| OFFSET 27.000 | 28.000 | 618 | 7,251 ms |
+| `id > cursor AND id <= last_id` | 1.000 | 28 | 0,524 ms |
+
+Đây là một phép đo SQL trên dữ liệu và cache DB tại thời điểm kiểm tra,
+không bao gồm mạng, REST/RLS của phiên người dùng, parse JSON hay render UI.
+Test fixture kiểm tra giữ đủ dòng/cột, API cap nhỏ hơn page size, ID đứt quãng,
+bigint dạng chuỗi, đổi snapshot, lỗi trang và hủy timeout; chưa đo thời gian
+tải app qua phiên đăng nhập live.
+
+Hướng giảm tiếp số request và dữ liệu truyền nên làm riêng:
 
 - Gộp 150–200 request thành 1–2 request nén (Edge Function, hoặc file snapshot
   trên Storage/CDN do Apps Script sinh ra sau mỗi lần sync).

@@ -15,45 +15,18 @@
 // kas_leadtime_data tables on a timer via the sync_kas_*_data() RPC functions
 // (atomic delete+insert — the real sheet has no natural unique key to upsert on).
 // See docs/google-sheet-supabase-sync.md for the Apps Script + setup steps.
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
+import { fetchAllSnapshotRows } from './supabaseTableReader.js';
 
 // PostgREST caps any unpaginated select() at 1000 rows by default — these
 // tables hold several thousand rows each (one row per sheet row, ~2 weeks
 // of data), so a plain .select('*') silently truncates and only the most
-// recently-inserted rows come back. Page through with .range() until a
-// page returns fewer rows than requested.
-const PAGE_SIZE = 1000;
-const REQUEST_TIMEOUT_MS = 15000;
+// recently-inserted rows come back. Read all pages by primary-key cursor,
+// avoiding OFFSET's repeated traversal of rows from earlier pages. Keep the
+// full dataset: reports need history, client switches, rankings and exports.
 
-function withTimeout(promise, label) {
-  let timeoutId;
-  const timeout = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`REQUEST_TIMEOUT:${label}`)), REQUEST_TIMEOUT_MS);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
-}
-
-async function fetchAllRows(table) {
-  const rows = [];
-  let from = 0;
-  // Safety cap so a runaway table can't turn this into an infinite loop.
-  for (let page = 0; page < 100; page++) {
-    const { data, error } = await withTimeout(supabase
-      .from(table)
-      .select('*')
-      .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1), table);
-
-    if (error) throw error;
-    rows.push(...(data || []));
-
-    if (!data || data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return rows;
-}
-
-export async function fetchSupabaseSheetSync() {
+export async function fetchSupabaseSheetSync(client = supabase) {
+  const fetchAllRows = table => fetchAllSnapshotRows(client, table);
   try {
     const [pickData, deliData, ca1Data, leadtimeData, fdData] = await Promise.all([
       fetchAllRows('kas_pick_data'),
