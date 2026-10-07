@@ -61,6 +61,10 @@ components:
 
 # Design System: GHN KAS Operations
 
+## Dev Control Panel
+
+The panel follows Operate mode and the existing palette and type system. Its directory groups shared AI models, Chatbot, COD SMS, and accounts/access. Desktop uses a compact local navigation column; mobile uses a collapsed menu showing the selected function. The content has one heading and one task at a time. Effective model configuration remains visible; source diagnostics, overrides, audit history, and advanced registry filters use progressive disclosure. Inputs, navigation selection and surfaces inherit the shared radius tokens.
+
 ## Overview
 
 **Creative North Star: "The Calm Operations Desk"**

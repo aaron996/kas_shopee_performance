@@ -130,6 +130,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
     <div className="model-registry-filter"><label>Tìm model<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên hoặc Model ID" /></label>
       <label className="model-registry-check"><input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />Hiện cả model khác (ảnh, âm thanh…)</label>
     </div>
+    <details className="dev-panel-details"><summary>Bộ lọc nâng cao{(statusFilter !== 'all' || priceFilter !== 'all' || availabilityFilter !== 'all' || sort !== 'name-asc') ? ' · Đang áp dụng' : ''}</summary>
     <div className="model-registry-view-controls">
       <label>Trạng thái<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
         <option value="all">Tất cả trạng thái</option><option value="enabled">Đã bật</option><option value="disabled">Chưa bật</option><option value="tested">Kiểm tra đạt</option><option value="untested">Chưa kiểm tra</option><option value="failed">Kiểm tra thất bại</option>
@@ -138,6 +139,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
       <label>Khả dụng<select value={availabilityFilter} onChange={e => setAvailabilityFilter(e.target.value)}><option value="all">Tất cả</option><option value="available">Có trong lần đồng bộ</option><option value="unavailable">Không có trong lần đồng bộ</option><option value="unknown">Chưa xác định</option></select></label>
       <label>Sắp xếp<select value={sort} onChange={e => setSort(e.target.value)}><option value="name-asc">Tên A → Z</option><option value="name-desc">Tên Z → A</option><option value="updated-desc">Cập nhật mới nhất</option><option value="seen-desc">Phát hiện gần nhất</option><option value="input-asc">Giá input thấp → cao</option><option value="input-desc">Giá input cao → thấp</option><option value="output-asc">Giá output thấp → cao</option><option value="output-desc">Giá output cao → thấp</option></select></label>
     </div>
+    </details>
     <div className="model-registry-view-summary"><span>Hiển thị {filtered.length} / {models.length} model</span><button type="button" className="btn-secondary" onClick={() => { setSearch(''); setShowAll(false); setStatusFilter('all'); setPriceFilter('all'); setAvailabilityFilter('all'); setSort('name-asc'); }}>Đặt lại bộ lọc</button></div>
     {loading ? <p role="status">Đang tải danh sách model…</p> : registry && <>
       <div className="model-registry-table-wrap"><table><caption className="model-registry-sr">Danh sách model và trạng thái sử dụng</caption><thead><tr><th>Model</th><th>Trạng thái</th><th>Giá / triệu token</th><th>Thao tác</th></tr></thead>
@@ -156,7 +158,7 @@ export default function AiModelRegistry({ fetchWithAuth, onChanged }) {
                 setEditing(true); setError(''); setNotice(''); setPriceSource(null); setForm({ ...row.definition, id: row.id, revision: row.revision, pricing: Object.fromEntries(PRICES.map(([key]) => [key, row.definition.pricing?.[key] == null ? '' : row.definition.pricing[key] / 1000])) });
               }} aria-label={`Sửa ${row.id}`}><Pencil size={14} /> Sửa</button>
               <button className="btn-secondary" disabled={disabled || Boolean(form) || row.enabled} onClick={() => mutate('probe-model', { id: row.id, revision: row.revision }, 'Kiểm tra đạt. Bạn có thể bật model sau khi khai báo đủ giá token.')} aria-label={`Kiểm tra ${row.id}`}><CheckCircle2 size={14} /> Kiểm tra</button>
-              <button className="btn-secondary" disabled={disabled || Boolean(form) || (!row.enabled && (!ready || !priced))} onClick={() => mutate('toggle-model', { id: row.id, revision: row.revision, enabled: !row.enabled }, row.enabled ? 'Đã tắt model.' : 'Đã bật model. Vào Cấu Hình Chatbot hoặc COD để chọn và Áp dụng.')} aria-label={`${row.enabled ? 'Tắt' : 'Bật'} ${row.id}`}>{row.enabled ? 'Tắt' : 'Bật'}</button>
+              <button className="btn-secondary" disabled={disabled || Boolean(form) || (!row.enabled && (!ready || !priced))} onClick={() => mutate('toggle-model', { id: row.id, revision: row.revision, enabled: !row.enabled }, row.enabled ? 'Đã tắt model.' : 'Đã bật model. Vào Model & suy luận hoặc Model chấm SMS để chọn và Áp dụng.')} aria-label={`${row.enabled ? 'Tắt' : 'Bật'} ${row.id}`}>{row.enabled ? 'Tắt' : 'Bật'}</button>
             </div></td></tr>;
         })}</tbody></table></div>
       {!filtered.length && <p>Không có model phù hợp. Thử tìm tên khác hoặc đồng bộ từ OpenAI.</p>}
