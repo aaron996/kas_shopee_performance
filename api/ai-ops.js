@@ -114,7 +114,7 @@ export function createAiOpsHandler(dependencies = {}) {
             totalCostMicrousd += Number(r.actual_microusd || 0);
 
             // By model
-            const m = r.model || 'gpt-5.6-luna';
+            const m = r.model || 'Chưa ghi nhận model';
             const mStats = modelMap.get(m) || { model: m, requests: 0, totalTokens: 0, costMicrousd: 0 };
             mStats.requests += 1;
             mStats.totalTokens += r.total_tokens || 0;
@@ -255,7 +255,7 @@ export function createAiOpsHandler(dependencies = {}) {
             question: r.question || '(Trống)',
             questionFingerprint: r.question_fingerprint,
             status: r.status,
-            model: r.model || 'gpt-5.6-luna',
+            model: r.model || 'Chưa ghi nhận model',
             totalTokens: r.total_tokens || 0,
             inputTokens: r.input_tokens || 0,
             outputTokens: r.output_tokens || 0,

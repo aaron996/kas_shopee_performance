@@ -27,6 +27,28 @@ class FakeResponse extends EventEmitter {
   end(chunk = '') { this.body += chunk; this.headersSent = true; this.writableEnded = true; }
 }
 
+test('AI operations keeps a missing recorded model unknown in costs and research', async () => {
+  const requests = [{ request_id: 'missing-model', user_id: 'u1', status: 'completed', model: null, actual_microusd: 25 }];
+  const serviceClient = { from: () => {
+    const query = {
+      select() { return this; }, order() { return this; }, range() { return this; },
+      then(resolve) { return Promise.resolve({ data: requests, count: 1, error: null }).then(resolve); }
+    };
+    return query;
+  } };
+  const handler = createAiOpsHandlerImpl({
+    readConfig: () => ({}), authorizeDev: async () => true,
+    authenticate: async () => ({ user: { id: 'dev', email: 'dev@example.com' }, serviceClient })
+  });
+  for (const view of ['overview', 'research']) {
+    const res = new FakeResponse();
+    await handler({ method: 'GET', url: `/api/ai-ops?view=${view}`, headers: {} }, res);
+    assert.equal(res.statusCode, 200);
+    const data = JSON.parse(res.body);
+    assert.equal(view === 'overview' ? data.modelBreakdown[0].model : data.rows[0].model, 'Chưa ghi nhận model');
+  }
+});
+
 // API authorization is injected in these handler tests. Production resolves
 // Dev status via the authenticated database RPC; fixtures label admin users by
 // their stable test id and keep regular users denied.

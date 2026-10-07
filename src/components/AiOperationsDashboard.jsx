@@ -1,29 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Activity,
   AlertCircle,
-  ArrowUpDown,
-  Bot,
-  Calendar,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Clock,
   Download,
-  Filter,
-  Layers,
-  Percent,
   RefreshCw,
   Search,
   Shield,
   ShieldAlert,
-  SlidersHorizontal,
   Sparkles,
   Trash2,
   UserCheck,
   Users,
-  X,
-  XCircle
+  X
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import AiModelRegistry from './AiModelRegistry';
@@ -35,13 +23,6 @@ import {
   isModelConfigActionEnabled
 } from '../utils/aiModelConfigTarget';
 
-function maskEmailClient(email) {
-  if (typeof email !== 'string' || !email.includes('@')) return 'Ẩn danh';
-  const [local, domain] = email.trim().toLowerCase().split('@');
-  if (local.length <= 2) return `${local[0]}*@${domain}`;
-  return `${local[0]}${'*'.repeat(Math.min(4, local.length - 2))}${local[local.length - 1]}@${domain}`;
-}
-
 const REASONING_LABELS = {
   none: 'Tắt',
   low: 'Thấp',
@@ -51,13 +32,14 @@ const REASONING_LABELS = {
   max: 'Tối đa'
 };
 
-export default function AiOperationsDashboard() {
-  const [activeSubtab, setActiveSubtab] = useState('overview'); // 'overview' | 'quotas' | 'model-config' | 'research'
+export default function AiOperationsDashboard({ view = 'overview', feature = 'chat' }) {
+  const activeSubtab = view;
+  const configFeature = feature;
 
   // Common Date Filter
   const [dateRange, setDateRange] = useState('7d'); // 'today' | '7d' | 'month' | 'custom'
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const [customFrom] = useState('');
+  const [customTo] = useState('');
 
   // Overview State
   const [overviewData, setOverviewData] = useState(null);
@@ -66,7 +48,7 @@ export default function AiOperationsDashboard() {
 
   // User Quotas State
   const [quotaSearch, setQuotaSearch] = useState('');
-  const [quotasData, setQuotasData] = useState({ overrides: [], auditLogs: [], today: '', defaultTurnLimit: 10 });
+  const [quotasData, setQuotasData] = useState({ overrides: [], auditLogs: [], today: '', defaultTurnLimit: null });
   const [isQuotasLoading, setIsQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState('');
 
@@ -74,7 +56,7 @@ export default function AiOperationsDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTargetUser, setModalTargetUser] = useState(null);
   const [modalQuotaType, setModalQuotaType] = useState('custom'); // 'custom' | 'unlimited' | 'default'
-  const [modalCustomLimit, setModalCustomLimit] = useState(20);
+  const [modalCustomLimit, setModalCustomLimit] = useState('');
   const [modalReason, setModalReason] = useState('');
   const [isSubmittingQuota, setIsSubmittingQuota] = useState(false);
   const [modalError, setModalError] = useState('');
@@ -91,7 +73,6 @@ export default function AiOperationsDashboard() {
   const [isPurging, setIsPurging] = useState(false);
 
   // Model Config State
-  const [configFeature, setConfigFeature] = useState('chat'); // 'chat' | 'cod_sms'
   const [targetScope, setTargetScope] = useState('all'); // 'all' | 'user'
   const [selectedUser, setSelectedUser] = useState(null); // { userId, email } | null
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -722,107 +703,21 @@ export default function AiOperationsDashboard() {
   };
 
   const statusBadge = (st) => {
-    if (st === 'completed') return <span className="data-status data-status--good" style={{ background: 'var(--good-green-bg)', color: 'var(--good-green-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>Thành công</span>;
-    if (st === 'failed') return <span className="data-status data-status--bad" style={{ background: 'var(--bad-red-bg)', color: 'var(--bad-red-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>Thất bại</span>;
-    if (st === 'aborted') return <span className="data-status" style={{ background: 'rgba(156, 163, 175, 0.2)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>Đã hủy</span>;
-    if (st === 'rejected_by_quota') return <span className="data-status" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>Chặn Quota</span>;
+    if (st === 'completed') return <span className="data-status data-status--good" style={{ background: 'var(--good-green-bg)', color: 'var(--good-green-text)', padding: '2px 8px', borderRadius: 'var(--radius-control)', fontSize: '0.75rem', fontWeight: 600 }}>Thành công</span>;
+    if (st === 'failed') return <span className="data-status data-status--bad" style={{ background: 'var(--bad-red-bg)', color: 'var(--bad-red-text)', padding: '2px 8px', borderRadius: 'var(--radius-control)', fontSize: '0.75rem', fontWeight: 600 }}>Thất bại</span>;
+    if (st === 'aborted') return <span className="data-status" style={{ background: 'rgba(156, 163, 175, 0.2)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: 'var(--radius-control)', fontSize: '0.75rem', fontWeight: 600 }}>Đã hủy</span>;
+    if (st === 'rejected_by_quota') return <span className="data-status" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', padding: '2px 8px', borderRadius: 'var(--radius-control)', fontSize: '0.75rem', fontWeight: 600 }}>Chặn Quota</span>;
     return <span className="data-status">{st}</span>;
   };
 
   return (
     <div className="ai-ops-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
-      {/* Subtabs Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button type="button" className="btn-secondary" onClick={() => setActiveSubtab('model-registry')} aria-pressed={activeSubtab === 'model-registry'} style={{ background: activeSubtab === 'model-registry' ? 'var(--ghn-orange)' : 'var(--card-bg)', color: activeSubtab === 'model-registry' ? 'white' : 'var(--text-main)' }}>
-            <Layers size={16} /> Quản Lý Model
-          </button>
-          <button
-            type="button"
-            className={`btn-secondary ${activeSubtab === 'overview' ? 'active' : ''}`}
-            onClick={() => setActiveSubtab('overview')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: activeSubtab === 'overview' ? 700 : 500,
-              background: activeSubtab === 'overview' ? 'var(--ghn-orange)' : 'var(--card-bg)',
-              color: activeSubtab === 'overview' ? 'white' : 'var(--text-main)',
-              border: '1px solid var(--border)',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            <Activity size={16} /> Tổng Quan Chi Phí & API
-          </button>
-
-          <button
-            type="button"
-            className={`btn-secondary ${activeSubtab === 'quotas' ? 'active' : ''}`}
-            onClick={() => setActiveSubtab('quotas')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: activeSubtab === 'quotas' ? 700 : 500,
-              background: activeSubtab === 'quotas' ? 'var(--ghn-orange)' : 'var(--card-bg)',
-              color: activeSubtab === 'quotas' ? 'white' : 'var(--text-main)',
-              border: '1px solid var(--border)',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            <Users size={16} /> Quản Lý Quota User
-          </button>
-
-          <button
-            type="button"
-            className={`btn-secondary ${activeSubtab === 'model-config' ? 'active' : ''}`}
-            onClick={() => setActiveSubtab('model-config')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: activeSubtab === 'model-config' ? 700 : 500,
-              background: activeSubtab === 'model-config' ? 'var(--ghn-orange)' : 'var(--card-bg)',
-              color: activeSubtab === 'model-config' ? 'white' : 'var(--text-main)',
-              border: '1px solid var(--border)',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            <Sparkles size={16} /> Cấu Hình Chatbot
-          </button>
-
-          <button
-            type="button"
-            className={`btn-secondary ${activeSubtab === 'research' ? 'active' : ''}`}
-            onClick={() => setActiveSubtab('research')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: activeSubtab === 'research' ? 700 : 500,
-              background: activeSubtab === 'research' ? 'var(--ghn-orange)' : 'var(--card-bg)',
-              color: activeSubtab === 'research' ? 'white' : 'var(--text-main)',
-              border: '1px solid var(--border)',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            <Bot size={16} /> Nghiên Cứu Câu Hỏi
-          </button>
-        </div>
-
+      <div className="dev-ai-toolbar">
         {/* Date Filter & Refresh (for Overview & Research) */}
         {activeSubtab !== 'quotas' && activeSubtab !== 'model-config' && activeSubtab !== 'model-registry' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', background: 'var(--surface-hover)', borderRadius: '6px', border: '1px solid var(--border)', padding: '2px' }}>
+            <div style={{ display: 'flex', background: 'var(--surface-hover)', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', padding: '2px' }}>
               <button
                 type="button"
                 onClick={() => setDateRange('today')}
@@ -831,7 +726,7 @@ export default function AiOperationsDashboard() {
                   color: dateRange === 'today' ? 'var(--ghn-orange)' : 'var(--text-muted)',
                   border: 'none',
                   padding: '4px 10px',
-                  borderRadius: '4px',
+                  borderRadius: 'var(--radius-control)',
                   fontSize: '0.8rem',
                   fontWeight: dateRange === 'today' ? 700 : 500,
                   cursor: 'pointer'
@@ -845,7 +740,7 @@ export default function AiOperationsDashboard() {
                   color: dateRange === '7d' ? 'var(--ghn-orange)' : 'var(--text-muted)',
                   border: 'none',
                   padding: '4px 10px',
-                  borderRadius: '4px',
+                  borderRadius: 'var(--radius-control)',
                   fontSize: '0.8rem',
                   fontWeight: dateRange === '7d' ? 700 : 500,
                   cursor: 'pointer'
@@ -859,7 +754,7 @@ export default function AiOperationsDashboard() {
                   color: dateRange === 'month' ? 'var(--ghn-orange)' : 'var(--text-muted)',
                   border: 'none',
                   padding: '4px 10px',
-                  borderRadius: '4px',
+                  borderRadius: 'var(--radius-control)',
                   fontSize: '0.8rem',
                   fontWeight: dateRange === 'month' ? 700 : 500,
                   cursor: 'pointer'
@@ -887,7 +782,7 @@ export default function AiOperationsDashboard() {
           {isOverviewLoading && !overviewData ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải số liệu tổng quan chi phí AI...</div>
           ) : overviewError ? (
-            <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger-fg)', borderRadius: '8px' }}>
+            <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger-fg)', borderRadius: 'var(--radius-control)' }}>
               <AlertCircle size={16} /> {overviewError}
             </div>
           ) : overviewData && (
@@ -896,7 +791,7 @@ export default function AiOperationsDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
                 
                 {/* Requests KPI */}
-                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG SỐ REQUESTS</div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0.4rem 0' }}>
                     {overviewData.totalRequests.toLocaleString('vi-VN')}
@@ -910,7 +805,7 @@ export default function AiOperationsDashboard() {
                 </div>
 
                 {/* Active Users KPI */}
-                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>USER HOẠT ĐỘNG</div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--ghn-orange)', margin: '0.4rem 0' }}>
                     {overviewData.activeUsersCount}
@@ -919,7 +814,7 @@ export default function AiOperationsDashboard() {
                 </div>
 
                 {/* Tokens KPI */}
-                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG TOKENS TIÊU THỤ</div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', margin: '0.4rem 0' }}>
                     {overviewData.totalTokens.total.toLocaleString('vi-VN')}
@@ -930,7 +825,7 @@ export default function AiOperationsDashboard() {
                 </div>
 
                 {/* Total Cost USD KPI */}
-                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div className="kpi-card" style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG CHI PHÍ API (USD)</div>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981', margin: '0.4rem 0' }}>
                     {overviewData.totalCostFormatted}
@@ -942,10 +837,10 @@ export default function AiOperationsDashboard() {
               </div>
 
               {/* Breakdown Tables Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '1.5rem' }}>
                 
                 {/* Model Breakdown */}
-                <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
                   <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700 }}>
                     CHI PHÍ & LƯỢT GỌI THEO MODEL
                   </div>
@@ -976,7 +871,7 @@ export default function AiOperationsDashboard() {
                 </div>
 
                 {/* Daily Breakdown */}
-                <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
                   <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700 }}>
                     THỐNG KÊ THEO NGÀY
                   </div>
@@ -1018,7 +913,7 @@ export default function AiOperationsDashboard() {
           
           {/* Top Bar: Search & Default Quota Info */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-bg)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border)', width: '320px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-bg)', padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', width: '320px' }}>
               <Search size={16} color="var(--text-muted)" />
               <input
                 type="text"
@@ -1032,28 +927,29 @@ export default function AiOperationsDashboard() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Hạn mức mặc định: <strong>{quotasData.defaultTurnLimit} lượt / ngày</strong>
+                Hạn mức mặc định: <strong>{quotasData.defaultTurnLimit == null ? 'Chưa tải' : `${quotasData.defaultTurnLimit} lượt / ngày`}</strong>
               </div>
               <button
                 type="button"
                 className="nav-btn primary"
+                disabled={isQuotasLoading || quotasData.defaultTurnLimit == null || Boolean(quotasError)}
                 onClick={() => {
                   setModalTargetUser({ email: '', originalEmail: '', userId: null });
                   setModalQuotaType('custom');
-                  setModalCustomLimit(20);
+                  setModalCustomLimit(quotasData.defaultTurnLimit ?? '');
                   setModalReason('');
                   setModalError('');
                   setIsModalOpen(true);
                 }}
                 style={{ fontSize: '0.85rem' }}
               >
-                + Thêm Quota Riêng Cho User
+                Thêm hạn mức riêng
               </button>
             </div>
           </div>
 
           {/* User Overrides Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>DANH SÁCH USER CÓ HẠN MỨC RIÊNG ({quotasData.overrides.length})</span>
               <button type="button" className="btn-secondary" onClick={fetchUserQuotas} disabled={isQuotasLoading} style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem' }}>
@@ -1078,7 +974,7 @@ export default function AiOperationsDashboard() {
                   {isQuotasLoading && quotasData.overrides.length === 0 ? (
                     <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải danh sách...</td></tr>
                   ) : quotasData.overrides.length === 0 ? (
-                    <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Chưa có user nào được cấp quota riêng. Mọi user đang dùng hạn mức mặc định 10 lượt/ngày.</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{quotasError ? 'Chưa tải được hạn mức. Bấm Làm mới để thử lại.' : `Chưa có hạn mức riêng. Hạn mức mặc định: ${quotasData.defaultTurnLimit ?? 'chưa tải'} lượt/ngày.`}</td></tr>
                   ) : quotasData.overrides.map(u => (
                     <tr key={u.userId} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{u.userEmail}</td>
@@ -1100,7 +996,7 @@ export default function AiOperationsDashboard() {
                           onClick={() => {
                             setModalTargetUser({ email: u.userEmail, originalEmail: u.userEmail, userId: u.userId });
                             setModalQuotaType(u.isUnlimited ? 'unlimited' : 'custom');
-                            setModalCustomLimit(u.dailyTurnLimit || 20);
+                            setModalCustomLimit(u.dailyTurnLimit ?? quotasData.defaultTurnLimit ?? '');
                             setModalReason('');
                             setModalError('');
                             setIsModalOpen(true);
@@ -1118,7 +1014,7 @@ export default function AiOperationsDashboard() {
           </div>
 
           {/* Audit Trail Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700 }}>
               NHẬT KÝ THAY ĐỔI QUOTA (AUDIT TRAIL)
             </div>
@@ -1168,115 +1064,9 @@ export default function AiOperationsDashboard() {
       {activeSubtab === 'model-config' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-          {/* Header Banner & Controls */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            background: 'var(--card-bg)',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--border)'
-          }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <Bot size={22} color="var(--primary)" />
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  Cấu Hình Mô Hình & Suy Luận AI (Model & Reasoning)
-                </h3>
-              </div>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Quản lý model AI phục vụ toàn hệ thống (All) hoặc override riêng cho từng nhân sự / phòng ban.
-              </p>
-            </div>
+          <div className="dev-config-toolbar"><button type="button" className="btn-secondary" onClick={() => setReloadNonce(n => n + 1)} disabled={isModelConfigLoading || isSavingConfig}><RefreshCw size={15} />{isModelConfigLoading ? 'Đang tải…' : 'Tải lại cấu hình'}</button></div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setReloadNonce(n => n + 1)}
-                disabled={isModelConfigLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
-              >
-                <RefreshCw size={14} className={isModelConfigLoading ? 'spin' : ''} />
-                Làm mới
-              </button>
-            </div>
-          </div>
-
-          {/* Feature Switch: which pipeline this Model Config screen edits */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            background: 'var(--card-bg)',
-            padding: '0.6rem 0.75rem',
-            borderRadius: '10px',
-            border: '1px solid var(--border)'
-          }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tính năng:</span>
-            {[
-              { id: 'chat', label: 'Chatbot' },
-              { id: 'cod_sms', label: 'COD SMS scoring' }
-            ].map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setConfigFeature(f.id)}
-                disabled={isModelConfigLoading}
-                style={{
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border)',
-                  fontSize: '0.82rem',
-                  fontWeight: configFeature === f.id ? 700 : 500,
-                  background: configFeature === f.id ? 'var(--ghn-orange)' : 'var(--card-bg)',
-                  color: configFeature === f.id ? 'white' : 'var(--text-main)',
-                  cursor: 'pointer'
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Precedence Policy Info Banner */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '0.75rem',
-            padding: '1rem 1.25rem',
-            borderRadius: '10px',
-            background: 'rgba(59, 130, 246, 0.08)',
-            border: '1px solid rgba(59, 130, 246, 0.25)',
-            fontSize: '0.85rem',
-            color: 'var(--text-main)'
-          }}>
-            <Shield size={18} color="#3b82f6" style={{ marginTop: '0.15rem', flexShrink: 0 }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: 1.5 }}>
-              <div style={{ fontWeight: 600, color: '#2563eb' }}>
-                Thứ tự phân cấp cấu hình (Precedence Order):
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 700, padding: '0.2rem 0.5rem' }}>
-                  1. Cấu hình User cụ thể
-                </span>
-                <span style={{ color: 'var(--text-muted)' }}>➔</span>
-                <span className="badge" style={{ background: '#e0e7ff', color: '#3730a3', fontWeight: 700, padding: '0.2rem 0.5rem' }}>
-                  2. Cấu hình Toàn hệ thống (All)
-                </span>
-                <span style={{ color: 'var(--text-muted)' }}>➔</span>
-                <span className="badge" style={{ background: '#f3f4f6', color: '#4b5563', fontWeight: 700, padding: '0.2rem 0.5rem' }}>
-                  3. Mặc định Server Env (Dự phòng)
-                </span>
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                * Bảo mật tuyệt đối: Client không được gửi model/reasoning. Các model không hỗ trợ suy luận sẽ tự động bỏ qua reasoning effort. Thay đổi được áp dụng ngay lập tức mà user không cần reload.
-              </div>
-            </div>
-          </div>
+          <p className="dev-config-policy">{configFeature === 'cod_sms' ? 'Áp dụng cho tác vụ COD SMS. Khi gỡ cấu hình, tác vụ kế thừa mặc định COD từ server.' : 'Cấu hình riêng của tài khoản được ưu tiên, sau đó đến cấu hình toàn bộ Chatbot và mặc định server.'}</p>
 
           {modelConfigError && (
             <div style={{
@@ -1285,7 +1075,7 @@ export default function AiOperationsDashboard() {
               justifyContent: 'space-between',
               gap: '0.75rem',
               padding: '0.9rem 1.25rem',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius-control)',
               background: '#fee2e2',
               border: '1px solid #fca5a5',
               color: '#991b1b',
@@ -1317,7 +1107,7 @@ export default function AiOperationsDashboard() {
               gap: '1rem',
               color: 'var(--text-muted)',
               background: 'var(--card-bg)',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-surface)',
               border: '1px solid var(--border)'
             }}>
               <RefreshCw size={28} className="spin" />
@@ -1333,7 +1123,7 @@ export default function AiOperationsDashboard() {
               gap: '0.75rem',
               color: 'var(--text-muted)',
               background: 'var(--card-bg)',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-surface)',
               border: '1px solid var(--border)'
             }}>
               <AlertCircle size={32} color="#ef4444" />
@@ -1351,12 +1141,12 @@ export default function AiOperationsDashboard() {
           ) : (
             <>
               {/* Main 2-Column Section */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '1.5rem' }}>
 
             {/* Left Column: Form Configuration */}
             <div style={{
               background: 'var(--card-bg)',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-surface)',
               border: '1px solid var(--border)',
               padding: '1.5rem',
               display: 'flex',
@@ -1365,18 +1155,19 @@ export default function AiOperationsDashboard() {
             }}>
               <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
                 <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  Thiết Lập Model & Suy Luận
+                  Cấu hình mới
                 </h4>
               </div>
 
               {/* Scope Selector */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                  1. Chọn phạm vi áp dụng (Scope)
+                  Phạm vi áp dụng
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: configFeature === 'cod_sms' ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                   <button
                     type="button"
+                    aria-pressed={targetScope === 'all'}
                     onClick={() => handleSelectScope('all')}
                     disabled={isModelConfigLoading || isSavingConfig}
                     style={{
@@ -1384,7 +1175,7 @@ export default function AiOperationsDashboard() {
                       alignItems: 'center',
                       gap: '0.5rem',
                       padding: '0.75rem 1rem',
-                      borderRadius: '8px',
+                      borderRadius: 'var(--radius-control)',
                       border: targetScope === 'all' ? '2px solid var(--primary)' : '1px solid var(--border)',
                       background: targetScope === 'all' ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
                       color: targetScope === 'all' ? 'var(--primary)' : 'var(--text-main)',
@@ -1396,14 +1187,15 @@ export default function AiOperationsDashboard() {
                   >
                     <Users size={18} />
                     <div>
-                      <div>Tất cả (All Users)</div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>Cấu hình chung hệ thống</div>
+                      <div>{configFeature === 'cod_sms' ? 'Tác vụ COD SMS' : 'Toàn bộ Chatbot'}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>{configFeature === 'cod_sms' ? 'Áp dụng cho batch chấm SMS' : 'Cấu hình chung cho các tài khoản'}</div>
                     </div>
                   </button>
 
                   {configFeature !== 'cod_sms' && (
                     <button
                       type="button"
+                      aria-pressed={targetScope === 'user'}
                       onClick={() => handleSelectScope('user')}
                       disabled={isModelConfigLoading || isSavingConfig}
                       style={{
@@ -1411,7 +1203,7 @@ export default function AiOperationsDashboard() {
                         alignItems: 'center',
                         gap: '0.5rem',
                         padding: '0.75rem 1rem',
-                        borderRadius: '8px',
+                        borderRadius: 'var(--radius-control)',
                         border: targetScope === 'user' ? '2px solid var(--primary)' : '1px solid var(--border)',
                         background: targetScope === 'user' ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
                         color: targetScope === 'user' ? 'var(--primary)' : 'var(--text-main)',
@@ -1439,11 +1231,11 @@ export default function AiOperationsDashboard() {
                   gap: '0.5rem',
                   padding: '1rem',
                   background: 'var(--surface-hover)',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-control)',
                   border: '1px dashed var(--border)'
                 }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                    2. Tìm & Chọn người dùng
+                    Tìm & chọn tài khoản
                   </label>
 
                   {selectedUser ? (
@@ -1453,7 +1245,7 @@ export default function AiOperationsDashboard() {
                       alignItems: 'center',
                       padding: '0.6rem 0.85rem',
                       background: 'var(--card-bg)',
-                      borderRadius: '6px',
+                      borderRadius: 'var(--radius-control)',
                       border: '1px solid var(--border)'
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1488,7 +1280,7 @@ export default function AiOperationsDashboard() {
                     </div>
                   ) : (
                     <div ref={userSearchContainerRef} style={{ position: 'relative' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-bg)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-bg)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)' }}>
                         <Search size={15} color="var(--text-muted)" />
                         <input
                           type="text"
@@ -1539,7 +1331,7 @@ export default function AiOperationsDashboard() {
                             marginTop: '4px',
                             background: 'var(--card-bg)',
                             border: '1px solid var(--border)',
-                            borderRadius: '8px',
+                            borderRadius: 'var(--radius-control)',
                             boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
                             maxHeight: '220px',
                             overflowY: 'auto',
@@ -1608,7 +1400,7 @@ export default function AiOperationsDashboard() {
                   padding: '2rem 1.5rem',
                   textAlign: 'center',
                   background: 'var(--surface-hover)',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-control)',
                   border: '1px dashed var(--border)',
                   color: 'var(--text-muted)',
                   fontSize: '0.85rem'
@@ -1621,62 +1413,20 @@ export default function AiOperationsDashboard() {
                 </div>
               ) : (
                 <>
-                  {/* Model Selection */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Danh sách dùng chung từ Quản lý model · {modelConfigData?.allowedModels?.length || 0} model đã bật. Model mới cần lưu giá, kiểm tra và bật tại tab Quản lý model.</p>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                      {targetScope === 'user' ? '3.' : '2.'} Chọn Mô Hình (Model)
-                    </label>
-                    {(!modelConfigData?.allowedModels || modelConfigData.allowedModels.length === 0) ? (
-                      <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Không có mô hình nào khả dụng từ cấu hình server.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.6rem' }}>
-                        {modelConfigData.allowedModels.map(m => {
-                          const isSelected = formModel === m.id;
-                          const hasReasoning = Boolean(m.reasoningEfforts && m.reasoningEfforts.length > 0);
-                          const isModelDisabled = isModelConfigLoading || isSavingConfig;
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              disabled={isModelDisabled}
-                              onClick={() => handleModelChange(m.id)}
-                              style={{
-                                padding: '0.75rem',
-                                borderRadius: '8px',
-                                border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                background: isSelected ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
-                                cursor: isModelDisabled ? 'not-allowed' : 'pointer',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.25rem',
-                                textAlign: 'left',
-                                color: 'inherit',
-                                opacity: isModelDisabled ? 0.6 : 1
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: isSelected ? 'var(--primary)' : 'var(--text-main)' }}>
-                                  {m.label || m.id}
-                                </span>
-                                {isSelected && <CheckCircle2 size={14} color="var(--primary)" />}
-                              </div>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                {hasReasoning ? 'Hỗ trợ reasoning' : 'Không hỗ trợ reasoning'}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                  <div className="dev-model-selection">
+                    <label htmlFor="dev-model-choice">Model đang chọn</label>
+                    <select id="dev-model-choice" value={formModel} disabled={isModelConfigLoading || isSavingConfig || !modelConfigData?.allowedModels?.length} onChange={event => handleModelChange(event.target.value)}>
+                      {!formModel && <option value="">Chọn model</option>}
+                      {formModel && !modelConfigData?.allowedModels?.some(model => model.id === formModel) && <option value={formModel}>{formModel} · Không khả dụng</option>}
+                      {modelConfigData?.allowedModels?.map(model => <option key={model.id} value={model.id}>{model.label || model.id}</option>)}
+                    </select>
+                    <p>{modelConfigData?.allowedModels?.length || 0} model đã bật từ Danh mục model dùng chung.</p>
                   </div>
 
                   {/* Reasoning Effort Selection */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                      {targetScope === 'user' ? '4.' : '3.'} Mức Độ Suy Luận (Reasoning Effort)
+                      Mức suy luận
                     </label>
 
                     {(() => {
@@ -1687,7 +1437,7 @@ export default function AiOperationsDashboard() {
                         return (
                           <div style={{
                             padding: '0.6rem 0.85rem',
-                            borderRadius: '6px',
+                            borderRadius: 'var(--radius-control)',
                             background: 'var(--surface-hover)',
                             border: '1px dashed var(--border)',
                             fontSize: '0.8rem',
@@ -1713,10 +1463,11 @@ export default function AiOperationsDashboard() {
                                 key={effort}
                                 type="button"
                                 disabled={isEffortDisabled}
+                                aria-pressed={isSelected}
                                 onClick={() => setFormReasoningEffort(effort)}
                                 style={{
                                   padding: '0.6rem 0.75rem',
-                                  borderRadius: '8px',
+                                  borderRadius: 'var(--radius-control)',
                                   border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
                                   background: isSelected ? 'rgba(249, 115, 22, 0.08)' : 'var(--surface-hover)',
                                   cursor: isEffortDisabled ? 'not-allowed' : 'pointer',
@@ -1740,17 +1491,18 @@ export default function AiOperationsDashboard() {
                   {/* Reason for Audit Log */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                      {targetScope === 'user' ? '5.' : '4.'} Lý do thay đổi <span style={{ color: '#ef4444' }}>*</span>
+                      Lý do thay đổi <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="Ví dụ: Nâng cấp GPT-5 phục vụ đối soát chiến dịch 9.9..."
+                      placeholder="Ghi lý do để lưu vào nhật ký thay đổi…"
+                      aria-label="Lý do thay đổi cấu hình model"
                       value={formReason}
                       disabled={isModelConfigLoading || isSavingConfig}
                       onChange={(e) => setFormReason(e.target.value)}
                       style={{
                         padding: '0.6rem 0.8rem',
-                        borderRadius: '6px',
+                        borderRadius: 'var(--radius-control)',
                         border: '1px solid var(--border)',
                         background: 'var(--surface-hover)',
                         color: 'var(--text-main)',
@@ -1767,7 +1519,7 @@ export default function AiOperationsDashboard() {
                   {configFeedback && (
                     <div style={{
                       padding: '0.75rem 1rem',
-                      borderRadius: '6px',
+                      borderRadius: 'var(--radius-control)',
                       fontSize: '0.85rem',
                       display: 'flex',
                       alignItems: 'center',
@@ -1815,7 +1567,7 @@ export default function AiOperationsDashboard() {
                       style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                     >
                       <Sparkles size={15} />
-                      {isSavingConfig ? 'Đang lưu...' : targetScope === 'all' ? 'Áp dụng cho All Users' : 'Áp dụng cho User này'}
+                      {isSavingConfig ? 'Đang lưu...' : targetScope === 'all' ? (configFeature === 'cod_sms' ? 'Áp dụng cho COD SMS' : 'Áp dụng cho toàn bộ Chatbot') : 'Áp dụng cho tài khoản này'}
                     </button>
                   </div>
                 </>
@@ -1829,7 +1581,7 @@ export default function AiOperationsDashboard() {
               {/* Effective Resolution Summary Card */}
               <div style={{
                 background: 'var(--card-bg)',
-                borderRadius: '12px',
+                borderRadius: 'var(--radius-surface)',
                 border: '1px solid var(--border)',
                 padding: '1.25rem',
                 display: 'flex',
@@ -1838,14 +1590,14 @@ export default function AiOperationsDashboard() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.6rem' }}>
                   <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                    Hiệu Lực Thực Tế ({targetScope === 'user' ? (selectedUser ? selectedUser.email : 'Chưa chọn user') : 'Phạm vi All'})
+                    Cấu hình đang chạy ({targetScope === 'user' ? (selectedUser ? selectedUser.email : 'Chưa chọn user') : configFeature === 'cod_sms' ? 'COD SMS' : 'Chatbot'})
                   </span>
                   {!(targetScope === 'user' && !selectedUser) && (
                     <span className="badge" style={{
                       fontSize: '0.72rem',
                       fontWeight: 700,
                       padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
+                      borderRadius: 'var(--radius-control)',
                       background: modelConfigData?.effectiveSource === 'user' ? '#dbeafe' : modelConfigData?.effectiveSource === 'all' ? '#e0e7ff' : '#f3f4f6',
                       color: modelConfigData?.effectiveSource === 'user' ? '#1e40af' : modelConfigData?.effectiveSource === 'all' ? '#3730a3' : '#4b5563'
                     }}>
@@ -1860,14 +1612,14 @@ export default function AiOperationsDashboard() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div style={{ padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                    <div style={{ padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-control)' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Model đang phục vụ</div>
                       <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)', marginTop: '0.2rem' }}>
                         {modelConfigData?.effectiveConfig?.model || 'Đang tải...'}
                       </div>
                     </div>
 
-                    <div style={{ padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: '8px' }}>
+                    <div style={{ padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-control)' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mức suy luận</div>
                       <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.2rem' }}>
                         {modelConfigData?.effectiveConfig?.reasoningEffort || 'Không (null)'}
@@ -1877,10 +1629,11 @@ export default function AiOperationsDashboard() {
                 )}
               </div>
 
+              <details className="dev-panel-details"><summary>Nguồn cấu hình & mặc định server</summary>
               {/* Global Config Card */}
               <div style={{
                 background: 'var(--card-bg)',
-                borderRadius: '12px',
+                borderRadius: 'var(--radius-surface)',
                 border: '1px solid var(--border)',
                 padding: '1.25rem',
                 display: 'flex',
@@ -1919,7 +1672,7 @@ export default function AiOperationsDashboard() {
               {/* Server Env Fallback Card */}
               <div style={{
                 background: 'var(--card-bg)',
-                borderRadius: '12px',
+                borderRadius: 'var(--radius-surface)',
                 border: '1px solid var(--border)',
                 padding: '1.25rem',
                 display: 'flex',
@@ -1933,17 +1686,18 @@ export default function AiOperationsDashboard() {
                   <div>Model Env: <code>{modelConfigData?.envDefault?.model || 'Chưa tải'}</code></div>
                   <div>Reasoning Env: <code>{modelConfigData?.envDefault?.reasoningEffort || 'null'}</code></div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Được tải từ <code>AI_CHAT_MODEL</code> và <code>AI_CHAT_REASONING_EFFORT</code>.
+                    Được tải từ <code>{configFeature === 'cod_sms' ? 'COD_SMS_AI_MODEL' : 'AI_CHAT_MODEL'}</code> và <code>{configFeature === 'cod_sms' ? 'COD_SMS_AI_REASONING_EFFORT' : 'AI_CHAT_REASONING_EFFORT'}</code>.
                   </div>
                 </div>
               </div>
 
+              </details>
             </div>
 
           </div>
 
-          {/* Active User Overrides Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          {configFeature === 'chat' && <details className="dev-panel-details"><summary>Cấu hình riêng theo tài khoản ({modelConfigData?.userOverrides?.length || 0})</summary>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>DANH SÁCH OVERRIDE RIÊNG CHO TỪNG USER</span>
               <span className="badge" style={{ fontSize: '0.75rem' }}>{modelConfigData?.userOverrides?.length || 0} user</span>
@@ -2001,8 +1755,11 @@ export default function AiOperationsDashboard() {
             </div>
           </div>
 
+          </details>}
+
+          <details className="dev-panel-details"><summary>Nhật ký thay đổi cấu hình</summary>
           {/* Model Config Audit Trail Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700 }}>
               NHẬT KÝ THAY ĐỔI CẤU HÌNH AI MODEL (AUDIT TRAIL)
             </div>
@@ -2057,6 +1814,7 @@ export default function AiOperationsDashboard() {
               </table>
             </div>
           </div>
+          </details>
         </>
       )}
 
@@ -2068,11 +1826,11 @@ export default function AiOperationsDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* Filter & Actions Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--card-bg)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--card-bg)', padding: '1rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', flex: 1 }}>
               
               {/* Search question text */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--surface-hover)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border)', minWidth: '260px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--surface-hover)', padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', minWidth: '260px' }}>
                 <Search size={16} color="var(--text-muted)" />
                 <input
                   type="text"
@@ -2088,7 +1846,7 @@ export default function AiOperationsDashboard() {
               <select
                 value={researchStatusFilter}
                 onChange={(e) => setResearchStatusFilter(e.target.value)}
-                style={{ background: 'var(--surface-hover)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                style={{ background: 'var(--surface-hover)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 'var(--radius-control)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
               >
                 <option value="all">Tất cả trạng thái</option>
                 <option value="completed">Thành công (Completed)</option>
@@ -2127,13 +1885,13 @@ export default function AiOperationsDashboard() {
 
           {/* Research Insights Summary */}
           {researchTopFingerprints.length > 0 && (
-            <div style={{ background: 'var(--card-bg)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
+            <div style={{ background: 'var(--card-bg)', padding: '1rem', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
               <div style={{ fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Sparkles size={16} color="var(--ghn-orange)" /> CÁC CÂU HỎI LẶP LẠI PHỔ BIẾN TRONG KỲ
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 {researchTopFingerprints.map(fp => (
-                  <span key={fp.fingerprint} style={{ background: 'var(--surface-hover)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+                  <span key={fp.fingerprint} style={{ background: 'var(--surface-hover)', padding: '4px 10px', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
                     Fingerprint <code>#{fp.fingerprint}</code>: <strong>{fp.count} lần</strong>
                   </span>
                 ))}
@@ -2142,7 +1900,7 @@ export default function AiOperationsDashboard() {
           )}
 
           {/* Research Questions Table */}
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--surface-hover)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>DANH SÁCH CÂU HỎI NGHIÊN CỨU ({researchTotal.toLocaleString('vi-VN')})</span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Email người dùng đã được tự động mask</span>
@@ -2217,7 +1975,7 @@ export default function AiOperationsDashboard() {
       {/* ======================= MODAL: SET / RESET QUOTA ======================= */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)', width: '100%', maxWidth: '480px', padding: '1.5rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-surface)', border: '1px solid var(--border)', width: '100%', maxWidth: '480px', padding: '1.5rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -2230,7 +1988,7 @@ export default function AiOperationsDashboard() {
             </div>
 
             {modalError && (
-              <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger-fg)', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger-fg)', borderRadius: 'var(--radius-control)', marginBottom: '1rem', fontSize: '0.85rem' }}>
                 {modalError}
               </div>
             )}
@@ -2250,7 +2008,7 @@ export default function AiOperationsDashboard() {
                     email: e.target.value,
                     userId: (prev?.originalEmail && prev.originalEmail.toLowerCase() === e.target.value.trim().toLowerCase()) ? prev.userId : null
                   }))}
-                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem' }}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem' }}
                 />
               </div>
 
@@ -2289,7 +2047,7 @@ export default function AiOperationsDashboard() {
                       checked={modalQuotaType === 'default'}
                       onChange={() => setModalQuotaType('default')}
                     />
-                    Đặt lại về mặc định (10 lượt/ngày)
+                    Đặt lại về mặc định ({quotasData.defaultTurnLimit ?? 'chưa tải'} lượt/ngày)
                   </label>
                 </div>
               </div>
@@ -2305,7 +2063,7 @@ export default function AiOperationsDashboard() {
                     max="10000"
                     value={modalCustomLimit}
                     onChange={(e) => setModalCustomLimit(e.target.value)}
-                    style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem' }}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem' }}
                   />
                 </div>
               )}
@@ -2320,7 +2078,7 @@ export default function AiOperationsDashboard() {
                   placeholder="Ví dụ: Phục vụ đối soát chiến dịch 9.9, nghiên cứu dữ liệu leadtime..."
                   value={modalReason}
                   onChange={(e) => setModalReason(e.target.value)}
-                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-control)', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.85rem' }}
                 />
               </div>
 
@@ -2385,17 +2143,17 @@ export default function AiOperationsDashboard() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#b45309' }}>
-                  Xác Nhận Thay Đổi Toàn Hệ Thống
+                  {configFeature === 'cod_sms' ? 'Xác nhận cấu hình COD SMS' : 'Xác nhận cấu hình toàn bộ Chatbot'}
                 </h4>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                  Bạn đang chuẩn bị áp dụng cấu hình mô hình mới cho <strong>TẤT CẢ người dùng (All Users)</strong>.
+                  Bạn đang chuẩn bị áp dụng model mới cho <strong>{configFeature === 'cod_sms' ? 'tác vụ chấm COD SMS' : 'mọi tài khoản Chatbot không có cấu hình riêng'}</strong>.
                 </p>
               </div>
             </div>
 
             <div style={{
               background: 'var(--surface-hover)',
-              borderRadius: '8px',
+              borderRadius: 'var(--radius-control)',
               border: '1px solid var(--border)',
               padding: '1rem',
               display: 'flex',
@@ -2422,10 +2180,10 @@ export default function AiOperationsDashboard() {
               color: '#991b1b',
               background: '#fee2e2',
               padding: '0.6rem 0.85rem',
-              borderRadius: '6px',
+              borderRadius: 'var(--radius-control)',
               border: '1px solid #fca5a5'
             }}>
-              Lưu ý: Mọi user không có override riêng sẽ lập tức chuyển sang model này ở lượt chat tiếp theo.
+              {configFeature === 'cod_sms' ? 'Tác vụ chấm SMS tiếp theo sẽ dùng cấu hình này. Điểm SMS đã lưu không thay đổi.' : 'Tài khoản không có cấu hình riêng sẽ dùng model này ở lượt chat tiếp theo.'}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.25rem' }}>
@@ -2444,7 +2202,7 @@ export default function AiOperationsDashboard() {
                 disabled={isSavingConfig}
                 style={{ background: '#d97706', borderColor: '#b45309' }}
               >
-                {isSavingConfig ? 'Đang áp dụng...' : 'Xác Nhận Thay Đổi Cho All'}
+                {isSavingConfig ? 'Đang áp dụng…' : 'Xác nhận & áp dụng'}
               </button>
             </div>
           </div>
