@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Layers } from 'lucide-react';
 import { Boxes, Check, Zap } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
@@ -21,6 +21,12 @@ const OPTIONS = [
 
 export default function ClientSelectModal({ isOpen, onSelect }) {
   const [picked, setPicked] = useState(null);
+  const pickTimer = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) setPicked(null);
+    return () => window.clearTimeout(pickTimer.current);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -29,7 +35,7 @@ export default function ClientSelectModal({ isOpen, onSelect }) {
     setPicked(key);
     // Let the user see the pick land (scale + check-in) before the modal
     // closes, instead of an abrupt cut to the dashboard.
-    window.setTimeout(() => onSelect(key), 320);
+    pickTimer.current = window.setTimeout(() => onSelect(key), 320);
   };
 
   return (

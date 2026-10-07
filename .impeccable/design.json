@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T12:18:32.768Z",
+  "generatedAt": "2026-10-07T05:55:06.736Z",
   "title": "Design System: GHN KAS Operations",
   "extensions": {
     "colorMeta": {
@@ -278,15 +278,27 @@
     "typographyMeta": {
       "body": {
         "displayName": "Operational Body",
-        "purpose": "Dense, legible operational content and controls."
+        "purpose": "Default dashboard body text."
       },
       "heading": {
-        "displayName": "Section Heading",
-        "purpose": "Compact hierarchy for report and dialog titles."
+        "displayName": "Compact Heading",
+        "purpose": "Section titles and modal headings; local variants may use heavier weights."
       },
       "mono": {
-        "displayName": "Metric Annotation",
-        "purpose": "Codes, compact figures, and source identifiers."
+        "displayName": "Numeric Annotation",
+        "purpose": "Compact codes, metrics, and aligned data labels."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Coverage and supporting labels."
+      },
+      "metadata": {
+        "displayName": "Metadata",
+        "purpose": "Source and freshness details."
+      },
+      "page-title": {
+        "displayName": "Page Title",
+        "purpose": "Workspace headings."
       }
     },
     "shadows": [
@@ -304,6 +316,11 @@
         "name": "overlay",
         "value": "0 24px 48px rgba(20, 60, 100, 0.22)",
         "purpose": "Modal and overlay surfaces."
+      },
+      {
+        "name": "legacy-dual-tone",
+        "value": "8px 8px 18px rgba(163, 190, 220, 0.45), -8px -8px 16px rgba(255, 255, 255, 0.85)",
+        "purpose": "Existing dual-tone surfaces; overview KPI cards stay flat at rest."
       }
     ],
     "motion": [
@@ -341,6 +358,16 @@
         "name": "modal",
         "value": "300ms",
         "purpose": "Dialog transitions."
+      },
+      {
+        "name": "intro-exit",
+        "value": "400ms",
+        "purpose": "Finish the intro fade before mounting client selection."
+      },
+      {
+        "name": "client-confirmation",
+        "value": "320ms",
+        "purpose": "Acknowledge the chosen client before closing."
       }
     ],
     "breakpoints": [
@@ -358,12 +385,49 @@
       }
     ],
     "componentGuidance": {
+      "Buttons": [
+        "- **Shape:** Primary and secondary compact actions are pills; rectangular KPI/comment actions use the control radius.\n- **Primary:** Cyan background, white text, and a restrained raised shadow. Use once for the strongest local action.\n- **Secondary / Ghost:** Surface-subtle or transparent background with a visible boundary where the button could be mistaken for static text.\n- **Focus:** Use the cyan focus ring; do not rely on color shift alone."
+      ],
+      "Chips": [
+        "- **Style:** Pill geometry with concise text and a semantic or scoped background.\n- **State:** A filter that narrows data must visibly distinguish itself from the all-data/default state."
+      ],
+      "Cards / Containers": [
+        "- **Corner Style:** Surface radius (`22px`) for peer data containers and overlays.\n- **Background:** Default white surface on the pastel canvas.\n- **Shadow Strategy:** Soft at rest; raised only for an intentional interactive or selected state.\n- **Border:** Subtle blue-tinted border when a surface needs separation."
+      ],
+      "Inputs / Fields": [
+        "- **Style:** White surface, strong blue-tinted border, control radius (`10px`).\n- **Focus:** Cyan border plus a visible focus ring.\n- **Error / Disabled:** Error uses the semantic danger pair; a disabled field must remain distinguishable from a loading or empty field."
+      ],
       "Dropdowns & Date Fields": [
-        "**Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection (\"Tất cả (19)\", \"HCM, HNO +2\"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.",
-        "**Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type=\"date\">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.",
-        "**Overlay:** Popovers are `position: fixed` (not clipped by a scrolling modal body) and close on outside click, scroll of the page behind, and Escape without closing the surrounding modal."
+        "- **Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection (\"Tất cả (19)\", \"HCM, HNO +2\"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.\n- **Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type=\"date\">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.\n- **Overlay:** Popovers are `position: fixed` (not clipped by a scrolling modal body) and close on outside click, scroll of the page behind, and Escape without closing the surrounding modal."
+      ],
+      "Navigation": [
+        "- **Style:** The desktop sidebar is the only persistent dark navy shell. Its exposed edge may use the documented partial `24px` radius; internal controls still use the shared control/pill roles.\n- **State:** Active navigation uses a clear cyan/orange accent and text contrast; mobile navigation follows the same semantic active state."
+      ],
+      "Brand Intro & Client Selection": [
+        "- **Intro:** A white full-viewport brand surface plays the ten-second video, looping seconds 8–10 while the first live sync is pending. Reduced motion or failed autoplay uses the static logo.\n- **Skip:** The quiet bottom-right “Bỏ qua” control has a minimum 44px height. It mounts only after the overview's live data loads successfully; restoring cached rows or finishing a failed request does not enable it.\n- **Exit:** Automatic exit waits for the live request to settle and the ten-second minimum display time. Skip bypasses the remaining video time. The 400ms fade must finish before client selection opens; a failed load releases the intro so the app can expose recovery actions.\n- **Client choice:** Two named options, Shopee Express and Shopee Bulky, appear side by side on desktop and in one column on phone. A selected option uses cyan, a check icon, and a brief confirmation before closing; other options become disabled.\n- **Visit rule:** Ask after the intro on each user's first visit of the Vietnam calendar day, or after a new deployment. Save acknowledgment only when the user chooses a client. Reloading within the same day and build does not ask again. An explicit embedded scope remains authoritative.",
+        "**The Startup Sequence Rule.** Complete the intro exit before mounting client selection; cached data and loading timers must never expose the skip action early."
+      ],
+      "Dev Control Panel": [
+        "The panel follows Operate mode and the existing palette and type system. Its directory groups shared AI models, Chatbot, COD SMS, and accounts/access. Desktop uses a compact local navigation column; mobile uses a collapsed menu showing the selected function. The content has one heading and one task at a time. Effective model configuration remains visible; source diagnostics, overrides, audit history, and advanced registry filters use progressive disclosure. Inputs, navigation selection and surfaces inherit the shared radius tokens."
       ]
-    }
+    },
+    "layering": [
+      {
+        "name": "brand-intro",
+        "value": 2147483647,
+        "purpose": "Viewport portal above app overlays; app remains inert until exit."
+      },
+      {
+        "name": "dialog",
+        "value": 10000,
+        "purpose": "App modal backdrop."
+      },
+      {
+        "name": "motion-tooltip",
+        "value": 20000,
+        "purpose": "Sidebar hover guidance below the intro."
+      }
+    ]
   },
   "components": [
     {
@@ -427,16 +491,24 @@
       "kind": "button",
       "refersTo": "input-field",
       "description": "**Multi-select (`ui/MultiSelectDropdown`):** Any filter with more than a handful of values is a single control-radius trigger summarising the selection (\"Tất cả (19)\", \"HCM, HNO +2\"), opening a popover with search (shown above 6 options), a select-all/none action scoped to the search results, and a scrollable checklist. Do not render long lists as chips.",
-      "html": "<div class=\"msd\"><button class=\"msd-trigger\" type=\"button\"><span class=\"msd-summary\">HCM, HNO +2</span></button></div>",
-      "css": ".msd, .date-field { position: relative; min-width: 0; }\n.msd-trigger, .date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.msd-trigger:hover:not(:disabled), .date-field-trigger:hover { border-color: var(--ghn-blue); }\n.msd-trigger.is-open, .date-field-trigger.is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.msd-trigger.is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.msd-trigger.is-open .msd-chevron { transform: rotate(180deg); }\n.date-field-trigger svg { flex: none; color: var(--text-muted); }\n.date-field-trigger .is-placeholder { color: var(--text-muted); }"
+      "html": "<div class=\"ds-msd\"><button class=\"ds-msd-trigger\" type=\"button\"><span class=\"ds-msd-summary\">HCM, HNO +2</span></button></div>",
+      "css": ".ds-msd, .ds-date-field { position: relative; min-width: 0; }\n.ds-msd-trigger, .ds-date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.ds-msd-trigger:hover:not(:disabled), .ds-date-field-trigger:hover { border-color: var(--ghn-blue); }\n.ds-msd-trigger.ds-is-open, .ds-date-field-trigger.ds-is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.ds-msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.ds-msd-trigger.ds-is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.ds-msd-trigger.ds-is-open .ds-msd-chevron { transform: rotate(180deg); }\n.ds-date-field-trigger svg { flex: none; color: var(--text-muted); }\n.ds-date-field-trigger .ds-is-placeholder { color: var(--text-muted); }\n.ds-msd-trigger:focus-visible, .ds-date-field-trigger:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); }"
     },
     {
       "name": "Date Field Trigger",
       "kind": "input",
       "refersTo": "input-field",
       "description": "**Date (`ui/DateField`):** Use the in-app calendar, not the browser-native `<input type=\"date\">`, so locale (dd/mm/yyyy, Monday-first) and min/max limits look and behave the same everywhere. Pair a date range with quick presets.",
-      "html": "<div class=\"date-field\"><button class=\"date-field-trigger\" type=\"button\" aria-label=\"Ngày báo cáo: 05/10/2026\"><span>05/10/2026</span></button></div>",
-      "css": ".msd, .date-field { position: relative; min-width: 0; }\n.msd-trigger, .date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.msd-trigger:hover:not(:disabled), .date-field-trigger:hover { border-color: var(--ghn-blue); }\n.msd-trigger.is-open, .date-field-trigger.is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.msd-trigger.is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.msd-trigger.is-open .msd-chevron { transform: rotate(180deg); }\n.date-field-trigger svg { flex: none; color: var(--text-muted); }\n.date-field-trigger .is-placeholder { color: var(--text-muted); }"
+      "html": "<div class=\"ds-date-field\"><button class=\"ds-date-field-trigger\" type=\"button\" aria-label=\"Ngày báo cáo: 05/10/2026\"><span>05/10/2026</span></button></div>",
+      "css": ".ds-msd, .ds-date-field { position: relative; min-width: 0; }\n.ds-msd-trigger, .ds-date-field-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.42rem 0.65rem; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--text-main); font: inherit; font-size: .86rem; text-align: left; cursor: pointer; }\n.ds-msd-trigger:hover:not(:disabled), .ds-date-field-trigger:hover { border-color: var(--ghn-blue); }\n.ds-msd-trigger.ds-is-open, .ds-date-field-trigger.ds-is-open { border-color: var(--ghn-blue); box-shadow: var(--focus-ring); }\n.ds-msd-trigger:disabled { opacity: .6; cursor: not-allowed; background: var(--surface-subtle); }\n.ds-msd-trigger.ds-is-filtered { border-color: color-mix(in srgb, var(--ghn-blue) 55%, var(--border-strong)); background: color-mix(in srgb, var(--info-box-bg) 55%, var(--surface)); }\n.ds-msd-trigger.ds-is-open .ds-msd-chevron { transform: rotate(180deg); }\n.ds-date-field-trigger svg { flex: none; color: var(--text-muted); }\n.ds-date-field-trigger .ds-is-placeholder { color: var(--text-muted); }\n.ds-msd-trigger:focus-visible, .ds-date-field-trigger:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; box-shadow: var(--focus-ring); }"
+    },
+    {
+      "name": "Client Choice",
+      "kind": "custom",
+      "refersTo": "data-surface",
+      "description": "Named SPE/SPB options shown after the intro on the first user visit of the Vietnam day or a new deployment.",
+      "html": "<section class=\"ds-client-choice\"><h2 class=\"ds-client-title\">Bạn muốn xem báo cáo ngành hàng nào?</h2><div class=\"ds-client-grid\"><button class=\"ds-client-option\" type=\"button\">Shopee Express <span class=\"ds-client-tag\">SPE</span></button><button class=\"ds-client-option\" type=\"button\">Shopee Bulky <span class=\"ds-client-tag\">SPB</span></button></div></section>",
+      "css": ".ds-client-choice { max-width:640px; padding:1.75rem; background:var(--surface-default); color:var(--text-primary); border-radius:var(--radius-surface); box-shadow:var(--shadow-overlay); font-family:var(--font-sans); } .ds-client-title { margin:0 0 1.5rem; font:800 1.2rem/1.5 var(--font-heading); } .ds-client-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; } .ds-client-option { display:flex; flex-direction:column; align-items:flex-start; gap:.5rem; padding:1.5rem 1.25rem; background:var(--surface-canvas); color:inherit; border:1px solid var(--border-subtle); border-radius:var(--radius-surface); box-shadow:var(--shadow-soft); font:600 1rem/1.5 var(--font-sans); cursor:pointer; text-align:left; transition:transform 220ms var(--ease-standard), border-color 220ms var(--ease-standard), box-shadow 220ms var(--ease-standard); } .ds-client-option:hover:not(:disabled) { transform:translateY(-4px); border-color:var(--action-primary); box-shadow:var(--shadow-raised); } .ds-client-option:active:not(:disabled) { transform:translateY(-1px) scale(.98); } .ds-client-option:focus-visible { outline:2px solid var(--action-primary); outline-offset:2px; box-shadow:var(--focus-ring); } .ds-client-option:disabled { cursor:default; } .ds-client-tag { font:700 .75rem/1.5 var(--font-mono); color:var(--action-primary-hover); } @media(max-width:560px) { .ds-client-grid { grid-template-columns:1fr; } } @media(prefers-reduced-motion:reduce) { .ds-client-option { transition:none; } }"
     }
   ],
   "narrative": {
@@ -467,6 +539,11 @@
         "name": "The Legacy Radius Rule",
         "body": "Existing literal `18px`, `20px`, `24px`, `8px`, and similar values are migration candidates, not additions to the design scale. Preserve a literal only when it is a documented geometric exception above.",
         "section": "shapes"
+      },
+      {
+        "name": "The Startup Sequence Rule",
+        "body": "Complete the intro exit before mounting client selection; cached data and loading timers must never expose the skip action early.",
+        "section": "components"
       }
     ],
     "dos": [

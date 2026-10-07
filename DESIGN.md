@@ -23,12 +23,20 @@ colors:
 typography:
   body:
     fontFamily: "IBM Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontSize: "0.875rem"
     lineHeight: 1.5
   heading:
     fontFamily: "Outfit, IBM Plex Sans, sans-serif"
     fontWeight: 700
   mono:
     fontFamily: "IBM Plex Mono, monospace"
+  caption:
+    fontSize: "0.75rem"
+  metadata:
+    fontSize: "0.8125rem"
+  page-title:
+    fontFamily: "Outfit, IBM Plex Sans, sans-serif"
+    fontSize: "1.5rem"
 rounded:
   control: "10px"
   surface: "22px"
@@ -61,10 +69,6 @@ components:
 
 # Design System: GHN KAS Operations
 
-## Dev Control Panel
-
-The panel follows Operate mode and the existing palette and type system. Its directory groups shared AI models, Chatbot, COD SMS, and accounts/access. Desktop uses a compact local navigation column; mobile uses a collapsed menu showing the selected function. The content has one heading and one task at a time. Effective model configuration remains visible; source diagnostics, overrides, audit history, and advanced registry filters use progressive disclosure. Inputs, navigation selection and surfaces inherit the shared radius tokens.
-
 ## Overview
 
 **Creative North Star: "The Calm Operations Desk"**
@@ -84,6 +88,8 @@ The palette pairs a calm blue-white workspace with a narrow cyan action accent, 
 
 ### Primary
 - **Operational Cyan:** Used for the primary action, active navigation, focus, and linked drill-down states.
+
+### Secondary
 - **GHN Orange:** Used sparingly for GHN emphasis, exceptions, and selected operational attention states.
 
 ### Neutral
@@ -91,6 +97,8 @@ The palette pairs a calm blue-white workspace with a narrow cyan action accent, 
 - **White Surface:** The default container, modal, field, and data-card background.
 - **Slate Text:** Dark slate carries primary reading; muted slate is for supporting metadata only.
 - **Blue-Tinted Borders:** Subtle borders separate controls and surfaces without creating a gray, spreadsheet-like shell.
+
+Dark mode overrides the semantic canvas, surface, text, and border properties in `src/styles/tokens.css`. Components inherit those properties rather than inverting the light palette. The brand intro deliberately keeps its opaque white background in both themes.
 
 ### Named Rules
 **The One-Action Accent Rule.** Cyan identifies the principal interactive path on a local surface. Orange does not replace semantic warning/error treatment and is not a second primary button color.
@@ -106,7 +114,7 @@ The palette pairs a calm blue-white workspace with a narrow cyan action accent, 
 ### Hierarchy
 - **Heading** (Outfit, 700): Section titles, modal titles, and the primary label of a data region.
 - **Body** (IBM Plex Sans, line-height 1.5): Explanations, table content, and filter labels.
-- **Metadata** (typically 0.72–0.85rem): Source, coverage, timestamps, and supporting detail; it must not be the only place a critical state is conveyed.
+- **Caption / Metadata**: The semantic caption and metadata sizes carry source, coverage, timestamps, and supporting detail; they must not be the only place a critical state is conveyed. Legacy components retain some local size overrides.
 - **Numeric annotation** (IBM Plex Mono): Compact KPI figures, codes, and source identifiers where alignment and distinction aid scanning.
 
 ## Layout
@@ -114,6 +122,9 @@ The palette pairs a calm blue-white workspace with a narrow cyan action accent, 
 The desktop shell uses a persistent navigation sidebar and a centered main-content region with a 1600px maximum width. Standard content spacing is 16px; major sections use 24px. Repeated cards use responsive grids with a minimum track around 170px.
 
 At 768px and below, navigation and dense desktop layouts collapse into mobile-specific patterns. At 560px and below, selection grids become single-column. A control must keep a usable hit target; the system already treats 44px as the mobile target where space permits.
+
+### Startup layers
+The signed-in startup intro fills the viewport from a portal attached to `document.body`, above the app's loading surfaces, dialogs, popovers, and tooltips. The app underneath is inert and hidden from assistive technology until the intro completes its exit. Client selection mounts afterward, so its focus trap cannot compete with the intro.
 
 ## Elevation & Depth
 
@@ -123,6 +134,8 @@ Depth is soft and structural. White surfaces use faint blue-tinted diffuse shado
 - **Soft surface:** `0 10px 26px rgba(20, 60, 100, 0.08), 0 1px 3px rgba(20, 60, 100, 0.04)` for resting cards and filters.
 - **Raised interaction:** `0 14px 34px -14px rgba(20, 60, 100, 0.22), 0 2px 8px rgba(20, 60, 100, 0.06)` for a deliberate hover or picked state.
 - **Overlay:** `0 24px 48px rgba(20, 60, 100, 0.22)` for modal surfaces.
+
+Overview KPI cards use a flat border at rest and lift only when selected. The legacy dual-tone `--shadow-neu` remains available in the source; it is not a reason to apply elevation to every surface.
 
 ### Named Rules
 **The Evidence Before Elevation Rule.** Use elevation to separate an actionable or layered surface, not to decorate every box.
@@ -173,6 +186,18 @@ Partial corners are valid only when the shape expresses containment or attachmen
 ### Navigation
 - **Style:** The desktop sidebar is the only persistent dark navy shell. Its exposed edge may use the documented partial `24px` radius; internal controls still use the shared control/pill roles.
 - **State:** Active navigation uses a clear cyan/orange accent and text contrast; mobile navigation follows the same semantic active state.
+
+### Brand Intro & Client Selection
+- **Intro:** A white full-viewport brand surface plays the ten-second video, looping seconds 8–10 while the first live sync is pending. Reduced motion or failed autoplay uses the static logo.
+- **Skip:** The quiet bottom-right “Bỏ qua” control has a minimum 44px height. It mounts only after the overview's live data loads successfully; restoring cached rows or finishing a failed request does not enable it.
+- **Exit:** Automatic exit waits for the live request to settle and the ten-second minimum display time. Skip bypasses the remaining video time. The 400ms fade must finish before client selection opens; a failed load releases the intro so the app can expose recovery actions.
+- **Client choice:** Two named options, Shopee Express and Shopee Bulky, appear side by side on desktop and in one column on phone. A selected option uses cyan, a check icon, and a brief confirmation before closing; other options become disabled.
+- **Visit rule:** Ask after the intro on each user's first visit of the Vietnam calendar day, or after a new deployment. Save acknowledgment only when the user chooses a client. Reloading within the same day and build does not ask again. An explicit embedded scope remains authoritative.
+
+**The Startup Sequence Rule.** Complete the intro exit before mounting client selection; cached data and loading timers must never expose the skip action early.
+
+### Dev Control Panel
+The panel follows Operate mode and the existing palette and type system. Its directory groups shared AI models, Chatbot, COD SMS, and accounts/access. Desktop uses a compact local navigation column; mobile uses a collapsed menu showing the selected function. The content has one heading and one task at a time. Effective model configuration remains visible; source diagnostics, overrides, audit history, and advanced registry filters use progressive disclosure. Inputs, navigation selection and surfaces inherit the shared radius tokens.
 
 ## Do's and Don'ts
 

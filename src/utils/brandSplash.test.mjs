@@ -18,7 +18,7 @@ test('brand video assets exist and loop window matches the player', () => {
 
 test('BrandSplash is accessible, muted, and falls back to the static logo', () => {
   assert.match(splash, /role="status"/);
-  assert.match(splash, /aria-busy="true"/);
+  assert.match(splash, /aria-busy=\{!ready\}/);
   assert.match(splash, /\bmuted\b/);
   assert.match(splash, /playsInline/);
   assert.match(splash, /prefers-reduced-motion: reduce/);
@@ -29,14 +29,20 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
 
 test('App mounts BrandSplash from the first render and releases it only when the LIVE sync settles (not on cache restore)', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /currentUser && <BrandSplash ready=\{activeTab === 'dev-admin' \|\| liveSyncSettled\} \/>/);
+  assert.match(app, /introVisible && <BrandSplash key=\{userEmail\} ready=\{liveSyncSettled\} canSkip=\{overviewDataReady\} onComplete=\{handleIntroComplete\} \/>/);
   assert.match(app, /setLiveSyncSettled\(true\)/);
   const cacheRestore = app.slice(app.indexOf('loadSyncSnapshot(currentUser.email)'), app.indexOf('autoRefreshBusinessDayRef = '));
   assert.doesNotMatch(cacheRestore, /setLiveSyncSettled/, 'a cache hit must not dismiss the intro');
+  assert.doesNotMatch(cacheRestore, /setOverviewDataReady/, 'cached rows do not enable skipping the live sync');
+  const syncFinally = app.slice(app.indexOf('syncRequestRef.current = false;', app.indexOf('const handleSyncLiveSheet')),
+    app.indexOf('syncFnRef.current = handleSyncLiveSheet'));
+  assert.doesNotMatch(syncFinally, /setOverviewDataReady\(true\)/, 'a failed request must not enable skip');
 });
 
 test('splash has a skip button, a minimum display time, and a gentle reveal', () => {
-  assert.match(splash, /className=\{`brand-splash__skip/);
+  assert.match(splash, /const skipVisible = ready && canSkip && phase === 'show'/);
+  assert.match(splash, /\{skipVisible && \(/);
+  assert.doesNotMatch(splash, /SKIP_DELAY_MS|setSkipVisible/);
   assert.match(splash, /Bỏ qua/);
   assert.match(splash, /onClick=\{\(\) => setPhase\('leaving'\)\}/);
   assert.match(splash, /MIN_SHOW_MS = \d+/);
@@ -48,8 +54,17 @@ test('splash is the first paint: no mount delay, white boot background until Rea
   const index = read('index.html');
   const main = read('src/main.jsx');
   assert.doesNotMatch(splash, /SHOW_DELAY_MS|'idle'/, 'a delay would let the app show through first');
-  assert.match(splash, /useState\(ready \? 'gone' : 'show'\)/);
+  assert.match(splash, /useState\('show'\)/);
   assert.match(index, /html\.boot-white/);
   assert.match(index, /localStorage\.getItem\('ghn_user'\)/);
   assert.match(main, /classList\.remove\('boot-white'\)/);
+});
+
+test('intro escapes app stacking contexts and onboarding waits for its full exit', () => {
+  assert.match(splash, /return createPortal\(/);
+  assert.match(splash, /document\.body/);
+  assert.match(css, /z-index:\s*2147483647/);
+  assert.match(app, /inert=\{introVisible\}/);
+  assert.match(app, /!introVisible && <ClientSelectModal/);
+  assert.match(splash, /if \(phase === 'gone'\) onComplete\?\.\(\)/);
 });
