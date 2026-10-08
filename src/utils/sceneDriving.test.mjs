@@ -3,13 +3,43 @@ import assert from 'node:assert/strict';
 import { computeTransitionFrames, computeSceneLayout } from './rankingSceneLayout.js';
 import {
   advanceDriveClock, createDriveClock, sampleDrivePose, driveHeading, CRUISE_SPEED,
-  wrapRoadTravel, roadsideAlpha, ROADSIDE_BUFFER
+  wrapRoadTravel, leaderSurge
 } from './sceneDriving.js';
 
 const moving = (id, fromX, toX, fromZ = 0, toZ = 0) => ({
   id, from: { x: fromX, z: fromZ }, to: { x: toX, z: toZ }, alphaFrom: 1, alphaTo: 1
 });
 const replay = { durationMs: 3000 };
+
+test('only a forward-moving destination winner surges and settles at its exact rank', () => {
+  const winner = { ...moving('winner', -40, 20), item: { rank: 1 }, phase: 'enter', alphaFrom: 0 };
+  const ordinary = { ...winner, item: { rank: 2 } };
+  assert.ok(leaderSurge(winner, 0.5) > 0);
+  assert.ok(sampleDrivePose(winner, 0.5).x > sampleDrivePose(ordinary, 0.5).x);
+  for (const item of [ordinary, { ...winner, ghost: true }, { ...winner, to: { x: -40, z: 0 } }]) {
+    assert.equal(leaderSurge(item, 0.5), 0);
+  }
+  assert.equal(leaderSurge(winner, 0), 0);
+  assert.equal(leaderSurge(winner, 1), 0);
+  assert.deepEqual(sampleDrivePose(winner, 0), { x: -40, z: 0, alpha: 0 });
+  assert.deepEqual(sampleDrivePose(winner, 1), { x: 20, z: 0, alpha: 1 });
+  let previous = -40;
+  for (let i = 0; i <= 100; i++) {
+    const x = sampleDrivePose(winner, i / 100).x;
+    assert.ok(x >= previous && x <= 20);
+    previous = x;
+  }
+});
+
+test('Top 50 transitions keep the fleet within budget, including departing ghosts', () => {
+  const fleet = offset => Array.from({ length: 50 }, (_, i) => ({ id: `hub-${i + offset}`, x: 50 - i, z: i % 4 }));
+  const transition = computeTransitionFrames(fleet(0), fleet(50), { maxCount: 50 });
+  assert.equal(transition.items.length, 50);
+  assert.ok(transition.items.every(item => !item.ghost && Number(item.id.slice(4)) >= 50));
+  const smaller = computeTransitionFrames(fleet(0), fleet(50).slice(0, 10), { maxCount: 50 });
+  assert.equal(smaller.items.length, 50);
+  assert.equal(smaller.items.filter(item => !item.ghost).length, 10);
+});
 
 test('cruise preserves ranking positions while common road distance advances', () => {
   const clock = createDriveClock();
@@ -111,23 +141,15 @@ test('trees, signs and dashes share road displacement through cruise and replay'
   }
 });
 
-test('roadside recycling is invisible at both ends and stable after many loops', () => {
+test('road texture travel stays stable after many loops', () => {
   for (const length of [36, 200, 1400]) {
-    const half = length / 2 + ROADSIDE_BUFFER;
+    const half = length / 2 + 12;
     const span = half * 2;
-    assert.equal(roadsideAlpha(-half, length), 0);
-    assert.equal(roadsideAlpha(half, length), 0);
-    assert.equal(roadsideAlpha(-length / 2, length), 1);
-    assert.equal(roadsideAlpha(length / 2, length), 1);
     for (const x of [-half + 0.01, 0, half - 0.01]) {
       const first = wrapRoadTravel(x, 0, -half, span);
       const repeated = wrapRoadTravel(x, span * 1000000, -half, span);
       assert.ok(Math.abs(first - repeated) < 1e-8);
     }
-    const nearExit = wrapRoadTravel(0, half - 0.01, -half, span);
-    const afterWrap = wrapRoadTravel(0, half + 0.01, -half, span);
-    assert.ok(roadsideAlpha(nearExit, length) < 0.002);
-    assert.ok(roadsideAlpha(afterWrap, length) < 0.002);
   }
 });
 

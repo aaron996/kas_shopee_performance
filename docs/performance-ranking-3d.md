@@ -10,10 +10,10 @@
   làm trọng tâm. Công trình và cây cao nằm phía xa; không gắn số liệu giả vào
   trang trí. Kho có mái dốc, ba cửa xuất hàng, pallet và xe đỗ; bãi có container
   xếp tầng, gân mặt thùng, đèn sân và pallet.
-- `sceneRoadside.js` tạo tuyến deterministic, độc lập với Hub/KPI. Chu kỳ ít
-  nhất 192 đơn vị cho cả Top 10/20, mở rộng theo toàn tuyến khi xem tất cả.
-  Giữ chung clock với đường/xe; mỗi công trình tái sử dụng và mờ đi theo một
-  anchor. Phép biến đổi cứng giữ mái/tường và tầng container khớp nhau khi
+- `sceneRoadside.js` tạo tuyến deterministic, độc lập với Hub/KPI. Nhịp cảnh
+  lặp sau 192 đơn vị, vùng cảnh dự trữ ít nhất 384 đơn vị cho Top 10/20/50.
+  Giữ chung clock với đường/xe; cả cụm công trình tái sử dụng theo một
+  anchor khi hoàn toàn ngoài camera. Phép biến đổi cứng giữ mái/tường và tầng container khớp nhau khi
   qua cung đường, tránh uốn từng mảnh gây hở mái. Lề/hàng rào theo chiều dài
   cung trong/ngoài. Test kiểm tra clearance, seam, seed và khoảng cách cứng.
 - `Roadside.jsx` dùng bảy InstancedMesh (box, cone, round, rock, hill, pole,
@@ -188,10 +188,10 @@
 - Xe chạy nền trong hệ quy chiếu của đoàn: vị trí thứ hạng không đổi khi dữ liệu
   không đổi. Vạch đường và texture nhựa đường trôi ngược; ba vành bánh có dấu quay.
   Thân xe nhún 0,012 đơn vị, lệch pha; nhãn giữ nguyên điểm neo để dễ đọc.
-- Cây và biển báo dùng cùng khoảng đường đã đi với bánh/vạch đường. Bốn mesh
-  instanced cập nhật vị trí, không thêm timer hay setState từng frame. Props mờ
-  dần trong 6 đơn vị ở mỗi đầu vùng đệm 12 đơn vị ngoài đường, rồi xuất hiện lại
-  từ phía trước. Tạm dừng/ẩn/giảm chuyển động đóng băng cả cảnh ven đường.
+- Cây và biển báo dùng cùng khoảng đường đã đi với bánh/vạch đường. Bảy mesh
+  instanced cập nhật vị trí, không thêm timer hay setState từng frame. Từ bản
+  2026-10-08, props giữ opacity 1, không fade theo khoảng cách hoặc fog.
+  Tạm dừng/ẩn/giảm chuyển động đóng băng cả cảnh ven đường.
 - Bỏ hai cổng xanh/vàng và nhãn checkpoint ở 3D; bỏ mốc SLA giả định ở 2D.
   Vị trí dọc đường chỉ thể hiện thứ hạng. Đạt/chưa đạt mục tiêu vẫn thể hiện qua
   màu trạng thái, nhãn KPI và bảng. Các phần ghi lại sprint bên dưới mô tả
@@ -875,3 +875,56 @@ Playwright + Chrome (GPU thật), dữ liệu tổng hợp: bộ kiểm tra tư�
   Đây là fixture cục bộ, chưa kiểm tra trang production đăng nhập hoặc thiết bị thật.
 - Build đạt, 539/539 test đạt; lint không báo lỗi ở các file sửa.
   Detector thiết kế không có finding; cảnh báo lint có sẵn ngoài phạm vi giữ nguyên.
+# BXH viewport layout and Top 50 budget (2026-10-08)
+
+BXH now opens as a viewport stage below the shared filter header. The sidebar
+and mobile bottom navigation recede while this tab is active; the back arrow
+returns to Overview. KPI, Top 10/20/50, pause, settings and the audit-table
+trigger occupy the compact toolbar. Speed and 2D/3D live in settings. Stable
+Hub paint and staggered lanes are fixed defaults; replay and camera remain.
+
+Ranking still uses the complete filtered data for aggregation, deterministic
+tie-breaking and D-8 comparisons. `selectSceneHubs` cuts the ranked result
+before either renderer receives it. No ALL option or selected-Hub append is
+allowed. The 3D transition includes at most 50 instances, including departing
+ghosts; the destination Top list takes precedence when that budget is full.
+The full audit table mounts only when opened. A selected Hub outside the
+visible Top list is available in the detail panel without adding a truck.
+
+A forward-moving destination rank-1 truck uses an earlier settling curve,
+golden exhaust and three speed streaks during the 3D transition/replay. Exact
+rank endpoints remain unchanged. The effect uses the shared simulation clock,
+so pause and interrupted KPI changes preserve its position; reduced motion
+skips the moving emphasis. Ordinary trucks retain their existing movement.
+
+Local verification uses an ignored fixture with 1,000 synthetic Hubs and
+different winners across all four KPIs in a task-owned Codex IAB tab. Evidence
+covers viewport bounds on desktop/mobile, the 50-instance transition budget,
+rapid KPI changes, pause, 2D limits and selecting rank 800 without appending it
+to the scene. This does not establish authenticated production-data behavior
+or real-device performance.
+
+## Cảnh ven đường rời khung hình trước khi tái sử dụng (2026-10-08)
+
+- Không cần vòng đua khép kín: đoạn đường chính giữ cung cong, hai đầu kéo dài
+  theo tiếp tuyến để cảnh đi ra xa mà không uốn ngược về camera.
+- Mỗi cụm dùng một bounding sphere bao trọn cây, mái/tường, biển và các vật phụ.
+  Kiểm tra frustum sau cập nhật camera và trước cập nhật instance. Chỉ chuyển
+  cụm khi cả vị trí cũ và vị trí mới đều ngoài camera, kể cả khi đổi TV/toàn
+  cảnh/bám xe hoặc orbit. Cụm còn nhìn thấy tiếp tục chạy qua ngưỡng dự trữ.
+- Vật liệu cảnh là opaque, bỏ instanceAlpha và shader fade; không áp dụng fog
+  lên props. Nền đất vẫn dùng fog để hòa với đường chân trời.
+- Giữ bảy batch và số instance cố định (Top 20 fixture: 1.308 instance, 136 cụm).
+  Pool lớn hơn trước để đủ cảnh ở hai đầu; chi phí không tăng theo thời gian chạy.
+- Kiểm tra Node: chạy 5.000 đơn vị qua camera TV, overview, follow/orbit và tỉ lệ
+  desktop/mobile; mọi lần recycle có cả hai đầu ngoài frustum. Kiểm tra riêng
+  lề đường liên tục qua nhiều chu kỳ và pause không thay vị trí.
+- IAB dùng dữ liệu mẫu cục bộ 1.000 Hub. Đây là kiểm tra logic và preview,
+  không phải đo hiệu năng thiết bị thật hoặc xác nhận production.
+
+## Quyền truy cập BXH (2026-10-08)
+
+BXH dùng quyền truy cập chung của dashboard, không yêu cầu Dev Admin. Registry
+hiển thị tab trên sidebar, điều hướng mobile và command palette cho user thường.
+ModuleSurfaceOutlet vẫn kiểm tra quyền riêng của các module khác; Dev Panel tiếp
+tục yêu cầu Dev Admin. Dữ liệu BXH vẫn lấy các hàng đã áp dụng filter của App.

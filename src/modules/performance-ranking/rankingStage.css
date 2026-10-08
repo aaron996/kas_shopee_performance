@@ -1,0 +1,102 @@
+/* BXH uses the viewport as its stage; shell filters remain reachable above it. */
+.app-layout-ranking .app-sidebar { display: none; }
+.app-layout-ranking .mobile-bottom-nav { display: none; }
+.app-layout-ranking .app-main { padding-bottom: 0; }
+.app-layout-ranking .main-content { padding: 0; max-width: none; }
+.app-layout-ranking .tab-view-content { animation: none; }
+.performance-road-ranking-tab {
+  position: relative;
+  height: calc(100dvh - var(--app-header-height, 52px));
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.prr-stage-header {
+  flex: none;
+  position: relative;
+  z-index: 10;
+  background: var(--surface-default);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 20px;
+}
+.prr-stage-heading, .prr-stage-toolbar, .prr-stage-actions { display: flex; align-items: center; gap: 12px; }
+.prr-stage-heading { margin-bottom: 8px; }
+.prr-stage-heading h1 { margin: 0; font-family: var(--font-heading); font-size: 17px; font-weight: 700; }
+.prr-stage-back, .prr-panel-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-control); color: var(--text-primary);
+  background: var(--surface-subtle); cursor: pointer; width: 32px; height: 32px; flex: none;
+}
+.prr-stage-scope, .prr-stage-count { font-size: 12px; color: var(--text-secondary); }
+.prr-stage-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.prr-stage-toolbar { justify-content: space-between; flex-wrap: wrap; }
+.prr-stage-actions { gap: 8px; flex-wrap: wrap; }
+.prr-stage-header .prr-kpi-tab { flex-direction: row; gap: 8px; min-height: 32px; padding: 5px 12px; }
+.prr-stage-header .kpi-tab-target { font-size: 11px; font-variant-numeric: tabular-nums; }
+.prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn { min-height: 32px; }
+.prr-stage-settings { position: relative; font-size: 12px; }
+.prr-stage-settings summary { cursor: pointer; padding: 8px 10px; border-radius: var(--radius-pill); }
+.prr-stage-settings-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; width: 280px; padding: 16px;
+  background: var(--surface-default); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control); box-shadow: var(--shadow-soft); z-index: 20;
+}
+.prr-stage-settings-panel > * + * { margin-top: 12px; }
+.prr-stage-settings-panel p { color: var(--text-secondary); display: flex; align-items: center; gap: 5px; line-height: 1.5; }
+.prr-stage-settings-panel .prr-speed-control { padding: 0; border: 0; }
+.prr-stage-settings-panel .prr-speed-control input { min-width: 0; flex: 1; }
+.performance-road-ranking-tab .prr-scene-card {
+  flex: 1; min-height: 0; display: flex; padding: 0; border: 0; border-radius: 0; box-shadow: none;
+}
+.performance-road-ranking-tab .prr-scene3d,
+.performance-road-ranking-tab .prr-road-viewport { flex: 1; height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.performance-road-ranking-tab .prr-scene-empty { flex: 1; align-self: center; }
+.performance-road-ranking-tab .prr-road-canvas { height: 100%; min-height: 320px; }
+.performance-road-ranking-tab .prr-lanes-container { top: 50%; transform: translateY(-50%); }
+.performance-road-ranking-tab .prr-truck-node { margin-top: max(0px, calc((100dvh - var(--app-header-height, 52px) - 420px) / 2)); }
+.performance-road-ranking-tab .prr-3d-controls { bottom: 20px; right: 20px; gap: 8px; }
+.performance-road-ranking-tab .prr-3d-caption { bottom: 20px; left: 20px; padding: 6px 10px; }
+.performance-road-ranking-tab .prr-insight-panel,
+.performance-road-ranking-tab .prr-table-card {
+  position: absolute; z-index: 30; background: var(--surface-default);
+  box-shadow: var(--shadow-soft); margin: 0; overflow: auto; overscroll-behavior: contain;
+}
+.performance-road-ranking-tab .prr-insight-panel { right: 16px; bottom: 74px; width: min(450px, calc(100% - 32px)); max-height: calc(100% - 180px); padding: 18px; }
+.performance-road-ranking-tab .insight-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.performance-road-ranking-tab .prr-table-card { inset: 110px 16px 74px; padding: 18px; display: flex; flex-direction: column; }
+.performance-road-ranking-tab .prr-table-responsive { flex: 1; overflow: auto; }
+.performance-road-ranking-tab .prr-table-toolbar { flex: none; }
+.prr-panel-close { margin-left: auto; order: 3; }
+.prr-offscene-note { font-size: 12px; color: var(--text-secondary); margin: 12px 0; }
+.prr-stage-header button:focus-visible, .prr-stage-settings summary:focus-visible,
+.prr-panel-close:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
+@media (max-width: 800px) {
+  .prr-stage-header { padding: 8px 12px; }
+  .prr-stage-heading { flex-wrap: wrap; gap: 8px; }
+  .prr-stage-heading h1 { font-size: 15px; }
+  .prr-stage-scope { font-size: 11px; }
+  .prr-stage-toolbar { gap: 8px; }
+  .prr-stage-header .prr-kpi-selector { width: 100%; display: flex; flex-wrap: nowrap; }
+  .prr-stage-header .prr-kpi-tab { flex: 1; padding: 5px 8px; gap: 4px; min-height: 40px; }
+  .prr-stage-header .kpi-tab-target { display: none; }
+  .prr-stage-actions { width: 100%; justify-content: space-between; gap: 4px; }
+  .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn, .prr-stage-settings summary { min-height: 40px; }
+  .prr-stage-header .prr-playback-btn span { display: none; }
+  .prr-stage-header .prr-playback-btn { min-width: 40px; width: 40px; padding: 4px; }
+  .prr-stage-actions > .prr-replay-btn:last-child { width: 40px; padding: 4px; justify-content: center; }
+  .prr-stage-actions > .prr-replay-btn:last-child span { display: none; }
+  .prr-stage-header .seg-btn { padding: 4px 8px; font-size: 11px; }
+  .prr-stage-heading .prr-stage-count { display: none; }
+  .prr-stage-settings-panel { right: -70px; }
+  .performance-road-ranking-tab .prr-3d-controls { bottom: 42px; left: 12px; right: 12px; justify-content: flex-start; }
+  .performance-road-ranking-tab .prr-3d-controls .seg-btn,
+  .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 40px; font-size: 11px; padding: 4px 10px; }
+  .performance-road-ranking-tab .prr-3d-caption { bottom: 8px; left: 12px; }
+  .performance-road-ranking-tab .prr-table-card { inset: 160px 8px 8px; padding: 12px; }
+  .performance-road-ranking-tab .prr-insight-panel { right: 8px; bottom: 90px; width: calc(100% - 16px); max-height: calc(100% - 260px); }
+  .performance-road-ranking-tab .prr-truck-node { margin-top: 0; }
+  .performance-road-ranking-tab .prr-lanes-container { top: 0; transform: none; }
+}
