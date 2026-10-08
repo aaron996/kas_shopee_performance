@@ -86,8 +86,6 @@ export const moduleRegistry = Object.freeze([
     icon: Truck,
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở BXH Performance...',
-    // Temporarily hidden from regular users; re-enable by removing this flag.
-    requiresDevAdmin: true,
     surface: lazy(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
   },
   {

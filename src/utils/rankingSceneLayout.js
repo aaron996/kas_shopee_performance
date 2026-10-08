@@ -220,7 +220,7 @@ export function computeReplayFrames(sceneTrucks, opts = {}) {
  * @param nextTrucks Array<{id, x, z, meetsTarget}> new trucks
  * @returns {{changed: boolean, items: Array<{id, x, z, meetsTarget, ghost: boolean, from, to, alphaFrom, alphaTo, dir}>}}
  */
-export function computeTransitionFrames(prevTrucks, nextTrucks) {
+export function computeTransitionFrames(prevTrucks, nextTrucks, { maxCount = Infinity } = {}) {
   const prev = new Map((prevTrucks || []).map((t) => [t.id, t]));
   const next = Array.isArray(nextTrucks) ? nextTrucks : [];
   const nextIds = new Set(next.map((t) => t.id));
@@ -244,6 +244,7 @@ export function computeTransitionFrames(prevTrucks, nextTrucks) {
   });
 
   for (const before of [...prev.values()].sort((a, b) => b.x - a.x)) {
+    if (items.length >= maxCount) break;
     if (nextIds.has(before.id)) continue;
     changed = true;
     if (before.alpha === 0) continue;

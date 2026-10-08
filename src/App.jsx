@@ -722,6 +722,7 @@ export default function App() {
       onClearFocusTarget: () => setReport1FocusTarget(null)
     },
     ranking: {
+      onExit: () => setActiveTab('home'),
       pickRows: filteredPickRows,
       deliRows: filteredDeliRows,
       clientFilter,
@@ -803,7 +804,7 @@ export default function App() {
       />
 
       {/* Main Layout wrapper for Sidebar + Content */}
-      <div className="app-layout">
+      <div className={`app-layout${activeTab === 'ranking' ? ' app-layout-ranking' : ''}`}>
         <Sidebar
           key={currentUser?.email?.trim().toLowerCase() || 'anonymous'}
           activeTab={activeTab}

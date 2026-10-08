@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SCENE_THEMES, pickSceneTheme, hash01 } from './sceneThemes.js';
-import { computeRoadsideLayout, roadsidePose, roadsideWorldPose, ROADSIDE_CYCLE } from './sceneRoadside.js';
+import { computeRoadsideLayout, roadsideWorldPose, ROADSIDE_CYCLE } from './sceneRoadside.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const hexes = (o) => Object.values(o).flatMap((v) => (typeof v === 'string' ? [v] : Array.isArray(v) ? v : v && typeof v === 'object' ? hexes(v) : []));
@@ -38,7 +38,7 @@ test('logistics route is deterministic, varied and clears the road at every supp
   for (const width of [3.2, 11, 16.2]) {
     const a = computeRoadsideLayout(36, width);
     assert.deepEqual(a, computeRoadsideLayout(36, width));
-    assert.equal(a.span, ROADSIDE_CYCLE);
+    assert.equal(a.span, ROADSIDE_CYCLE * 2);
     assert.deepEqual(new Set(a.landmarks.map(p => p.kind)), new Set(['billboard', 'depot', 'yard']));
     assert.ok(a.batches.cone.length > 0 && a.batches.round.length > 0 && a.batches.rock.length > 0);
     for (const [shape, parts] of Object.entries(a.batches)) for (const part of parts) {
@@ -50,21 +50,7 @@ test('logistics route is deterministic, varied and clears the road at every supp
   }
 });
 
-test('large scenery clusters recycle together and disappear before crossing the seam', () => {
-  const { span, batches } = computeRoadsideLayout(36, 11);
-  const depot = batches.box.filter(p => p.anchor === -91);
-  assert.ok(depot.length > 0);
-  for (const distance of [0, 32, 96, 191.9, 192, 1e6]) {
-    const poses = depot.map(p => roadsidePose(p, distance, span, 36));
-    assert.equal(new Set(poses.map(p => p.alpha)).size, 1);
-    for (let i = 1; i < poses.length; i++) assert.ok(Math.abs((poses[i].x - poses[0].x) - (depot[i].x - depot[0].x)) < 1e-9);
-  }
-  const first = depot[0];
-  assert.equal(roadsidePose(first, first.anchor - span / 2 + 0.01, span, 36).alpha, 0);
-  assert.deepEqual(roadsidePose(first, 30, span, 36), roadsidePose(first, 30 + span, span, 36));
-});
-
-test('route supports all-hub lengths with seven batches and bounded instance count', () => {
+test('route uses seven batches with bounded instance count', () => {
   const a = computeRoadsideLayout(2400, 16.2);
   assert.equal(Object.keys(a.batches).length, 7);
   assert.ok(Object.values(a.batches).flat().length < 12000);
@@ -80,9 +66,9 @@ test('depot roof and stacked containers retain rigid distances on the curve and 
     const { anchor } = layout.landmarks.find(p => p.kind === kind);
     const parts = layout.batches.box.filter(p => p.anchor === anchor);
     const origin = parts[0];
-    for (const part of parts) for (const distance of [0, 32, 96, 191.99, 192, 100000]) {
-      const a = roadsideWorldPose(origin, distance, layout.span, 36);
-      const b = roadsideWorldPose(part, distance, layout.span, 36);
+    for (const part of parts) for (const anchor of [-800, -193, -192, -91, 0, 192, 800]) {
+      const a = roadsideWorldPose(origin, anchor, 36);
+      const b = roadsideWorldPose(part, anchor, 36);
       const localLength = Math.hypot(part.x - origin.x, part.y - origin.y, part.z - origin.z);
       assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) - localLength) < 1e-9);
       assert.equal(a.heading, b.heading); assert.equal(a.pitch, b.pitch);

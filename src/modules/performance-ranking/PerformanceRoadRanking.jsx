@@ -9,17 +9,19 @@ import {
   X,
   Info,
   MapPin,
-  Calendar,
   Building2,
   Pause,
   Play,
-  RotateCcw
+  ArrowLeft,
+  Table2
 } from 'lucide-react';
 import {
   calculatePerformanceRanking,
   SUPPORTED_KPIS,
   SMALL_SAMPLE_THRESHOLD,
-  getMetricDef
+  getMetricDef,
+  selectSceneHubs,
+  SCENE_TOP_LIMITS
 } from '../../utils/performanceRanking.js';
 import { formatPct, formatVol, formatDiff, formatDateLabel } from '../../utils/dataProcessor.js';
 import {
@@ -28,11 +30,12 @@ import {
   isSceneMode,
   pickDefaultSceneMode
 } from '../../utils/sceneCapability.js';
+import './rankingStage.css';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import RoadScene2D from './RoadScene2D.jsx';
 import SceneErrorBoundary from './SceneErrorBoundary.jsx';
 import useScenePlayback from './useScenePlayback.js';
-import { DEFAULT_DRIVE_RATE, MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
+import { MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { useToast } from '../../components/ui/Toast.jsx';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
@@ -71,11 +74,13 @@ export default function PerformanceRoadRanking({
   selectedRegions = null,
   selectedHubTypes = null,
   onJumpToReport1,
+  onExit,
   density = 'comfortable'
 }) {
   const [metricKey, setMetricKey] = useState('p1st');
   const [selectedHubId, setSelectedHubId] = useState(null);
-  const [sceneDisplayLimit, setSceneDisplayLimit] = useState('20'); // '10' | '20' | 'ALL'
+  const [sceneDisplayLimit, setSceneDisplayLimit] = useState(20);
+  const [tableOpen, setTableOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [webgl2] = useState(detectWebGL2InBrowser);
   const [sceneMode, setSceneMode] = useState(() => getInitialSceneMode(webgl2));
@@ -116,21 +121,8 @@ export default function PerformanceRoadRanking({
 
   // Hubs visible on the road scene
   const sceneTrucks = useMemo(() => {
-    let baseList = ranked;
-    if (sceneDisplayLimit === '10') {
-      baseList = ranked.slice(0, 10);
-    } else if (sceneDisplayLimit === '20') {
-      baseList = ranked.slice(0, 20);
-    }
-    // If selected hub is outside the slice, append it so it stays visible in the scene
-    if (selectedHubId && !baseList.some(h => h.id === selectedHubId)) {
-      const extra = ranked.find(h => h.id === selectedHubId);
-      if (extra) {
-        return [...baseList, extra].sort((a, b) => a.rank - b.rank);
-      }
-    }
-    return baseList;
-  }, [ranked, sceneDisplayLimit, selectedHubId]);
+    return selectSceneHubs(ranked, sceneDisplayLimit);
+  }, [ranked, sceneDisplayLimit]);
 
   // Selected Hub entity (searches both ranked and unranked)
   const selectedHubItem = useMemo(() => {
@@ -163,6 +155,7 @@ export default function PerformanceRoadRanking({
 
   // Select / deselect a Hub by composite ID
   const handleSelectHub = useCallback((hubId) => {
+    setTableOpen(false);
     setSelectedHubId(prev => (prev === hubId ? null : hubId));
   }, []);
 
@@ -179,12 +172,12 @@ export default function PerformanceRoadRanking({
   }, [showToast]);
 
   const handleViewTable = useCallback(() => {
-    const table = tableCardRef.current;
-    if (!table) return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    table.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
-    table.focus({ preventScroll: true });
+    setTableOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (tableOpen) tableCardRef.current?.focus({ preventScroll: true });
+  }, [tableOpen]);
 
   // Enter on the 3D scene: bring the selected Hub's detail panel into view and focus it.
   const handleOpenDetail = useCallback(() => {
@@ -208,13 +201,14 @@ export default function PerformanceRoadRanking({
   // Keyboard navigation: Escape key deselects
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && selectedHubId) {
-        setSelectedHubId(null);
+      if (e.key === 'Escape') {
+        if (selectedHubId) setSelectedHubId(null);
+        else if (tableOpen) setTableOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedHubId]);
+  }, [selectedHubId, tableOpen]);
 
   // Handle drill-down CTA "Mở chi tiết Hub"
   const handleDrillDown = useCallback(() => {
@@ -247,186 +241,62 @@ export default function PerformanceRoadRanking({
 
   return (
     <div className={`performance-road-ranking-tab ${density === 'compact' ? 'density-compact' : ''}`}>
-      {/* 1. Header & Controls Section */}
-      <section className="prr-header-card">
-        <div className="prr-header-row">
-          <div>
-            <div className="prr-badge-pill">
-              <Truck size={14} className="text-cyan" />
-              <span>Vận hành Tuyến & Trạm GHN</span>
-            </div>
-            <h1 className="prr-title">BXH Performance</h1>
-            <p className="prr-subtitle">
-              Vị trí xe thể hiện thứ hạng; số liệu quyết định hiển thị bên dưới.
-            </p>
-          </div>
-
-          {/* Scope context summary */}
-          <div className="prr-scope-summary">
-            <div className="prr-scope-chip" title="Client scope">
-              <span className="scope-chip-label">Client:</span>
-              <strong>{clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter}</strong>
-            </div>
-            <div className="prr-scope-chip" title="Vùng scope">
-              <MapPin size={13} />
-              <span>{Array.isArray(selectedRegions) ? `${selectedRegions.length} vùng` : 'Tất cả vùng'}</span>
-            </div>
-            <div className="prr-scope-chip" title="Loại Hub scope">
-              <Building2 size={13} />
-              <span>{Array.isArray(selectedHubTypes) ? `${selectedHubTypes.length} loại` : 'Tất cả loại Hub'}</span>
-            </div>
-            <div className="prr-scope-chip highlight" title="Ngày dữ liệu D-1">
-              <Calendar size={13} />
-              <span>D-1: {d1Formatted}</span>
-              {d8Formatted && <span className="text-muted text-xs">(vs D-8: {d8Formatted})</span>}
-            </div>
-          </div>
+      <header className="prr-stage-header">
+        <div className="prr-stage-heading">
+          {onExit && <button type="button" className="prr-stage-back" onClick={onExit} aria-label="Quay về Tổng quan" title="Tổng quan"><ArrowLeft size={18} /></button>}
+          <h1>BXH Performance</h1>
+          <span className="prr-stage-scope">{clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter} · D-1 {d1Formatted}</span>
+          <span className="prr-stage-count">{sceneTrucks.length} / {rankedCount} Hub</span>
         </div>
-
-        {/* KPI Selector & Legend */}
-        <div className="prr-controls-bar">
+        <div className="prr-stage-toolbar">
           <div className="prr-kpi-selector" role="tablist" aria-label="Chọn KPI xếp hạng">
-            {SUPPORTED_KPIS.map(kpi => {
-              const isActive = metricKey === kpi.id;
-              const def = getMetricDef(kpi.id);
-              return (
-                <button
-                  key={kpi.id}
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`prr-kpi-tab ${isActive ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setMetricKey(kpi.id);
-                    setSelectedHubId(null);
-                  }}
-                >
-                  <span className="kpi-tab-label">{kpi.label}</span>
-                  <span className="kpi-tab-target">Mục tiêu: {def.target}%</span>
-                </button>
-              );
-            })}
+            {SUPPORTED_KPIS.map(kpi => (
+              <button key={kpi.id} type="button" role="tab" aria-selected={metricKey === kpi.id}
+                className={`prr-kpi-tab ${metricKey === kpi.id ? 'is-active' : ''}`}
+                onClick={() => { setMetricKey(kpi.id); setSelectedHubId(null); }}>
+                <span className="kpi-tab-label">{kpi.label}</span>
+                <span className="kpi-tab-target">{getMetricDef(kpi.id).target}%</span>
+              </button>
+            ))}
           </div>
-
-          {/* Legend */}
-          <div className="prr-legend-box">
-            <div className="prr-legend-item">
-              <span className="legend-dot meets-target" />
-              <span>Đạt mục tiêu ({target}%)</span>
+          <div className="prr-stage-actions">
+            <div className="prr-segmented-limit" role="group" aria-label="Số Hub trên đường">
+              {SCENE_TOP_LIMITS.map(limit => <button key={limit} type="button" className={`seg-btn ${sceneDisplayLimit === limit ? 'active' : ''}`}
+                aria-pressed={sceneDisplayLimit === limit} onClick={() => setSceneDisplayLimit(limit)}>Top {limit}</button>)}
             </div>
-            <div className="prr-legend-item">
-              <span className="legend-dot below-target" />
-              <span>Chưa đạt</span>
-            </div>
-            <div className="prr-legend-item">
-              <span className="legend-icon-badge up"><ArrowUp size={11} /></span>
-              <span>Thăng hạng</span>
-            </div>
-            <div className="prr-legend-item">
-              <span className="legend-icon-badge down"><ArrowDown size={11} /></span>
-              <span>Tụt hạng</span>
-            </div>
-            <div className="prr-legend-item" title={`Số đơn D-1 dưới ${SMALL_SAMPLE_THRESHOLD} đơn`}>
-              <AlertTriangle size={13} className="text-warning" />
-              <span>Cảnh báo mẫu &lt;{SMALL_SAMPLE_THRESHOLD}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. Visual Delivery Road Scene Section */}
-      <section ref={sceneHostRef} className="prr-scene-card" aria-label="Tuyến đường xếp hạng Hub">
-        <div className="prr-scene-toolbar">
-          <div className="scene-toolbar-left">
-            <span className="scene-toolbar-title">Tuyến đường Vận chuyển ({metricLabel})</span>
-            <span className="scene-toolbar-meta">
-              Đang hiển thị <strong>{sceneTrucks.length}</strong> / {rankedCount} xe trên đường
-            </span>
-          </div>
-
-          <div className="scene-toolbar-right">
-            <div className="prr-speed-control">
-              <label htmlFor={speedControlId}>Tốc độ</label>
-              <input
-                id={speedControlId}
-                type="range"
-                min={MIN_DRIVE_RATE}
-                max={MAX_DRIVE_RATE}
-                step="0.25"
-                value={playback.rate}
-                aria-label="Tốc độ chạy xe"
-                aria-valuetext={`${playback.rate.toLocaleString('vi-VN')} lần`}
-                disabled={playback.reducedMotion || sceneTrucks.length === 0}
-                onChange={event => playback.setRate(Number(event.target.value))}
-              />
-              <output htmlFor={speedControlId}>{speedLabel}</output>
-              <button
-                type="button"
-                className="prr-speed-reset"
-                aria-label="Đặt lại tốc độ mặc định 2×"
-                title="Tốc độ mặc định: 2×"
-                disabled={playback.rate === DEFAULT_DRIVE_RATE || playback.reducedMotion || sceneTrucks.length === 0}
-                onClick={() => playback.setRate(DEFAULT_DRIVE_RATE)}
-              ><RotateCcw size={12} aria-hidden="true" /></button>
-            </div>
-            <button
-              type="button"
-              className="prr-replay-btn prr-playback-btn"
-              disabled={playback.reducedMotion || sceneTrucks.length === 0}
-              aria-pressed={playback.paused}
+            <button type="button" className="prr-replay-btn prr-playback-btn"
+              disabled={playback.reducedMotion || sceneTrucks.length === 0} aria-pressed={playback.paused}
               aria-label={playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
               title={playback.reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : undefined}
-              onClick={() => playback.setPaused(value => !value)}
-            >
-              {playback.paused || playback.reducedMotion ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />}
-              {playback.reducedMotion ? 'Giảm chuyển động' : playback.paused ? 'Tiếp tục' : 'Tạm dừng'}
+              onClick={() => playback.setPaused(value => !value)}>
+              {playback.paused || playback.reducedMotion ? <Play size={15} /> : <Pause size={15} />}
+              <span>{playback.reducedMotion ? 'Giảm chuyển động' : playback.paused ? 'Tiếp tục' : 'Tạm dừng'}</span>
             </button>
-            <div className="prr-segmented-limit" role="group" aria-label="Chế độ hiển thị cảnh">
-              <button
-                type="button"
-                className={`seg-btn ${sceneMode === '2d' ? 'active' : ''}`}
-                aria-pressed={sceneMode === '2d'}
-                onClick={() => handleSceneModeChange('2d')}
-              >
-                2D
-              </button>
-              <button
-                type="button"
-                className={`seg-btn ${sceneMode === '3d' ? 'active' : ''}`}
-                aria-pressed={sceneMode === '3d'}
-                disabled={!webgl2}
-                title={webgl2 ? undefined : WEBGL2_UNAVAILABLE_HINT}
-                onClick={() => handleSceneModeChange('3d')}
-              >
-                3D
-              </button>
-            </div>
-            <span className="scene-limit-label">Hiển thị trên đường:</span>
-            <div className="prr-segmented-limit">
-              <button
-                type="button"
-                className={`seg-btn ${sceneDisplayLimit === '10' ? 'active' : ''}`}
-                onClick={() => setSceneDisplayLimit('10')}
-              >
-                Top 10
-              </button>
-              <button
-                type="button"
-                className={`seg-btn ${sceneDisplayLimit === '20' ? 'active' : ''}`}
-                onClick={() => setSceneDisplayLimit('20')}
-              >
-                Top 20
-              </button>
-              <button
-                type="button"
-                className={`seg-btn ${sceneDisplayLimit === 'ALL' ? 'active' : ''}`}
-                onClick={() => setSceneDisplayLimit('ALL')}
-              >
-                Tất cả ({rankedCount})
-              </button>
-            </div>
+            <details className="prr-stage-settings">
+              <summary>Tùy chỉnh</summary>
+              <div className="prr-stage-settings-panel">
+                <div className="prr-speed-control">
+                  <label htmlFor={speedControlId}>Tốc độ</label>
+                  <input id={speedControlId} type="range" min={MIN_DRIVE_RATE} max={MAX_DRIVE_RATE} step="0.25" value={playback.rate}
+                    aria-label="Tốc độ chạy xe" aria-valuetext={`${playback.rate.toLocaleString('vi-VN')} lần`}
+                    disabled={playback.reducedMotion || sceneTrucks.length === 0} onChange={event => playback.setRate(Number(event.target.value))} />
+                  <output htmlFor={speedControlId}>{speedLabel}</output>
+                </div>
+                <div className="prr-segmented-limit" role="group" aria-label="Chế độ hiển thị cảnh">
+                  <button type="button" className={`seg-btn ${sceneMode === '2d' ? 'active' : ''}`} aria-pressed={sceneMode === '2d'} onClick={() => handleSceneModeChange('2d')}>2D</button>
+                  <button type="button" className={`seg-btn ${sceneMode === '3d' ? 'active' : ''}`} aria-pressed={sceneMode === '3d'} disabled={!webgl2}
+                    title={webgl2 ? undefined : WEBGL2_UNAVAILABLE_HINT} onClick={() => handleSceneModeChange('3d')}>3D</button>
+                </div>
+                <p>{Array.isArray(selectedRegions) ? `${selectedRegions.length} vùng` : 'Tất cả vùng'} · {Array.isArray(selectedHubTypes) ? `${selectedHubTypes.length} loại Hub` : 'Tất cả loại Hub'}</p>
+                <p><span className="legend-dot meets-target" /> Đạt mục tiêu {target}% · <span className="legend-dot below-target" /> Chưa đạt</p>
+                <p><AlertTriangle size={12} /> Mẫu dưới {SMALL_SAMPLE_THRESHOLD} đơn</p>
+              </div>
+            </details>
+            <button type="button" className="prr-replay-btn" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={15} /><span>Bảng số liệu</span></button>
           </div>
         </div>
-
+      </header>
+      <section ref={sceneHostRef} className="prr-scene-card" aria-label="Tuyến đường xếp hạng Hub">
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (
           <div className="prr-scene-empty">
@@ -526,6 +396,7 @@ export default function PerformanceRoadRanking({
           </div>
 
           {/* Metric Stats Cards in Insight Panel */}
+          {!sceneTrucks.some(hub => hub.id === selectedHubId) && <p className="prr-offscene-note">Hub này nằm ngoài Top {sceneDisplayLimit}; xem số liệu tại đây hoặc mở báo cáo chi tiết.</p>}
           <div className="insight-stats-grid">
             <div className="insight-stat-card">
               <span className="stat-label">{metricLabel} (D-1)</span>
@@ -605,7 +476,7 @@ export default function PerformanceRoadRanking({
       )}
 
       {/* 4. Full Audit & Verification Table Section */}
-      <section ref={tableCardRef} tabIndex={-1} className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
+      {tableOpen && <section ref={tableCardRef} tabIndex={-1} className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
         <div className="prr-table-toolbar">
           <div className="table-toolbar-left">
             <h2 className="table-toolbar-title">Bảng Đối Soát Thứ Hạng Vận Hành</h2>
@@ -614,6 +485,7 @@ export default function PerformanceRoadRanking({
             </span>
           </div>
 
+          <button type="button" className="prr-panel-close" aria-label="Đóng bảng số liệu" onClick={() => setTableOpen(false)}><X size={18} /></button>
           <div className="table-toolbar-search">
             <Search size={15} className="search-icon" />
             <input
@@ -828,7 +700,7 @@ export default function PerformanceRoadRanking({
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

@@ -9,20 +9,63 @@ export const ROADSIDE_BEAT = 32;
 export const ROADSIDE_CYCLE = ROADSIDE_BEAT * 6;
 export const ROADSIDE_SHAPES = ['box', 'cone', 'round', 'rock', 'hill', 'pole', 'sign'];
 
-export function roadsidePose(part, distance, span, roadLength) {
-  const anchor = wrapRoadTravel(part.anchor, distance, -span / 2, span);
-  // Recycle the entire cluster together, outside view. Large structures finish
-  // fading before any of their parts reach the wrap boundary.
-  const fadeStart = roadLength / 2 + ROADSIDE_BUFFER - part.radius;
-  const alpha = Math.max(0, Math.min(1, (fadeStart - Math.abs(anchor)) / 6));
-  return { anchor, x: anchor + part.x, z: part.z, alpha };
+export function getRoadsideSpan(roadLength) {
+  return Math.max(ROADSIDE_CYCLE * 2, Math.ceil((roadLength + ROADSIDE_BUFFER * 2 + 24) / ROADSIDE_CYCLE) * ROADSIDE_CYCLE);
+}
+
+// Continue along the endpoint tangent rather than curling spare scenery back
+// into the view. The central road and all ranking positions keep their curve.
+export function sampleSceneryFrame(x, z, roadLength) {
+  const extent = roadLength / 2 + Math.max(18, Math.min(40, roadLength * 0.4));
+  const anchor = Math.max(-extent, Math.min(extent, x));
+  const frame = sampleRoadFrame(anchor, z, roadLength);
+  const extension = x - anchor;
+  const cp = Math.cos(frame.pitch);
+  return {
+    ...frame,
+    x: frame.x + Math.cos(frame.heading) * cp * extension,
+    y: frame.y + Math.sin(frame.pitch) * extension,
+    z: frame.z - Math.sin(frame.heading) * cp * extension
+  };
+}
+
+export function createRoadsideFleet(layout, distance = 0) {
+  const clusters = new Map();
+  for (const parts of Object.values(layout.batches)) for (const part of parts) {
+    const cluster = clusters.get(part.anchor) || { anchor: wrapRoadTravel(part.anchor, distance, -layout.span / 2, layout.span), radius: 0 };
+    // A conservative sphere encloses every local offset and every primitive,
+    // including distant hills/clouds, roofs and the ends of the billboard.
+    const radius = Math.hypot(part.x, part.y, part.z) + Math.hypot(...part.scale);
+    cluster.radius = Math.max(cluster.radius, radius);
+    clusters.set(part.anchor, cluster);
+  }
+  return { clusters, distance };
+}
+
+export function advanceRoadsideFleet(fleet, distance, span, isVisible) {
+  const step = distance - fleet.distance;
+  fleet.distance = distance;
+  if (step <= 0) return [];
+  const recycled = [];
+  for (const [id, cluster] of fleet.clusters) {
+    cluster.anchor -= step;
+    if (cluster.anchor >= -span / 2 || isVisible(cluster.anchor, cluster.radius)) continue;
+    // Both endpoints must be outside the current camera. Postpone rather than
+    // teleporting a visible cluster, including after orbit/zoom/camera changes.
+    const from = cluster.anchor;
+    let to = from + span;
+    for (let attempt = 0; attempt < 16 && (to < -span / 2 || isVisible(to, cluster.radius)); attempt++) to += span;
+    if (to < -span / 2 || isVisible(to, cluster.radius)) continue;
+    cluster.anchor = to;
+    recycled.push({ id, from, to });
+  }
+  return recycled;
 }
 
 // One rigid frame per cluster. Wall/roof/container offsets retain their lengths
 // around a bend, instead of each piece being stretched along a separate arc.
-export function roadsideWorldPose(part, distance, span, roadLength) {
-  const pose = roadsidePose(part, distance, span, roadLength);
-  const frame = sampleRoadFrame(pose.anchor, 0, roadLength);
+export function roadsideWorldPose(part, anchor, roadLength) {
+  const frame = sampleSceneryFrame(anchor, 0, roadLength);
   const cy = Math.cos(frame.heading), sy = Math.sin(frame.heading);
   const cp = Math.cos(frame.pitch), sp = Math.sin(frame.pitch);
   const along = cp * part.x - sp * part.y;
@@ -30,12 +73,12 @@ export function roadsideWorldPose(part, distance, span, roadLength) {
     x: frame.x + cy * along + sy * part.z,
     y: frame.y + sp * part.x + cp * part.y,
     z: frame.z - sy * along + cy * part.z,
-    heading: frame.heading, pitch: frame.pitch, alpha: pose.alpha
+    heading: frame.heading, pitch: frame.pitch
   };
 }
 
 export function computeRoadsideLayout(roadLength, roadWidth) {
-  const span = Math.max(ROADSIDE_CYCLE, Math.ceil((roadLength + ROADSIDE_BUFFER * 2 + 24) / ROADSIDE_CYCLE) * ROADSIDE_CYCLE);
+  const span = getRoadsideSpan(roadLength);
   const batches = Object.fromEntries(ROADSIDE_SHAPES.map(shape => [shape, []]));
   const landmarks = [];
   const edge = roadWidth / 2;

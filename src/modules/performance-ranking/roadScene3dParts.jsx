@@ -5,12 +5,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
 import Roadside from './Roadside.jsx';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
+import { getRoadsideSpan, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
 import {
-  advanceDriveClock, driveHeading, sampleDrivePose, WHEEL_RADIUS,
+  advanceDriveClock, driveHeading, sampleDrivePose, leaderSurge, WHEEL_RADIUS,
   wrapRoadTravel
 } from '../../utils/sceneDriving.js';
 
@@ -250,6 +251,7 @@ export function TruckFleet({
   useEffect(() => () => nitroGeometry.dispose(), [nitroGeometry]);
   const nitroOuter = useRef(null);
   const nitroInner = useRef(null);
+  const leaderStreaks = useRef(null);
   const flameScale = useMemo(() => new THREE.Vector3(), []);
 
   const meshes = useRef([]);
@@ -312,7 +314,8 @@ export function TruckFleet({
       }
       const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
       const frame = sampleRoadFrame(x, z, roadLength);
-      xs[i] = frame.x; ys[i] = frame.y + lift; zs[i] = frame.z; travelXs[i] = x; pitches[i] = frame.pitch;
+      const surge = animated && !reducedMotion ? leaderSurge(item, t) : 0;
+      xs[i] = frame.x; ys[i] = frame.y + lift; zs[i] = frame.z; travelXs[i] = x; pitches[i] = frame.pitch + surge * 0.045;
       headings[i] = frame.heading + (animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0);
       bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : Math.sin(clock.time * 8 + i * 2.399) * 0.012;
       alphaArray[i] = a;
@@ -382,10 +385,11 @@ export function TruckFleet({
       mesh.count = visible ? 2 : 0;
       if (!visible) return;
       const item = items[leader];
-      const accelerating = motion && item.from && item.to.x > item.from.x && t < 1;
+      const surge = motion ? leaderSurge(item, t) : 0;
       const pulse = 1 + Math.sin(clock.time * 22) * 0.12;
-      const length = (accelerating ? 2.8 : 1.8) * pulse * (layer ? 0.7 : 1);
-      const width = layer ? 0.12 : 0.23;
+      const length = (1.8 + surge * 3.2) * pulse * (layer ? 0.7 : 1);
+      const width = (layer ? 0.12 : 0.23) * (1 + surge * 0.5);
+      mesh.material.color.set(surge > 0 ? (layer ? '#fff5c2' : '#ffbd35') : (layer ? '#d9fbff' : '#16bfff'));
       _truckMatrix.compose(_pos.set(xs[leader], ys[leader], zs[leader]), roadQuaternion(headings[leader], pitches[leader]), _scale);
       _quat.setFromAxisAngle(_pitchAxis, Math.PI / 2); // cone tip trails towards -x
       for (let jet = 0; jet < 2; jet++) {
@@ -395,6 +399,22 @@ export function TruckFleet({
       mesh.material.opacity = (layer ? 0.95 : 0.6) * alphaArray[leader];
       mesh.instanceMatrix.needsUpdate = true;
     });
+
+    const streaks = leaderStreaks.current;
+    if (streaks) {
+      const surge = leader >= 0 && motion && !reducedMotion ? leaderSurge(items[leader], t) : 0;
+      streaks.count = surge > 0 && alphaArray[leader] > 0.3 ? 3 : 0;
+      if (streaks.count) {
+        _truckMatrix.compose(_pos.set(xs[leader], ys[leader], zs[leader]), roadQuaternion(headings[leader], pitches[leader]), _scale);
+        for (let i = 0; i < 3; i++) {
+          const length = (2.5 + surge * 4) * (i === 1 ? 0.75 : 1);
+          _partMatrix.compose(_pos.set(-2.8 - length / 2, 0.12, (i - 1) * 0.85), _quat.identity(), flameScale.set(length, 0.035, 0.055));
+          streaks.setMatrixAt(i, _matrix.copy(_truckMatrix).multiply(_partMatrix));
+        }
+        streaks.material.opacity = surge * alphaArray[leader] * 0.8;
+        streaks.instanceMatrix.needsUpdate = true;
+      }
+    }
 
     if (import.meta.env.DEV) {
       const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
@@ -463,6 +483,10 @@ export function TruckFleet({
       <instancedMesh name="prr-nitro-inner" ref={nitroInner} args={[nitroGeometry, undefined, 2]} frustumCulled={false} raycast={noRaycast}>
         <meshBasicMaterial color="#d9fbff" transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </instancedMesh>
+      <instancedMesh name="prr-leader-streaks" ref={leaderStreaks} args={[undefined, undefined, 3]} frustumCulled={false} raycast={noRaycast}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial color="#ffd36a" transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+      </instancedMesh>
       <instancedMesh ref={arrowMesh} args={[arrowGeometry, undefined, Math.max(1, count)]} frustumCulled={false}>
         <meshBasicMaterial color="#ffffff" />
       </instancedMesh>
@@ -494,7 +518,7 @@ function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
   g.rotateX(-Math.PI / 2);
   const p = g.getAttribute('position');
   for (let i = 0; i < p.count; i++) {
-    const f = sampleRoadFrame(p.getX(i), p.getZ(i) + centreZ, roadLength);
+    const f = sampleSceneryFrame(p.getX(i), p.getZ(i) + centreZ, roadLength);
     p.setXYZ(i, f.x, f.y + height, f.z);
   }
   g.computeVertexNormals();
@@ -504,10 +528,10 @@ function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
 export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
   const roadWidth = laneCount * laneWidth + 0.6;
-  const pavedLength = roadLength + Math.max(18, Math.min(40, roadLength * 0.4)) * 2;
+  const pavedLength = getRoadsideSpan(roadLength);
   const edgeZ = roadWidth / 2 + 0.25;
   const surfaces = useMemo(() => ({
-    ground: curvedStrip(Math.min(roadLength + 100, getRoadCurveRadius(roadLength) * 2.8), getRoadCurveRadius(roadLength) * 1.8, 0, -0.04, roadLength, 20),
+    ground: curvedStrip(pavedLength + 100, getRoadCurveRadius(roadLength) * 1.8, 0, -0.04, roadLength, 20),
     asphalt: curvedStrip(pavedLength, roadWidth, 0, 0, roadLength),
     shoulders: [edgeZ, -edgeZ].map(z => curvedStrip(pavedLength, 0.5, z, 0.04, roadLength))
   }), [roadLength, roadWidth, edgeZ, pavedLength]);
@@ -551,7 +575,7 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
     const minX = -pavedLength / 2;
     const span = Math.floor(pavedLength / 4) * 4;
     dashes.forEach(([x, z], i) => {
-      const f = sampleRoadFrame(wrapRoadTravel(x, distance, minX, span), z, roadLength);
+      const f = sampleSceneryFrame(wrapRoadTravel(x, distance, minX, span), z, roadLength);
       _matrix.compose(_pos.set(f.x, f.y + 0.012, f.z), roadQuaternion(f.heading, f.pitch), _scale);
       mesh.setMatrixAt(i, _matrix);
     });

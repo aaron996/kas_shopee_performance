@@ -4,8 +4,20 @@ import {
   calculatePerformanceRanking,
   getMetricDef,
   getHubIdentityKey,
-  SUPPORTED_KPIS
+  SUPPORTED_KPIS,
+  selectSceneHubs
 } from './performanceRanking.js';
+
+test('scene preprocesses only Top 10/20/50 without modifying full audit data', () => {
+  const ranked = Array.from({ length: 1200 }, (_, i) => ({ id: `hub-${i}`, rank: i + 1 }));
+  for (const limit of [10, 20, 50]) {
+    assert.deepEqual(selectSceneHubs(ranked, limit), ranked.slice(0, limit));
+  }
+  for (const invalid of ['ALL', 100, 0, -1, NaN]) assert.equal(selectSceneHubs(ranked, invalid).length, 20);
+  assert.equal(ranked.length, 1200);
+  assert.deepEqual(selectSceneHubs([], 50), []);
+  assert.equal(selectSceneHubs(ranked.slice(0, 3), 50).length, 3);
+});
 
 test('SUPPORTED_KPIS contains 4 standard KPIs with valid targets', () => {
   assert.equal(SUPPORTED_KPIS.length, 4);

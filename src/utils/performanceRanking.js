@@ -368,3 +368,11 @@ export function calculatePerformanceRanking({
     smallSampleThreshold: SMALL_SAMPLE_THRESHOLD
   };
 }
+// Rendering has a hard budget; the complete ranking remains available for audit.
+export const SCENE_TOP_LIMITS = [10, 20, 50];
+export const MAX_SCENE_HUBS = 50;
+
+export function selectSceneHubs(ranked, limit = 20) {
+  const count = SCENE_TOP_LIMITS.includes(Number(limit)) ? Number(limit) : 20;
+  return ranked.slice(0, MAX_SCENE_HUBS).slice(0, count);
+}

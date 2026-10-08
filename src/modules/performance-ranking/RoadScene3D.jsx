@@ -330,8 +330,8 @@ export default function RoadScene3D({
   const colors = useThemeColors();
   const theme = pickSceneTheme(colors.isDark);
   const clockRef = useRef(createDriveClock());
-  const [laneMode, setLaneMode] = useState('stagger'); // 'stagger' | 'region'
-  const [paintMode, setPaintMode] = useState('hub'); // stable roof identity by default
+  const laneMode = 'stagger'; // 'stagger' | 'region'
+  const paintMode = 'hub'; // stable roof identity by default
   const [hoveredId, setHoveredId] = useState(null);
   const [camMode, setCamMode] = useState(selectedHubId ? 'follow' : 'tv');
   const sceneCamMode = useRef('tv'); // restore the chosen scene view after clearing a Hub
@@ -393,10 +393,10 @@ export default function RoadScene3D({
       // A filter/lane change can interrupt replay. Start at the visible pose,
       // rather than teleporting back to the previous committed rank slots.
       const previous = snapshotSceneFleet(scene.motion?.items || scene.trucks, positionsRef.current);
-      const transition = computeTransitionFrames(previous, trucks);
+      const transition = computeTransitionFrames(previous, trucks, { maxCount: 50 });
       if (transition.changed) {
         motion = { key: ++motionCounter.current, kind: 'transition', durationMs: TRANSITION_DURATION_MS, items: transition.items };
-      }
+      } else motion = null;
     }
     setScene({ trucks, motion });
   }
@@ -512,7 +512,7 @@ export default function RoadScene3D({
   const top3 = sceneTrucks.slice(0, 3).map((t) => `${t.displayName || t.hub} (hạng ${t.rank})`).join(', ');
   const meetCount = sceneTrucks.filter((t) => t.meetsTarget).length;
   const kpiPart = metricLabel ? `${metricLabel}${target != null ? `, mục tiêu ${target}%` : ''}: ` : '';
-  const canvasLabel = `${kpiPart}${count} Hub trên đường, ${meetCount} đạt mục tiêu${top3 ? `. Dẫn đầu: ${top3}` : ''}. Số liệu chính xác xem ở bảng đối soát bên dưới.`;
+  const canvasLabel = `${kpiPart}${count} Hub trên đường, ${meetCount} đạt mục tiêu${top3 ? `. Dẫn đầu: ${top3}` : ''}. Mở Bảng số liệu để xem số liệu chính xác.`;
   const ariaLabel = 'Cảnh 3D tuyến đường xếp hạng. Phím mũi tên trái phải để chuyển Hub, Enter để mở chi tiết.';
   const selectedItem = selectedTruck ? selectedTruck.item : null;
 
@@ -597,10 +597,6 @@ export default function RoadScene3D({
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
 
       <div className="prr-3d-controls">
-        <div className="prr-segmented-limit" role="group" aria-label="Màu xe">
-          <button type="button" className={`seg-btn ${paintMode === 'ghn' ? 'active' : ''}`} aria-pressed={paintMode === 'ghn'} onClick={() => setPaintMode('ghn')}>GHN</button>
-          <button type="button" className={`seg-btn ${paintMode === 'hub' ? 'active' : ''}`} aria-pressed={paintMode === 'hub'} title="Mỗi Hub có dải màu nóc cố định, độc lập với KPI và thứ hạng" onClick={() => setPaintMode('hub')}>Theo Hub</button>
-        </div>
         <button
           type="button"
           className="prr-replay-btn"
@@ -630,24 +626,6 @@ export default function RoadScene3D({
             onClick={() => setCamMode('follow')}
           >
             Bám xe
-          </button>
-        </div>
-        <div className="prr-segmented-limit" role="group" aria-label="Cách chia làn">
-          <button
-            type="button"
-            className={`seg-btn ${!regionMode ? 'active' : ''}`}
-            aria-pressed={!regionMode}
-            onClick={() => setLaneMode('stagger')}
-          >
-            Làn xen kẽ
-          </button>
-          <button
-            type="button"
-            className={`seg-btn ${regionMode ? 'active' : ''}`}
-            aria-pressed={regionMode}
-            onClick={() => setLaneMode('region')}
-          >
-            Làn theo Vùng
           </button>
         </div>
       </div>
