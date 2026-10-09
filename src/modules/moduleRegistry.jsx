@@ -2,6 +2,18 @@ import { lazy } from 'react';
 import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck } from 'lucide-react';
 import { MODULE_IDS } from './moduleIds.js';
 
+// Share the import promise between startup preload and React.lazy.
+function startupSurface(loader) {
+  let pending;
+  const preload = () => (pending ||= loader().catch(error => {
+    pending = undefined;
+    throw error;
+  }));
+  const surface = lazy(preload);
+  surface.preload = preload;
+  return surface;
+}
+
 // The registry is the single source of truth for a report module's identity,
 // navigation placement and lazy surface. Runtime data stays in App because it
 // is shared scope, not module-owned state.
@@ -9,7 +21,7 @@ export const moduleRegistry = Object.freeze([
   {
     id: 'home', label: 'Tổng quan', mobileLabel: 'Tổng quan', icon: LayoutDashboard, motionIcon: 'LayoutDashboard', description: 'KPI, Hub cần ưu tiên và xu hướng vận hành',
     group: 'overview', navigation: { sidebar: true, commandPalette: true, mobile: true },
-    surface: lazy(() => import('./ops-metrics/OperationsOverview.jsx'))
+    surface: startupSurface(() => import('./ops-metrics/OperationsOverview.jsx'))
   },
   {
     id: 'report1',
@@ -20,7 +32,7 @@ export const moduleRegistry = Object.freeze([
     icon: ChartNoAxesColumnIncreasing,
     group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
-    surface: lazy(() => import('./ops-metrics/Report1MienVungHub.jsx'))
+    surface: startupSurface(() => import('./ops-metrics/Report1MienVungHub.jsx'))
   },
   {
     id: 'report5',
@@ -31,7 +43,7 @@ export const moduleRegistry = Object.freeze([
     icon: ArrowRightLeft,
     group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
-    surface: lazy(() => import('../components/Report5LaneCa1.jsx'))
+    surface: startupSurface(() => import('../components/Report5LaneCa1.jsx'))
   },
   {
     id: 'report3',
@@ -46,7 +58,7 @@ export const moduleRegistry = Object.freeze([
     overlay: {
       description: 'Dữ liệu đo lường leadtime từng chặng đang được kết nối và kiểm thử độ chính xác theo mạng lưới vận hành mới.'
     },
-    surface: lazy(() => import('../components/ReportLeadtime/index.jsx'))
+    surface: startupSurface(() => import('../components/ReportLeadtime/index.jsx'))
   },
   {
     id: 'report-insight',
@@ -61,7 +73,7 @@ export const moduleRegistry = Object.freeze([
     overlay: {
       description: 'Hệ thống phân tích nguyên nhân biến động KPI và xếp hạng rủi ro trạm đang được kiểm thử thuật toán đối soát.'
     },
-    surface: lazy(() => import('../components/ReportInsight.jsx'))
+    surface: startupSurface(() => import('../components/ReportInsight.jsx'))
   },
   {
     id: 'cod-suspicion',
@@ -75,7 +87,7 @@ export const moduleRegistry = Object.freeze([
     loadingText: 'Đang mở tab Đơn nghi vấn COD...',
     keepMounted: true,
     requiresAuth: true,
-    surface: lazy(() => import('../components/CodSuspicionReport.jsx'))
+    surface: startupSurface(() => import('../components/CodSuspicionReport.jsx'))
   },
   {
     id: 'ranking',
@@ -86,7 +98,7 @@ export const moduleRegistry = Object.freeze([
     icon: Truck,
     navigation: { sidebar: true, commandPalette: true, mobile: true },
     loadingText: 'Đang mở BXH Performance...',
-    surface: lazy(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
+    surface: startupSurface(() => import('./performance-ranking/PerformanceRoadRanking.jsx'))
   },
   {
     id: 'dev-admin',
@@ -94,7 +106,7 @@ export const moduleRegistry = Object.freeze([
     keepMounted: true,
     navigation: { sidebar: false, commandPalette: false, mobile: false },
     requiresDevAdmin: true,
-    surface: lazy(() => import('../components/DevAdminDashboard.jsx'))
+    surface: startupSurface(() => import('../components/DevAdminDashboard.jsx'))
   }
 ]);
 
@@ -113,6 +125,17 @@ export const navigationModules = (surface, currentUser) => moduleRegistry
   .filter(module => module.navigation[surface])
   .filter(module => !module.requiresDevAdmin || currentUser?.isDevAdmin)
   .filter(module => !module.requiresAuth || currentUser);
+
+export function preloadDashboardModules(currentUser) {
+  const allowed = moduleRegistry.filter(module =>
+    (!module.requiresDevAdmin || currentUser?.isDevAdmin)
+    && (!module.requiresAuth || currentUser));
+  const pending = new Map(allowed.map(module => [module.id, module.surface.preload()]));
+  // Other chunks start now but never hold the intro open. Failures remain
+  // visible through the normal surface error path when the tab is opened.
+  void Promise.allSettled([...pending.values()]);
+  return Promise.allSettled([pending.get('home'), pending.get('report1')]);
+}
 
 export const MODULE_GROUP_LABELS = Object.freeze({
   overview: 'Điều hành',
