@@ -1,10 +1,18 @@
 // Default Realistic Dataset for GHN KAS Ontime Reports
 // Matches Google Sheet IDs: Pick (1312031199), Deli (940798880), Ca1 (1405399014)
 
+// GXT (Giao Hàng Nặng) hubs are reported as one line per Miền ("GXT - Bắc" …),
+// not under the vùng of the order — see reassignGxtMienRegion in dataProcessor.js.
+export const GXT_REGION_BY_MIEN = {
+  'Miền Bắc': 'GXT - Bắc',
+  'Miền Trung': 'GXT - Trung',
+  'Miền Nam': 'GXT - Nam'
+};
+
 export const MIEN_REGIONS = {
-  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA', 'HNO - CK'],
-  'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB'],
-  'Miền Nam': ['DNB', 'HCM', 'HCM - GXT', 'HCM - KA', 'HCM - CK', 'ĐCL', 'TNB']
+  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA', 'HNO - CK', GXT_REGION_BY_MIEN['Miền Bắc']],
+  'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB', GXT_REGION_BY_MIEN['Miền Trung']],
+  'Miền Nam': ['DNB', 'HCM', 'HCM - KA', 'HCM - CK', 'ĐCL', 'TNB', GXT_REGION_BY_MIEN['Miền Nam']]
 };
 
 export const MIEN_ORDER = ['Miền Bắc', 'Miền Trung', 'Miền Nam'];
@@ -184,7 +192,7 @@ export function createDefaultCa1Dataset() {
   const rows = [];
 
   lanes.forEach(lane => {
-    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - GXT', 'HCM - KA', 'DBB', 'TTB', 'TNB', 'DNB'];
+    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - KA', 'DBB', 'TTB', 'TNB', 'DNB'];
     regions.forEach(vung_giao => {
       dates.forEach(ngay => {
         const tong_don = 1200 + Math.floor(Math.random() * 1500);

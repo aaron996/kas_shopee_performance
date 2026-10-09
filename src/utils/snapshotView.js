@@ -3,7 +3,7 @@
 // already used for its own render webhook, so switching it over only changes
 // the base URL.
 import { MIEN_REGIONS } from '../data/defaultDataset.js';
-import { reassignKaRegion, filterRowsByScope, collectHubTypes, getHubType } from './dataProcessor.js';
+import { reassignKaRegion, normalizeDashboardRows, filterRowsByScope, collectHubTypes, getHubType } from './dataProcessor.js';
 
 export const SNAPSHOT_VIEWS = {
   'pick:1st': { data: 'pick', module: 'report1', metric: 'p1st' },
@@ -60,7 +60,7 @@ export function unpackRows(payload) {
 // Runs the rows through the same normalisation and Vùng / Loại Hub filter the
 // dashboard applies (App.jsx), with every vùng selected.
 export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes = []) {
-  const normalized = reassignKaRegion(rows);
+  const normalized = normalizeDashboardRows(rows);
   const allHubTypes = collectHubTypes([normalized]);
   const excluded = new Set(excludeHubTypes.map(t => t.toLowerCase()));
   const only = new Set(onlyHubTypes.map(t => t.toLowerCase()));
@@ -77,8 +77,9 @@ export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes
 
 // Scope of the HNO Telegram report (n8n `[KAS] ... Daily Report - HNO`): vùng HNO
 // plus its CK vùng (CK hubs are reported inside HNO, not as a separate view), hub
-// types GXT, BC and CK, after the same reassignKaRegion the dashboard runs. Only
-// HNO - KA is left out.
+// types GXT, BC and CK, after reassignKaRegion. GXT is deliberately NOT moved to
+// its per-Miền vùng here (reassignGxtMienRegion): this report keeps the GXT rows
+// filed under the order's region HNO, as before. Only HNO - KA is left out.
 export const HNO_REPORT_REGIONS = ['HNO', 'HNO - CK'];
 export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK'];
 

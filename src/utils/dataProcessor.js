@@ -1,5 +1,6 @@
 // Utility Data Processor & Aggregator for GHN KAS Ontime Reports
-import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../data/defaultDataset.js';
+import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS, GXT_REGION_BY_MIEN } from '../data/defaultDataset.js';
+import { mienFromHubName } from '../data/provinceMien.js';
 
 // Format helpers
 export function getHubType(row) {
@@ -76,6 +77,34 @@ export function reassignKaRegion(rows) {
     return r;
   });
 }
+
+// GXT hubs are reported as one vùng per Miền ("GXT - Bắc" / "GXT - Trung" /
+// "GXT - Nam"), not under the vùng of the order — the raw `region` of a GXT row
+// is where the order came from (hub "Tân Tạo - HCM" also has rows under DSH, HNO
+// and TTB). The Miền comes from the province at the end of the hub name; a hub
+// whose province is not recognised falls back to its row's region, and a row
+// that resolves to neither is left as it was.
+export const GXT_HUB_TYPE = 'GXT';
+const LEGACY_GXT_REGION_MIEN = { 'HCM - GXT': 'Miền Nam' };
+
+function mienOfRegion(region) {
+  return LEGACY_GXT_REGION_MIEN[region]
+    ?? MIEN_ORDER.find(mien => MIEN_REGIONS[mien].includes(region));
+}
+
+// Run after reassignKaRegion: a GXT hub that is also a KA / CK hub keeps that
+// type and vùng, since only rows still typed GXT are moved.
+export function reassignGxtMienRegion(rows) {
+  if (!rows) return rows;
+  return rows.map(r => {
+    if (!r || String(getHubType(r)).trim().toUpperCase() !== GXT_HUB_TYPE) return r;
+    const mien = mienFromHubName(r.hub ?? r.deliverywh) ?? mienOfRegion(r.region);
+    return mien ? { ...r, region: GXT_REGION_BY_MIEN[mien] } : r;
+  });
+}
+
+// What every dashboard view runs the raw sheet rows through.
+export const normalizeDashboardRows = (rows) => reassignGxtMienRegion(reassignKaRegion(rows));
 
 // The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
 // `vung_giao` instead of `region`.
