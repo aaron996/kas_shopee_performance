@@ -37,10 +37,13 @@ export default function RoadsideLights({ lamps, fleet, roadLength, clockRef, lig
     return () => resources.texture.dispose();
   }, [resources, invalidate]);
   const initialized = useRef(null);
+  const wasLit = useRef(false);
 
   useFrame(({ controls, camera }) => {
     const { matrix, position, scale, rotation, yaw, pitch, positions, targets, slots } = resources;
-    if (initialized.current !== resources || clockRef.current.step) {
+    const power = lightingRef?.current?.streetlightPower || 0;
+    const lit = power > 0.001;
+    if (initialized.current !== resources || clockRef.current.step || (lit && !wasLit.current)) {
       for (let index = 0; index < lamps.length; index++) {
         const lamp = lamps[index], anchor = fleet.clusters.get(lamp.anchor).anchor;
         const emitter = roadsideWorldPose(lamp.emitter, anchor, roadLength);
@@ -48,34 +51,41 @@ export default function RoadsideLights({ lamps, fleet, roadLength, clockRef, lig
         rotation.setFromAxisAngle(resources.y, emitter.heading).multiply(pitch.setFromAxisAngle(resources.z, emitter.pitch));
         matrix.compose(position.copy(positions[index]), rotation, scale.fromArray(lamp.emitter.scale));
         bulbsRef.current.setMatrixAt(index, matrix);
-        const pool = roadsideWorldPose(lamp.footprint, anchor, roadLength);
-        rotation.setFromAxisAngle(resources.y, pool.heading).multiply(pitch.setFromAxisAngle(resources.z, pool.pitch)).multiply(yaw.setFromAxisAngle(resources.x, -Math.PI / 2));
-        matrix.compose(position.set(pool.x, pool.y, pool.z), rotation, scale.set(lamp.footprint.scale[0], lamp.footprint.scale[2], 1));
-        poolsRef.current.setMatrixAt(index, matrix);
-        const target = roadsideWorldPose(lamp.target, anchor, roadLength);
-        targets[index].set(target.x, target.y, target.z);
+        if (lit) {
+          const pool = roadsideWorldPose(lamp.footprint, anchor, roadLength);
+          rotation.setFromAxisAngle(resources.y, pool.heading).multiply(pitch.setFromAxisAngle(resources.z, pool.pitch)).multiply(yaw.setFromAxisAngle(resources.x, -Math.PI / 2));
+          matrix.compose(position.set(pool.x, pool.y, pool.z), rotation, scale.set(lamp.footprint.scale[0], lamp.footprint.scale[2], 1));
+          poolsRef.current.setMatrixAt(index, matrix);
+          const target = roadsideWorldPose(lamp.target, anchor, roadLength);
+          targets[index].set(target.x, target.y, target.z);
+        }
       }
       bulbsRef.current.instanceMatrix.needsUpdate = true;
-      poolsRef.current.instanceMatrix.needsUpdate = true;
+      if (lit) poolsRef.current.instanceMatrix.needsUpdate = true;
       initialized.current = resources;
     }
-    const power = lightingRef?.current?.streetlightPower || 0;
+    wasLit.current = lit;
     bulbsRef.current.material.emissiveIntensity = power * 4;
     poolsRef.current.material.opacity = power * 0.15;
-    poolsRef.current.visible = power > 0.001;
+    poolsRef.current.visible = lit;
     halosRef.current.material.opacity = power * 0.5;
-    halosRef.current.visible = power > 0.001;
-    positions.forEach((emitter, index) => {
-      matrix.compose(position.copy(emitter), camera.quaternion, scale.set(0.95, 0.95, 1));
-      halosRef.current.setMatrixAt(index, matrix);
-    });
-    halosRef.current.instanceMatrix.needsUpdate = true;
+    halosRef.current.visible = lit;
+    if (lit) {
+      positions.forEach((emitter, index) => {
+        matrix.compose(position.copy(emitter), camera.quaternion, scale.set(0.95, 0.95, 1));
+        halosRef.current.setMatrixAt(index, matrix);
+      });
+      halosRef.current.instanceMatrix.needsUpdate = true;
+    }
     const focus = controls?.target || camera.position;
-    const selected = selectStreetlightSources(positions, focus, slots.length);
+    const selected = lit ? selectStreetlightSources(positions, focus, slots.length) : [];
     slots.forEach((slot, index) => {
       const light = slot.ref.current;
       if (!light) return;
       const chosen = selected[index];
+      // Zero intensity still leaves a light in Three's shader light list.
+      // Hide the daylight pool so road/truck fragments skip those light loops.
+      light.visible = chosen !== undefined;
       if (chosen === undefined) { light.intensity = 0; return; }
       light.position.copy(positions[chosen]);
       slot.target.position.copy(targets[chosen]); slot.target.updateMatrixWorld();

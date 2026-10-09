@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, wrapDayPhase } from '../../utils/sceneLighting.js';
+import { shouldRefreshSceneShadow } from '../../utils/sceneShadows.js';
 
 const SKY_VERTEX = `varying vec3 vDirection;
 void main() { vDirection = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -44,27 +45,28 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   const skyUniforms = useMemo(() => ({ topColor: { value: new THREE.Color() }, horizonColor: { value: new THREE.Color() } }), []);
   const sunGlow = useMemo(() => ({ color: { value: new THREE.Color('#ffbb69') }, opacity: { value: 0.65 } }), []);
   const moonGlow = useMemo(() => ({ color: { value: new THREE.Color('#a6caff') }, opacity: { value: 0.24 } }), []);
-  const previous = useRef({ mode: null, phase: null, shadowElapsed: Infinity, source: null, extent: 0, focus: new THREE.Vector3(Infinity, Infinity, Infinity) });
+  const previous = useRef({ mode: null, phase: null, dirty: true, source: null, extent: 0, focus: new THREE.Vector3(Infinity, Infinity, Infinity) });
   const sampled = useRef(null);
   useEffect(() => () => moonTexture.dispose(), [moonTexture]);
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
     const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
-    const setTime = phase => { phaseRef.current = wrapDayPhase(phase); previous.current.shadowElapsed = Infinity; invalidate(); };
+    const setTime = phase => { phaseRef.current = wrapDayPhase(phase); previous.current.dirty = true; invalidate(); };
     handle.setSceneTime = setTime;
     return () => { if (handle.setSceneTime === setTime) delete handle.setSceneTime; };
   }, [phaseRef, invalidate]);
-  useLayoutEffect(() => { invalidate(); }, [mode, shadowsOn, compact, roadLength, running, reducedMotion, invalidate]);
+  useLayoutEffect(() => { previous.current.dirty = true; invalidate(); }, [mode, shadowsOn, compact, roadLength, running, reducedMotion, invalidate]);
 
   useFrame(({ camera, controls, gl }, delta) => {
     const cache = previous.current;
     if (cache.mode !== mode) {
       phaseRef.current = phaseForLightingMode(mode, phaseRef.current);
       cache.mode = mode;
-      cache.shadowElapsed = Infinity;
+      cache.dirty = true;
     }
     phaseRef.current = advanceDayPhase(phaseRef.current, delta, mode === 'auto' && running && !reducedMotion && clockRef.current.step > 0 && !document.hidden);
-    if (cache.phase !== phaseRef.current) {
+    const phaseChanged = cache.phase !== phaseRef.current;
+    if (phaseChanged) {
       sampled.current = sampleSceneLighting(phaseRef.current);
       cache.phase = phaseRef.current;
     }
@@ -109,13 +111,12 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
       sc.left = sc.bottom = -extent; sc.right = sc.top = extent;
       sc.near = 0.5; sc.far = distance + extent * 2;
       sc.updateProjectionMatrix(); cache.extent = extent;
-      gl.shadowMap.needsUpdate = true;
+      cache.dirty = true;
     }
-    // One shadow source; 10 Hz while cruising, replay can request faster updates.
-    cache.shadowElapsed += Math.min(delta, 0.1);
-    if (shadowsOn && (cache.shadowElapsed >= 0.1 || cache.source !== state.source || cache.focus.distanceToSquared(focus) > 0.01)) {
+    if (shouldRefreshSceneShadow({ enabled: shadowsOn, moving: clockRef.current.step > 0,
+      changed: cache.dirty || phaseChanged || cache.source !== state.source || cache.focus.distanceToSquared(focus) > 1e-8 })) {
       gl.shadowMap.needsUpdate = true;
-      cache.shadowElapsed = 0; cache.source = state.source; cache.focus.copy(focus);
+      cache.dirty = false; cache.source = state.source; cache.focus.copy(focus);
     }
     const text = formatSceneTime(state.phase);
     if (timeRef.current && timeRef.current.textContent !== text) timeRef.current.textContent = text;
@@ -123,7 +124,7 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
       const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
       handle.lighting = { ...state, mode, cycleSeconds: DAY_CYCLE_SECONDS, shadowsOn, shadowSize: compact ? 1024 : 2048, shadowExtent: extent };
     }
-  }, -0.5);
+  }, -0.1); // after truck/scenery travel and camera positioning, before rendering
 
   const fogNear = roadLength * 0.9 + 60;
   return <>
