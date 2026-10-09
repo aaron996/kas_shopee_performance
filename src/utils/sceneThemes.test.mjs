@@ -43,8 +43,9 @@ test('logistics route is deterministic, varied and clears the road at every supp
     assert.ok(a.batches.cone.length > 0 && a.batches.round.length > 0 && a.batches.rock.length > 0);
     for (const [shape, parts] of Object.entries(a.batches)) for (const part of parts) {
       const halfZ = part.scale[2] * (['box', 'pole'].includes(shape) ? 0.5 : 1);
-      assert.ok(Math.abs(part.z) - halfZ >= width / 2, 'no scenery intersects asphalt');
-      if (part.z > 0) assert.ok(part.y + part.scale[1] * (['box', 'pole'].includes(shape) ? 0.5 : 1) <= 0.61, 'near shoulder stays low');
+      if (part.streetlight && part.y > 4) assert.ok(part.y - Math.hypot(...part.scale) / 2 > 4.5, 'overhead lamp arms clear vehicles');
+      else assert.ok(Math.abs(part.z) - halfZ >= width / 2, 'ground scenery clears asphalt');
+      if (part.z > 0 && !part.streetlight) assert.ok(part.y + part.scale[1] * (['box', 'pole'].includes(shape) ? 0.5 : 1) <= 0.61, 'near shoulder stays low');
       assert.ok(part.scale.every(n => Number.isFinite(n) && n > 0));
     }
   }

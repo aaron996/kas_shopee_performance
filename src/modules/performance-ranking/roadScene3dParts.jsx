@@ -157,6 +157,7 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
       ref={(m) => register(index, m)}
       args={[geometry, undefined, count]}
       castShadow={castShadow}
+      receiveShadow={castShadow}
       frustumCulled={false}
       raycast={noRaycast}
     >
@@ -617,7 +618,7 @@ function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
 }
 
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
-export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
+export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, castShadow = false, lightingRef, streetlightCount = 0 }) {
   const roadWidth = laneCount * laneWidth + 0.6;
   const pavedLength = getRoadsideSpan(roadLength);
   const edgeZ = roadWidth / 2 + 0.25;
@@ -685,23 +686,23 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef }) {
 
   return (
     <group>
-      {/* ground: unlit, fades into the sky colour through the scene fog, so there is no horizon band */}
-      <mesh geometry={surfaces.ground}>
-        <meshBasicMaterial color={theme.ground} />
+      <mesh geometry={surfaces.ground} receiveShadow>
+        <meshStandardMaterial color={theme.ground} roughness={1} />
       </mesh>
       <mesh geometry={surfaces.asphalt} receiveShadow>
         <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} roughness={0.95} />
       </mesh>
       {surfaces.shoulders.map((geometry, i) => (
-        <mesh key={i} geometry={geometry}>
+        <mesh key={i} geometry={geometry} receiveShadow>
           <meshStandardMaterial color={theme.shoulder} />
         </mesh>
       ))}
-      <instancedMesh name="prr-road-dashes" key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false}>
+      <instancedMesh name="prr-road-dashes" key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false} receiveShadow>
         <boxGeometry args={[2, 0.01, 0.1]} />
-        <meshBasicMaterial color={theme.dash} />
+        <meshStandardMaterial color={theme.dash} roughness={0.95} />
       </instancedMesh>
-      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} />
+      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} castShadow={castShadow}
+        lightingRef={lightingRef} streetlightCount={streetlightCount} />
     </group>
   );
 }
@@ -790,7 +791,10 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
 
     // The bottom strip holds the caption and the controls: labels never sit under them.
     const reserved = size.width < 400 ? 140 : compact ? 100 : BOTTOM_RESERVED;
-    const placed = [{ l: 0, r: size.width, t: size.height - reserved, b: size.height }];
+    const placed = [
+      { l: 0, r: size.width, t: size.height - reserved, b: size.height },
+      { l: Math.max(0, size.width - 320), r: size.width, t: 0, b: compact ? 64 : 56 }
+    ];
     const debug = [];
     for (const label of order) {
       const followed = label.followId ? positionsRef.current.get(label.followId) : null;

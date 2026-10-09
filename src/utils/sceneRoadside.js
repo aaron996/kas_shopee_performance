@@ -1,6 +1,7 @@
 import { hash01 } from './sceneThemes.js';
 import { ROADSIDE_BUFFER, wrapRoadTravel } from './sceneDriving.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
+import { createStreetlightLayout } from './sceneStreetlights.js';
 
 // A route has six beats: grove, billboard, open grove, depot, grove, yard.
 // Its seed and spacing never depend on KPI/Hub IDs. A short road still cycles
@@ -38,6 +39,11 @@ export function createRoadsideFleet(layout, distance = 0) {
     const radius = Math.hypot(part.x, part.y, part.z) + Math.hypot(...part.scale);
     cluster.radius = Math.max(cluster.radius, radius);
     clusters.set(part.anchor, cluster);
+  }
+  for (const lamp of layout.streetlights || []) {
+    const part = lamp.footprint;
+    const cluster = clusters.get(lamp.anchor);
+    cluster.radius = Math.max(cluster.radius, Math.hypot(part.x, part.y, part.z) + Math.hypot(...part.scale));
   }
   return { clusters, distance };
 }
@@ -80,6 +86,8 @@ export function roadsideWorldPose(part, anchor, roadLength) {
 export function computeRoadsideLayout(roadLength, roadWidth) {
   const span = getRoadsideSpan(roadLength);
   const batches = Object.fromEntries(ROADSIDE_SHAPES.map(shape => [shape, []]));
+  const streetlights = createStreetlightLayout(span, roadWidth);
+  for (const lamp of streetlights) for (const part of lamp.parts) batches[part.shape].push(part);
   const landmarks = [];
   const edge = roadWidth / 2;
   let anchor = 0, radius = 10;
@@ -185,5 +193,5 @@ export function computeRoadsideLayout(roadLength, roadWidth) {
       pallet(5.5, z + 2.4, 0.6);
     }
   }
-  return { span, batches, landmarks };
+  return { span, batches, landmarks, streetlights };
 }
