@@ -8,6 +8,54 @@ export const WHEEL_RADIUS = 0.3;
 export const ROADSIDE_BUFFER = 12;
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
+// Visual strain in the Worst cohort, independent of KPI magnitude. W1 is
+// always the roughest ride; stable Hub phases avoid synchronized bouncing.
+export function worstRideStrength(order) {
+  return Number.isInteger(order) && order > 0 ? 0.18 + 0.82 / Math.sqrt(order) : 0;
+}
+
+export function truckRidePhase(id) {
+  let hash = 2166136261;
+  for (const char of String(id)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return (hash >>> 0) / 4294967296 * Math.PI * 2;
+}
+
+export function sampleWorstRide(time, strength, phase = 0, reducedMotion = false) {
+  const s = reducedMotion ? 0 : clamp01(strength);
+  if (!s) return { bounce: 0, pitch: 0, roll: 0, yaw: 0 };
+  const beat = time * 4.8 + phase;
+  const jolt = Math.max(0, Math.sin(beat * 1.7)) ** 8;
+  return {
+    bounce: s * (0.11 * jolt + 0.018 * (1 + Math.sin(beat * 2.7))),
+    pitch: s * (0.055 * Math.sin(beat * 1.7 + 0.3) + 0.028 * jolt),
+    roll: s * 0.085 * (0.75 * Math.sin(beat) + 0.25 * Math.sin(beat * 2.3)),
+    yaw: s * 0.022 * Math.sin(beat * 0.9)
+  };
+}
+
+// W1 loses traction: its heading intentionally differs from its lateral path.
+// Rank anchors stay fixed; only the vehicle and its tyre smoke use this pose.
+export function sampleWorstSkid(time, order, phase = 0, reducedMotion = false) {
+  if (order !== 1 || reducedMotion) return { lateral: 0, yaw: 0, smoke: 0, spinExtra: 0 };
+  const beat = time * 2.6 + phase;
+  const yaw = -0.32 * Math.cos(beat) + 0.09 * Math.sin(beat * 1.9);
+  return {
+    lateral: 0.82 * Math.sin(beat) + 0.24 * Math.sin(beat * 1.9 + 0.5),
+    yaw,
+    smoke: 0.45 + 0.55 * Math.abs(yaw) / 0.41,
+    spinExtra: time * 1.8
+  };
+}
+
+// Bias an outer-lane skid towards the road centre and retain clearance for
+// the truck's rotated corners, including a single regional lane.
+export function skidRoadZ(anchorZ, lateral, roadWidth) {
+  const limit = Math.max(0, roadWidth / 2 - 1.3);
+  const centre = Math.max(-limit, Math.min(limit, anchorZ - Math.sign(anchorZ) * 0.65));
+  const room = Math.min(1.06, Math.max(0, limit - Math.abs(centre)));
+  return centre + lateral / 1.06 * room;
+}
+
 // Only the destination KPI's winner gets the surge, and only while advancing.
 // The same simulation clock makes the emphasis pause and interrupt with the fleet.
 export function leaderSurge(item, t) {

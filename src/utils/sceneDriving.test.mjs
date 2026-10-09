@@ -3,13 +3,109 @@ import assert from 'node:assert/strict';
 import { computeTransitionFrames, computeSceneLayout } from './rankingSceneLayout.js';
 import {
   advanceDriveClock, createDriveClock, sampleDrivePose, driveHeading, CRUISE_SPEED,
-  wrapRoadTravel, leaderSurge
+  wrapRoadTravel, leaderSurge, worstRideStrength, truckRidePhase, sampleWorstRide,
+  sampleWorstSkid, skidRoadZ
 } from './sceneDriving.js';
 
 const moving = (id, fromX, toX, fromZ = 0, toZ = 0) => ({
   id, from: { x: fromX, z: fromZ }, to: { x: toX, z: toZ }, alphaFrom: 1, alphaTo: 1
 });
 const replay = { durationMs: 3000 };
+
+test('only W1 skids and emits smoke; reduced motion returns its ordinary pose', () => {
+  const rest = { lateral: 0, yaw: 0, smoke: 0, spinExtra: 0 };
+  for (let t = 0; t <= 10; t += 0.05) {
+    for (const order of [null, 0, 2, 3, 50]) assert.deepEqual(sampleWorstSkid(t, order), rest);
+    assert.deepEqual(sampleWorstSkid(t, 1, 2, true), rest);
+  }
+});
+
+test('W1 weaves on both sides with bounded heading and spinning tyres', () => {
+  let min = Infinity, max = -Infinity, previousSpin = 0;
+  for (let t = 0; t <= 60; t += 0.025) {
+    const skid = sampleWorstSkid(t, 1, truckRidePhase('last'));
+    min = Math.min(min, skid.lateral); max = Math.max(max, skid.lateral);
+    assert.ok(Math.abs(skid.lateral) <= 1.06);
+    assert.ok(Math.abs(skid.yaw) <= 0.41);
+    assert.ok(skid.smoke >= 0.45 && skid.smoke <= 1);
+    assert.ok(skid.spinExtra >= previousSpin);
+    previousSpin = skid.spinExtra;
+    // A rotated 3.1 x 1.4 truck stays on asphalt for every lane count.
+    const corner = 1.55 * Math.abs(Math.sin(skid.yaw + 0.022)) + 0.7 * Math.abs(Math.cos(skid.yaw + 0.022));
+    for (const count of [1, 2, 4, 8]) {
+      const width = count * 2.6 + 0.6;
+      for (const anchor of [0, -(count - 1) * 1.3, (count - 1) * 1.3]) {
+        const z = skidRoadZ(anchor, skid.lateral, width);
+        assert.ok(Math.abs(z) + corner <= width / 2, `lane ${count}: ${z} + ${corner}`);
+      }
+    }
+  }
+  assert.ok(min < -0.9 && max > 0.9);
+});
+
+test('skid, wheelspin and historical smoke ages freeze on pause with no anchor displacement', () => {
+  const clock = createDriveClock();
+  const truck = { id: 'last', worstOrder: 1, x: -24, z: -3.9 };
+  advanceDriveClock(clock, [truck], null, 0.05, true, 2);
+  const skid = sampleWorstSkid(clock.time, 1);
+  const age = clock.time * 1.2 % 1;
+  advanceDriveClock(clock, [truck], null, 5, false, 4);
+  assert.deepEqual(sampleWorstSkid(clock.time, 1), skid);
+  assert.equal(clock.time * 1.2 % 1, age);
+  assert.deepEqual(sampleDrivePose(truck, 1), { x: -24, z: -3.9, alpha: 1 });
+});
+
+test('Worst strain decreases strictly from W1 through W50, with stable Hub phases', () => {
+  assert.equal(worstRideStrength(1), 1);
+  for (let i = 2; i <= 50; i++) {
+    assert.ok(worstRideStrength(i) > 0);
+    assert.ok(worstRideStrength(i) < worstRideStrength(i - 1));
+  }
+  for (const value of [null, undefined, 0, -1, 1.5]) assert.equal(worstRideStrength(value), 0);
+  const hubs = ['HNO|Hub 001', 'HNO|Hub 002', 'HCM|Hub 001'];
+  const phases = hubs.map(truckRidePhase);
+  assert.equal(new Set(phases).size, hubs.length);
+  assert.deepEqual([...hubs].reverse().map(truckRidePhase).reverse(), phases);
+  assert.ok(phases.every(phase => phase >= 0 && phase < Math.PI * 2));
+});
+
+test('Worst ride stays bounded and W1 has greater strain than W2 at every sampled phase', () => {
+  let energy = 0;
+  for (const phase of [0, truckRidePhase('hub')]) for (let t = 0; t < 30; t += 0.025) {
+    const first = sampleWorstRide(t, worstRideStrength(1), phase);
+    const second = sampleWorstRide(t, worstRideStrength(2), phase);
+    assert.ok(first.bounce >= 0 && first.bounce <= 0.146);
+    assert.ok(Math.abs(first.pitch) <= 0.083);
+    assert.ok(Math.abs(first.roll) <= 0.085);
+    assert.ok(Math.abs(first.yaw) <= 0.022);
+    for (const axis of Object.keys(first)) {
+      assert.ok(Number.isFinite(first[axis]));
+      assert.ok(Math.abs(first[axis]) >= Math.abs(second[axis]));
+      energy += first[axis] ** 2;
+    }
+  }
+  assert.ok(energy > 1);
+});
+
+test('Best and reduced motion have no Worst strain', () => {
+  const rest = { bounce: 0, pitch: 0, roll: 0, yaw: 0 };
+  for (let t = 0; t < 20; t += 0.1) {
+    assert.deepEqual(sampleWorstRide(t, 0), rest);
+    assert.deepEqual(sampleWorstRide(t, 1, 2.4, true), rest);
+  }
+});
+
+test('Worst suspension freezes with the shared clock without changing rank anchors', () => {
+  const clock = createDriveClock();
+  const truck = { id: 'worst', worstOrder: 1, x: -24, z: 2.6 };
+  advanceDriveClock(clock, [truck], null, 0.05, true, 2);
+  const before = sampleWorstRide(clock.time, 1);
+  for (let i = 0; i < 10; i++) advanceDriveClock(clock, [truck], null, 0.05, false, 4);
+  assert.deepEqual(sampleWorstRide(clock.time, 1), before);
+  advanceDriveClock(clock, [truck], null, 0.05, true, 2);
+  assert.notDeepEqual(sampleWorstRide(clock.time, 1), before);
+  assert.deepEqual(sampleDrivePose(truck, 1), { x: -24, z: 2.6, alpha: 1 });
+});
 
 test('only a forward-moving destination winner surges and settles at its exact rank', () => {
   const winner = { ...moving('winner', -40, 20), item: { rank: 1 }, phase: 'enter', alphaFrom: 0 };

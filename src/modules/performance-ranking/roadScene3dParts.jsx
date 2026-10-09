@@ -12,7 +12,7 @@ import {
 } from '../../utils/rankingSceneLayout.js';
 import {
   advanceDriveClock, driveHeading, sampleDrivePose, leaderSurge, WHEEL_RADIUS,
-  wrapRoadTravel
+  wrapRoadTravel, worstRideStrength, truckRidePhase, sampleWorstRide, sampleWorstSkid, skidRoadZ
 } from '../../utils/sceneDriving.js';
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
@@ -20,6 +20,7 @@ export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 const ARROW_UP = '#34d399';
 const ARROW_DOWN = '#f87171';
 const TRUCK_MODEL_URL = '/models/ghn-truck-wheels-v1.glb';
+const SKID_SMOKE_PUFFS = 24;
 
 const HOVER_LIFT = 0.025;
 const SELECT_LIFT = 0.015;
@@ -57,6 +58,8 @@ const _arrowColor = new THREE.Color();
 const _upAxis = new THREE.Vector3(0, 1, 0);
 const _pitchAxis = new THREE.Vector3(0, 0, 1);
 const _pitchQuat = new THREE.Quaternion();
+const _rollAxis = new THREE.Vector3(1, 0, 0);
+const _rollQuat = new THREE.Quaternion();
 const _ringQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 function roadQuaternion(heading, pitch) {
   return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
@@ -64,6 +67,31 @@ function roadQuaternion(heading, pitch) {
 const paintCacheKey = () => 'instanceAlpha-truckRoof-v2';
 
 const noRaycast = () => {};
+
+// A soft, irregular density field for tyre haze. Transparent edges overlap
+// into a plume instead of exposing the polygons of a chain of spheres.
+function createTyreSmokeTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  const pixels = ctx.createImageData(96, 96);
+  for (let y = 0; y < 96; y++) for (let x = 0; x < 96; x++) {
+    const u = (x + 0.5) / 48 - 1, v = (y + 0.5) / 48 - 1;
+    const warpX = u * (1 + 0.16 * Math.sin(v * 5 + 0.8));
+    const warpY = v * (1 + 0.18 * Math.sin(u * 4 - 0.4));
+    const radius = warpX * warpX + warpY * warpY;
+    const cloud = 0.72 + 0.14 * Math.sin(u * 7 + v * 4) + 0.1 * Math.cos(v * 11 - u * 3);
+    const density = Math.exp(-2.2 * radius) * Math.max(0, 1 - radius) ** 1.5 * cloud;
+    const i = (y * 96 + x) * 4;
+    pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = 255;
+    pixels.data[i + 3] = Math.round(density * 255);
+  }
+  ctx.putImageData(pixels, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
 
 /** Shared simulation time. Runs before geometry/labels and freezes offscreen. */
 export function DriveClock({ clockRef, items, motion, running, playbackRate }) {
@@ -158,8 +186,9 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.ghost || alpha[i] < PICK_MIN_ALPHA) continue;
-      const p = positionsRef.current.get(item.id);
-      if (!p) continue;
+      const anchor = positionsRef.current.get(item.id);
+      if (!anchor) continue;
+      const p = anchor.visual || anchor;
       const o = toRoadLocalVector(origin.x - p.x, origin.y - p.lift, origin.z - p.z, p.heading, p.pitch);
       const d = toRoadLocalVector(direction.x, direction.y, direction.z, p.heading, p.pitch);
       const inv = { x: 1 / d.x, y: 1 / d.y, z: 1 / d.z };
@@ -199,9 +228,10 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
  */
 export function TruckFleet({
   items, motion, goodColor, badColor, castShadow, hoveredId, selectedId,
-  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion, roadLength, paintMode
+  onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion, roadLength, roadWidth, paintMode
 }) {
   const gl = useThree((s) => s.gl);
+  const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const count = items.length;
   const model = useLoader(GLTFLoader, TRUCK_MODEL_URL);
@@ -220,8 +250,10 @@ export function TruckFleet({
   const hoverEnabled = useMemo(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches, []);
   const buffers = useMemo(() => ({
     xs: new Float32Array(count), ys: new Float32Array(count), zs: new Float32Array(count),
-    travelXs: new Float32Array(count), pitches: new Float32Array(count), headings: new Float32Array(count), bobs: new Float32Array(count)
+    travelXs: new Float32Array(count), pitches: new Float32Array(count), headings: new Float32Array(count), bobs: new Float32Array(count),
+    ridePitches: new Float32Array(count), rolls: new Float32Array(count)
   }), [count]);
+  const rides = useMemo(() => items.map(item => ({ strength: item.ghost ? 0 : worstRideStrength(item.worstOrder), phase: truckRidePhase(item.id) })), [items]);
   const alphaArray = useMemo(() => new Float32Array(count).fill(1), [count]);
   const paintArray = useMemo(() => {
     const array = new Float32Array(count * 3).fill(-1);
@@ -252,6 +284,17 @@ export function TruckFleet({
   const nitroOuter = useRef(null);
   const nitroInner = useRef(null);
   const leaderStreaks = useRef(null);
+  const skidSmoke = useRef(null);
+  const smokeFacing = useRef(new THREE.Quaternion());
+  const smokeAlpha = useMemo(() => new Float32Array(SKID_SMOKE_PUFFS), []);
+  const smokeGeometry = useMemo(() => {
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    geometry.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(smokeAlpha, 1));
+    return geometry;
+  }, [smokeAlpha]);
+  useEffect(() => () => smokeGeometry.dispose(), [smokeGeometry]);
+  const smokeTexture = useMemo(createTyreSmokeTexture, []);
+  useEffect(() => () => smokeTexture.dispose(), [smokeTexture]);
   const flameScale = useMemo(() => new THREE.Vector3(), []);
 
   const meshes = useRef([]);
@@ -302,7 +345,7 @@ export function TruckFleet({
     const positions = positionsRef.current;
     positions.clear();
 
-    const { xs, ys, zs, travelXs, pitches, headings, bobs } = buffers;
+    const { xs, ys, zs, travelXs, pitches, headings, bobs, ridePitches, rolls } = buffers;
     for (let i = 0; i < count; i++) {
       const item = items[i];
       let x = item.x;
@@ -315,11 +358,21 @@ export function TruckFleet({
       const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
       const frame = sampleRoadFrame(x, z, roadLength);
       const surge = animated && !reducedMotion ? leaderSurge(item, t) : 0;
-      xs[i] = frame.x; ys[i] = frame.y + lift; zs[i] = frame.z; travelXs[i] = x; pitches[i] = frame.pitch + surge * 0.045;
-      headings[i] = frame.heading + (animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0);
-      bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : Math.sin(clock.time * 8 + i * 2.399) * 0.012;
+      const ride = sampleWorstRide(clock.time, rides[i].strength, rides[i].phase, reducedMotion);
+      const skid = sampleWorstSkid(clock.time, item.ghost ? null : item.worstOrder, rides[i].phase, reducedMotion);
+      const skidding = !item.ghost && item.worstOrder === 1 && !reducedMotion;
+      const visualRoadZ = skidding ? skidRoadZ(z, skid.lateral, roadWidth) : z;
+      const visualFrame = sampleRoadFrame(x, visualRoadZ, roadLength);
+      xs[i] = visualFrame.x; ys[i] = visualFrame.y + lift; zs[i] = visualFrame.z; travelXs[i] = x + skid.spinExtra; pitches[i] = visualFrame.pitch + surge * 0.045;
+      headings[i] = visualFrame.heading + ride.yaw + skid.yaw + (animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0);
+      bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : ride.bounce + Math.sin(clock.time * 8 + i * 2.399) * 0.012;
+      ridePitches[i] = ride.pitch; rolls[i] = ride.roll;
       alphaArray[i] = a;
-      positions.set(item.id, { x: frame.x, z: frame.z, lift: frame.y + lift, heading: headings[i], pitch: frame.pitch, roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost) });
+      positions.set(item.id, {
+        x: frame.x, z: frame.z, lift: frame.y + lift, heading: frame.heading, pitch: frame.pitch,
+        roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost), ride, skid,
+        visual: { x: visualFrame.x, z: visualFrame.z, lift: visualFrame.y + lift, heading: headings[i], pitch: visualFrame.pitch, roadZ: visualRoadZ }
+      });
     }
 
     truckParts.forEach((part, p) => {
@@ -333,7 +386,8 @@ export function TruckFleet({
       _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
       const tinted = part.color === 'status';
       for (let i = 0; i < count; i++) {
-        roadQuaternion(headings[i], pitches[i]);
+        roadQuaternion(headings[i], pitches[i] + (part.wheel ? 0 : ridePitches[i]));
+        if (!part.wheel) _quat.multiply(_rollQuat.setFromAxisAngle(_rollAxis, rolls[i]));
         _truckMatrix.compose(_pos.set(xs[i], ys[i] + (part.wheel ? 0 : bobs[i]), zs[i]), _quat, _scale);
         if (part.spin) {
           _euler.set(0, 0, -(clock.distance + travelXs[i]) / (part.radius || WHEEL_RADIUS));
@@ -351,6 +405,34 @@ export function TruckFleet({
       const attribute = mesh.geometry.getAttribute('instanceAlpha');
       if (attribute) attribute.needsUpdate = true;
     });
+
+    // One fixed billboard batch for W1. Staggered births, soft density and
+    // gentle spread form tyre haze; ageing follows the paused simulation.
+    const smoke = skidSmoke.current;
+    const worst = items.findIndex(item => !item.ghost && item.worstOrder === 1);
+    if (smoke) {
+      smoke.count = !reducedMotion && worst >= 0 && alphaArray[worst] > 0.3 ? SKID_SMOKE_PUFFS : 0;
+      if (smoke.count) {
+        const anchor = positions.get(items[worst].id);
+        for (let i = 0; i < SKID_SMOKE_PUFFS; i++) {
+          const age = (clock.time * 1.4 + i / SKID_SMOKE_PUFFS) % 1;
+          const past = sampleWorstSkid(clock.time - age * 0.65, 1, rides[worst].phase);
+          const z = skidRoadZ(anchor.roadZ, past.lateral, roadWidth);
+          const f = sampleRoadFrame(anchor.roadX - clock.speed * age * 0.65, z, roadLength);
+          _truckMatrix.compose(_pos.set(f.x, f.y, f.z), roadQuaternion(f.heading + past.yaw, f.pitch), _scale);
+          const spread = Math.sin(i * 2.399 + age * 2) * age * 0.18;
+          _pos.set(-0.85, 0.13 + age * 0.35, (i % 2 ? 0.68 : -0.68) + spread).applyMatrix4(_truckMatrix);
+          const size = 0.4 + age * 1.35;
+          _quat.copy(camera.quaternion).multiply(_rollQuat.setFromAxisAngle(_pitchAxis, i * 2.399 + age * 0.25));
+          _matrix.compose(_pos, _quat, flameScale.set(size * 1.2, size, 1));
+          smoke.setMatrixAt(i, _matrix);
+          smokeAlpha[i] = Math.min(1, age / 0.14) * (1 - age) ** 1.6 * 0.5 * past.smoke * alphaArray[worst];
+        }
+        smoke.instanceMatrix.needsUpdate = true;
+        smokeGeometry.getAttribute('instanceAlpha').needsUpdate = true;
+        smokeFacing.current.copy(camera.quaternion);
+      }
+    }
 
     // Rank arrows over the trucks that moved, during the last REPLAY_ARROWS_MS of a replay.
     const arrows = arrowMesh.current;
@@ -436,10 +518,15 @@ export function TruckFleet({
     invalidate();
     // write() closes over the props listed here; it is intentionally not a dependency itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, roadLength, paintMode, invalidate]);
+  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, roadLength, roadWidth, paintMode, invalidate]);
 
   useFrame((_, delta) => {
-    if (!clockRef.current.step) return;
+    if (!clockRef.current.step) {
+      // Orbit may still move while paused. Keep cards facing the camera
+      // without advancing their birth, position, density or lifetime.
+      if (skidSmoke.current?.count && !smokeFacing.current.equals(camera.quaternion)) write();
+      return;
+    }
     if (motion) frameDeltas.current.push(delta);
     const { t, active } = write();
     if (replayRef) replayRef.current = { active: motion?.kind === 'replay' && active, t };
@@ -487,6 +574,9 @@ export function TruckFleet({
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial color="#ffd36a" transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </instancedMesh>
+      <instancedMesh name="prr-skid-smoke" ref={skidSmoke} args={[smokeGeometry, undefined, SKID_SMOKE_PUFFS]} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial color="#e1e5e9" map={smokeTexture} transparent depthWrite={false} side={THREE.DoubleSide} onBeforeCompile={patchInstanceAlpha} customProgramCacheKey={alphaCacheKey} />
+      </instancedMesh>
       <instancedMesh ref={arrowMesh} args={[arrowGeometry, undefined, Math.max(1, count)]} frustumCulled={false}>
         <meshBasicMaterial color="#ffffff" />
       </instancedMesh>
@@ -499,7 +589,8 @@ export function SelectionRing({ id, x, z, positionsRef, roadLength }) {
   const ref = useRef(null);
   const initial = sampleRoadFrame(x, z, roadLength);
   useFrame(() => {
-    const p = positionsRef.current.get(id);
+    const anchor = positionsRef.current.get(id);
+    const p = anchor?.visual || anchor;
     if (p && ref.current) {
       ref.current.position.set(p.x, p.lift + 0.04, p.z);
       ref.current.quaternion.copy(roadQuaternion(p.heading, p.pitch)).multiply(_ringQuat);
@@ -726,8 +817,8 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       const collides = h => placed.some(o => h.l < o.r && h.r > o.l && h.t < o.b && h.b > o.t);
       const bounds = (x, y) => ({ l: x - LABEL_PADDING, r: x + box.w + LABEL_PADDING, t: y - LABEL_PADDING, b: y + box.h + LABEL_PADDING });
       let hit = bounds(left, top);
-      if (label.spec.medal && collides(hit)) {
-        // Keep all three podium labels legible, with a tether to the real truck.
+      if ((label.spec.medal || label.spec.emphasized) && collides(hit)) {
+        // Keep the three emphasized Best/Worst labels legible.
         let candidate = null;
         for (const dy of [0, -box.h - 8, -2 * (box.h + 8), box.h + 8]) {
           for (const dx of [0, -box.w - 8, box.w + 8]) {
@@ -744,9 +835,9 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       placed.push(hit);
       ctx.save();
       ctx.globalAlpha = followed?.alpha ?? 1;
-      if (label.spec.medal) {
+      if (label.spec.medal || label.spec.emphasized) {
         ctx.beginPath(); ctx.moveTo(left + box.w / 2, top + box.h); ctx.lineTo(cx, rawY + 8);
-        ctx.strokeStyle = label.spec.medal; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = label.spec.medal || '#e58b76'; ctx.lineWidth = 1.5; ctx.stroke();
       }
       drawLabel(ctx, label.spec, box, left, top, fonts);
       ctx.restore();

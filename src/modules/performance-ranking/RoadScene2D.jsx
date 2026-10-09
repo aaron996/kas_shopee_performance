@@ -1,9 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
-import { DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
+import { DEFAULT_DRIVE_RATE, worstRideStrength, truckRidePhase } from '../../utils/sceneDriving.js';
 import TruckTag from './TruckTag.jsx';
+import { computeSceneLayout } from '../../utils/rankingSceneLayout.js';
 
 // SVG Vector Delivery Truck component
-function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
+function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget, rideStrength = 0, ridePhase = 0 }) {
   const isTop1 = rank === 1;
   const isTop2 = rank === 2;
   const isTop3 = rank === 3;
@@ -26,7 +27,11 @@ function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
         </filter>
       </defs>
       <g filter={`url(#truck-shadow-${rank})`}>
-        <g className="prr-truck-body">
+        <g className="prr-truck-body" style={{
+          '--ride-bounce': `${rideStrength * 3.5}px`,
+          '--ride-roll': `${rideStrength * 4}deg`,
+          '--ride-phase': `${-ridePhase / (Math.PI * 2) * 1.2}s`
+        }}>
         {/* Cargo Body (thùng xe tải) */}
         <rect x="2" y="10" width="46" height="24" rx="3" fill={cargoColor} />
         {/* GHN Orange Brand Stripe */}
@@ -65,9 +70,16 @@ function DeliveryTruckIcon({ rank, isSelected, meetsTarget: _meetsTarget }) {
 }
 
 // 2D SVG/CSS road scene. Kept as its own component so the 3D scene can sit beside it.
-export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, running = false, playbackRate = DEFAULT_DRIVE_RATE }) {
+export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, rankView = 'best', running = false, reducedMotion = false, playbackRate = DEFAULT_DRIVE_RATE }) {
   const roadContainerRef = useRef(null);
   const truckElementsRef = useRef(new Map());
+  const canvasWidth = Math.max(1100, sceneTrucks.length * 115);
+  const layout = computeSceneLayout(sceneTrucks, { roadLength: canvasWidth, leaderGap: 130, view: rankView });
+
+  useLayoutEffect(() => {
+    const container = roadContainerRef.current;
+    container.scrollLeft = rankView === 'worst' ? 0 : container.scrollWidth - container.clientWidth;
+  }, [rankView, canvasWidth]);
 
   useLayoutEffect(() => {
     // Preserve the current phase when dragging the speed slider. Changing CSS
@@ -97,7 +109,7 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, r
 
   return (
     <div
-      className={`prr-road-viewport ${running ? 'prr-driving' : ''}`}
+      className={`prr-road-viewport ${running ? 'prr-driving' : ''} ${rankView === 'worst' ? 'prr-worst' : ''}`}
       ref={roadContainerRef}
     >
       {/* The Road Surface */}
@@ -105,7 +117,7 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, r
         className="prr-road-canvas"
         style={{
           // Scale width smoothly with number of trucks to ensure optimal readability
-          minWidth: `${Math.max(1100, sceneTrucks.length * 115)}px`
+          minWidth: `${canvasWidth}px`
         }}
       >
         {/* 4 Lanes with dashed markings */}
@@ -120,18 +132,7 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, r
         {sceneTrucks.map((item, idx) => {
           const rank = item.rank;
           const isSelected = selectedHubId === item.id;
-          const totalVisible = sceneTrucks.length;
-
-          // Calibrated rank-based positioning:
-          // idx is the slot index in sceneTrucks (sorted by rank: idx 0 is highest rank).
-          // Using idx / (totalVisible - 1) guarantees monotonic progress [0, 1]
-          // and keeps coordinates strictly within bounds [5%, 88%] with NO negative coordinates.
-          const startPercent = 5;
-          const endPercent = 88;
-          const rankProgress = totalVisible > 1
-            ? 1 - (idx / (totalVisible - 1))
-            : 0.5;
-          const leftPos = startPercent + (rankProgress * (endPercent - startPercent));
+          const leftPos = (layout[idx].x / canvasWidth + 0.5) * 100;
 
           // 4-Lane alternating distribution to prevent vertical collisions
           const laneOrder = [0, 2, 1, 3];
@@ -158,14 +159,22 @@ export default function RoadScene2D({ sceneTrucks, selectedHubId, onSelectHub, r
               onClick={() => onSelectHub(item.id)}
             >
               {/* Floating Info Tag above truck */}
-              <TruckTag item={item} />
+              <TruckTag item={item} viewRank={rankView === 'worst' ? idx + 1 : null} />
 
               {/* Vector Truck SVG */}
-              <DeliveryTruckIcon
-                rank={rank}
-                isSelected={isSelected}
-                meetsTarget={item.meetsTarget}
-              />
+              <span className={`prr-vehicle ${rankView === 'worst' && idx === 0 && !reducedMotion ? 'prr-skidding' : ''}`}
+                style={{ animationDelay: `${-truckRidePhase(item.id) / (Math.PI * 2) * 2.4}s` }}>
+                {rankView === 'worst' && idx === 0 && !reducedMotion && <span className="prr-tyre-smoke" aria-hidden="true">
+                  {[0, 1, 2, 3].map(i => <i key={i} style={{ animationDelay: `${-i * 0.3}s` }} />)}
+                </span>}
+                <DeliveryTruckIcon
+                  rank={rank}
+                  isSelected={isSelected}
+                  meetsTarget={item.meetsTarget}
+                  rideStrength={rankView === 'worst' ? worstRideStrength(idx + 1) : 0}
+                  ridePhase={truckRidePhase(item.id)}
+                />
+              </span>
 
               {/* Selected Spotlight Glow */}
               {isSelected && <div className="truck-spotlight" />}
