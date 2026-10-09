@@ -372,7 +372,10 @@ export function calculatePerformanceRanking({
 export const SCENE_TOP_LIMITS = [10, 20, 50];
 export const MAX_SCENE_HUBS = 50;
 
-export function selectSceneHubs(ranked, limit = 20) {
+export function selectSceneHubs(ranked, limit = 20, view = 'best') {
   const count = SCENE_TOP_LIMITS.includes(Number(limit)) ? Number(limit) : 20;
+  // Keep the canonical rank and deterministic ties intact; only change the
+  // bounded scene cohort. Missing-data Hubs are never part of `ranked`.
+  if (view === 'worst') return ranked.slice(-count).reverse();
   return ranked.slice(0, MAX_SCENE_HUBS).slice(0, count);
 }

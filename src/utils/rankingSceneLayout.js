@@ -102,7 +102,7 @@ function laneForIndex(idx, laneCount) {
  *   x runs along the road (rank 1 at the largest x), z across lanes. The road is
  *   centred on the origin and spans x in [-roadLength/2, roadLength/2].
  */
-export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, laneWidth = 1.8, laneMode = 'stagger', leaderGap = 0 } = {}) {
+export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, laneWidth = 1.8, laneMode = 'stagger', leaderGap = 0, view = 'best', offsetX = 0 } = {}) {
   const list = Array.isArray(sceneTrucks) ? sceneTrucks : [];
   const n = list.length;
   const regionMode = laneMode === 'region';
@@ -118,9 +118,12 @@ export function computeSceneLayout(sceneTrucks, { roadLength, laneCount = 4, lan
     const frontX = (END_FRACTION - 0.5) * length;
     const rearX = (START_FRACTION - 0.5) * length;
     const gap = Math.min(Math.max(0, leaderGap), (frontX - rearX) / 2);
-    const x = gap > 0 && n > 1
+    const bestX = gap > 0 && n > 1
       ? idx === 0 ? frontX : n === 2 ? frontX - gap : frontX - gap - (idx - 1) / (n - 2) * (frontX - gap - rearX)
       : (fraction - 0.5) * length;
+    // Reflect inside the same occupied road stretch: Worst #1 trails the pack
+    // with the same isolated gap as Best #1 leads it. Trucks still face +X.
+    const x = (view === 'worst' ? frontX + rearX - bestX : bestX) + offsetX;
     return {
       id: truck.id,
       x,
@@ -177,12 +180,12 @@ export function computeReplayFrames(sceneTrucks, opts = {}) {
   const layout = computeSceneLayout(list, opts);
   const regionMode = opts.laneMode === 'region';
   const length = opts.roadLength ?? (regionMode ? getRegionRoadLength(list) : getRoadLength(n));
-  const intakeX = (START_GATE_FRACTION - 0.5) * length;
+  const intakeX = (START_GATE_FRACTION - 0.5) * length + (opts.offsetX || 0);
 
   const hasBaseline = (t) => t.hasCommonBaseline === true && Number.isFinite(t.deltaRank);
   const wanted = [];
   list.forEach((t, i) => {
-    if (hasBaseline(t)) wanted.push({ i, slot: Math.min(n - 1, Math.max(0, i + t.deltaRank)) });
+    if (hasBaseline(t)) wanted.push({ i, slot: Math.min(n - 1, Math.max(0, i + t.deltaRank * (opts.view === 'worst' ? -1 : 1))) });
   });
 
   // unique start slots: closest free slot to the wanted one, ties resolved towards the back

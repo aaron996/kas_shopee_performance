@@ -928,3 +928,53 @@ BXH dùng quyền truy cập chung của dashboard, không yêu cầu Dev Admin.
 hiển thị tab trên sidebar, điều hướng mobile và command palette cho user thường.
 ModuleSurfaceOutlet vẫn kiểm tra quyền riêng của các module khác; Dev Panel tiếp
 tục yêu cầu Dev Admin. Dữ liệu BXH vẫn lấy các hàng đã áp dụng filter của App.
+
+## Công tắc Best / Worst (2026-10-09)
+
+Best lấy đầu bảng, Worst lấy cuối bảng xếp hạng KPI D-1 đã lọc, tối đa
+10/20/50 Hub. Worst duyệt từ tệ nhất lên; giữ nguyên composite ID, hạng gốc,
+KPI và delta D-8. Hub không có mẫu D-1 vẫn thuộc nhóm chưa đủ dữ liệu, không
+được coi là Worst. Nhãn `#1000 · W1` nghĩa là hạng gốc 1000, tệ nhất trong
+nhóm đang xem; bảng đối soát giữ thứ tự xếp hạng gốc.
+
+Trong 3D, hai nhóm nằm ở hai đầu một đoạn đường có hành lang xe ở giữa.
+Camera lùi từ Best về Worst trong 3 giây, qua một hàng 26 xe trang trí rồi
+mới hiện nhóm đích khi đạt 78% quãng đường. Chiều ngược lại đi về phía đầu
+đoàn. Hàng chuyển cảnh không có KPI/nhãn Hub, không chọn được; toàn cảnh
+luôn giữ tối đa 50 instance xe, kể cả xe nguồn và xe trang trí. Worst W1
+nằm sau W2 một khoảng 6 đơn vị; các xe vẫn hướng về +X. Khoảng cách thể
+hiện thứ tự, không thể hiện độ chênh KPI.
+
+Đổi view liên tiếp bắt đầu chuyến mới từ camera hiện tại; callback chuyến
+cũ không ghi đè chuyến mới. Đổi KPI/bộ lọc/số xe giữa chuyến kết thúc tour
+và cập nhật nhóm mới. Tạm dừng chạy xe vẫn cho phép chuyển camera; ẩn tab
+tạm dừng thời gian tour. Giảm chuyển động hoặc kích hoạt công tắc bằng bàn
+phím chuyển trực tiếp. Camera orbit và replay tạm khóa trong chuyến; chọn
+Hub từ bảng giữa chuyến sẽ bám xe sau khi camera tới đích.
+
+Cảnh 2D dùng cùng quy tắc nhóm/đảo vị trí và khoảng riêng cho xe đầu nhóm;
+không mô phỏng chuyến camera 3D. Test Node bao phủ chọn đúng cuối bảng,
+tie/mẫu thiếu, khoảng cách/làn, replay Worst, khung camera desktop/mobile
+và ngân sách xe trang trí. QA dùng fixture local 1.000 Hub trong Codex IAB,
+không xác nhận dữ liệu production hoặc hiệu năng điện thoại thật.
+
+Cụm điều khiển giữ kích thước cố định khi đổi view: cúp cho Best, biểu đồ
+giảm cho Worst; số 10/20/50 giữ nguyên. Các nút tạm dừng, tùy chỉnh và bảng
+dùng icon với tooltip/tên truy cập. Nhóm Worst có nhún, chúi và chao thân
+xe theo thứ tự W1 mạnh nhất, W2/W3 giảm dần, pha riêng ổn định theo Hub ID.
+Đây là hiệu ứng diễn giải thứ hạng, không mô tả tình trạng xe ngoài thực tế.
+Nhãn và vị trí xếp hạng không nhún theo thân xe; bánh vẫn bám mặt đường.
+Hiệu ứng dùng chung clock/tốc độ chạy, đóng băng khi tạm dừng hoặc ẩn cảnh,
+và tắt khi giảm chuyển động. Cảnh 2D có nhún/chao thân tương ứng.
+
+W1 còn trượt bánh và lạng sang hai bên trong phạm vi mặt đường, xoay đầu
+xe chéo hướng di chuyển và quay bánh nhanh hơn nhịp đường. Hai bánh sau
+phụt khói xám rồi tan dần; 3D dùng một batch cố định 24 cụm khói, không
+tăng số instance xe. Pick/ring bám vị trí xe thực; nhãn, camera bám xe và
+snapshot giữ mốc xếp hạng để không rung theo cú trượt. Khói và trượt dùng
+clock chung, đóng băng khi pause và tắt khi giảm chuyển động/đổi về Best.
+
+Khói dùng 24 mặt phẳng hướng về camera với texture mật độ mềm, trong suốt
+ở mép, lệch nhịp phát giữa hai bánh và giãn/tan dần. Texture tạo một lần
+trong scene và dispose khi tháo; geometry giữ một batch cố định. Cảnh 2D
+dùng gradient mềm tương ứng, tránh các cục khói có viền cứng.

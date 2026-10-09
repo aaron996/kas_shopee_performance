@@ -33,12 +33,82 @@
 .prr-stage-scope, .prr-stage-count { font-size: 12px; color: var(--text-secondary); }
 .prr-stage-count { margin-left: auto; font-variant-numeric: tabular-nums; }
 .prr-stage-toolbar { justify-content: space-between; flex-wrap: wrap; }
-.prr-stage-actions { gap: 8px; flex-wrap: wrap; }
+.prr-stage-actions { gap: 8px; flex-wrap: nowrap; flex: none; }
+.prr-rank-switch {
+  position: relative; display: grid; grid-template-columns: repeat(2, 28px);
+  place-items: center; flex: none; width: 64px; height: 36px;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-pill);
+  padding: 3px; background: var(--surface-subtle); color: var(--text-secondary);
+  cursor: pointer;
+}
+.prr-rank-switch svg { position: relative; z-index: 1; }
+.prr-rank-switch .is-current { color: var(--status-success-fg); }
+.prr-rank-switch[data-view="worst"] .is-current { color: var(--status-danger-fg); }
+.prr-rank-switch-indicator {
+  position: absolute; top: 3px; left: 3px; width: 28px; height: 28px;
+  border-radius: var(--radius-pill); background: var(--status-success-bg);
+  transition: transform 160ms var(--ease-snappy);
+}
+.prr-rank-switch[data-view="worst"] .prr-rank-switch-indicator { transform: translateX(28px); background: var(--status-danger-bg); }
+.prr-stage-header .prr-icon-action {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 36px; height: 36px; padding: 0; min-height: 36px;
+}
+.prr-count-selector .seg-btn { width: 32px; padding: 4px 0; font-variant-numeric: tabular-nums; }
+.prr-vehicle { display: block; position: relative; width: 78px; height: 46px; }
+.prr-skidding { animation: prr-w1-skid 2.4s linear infinite paused; }
+.prr-skidding .truck-svg { position: relative; overflow: visible; }
+.prr-skidding .prr-wheel { animation-duration: 0.6s; }
+.prr-tyre-smoke i {
+  position: absolute; left: 6px; bottom: 5px; width: 24px; height: 18px;
+  background: radial-gradient(ellipse, rgba(225, 229, 233, 0.65) 0%, rgba(225, 229, 233, 0.28) 35%, rgba(225, 229, 233, 0) 72%);
+  pointer-events: none;
+  animation: prr-tyre-smoke 1.1s linear infinite paused;
+}
+.prr-driving .prr-skidding, .prr-driving .prr-tyre-smoke i { animation-play-state: running; }
+@keyframes prr-w1-skid {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  25% { transform: translate(-3px, 9px) rotate(11deg); }
+  50% { transform: translate(2px, 1px) rotate(8deg); }
+  75% { transform: translate(-2px, -9px) rotate(-12deg); }
+}
+@keyframes prr-tyre-smoke {
+  0% { transform: translate(0, 0) scale(0.9); opacity: 0; }
+  16% { opacity: 0.4; }
+  100% { transform: translate(-28px, -9px) scale(1.9); opacity: 0; }
+}
+.prr-worst .prr-truck-body {
+  transform-box: fill-box; transform-origin: center;
+  animation-name: prr-worst-ride; animation-duration: 1.2s;
+  animation-timing-function: linear; animation-delay: var(--ride-phase, 0s);
+}
+@keyframes prr-worst-ride {
+  0%, 100% { transform: translateY(0) rotate(calc(var(--ride-roll) * -0.25)); }
+  18% { transform: translateY(calc(var(--ride-bounce) * -0.3)) rotate(var(--ride-roll)); }
+  28% { transform: translateY(calc(var(--ride-bounce) * -1)) rotate(calc(var(--ride-roll) * 0.4)); }
+  36% { transform: translateY(0) rotate(calc(var(--ride-roll) * -0.6)); }
+  58% { transform: translateY(calc(var(--ride-bounce) * -0.5)) rotate(calc(var(--ride-roll) * -1)); }
+  74% { transform: translateY(0) rotate(calc(var(--ride-roll) * 0.7)); }
+  86% { transform: translateY(calc(var(--ride-bounce) * -0.7)) rotate(calc(var(--ride-roll) * -0.2)); }
+}
+.prr-tour-status {
+  position: absolute; top: 20px; left: 20px; pointer-events: none;
+  padding: 8px 12px; border-radius: var(--radius-pill);
+  background: var(--surface-default); color: var(--text-primary); font-size: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prr-rank-switch-indicator { transition: none; }
+  .prr-worst .prr-truck-body { animation: none; }
+  .prr-skidding { animation: none; }
+  .prr-tyre-smoke { display: none; }
+}
 .prr-stage-header .prr-kpi-tab { flex-direction: row; gap: 8px; min-height: 32px; padding: 5px 12px; }
 .prr-stage-header .kpi-tab-target { font-size: 11px; font-variant-numeric: tabular-nums; }
 .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn { min-height: 32px; }
 .prr-stage-settings { position: relative; font-size: 12px; }
 .prr-stage-settings summary { cursor: pointer; padding: 8px 10px; border-radius: var(--radius-pill); }
+.prr-stage-settings summary.prr-icon-action { padding: 0; list-style: none; background: var(--surface-subtle); color: var(--text-secondary); }
+.prr-stage-settings summary::marker, .prr-stage-settings summary::-webkit-details-marker { display: none; content: ''; }
 .prr-stage-settings-panel {
   position: absolute; top: calc(100% + 8px); right: 0; width: 280px; padding: 16px;
   background: var(--surface-default); border: 1px solid var(--border-subtle);
@@ -84,19 +154,20 @@
   .prr-stage-header .kpi-tab-target { display: none; }
   .prr-stage-actions { width: 100%; justify-content: space-between; gap: 4px; }
   .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn, .prr-stage-settings summary { min-height: 40px; }
-  .prr-stage-header .prr-playback-btn span { display: none; }
-  .prr-stage-header .prr-playback-btn { min-width: 40px; width: 40px; padding: 4px; }
-  .prr-stage-actions > .prr-replay-btn:last-child { width: 40px; padding: 4px; justify-content: center; }
-  .prr-stage-actions > .prr-replay-btn:last-child span { display: none; }
+  .prr-rank-switch { height: 44px; }
+  .prr-rank-switch-indicator { height: 36px; }
+  .prr-stage-header .prr-icon-action { width: 40px; min-width: 40px; height: 44px; min-height: 44px; padding: 0; }
   .prr-stage-header .seg-btn { padding: 4px 8px; font-size: 11px; }
+  .prr-stage-header .prr-count-selector .seg-btn { width: 28px; padding: 4px 0; min-height: 44px; }
   .prr-stage-heading .prr-stage-count { display: none; }
-  .prr-stage-settings-panel { right: -70px; }
+  .prr-stage-settings { position: static; }
+  .prr-stage-settings-panel { right: 12px; width: min(280px, calc(100% - 24px)); }
   .performance-road-ranking-tab .prr-3d-controls { bottom: 42px; left: 12px; right: 12px; justify-content: flex-start; }
   .performance-road-ranking-tab .prr-3d-controls .seg-btn,
   .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 40px; font-size: 11px; padding: 4px 10px; }
   .performance-road-ranking-tab .prr-3d-caption { bottom: 8px; left: 12px; }
   .performance-road-ranking-tab .prr-table-card { inset: 160px 8px 8px; padding: 12px; }
   .performance-road-ranking-tab .prr-insight-panel { right: 8px; bottom: 90px; width: calc(100% - 16px); max-height: calc(100% - 260px); }
-  .performance-road-ranking-tab .prr-truck-node { margin-top: 0; }
-  .performance-road-ranking-tab .prr-lanes-container { top: 0; transform: none; }
+  .performance-road-ranking-tab .prr-truck-node { margin-top: 56px; }
+  .performance-road-ranking-tab .prr-lanes-container { top: 56px; transform: none; }
 }

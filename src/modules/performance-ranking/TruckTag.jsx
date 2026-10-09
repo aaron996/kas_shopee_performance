@@ -3,11 +3,11 @@ import { SMALL_SAMPLE_THRESHOLD } from '../../utils/performanceRanking.js';
 
 // Floating info tag shared by the 2D and 3D scenes: #rank, Hub name, KPI D-1,
 // rank delta ("Mới" without a D-8 baseline) and a small-sample warning.
-export default function TruckTag({ item, className = '' }) {
+export default function TruckTag({ item, viewRank = null, className = '' }) {
   return (
     <div className={`prr-truck-tag ${item.meetsTarget ? 'tag-good' : 'tag-below'} ${className}`.trim()}>
       <div className="truck-tag-row">
-        <span className="truck-tag-rank">#{item.rank}</span>
+        <span className="truck-tag-rank" title={viewRank ? `Tệ thứ ${viewRank} · Hạng gốc #${item.rank}` : undefined}>#{item.rank}{viewRank ? ` · W${viewRank}` : ''}</span>
         <span className="truck-tag-name" title={item.displayName || item.hub}>
           {item.displayName || item.hub}
         </span>

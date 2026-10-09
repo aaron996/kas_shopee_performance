@@ -59,7 +59,7 @@ export function layoutLabel(ctx, spec, fonts, compact) {
   // tag
   if (spec.medal) { m.name += 1; m.rank += 1; m.kpi += 1; m.nameMax += compact ? 8 : 16; }
   ctx.font = `700 ${m.rank}px ${fonts.family}`;
-  const rankText = `#${spec.rank}`;
+  const rankText = `#${spec.rank}${spec.viewRank ? ` · W${spec.viewRank}` : ''}`;
   const rankW = ctx.measureText(rankText).width;
   ctx.font = `600 ${m.name}px ${fonts.family}`;
   const nameText = fit(ctx, spec.name, m.nameMax);

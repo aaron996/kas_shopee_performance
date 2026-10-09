@@ -13,7 +13,10 @@ import {
   Pause,
   Play,
   ArrowLeft,
-  Table2
+  Table2,
+  Trophy,
+  TrendingDown,
+  SlidersHorizontal
 } from 'lucide-react';
 import {
   calculatePerformanceRanking,
@@ -80,6 +83,8 @@ export default function PerformanceRoadRanking({
   const [metricKey, setMetricKey] = useState('p1st');
   const [selectedHubId, setSelectedHubId] = useState(null);
   const [sceneDisplayLimit, setSceneDisplayLimit] = useState(20);
+  const [rankView, setRankView] = useState('best');
+  const [animateViewChange, setAnimateViewChange] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [webgl2] = useState(detectWebGL2InBrowser);
@@ -121,8 +126,8 @@ export default function PerformanceRoadRanking({
 
   // Hubs visible on the road scene
   const sceneTrucks = useMemo(() => {
-    return selectSceneHubs(ranked, sceneDisplayLimit);
-  }, [ranked, sceneDisplayLimit]);
+    return selectSceneHubs(ranked, sceneDisplayLimit, rankView);
+  }, [ranked, sceneDisplayLimit, rankView]);
 
   // Selected Hub entity (searches both ranked and unranked)
   const selectedHubItem = useMemo(() => {
@@ -260,20 +265,32 @@ export default function PerformanceRoadRanking({
             ))}
           </div>
           <div className="prr-stage-actions">
-            <div className="prr-segmented-limit" role="group" aria-label="Số Hub trên đường">
+            <button type="button" role="switch" aria-checked={rankView === 'worst'}
+              aria-label="Hiển thị nhóm Worst" className="prr-rank-switch" data-view={rankView}
+              title={rankView === 'best' ? 'Best · KPI cao nhất. Chuyển sang Worst' : 'Worst · KPI thấp nhất. Chuyển sang Best'}
+              onClick={event => {
+                setAnimateViewChange(event.detail !== 0);
+                setRankView(value => value === 'best' ? 'worst' : 'best');
+                setSelectedHubId(null);
+              }}>
+              <span className="prr-rank-switch-indicator" aria-hidden="true" />
+              <Trophy size={16} className={rankView === 'best' ? 'is-current' : ''} aria-hidden="true" />
+              <TrendingDown size={16} className={rankView === 'worst' ? 'is-current' : ''} aria-hidden="true" />
+            </button>
+            <div className="prr-segmented-limit prr-count-selector" role="group" aria-label="Số Hub trên đường">
               {SCENE_TOP_LIMITS.map(limit => <button key={limit} type="button" className={`seg-btn ${sceneDisplayLimit === limit ? 'active' : ''}`}
-                aria-pressed={sceneDisplayLimit === limit} onClick={() => setSceneDisplayLimit(limit)}>Top {limit}</button>)}
+                aria-label={`${limit} Hub`} title={`${rankView === 'worst' ? 'Worst' : 'Best'} ${limit} Hub`}
+                aria-pressed={sceneDisplayLimit === limit} onClick={() => setSceneDisplayLimit(limit)}>{limit}</button>)}
             </div>
-            <button type="button" className="prr-replay-btn prr-playback-btn"
+            <button type="button" className="prr-replay-btn prr-playback-btn prr-icon-action"
               disabled={playback.reducedMotion || sceneTrucks.length === 0} aria-pressed={playback.paused}
               aria-label={playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
-              title={playback.reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : undefined}
+              title={playback.reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
               onClick={() => playback.setPaused(value => !value)}>
               {playback.paused || playback.reducedMotion ? <Play size={15} /> : <Pause size={15} />}
-              <span>{playback.reducedMotion ? 'Giảm chuyển động' : playback.paused ? 'Tiếp tục' : 'Tạm dừng'}</span>
             </button>
             <details className="prr-stage-settings">
-              <summary>Tùy chỉnh</summary>
+              <summary className="prr-icon-action" aria-label="Tùy chỉnh" title="Tốc độ và chế độ 2D/3D"><SlidersHorizontal size={16} aria-hidden="true" /></summary>
               <div className="prr-stage-settings-panel">
                 <div className="prr-speed-control">
                   <label htmlFor={speedControlId}>Tốc độ</label>
@@ -292,7 +309,7 @@ export default function PerformanceRoadRanking({
                 <p><AlertTriangle size={12} /> Mẫu dưới {SMALL_SAMPLE_THRESHOLD} đơn</p>
               </div>
             </details>
-            <button type="button" className="prr-replay-btn" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={15} /><span>Bảng số liệu</span></button>
+            <button type="button" className="prr-replay-btn prr-icon-action" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={16} aria-hidden="true" /></button>
           </div>
         </div>
       </header>
@@ -313,6 +330,8 @@ export default function PerformanceRoadRanking({
             <SceneErrorBoundary onError={() => handleSceneFailure('load')}>
             <Suspense fallback={<LoadingScreen variant="block" />}>
               <RoadScene3D
+                rankView={rankView}
+                animateViewChange={animateViewChange}
                 sceneTrucks={sceneTrucks}
                 selectedHubId={selectedHubId}
                 onSelectHub={handleSelectHub}
@@ -331,10 +350,12 @@ export default function PerformanceRoadRanking({
             </SceneErrorBoundary>
           ) : (
             <RoadScene2D
+              rankView={rankView}
               sceneTrucks={sceneTrucks}
               selectedHubId={selectedHubId}
               onSelectHub={handleSelectHub}
               running={playback.running}
+              reducedMotion={playback.reducedMotion}
               playbackRate={playback.rate}
             />
           )
@@ -396,7 +417,7 @@ export default function PerformanceRoadRanking({
           </div>
 
           {/* Metric Stats Cards in Insight Panel */}
-          {!sceneTrucks.some(hub => hub.id === selectedHubId) && <p className="prr-offscene-note">Hub này nằm ngoài Top {sceneDisplayLimit}; xem số liệu tại đây hoặc mở báo cáo chi tiết.</p>}
+          {!sceneTrucks.some(hub => hub.id === selectedHubId) && <p className="prr-offscene-note">Hub này nằm ngoài nhóm {rankView === 'worst' ? 'Worst' : 'Best'} {sceneDisplayLimit}; xem số liệu tại đây hoặc mở báo cáo chi tiết.</p>}
           <div className="insight-stats-grid">
             <div className="insight-stat-card">
               <span className="stat-label">{metricLabel} (D-1)</span>
