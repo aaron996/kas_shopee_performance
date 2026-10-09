@@ -60,12 +60,29 @@ tỉnh dễ tranh cãi: **Bình Thuận → Trung** (NTB), **Lâm Đồng → Tr
 - Phiên đã lưu bộ lọc vùng đầy đủ trước khi có 3 vùng mới được coi là "Tất cả vùng"
   (`NEWER_REGIONS` ở `App.jsx`).
 
+## AI chat
+
+`get_ai_chat_metric` lọc theo `region` thô, trong khi dashboard gửi cho chat danh
+sách vùng đang chọn (có `GXT - …`). Migration
+[20261009150000_ai_chat_gxt_mien_region.sql](../supabase/migrations/20261009150000_ai_chat_gxt_mien_region.sql)
+thêm `public.gxt_mien_region(hub, raw_region)` (cùng quy tắc với `provinceMien.js`:
+tỉnh cuối tên kho → fallback `region` → giữ nguyên) và dùng nó cho dòng hub type
+GXT trong cả hai nhánh pick/deli. Không có migration này, câu trả lời của chat sẽ
+**mất toàn bộ dòng GXT** khi đang chọn đủ vùng.
+
+Danh sách tỉnh trong SQL được sinh từ `provinceMien.js` (khóa đã chuẩn hóa); sửa
+một bên thì sửa bên kia.
+
+Giới hạn số vùng trong `screenContext` của chat (`MAX_SCOPE_ITEMS`, trước là 20)
+được nới lên 40: dashboard giờ có 21 vùng và gửi cả danh sách khi chọn "Tất cả
+vùng", nên giới hạn cũ sẽ trả 400 cho mọi câu hỏi. Có test canh số vùng của
+dashboard không vượt giới hạn.
+
 ## Chưa làm
 
-- **AI chat**: hàm SQL `get_ai_chat_metric` có logic vùng riêng (chỉ KA, chưa có CK
-  hay GXT), vẫn trả `HCM - GXT` / vùng gốc cho GXT. Cần migration riêng nếu muốn
-  chatbot khớp dashboard; phần GXT sẽ phải dựng lại việc tra tỉnh trong SQL.
-- Query BI vẫn tạo `HCM - GXT` ở nguồn; không cần đổi vì app đã xử lý.
+- Query BI vẫn tạo `HCM - GXT` ở nguồn; không cần đổi vì app và RPC đã xử lý.
+- RPC chat vẫn chưa có logic CK (`HCM - CK` / `HNO - CK`), lệch với dashboard từ
+  trước; xem [tech-debt.md](tech-debt.md).
 
 ## Kiểm tra
 

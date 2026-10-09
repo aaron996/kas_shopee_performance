@@ -4,6 +4,7 @@ import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { ChatError } from './errors.js';
 import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
 import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
+import { MAX_SCOPE_ITEMS } from './protocol.js';
 import { PUBLIC_SEARCH_TOOL } from './public-search.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,7 +49,7 @@ function optionalText(value, name, max = 120) {
 }
 
 function textList(value, name) {
-  if (!Array.isArray(value) || value.length > 20 || value.some(item => typeof item !== 'string' || !item.trim() || item.length > 80)) {
+  if (!Array.isArray(value) || value.length > MAX_SCOPE_ITEMS || value.some(item => typeof item !== 'string' || !item.trim() || item.length > 80)) {
     invalid(`${name} không hợp lệ.`);
   }
   return [...new Set(value.map(item => item.trim()))];

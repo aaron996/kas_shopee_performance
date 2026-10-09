@@ -6,6 +6,10 @@ export const MAX_BODY_BYTES = 64 * 1024;
 export const MAX_QUESTION_CHARS = 4000;
 export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_HISTORY_CHARS = 24000;
+// The dashboard sends every selected vùng (all of them by default, 21 today incl. the
+// KA / CK / GXT ones) and every selected hub type, so this must stay above
+// Object.values(MIEN_REGIONS).flat().length (guarded by a test) with room to grow.
+export const MAX_SCOPE_ITEMS = 40;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 'reasoningEffort', 'query', 'screenContext']);
@@ -69,7 +73,7 @@ export function parseScreenContext(rawContext) {
 
   let normalizedRegions = null;
   if (regions !== null) {
-    if (!Array.isArray(regions) || regions.length > 20 || regions.some(r => typeof r !== 'string' || !r.trim() || r.length > 80 || /<[^>]+>/.test(r))) {
+    if (!Array.isArray(regions) || regions.length > MAX_SCOPE_ITEMS || regions.some(r => typeof r !== 'string' || !r.trim() || r.length > 80 || /<[^>]+>/.test(r))) {
       badRequest('screenContext.regions không hợp lệ.');
     }
     normalizedRegions = [...new Set(regions.map(r => r.trim()))];
@@ -77,7 +81,7 @@ export function parseScreenContext(rawContext) {
 
   let normalizedHubTypes = null;
   if (hubTypes !== null) {
-    if (!Array.isArray(hubTypes) || hubTypes.length > 20 || hubTypes.some(h => typeof h !== 'string' || !h.trim() || h.length > 80 || /<[^>]+>/.test(h))) {
+    if (!Array.isArray(hubTypes) || hubTypes.length > MAX_SCOPE_ITEMS || hubTypes.some(h => typeof h !== 'string' || !h.trim() || h.length > 80 || /<[^>]+>/.test(h))) {
       badRequest('screenContext.hubTypes không hợp lệ.');
     }
     normalizedHubTypes = [...new Set(hubTypes.map(h => h.trim()))];

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRequestBody, requestPayloadHash } from './protocol.js';
+import { parseRequestBody, requestPayloadHash, MAX_SCOPE_ITEMS } from './protocol.js';
+import { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
 import { MODULE_IDS } from '../../src/modules/moduleIds.js';
 
 const requestId = '550e8400-e29b-41d4-a716-446655440000';
@@ -154,4 +155,12 @@ test('requestPayloadHash changes when valid screenContext changes', () => {
   // Same content produces same hash
   const hash1Repeat = requestPayloadHash({ ...baseReq, requestId: 'different-id', screenContext: { client: 'SPB', activeTab: 'report1' } });
   assert.equal(hash1, hash1Repeat);
+});
+
+test('chat accepts the full vùng list the dashboard sends when every vùng is selected', () => {
+  const allRegions = Object.values(MIEN_REGIONS).flat();
+  assert.ok(allRegions.length <= MAX_SCOPE_ITEMS, `${allRegions.length} vùng exceed the chat limit ${MAX_SCOPE_ITEMS}`);
+  const result = parseRequestBody({ requestId, question: 'ODR hôm nay?', history: [], screenContext: { regions: allRegions } });
+  assert.deepEqual(result.screenContext.regions, allRegions);
+  assert.throws(() => parseRequestBody({ requestId, question: 'x', history: [], screenContext: { regions: Array.from({ length: MAX_SCOPE_ITEMS + 1 }, (_, i) => `R${i}`) } }));
 });
