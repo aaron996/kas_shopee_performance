@@ -12,12 +12,12 @@ import { getLocalPreviewUser } from './utils/localPreviewAuth';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
-import { MIEN_REGIONS } from './data/defaultDataset';
+import { MIEN_REGIONS, GXT_REGION_BY_MIEN } from './data/defaultDataset';
 import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage, getVietnamBusinessDay } from './utils/dashboardState';
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
-import { groupDatesByWeek, reassignKaRegion, filterRowsByScope, collectHubTypes } from './utils/dataProcessor';
+import { groupDatesByWeek, normalizeDashboardRows, filterRowsByScope, collectHubTypes } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
@@ -254,7 +254,7 @@ export default function App() {
 
   const normalizeRows = (rows) => {
     if (!rows) return rows;
-    return reassignKaRegion(rows);
+    return normalizeDashboardRows(rows);
   };
 
   const [pickRows, setPickRows] = useState([]);
@@ -288,10 +288,10 @@ export default function App() {
   const [selectedRegions, setSelectedRegions] = useState(() => {
     if (initialView.regions === null) return allRegions;
     const saved = initialView.regions.filter(r => allRegions.includes(r));
-    // Sessions saved before the "HNO - KA" / "HCM - CK" / "HNO - CK" vùng existed
-    // stored the full list explicitly; treat "every region except the new ones"
-    // as "Tất cả vùng".
-    const NEWER_REGIONS = ['HNO - KA', 'HCM - CK', 'HNO - CK'];
+    // Sessions saved before the "HNO - KA" / "HCM - CK" / "HNO - CK" / "GXT - …"
+    // vùng existed stored the full list explicitly; treat "every region except
+    // the new ones" as "Tất cả vùng".
+    const NEWER_REGIONS = ['HNO - KA', 'HCM - CK', 'HNO - CK', ...Object.values(GXT_REGION_BY_MIEN)];
     const missing = allRegions.filter(r => !saved.includes(r));
     return missing.length > 0 && missing.every(r => NEWER_REGIONS.includes(r)) ? allRegions : saved;
   });

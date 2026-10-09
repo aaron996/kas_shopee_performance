@@ -93,6 +93,12 @@ into their own vùng, `HCM - CK` / `HNO - CK` (same idea as `HCM - KA`), listed 
 another region only gets the hub type. `hubTypes=CK` still works if a CK-only
 picture is ever wanted.
 
+## Hub type GXT
+
+`reassignGxtMienRegion` chuyển hub GXT vào `GXT - Bắc` / `GXT - Trung` / `GXT - Nam`
+theo tỉnh trong tên kho (chi tiết: [gxt-mien-region.md](gxt-mien-region.md)). Ảnh
+tổng hợp chạy qua đây nên thấy 3 vùng mới; job HNO bên dưới thì không (giữ GXT ở vùng HNO).
+
 ## Job HNO dùng chung nguồn
 
 n8n `[KAS] vinhlt - Daily Report - HNO to Telegram` (`xh2oJxXZkWnolmSj`) từng đọc

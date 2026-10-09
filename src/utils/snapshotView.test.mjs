@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSnapshotParams, unpackRows, scopeSnapshotRows, SNAPSHOT_VIEWS } from './snapshotView.js';
+import { parseSnapshotParams, unpackRows, scopeSnapshotRows, scopeHnoReportRows, SNAPSHOT_VIEWS } from './snapshotView.js';
 
 test('parses the n8n report/table names into a dashboard view', () => {
   const parsed = parseSnapshotParams('?report=pick&table=opr&client=spb&token=t&excludeHubTypes=Ahamove, GXT');
@@ -58,4 +58,16 @@ test('hubTypes keeps only those hub types (CK-only pictures), CK split from BC',
   assert.deepEqual(rows.map(r => r.hub), ['BC CK Thủ Đức', 'BC Q1']);
   assert.deepEqual(rows.map(r => r.region), ['HCM - CK', 'HCM - CK']);
   assert.equal(isHubTypeFiltered, true);
+});
+
+test('scopeSnapshotRows files GXT hubs under their Miền vùng, while the HNO report keeps them under HNO', () => {
+  const source = [
+    { region: 'HNO', hub: 'Kho Giao Hàng Nặng - Tân Tạo - HCM', hub_type: 'GXT' },
+    { region: 'HNO', hub: 'Kho Giao Hàng Nặng - Đông Anh - Hà Nội', hub_type: 'GXT' },
+    { region: 'HNO', hub: 'BC Cầu Giấy', hub_type: 'BC' }
+  ];
+  const { rows } = scopeSnapshotRows(source, SNAPSHOT_VIEWS['pick:1st']);
+  assert.deepEqual(rows.map(r => r.region), ['GXT - Nam', 'GXT - Bắc', 'HNO']);
+
+  assert.deepEqual(scopeHnoReportRows(source).map(r => r.region), ['HNO', 'HNO', 'HNO']);
 });
