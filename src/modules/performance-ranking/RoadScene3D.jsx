@@ -601,7 +601,7 @@ export default function RoadScene3D({
         camera={INITIAL_CAMERA}
         onCreated={({ gl, scene, camera }) => {
           // Dev-only handle for perf/leak measurement (docs/performance-ranking-3d.md, "Đo hiệu năng").
-          // Celestial motion schedules bounded updates; replay can request extra frames.
+          // Moving casters refresh in the same frame; unchanged paused maps can be reused.
           gl.shadowMap.autoUpdate = false;
           gl.shadowMap.needsUpdate = true;
           if (import.meta.env.DEV) {

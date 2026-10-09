@@ -206,10 +206,10 @@
   đóng băng thời gian; quay lại tiếp tục từ vị trí cũ. Giảm chuyển động tắt chạy
   nền và replay, giữ chọn xe/camera và bảng số liệu.
 - `useScenePlayback.js` giữ trạng thái đọc/visibility; `sceneDriving.js` giữ clock
-  và phép tính chuyển động thuần. `DriveClock` kích hoạt canvas on-demand ở 30fps
-  khi chạy nền, 60fps khi replay; tạm dừng/ẩn không còn timer. Hơn 60 xe bỏ nhún
-  thân và chỉ cập nhật ba mesh vành trong chạy nền; shadow map chỉ cập nhật khi
-  đổi layout/chọn xe hoặc replay, không cập nhật theo nhún nền.
+  và phép tính chuyển động thuần. `DriveClock` yêu cầu khung tiếp theo theo nhịp
+  màn hình khi đang chạy; tạm dừng/ẩn không còn vòng yêu cầu khung. Hơn 60 xe bỏ
+  nhún thân. Bóng cập nhật cùng khung với xe/cảnh khi đang chuyển động; cảnh
+  đứng yên có thể dùng lại shadow map.
 - 2D dùng CSS transform cho vạch đường, bánh và cabin, cùng trạng thái tạm dừng.
   2D tiếp tục là đường lui nhẹ, không nhập Three.js.
 
@@ -654,7 +654,7 @@ một div đơn lẻ: 9,7 fps ở CPU ×4); đặt `contain`, `will-change`, b�
 | Chọn xe bằng một lớp "pick" riêng (ray–hộp theo từng xe, không phải `InstancedMesh.raycast`) | `InstancedMesh.raycast` của three thử bounding-sphere và tam giác cho từng thể hiện của 11 mesh (~13.000 phép thử mỗi lần di chuột với 1.167 xe) | Bỏ ~55 ms/3 giây khỏi hồ sơ CPU; chọn vẫn đúng (kiểm thử tương tác) |
 | Không cập nhật hover khi đang giữ nút chuột | Kéo xoay quét qua nhiều xe gây render lại React liên tục | 4 → 7 fps (trước khi vẽ nhãn bằng canvas) |
 | Đo kích thước nhãn một lần (không đọc `offsetWidth` mỗi khung), chỉ ghi style khi đổi | Tránh ép layout cả tài liệu mỗi khung hình | Giảm, kết hợp các mục trên |
-| `shadowMap.autoUpdate = false` | Trước chu kỳ ngày đêm: chỉ cập nhật khi xe đổi chỗ. Hiện tại: đèn và cảnh chuyển động cập nhật bóng khoảng 10 Hz; replay hoặc vùng camera đổi có thể yêu cầu thêm | Số đo cũ không đại diện cho phiên bản chu kỳ ngày đêm |
+| `shadowMap.autoUpdate = false` | Cập nhật mỗi khung chuyển động; cảnh tạm dừng chỉ cập nhật khi đèn, camera hoặc vật đổ bóng đổi. Xe dùng một batch silhouette đơn giản | Số đo FPS cũ không đại diện cho phiên bản ngày đêm/bóng hiện tại |
 | Chip Replay vẽ trên canvas 2D (không còn CSS animation DOM) | CSS animation DOM cũng gây vẽ lại cả trang mỗi khung | Replay 33 → 61 fps (GPU thật, 20 xe, build dev) |
 | Bộ giám sát chất lượng tự viết (xem dưới) thay cho `PerformanceMonitor` của drei | `PerformanceMonitor` đo giữa các khung *được vẽ*, nên với `frameloop="demand"` mọi khoảng nghỉ đều bị tính là chậm | Không dùng drei `PerformanceMonitor` |
 | Material `transparent` ngay từ đầu | Tránh biên dịch lại shader khi Replay bắt đầu | Không còn bước biên dịch giữa chừng |
@@ -999,9 +999,9 @@ dùng gradient mềm tương ứng, tránh các cục khói có viền cứng.
   Vùng shadow theo camera target và khoảng cách nhìn, bao gồm TV/Best/Worst/
   overview/bám xe. Ground, asphalt, shoulder, vạch đường và xe nhận bóng;
   cây, khối nhà và cột được phép đổ bóng; hills không tạo thêm bóng.
-- Shadow map desktop 2048², compact 1024²; một pass bóng chính. Cruise cập nhật
-  khoảng 10 Hz, replay và camera đổi vùng có thể yêu cầu thêm. Trên 60 xe hoặc
-  quality thấp vẫn tắt bóng theo ngân sách scene.
+- Shadow map desktop 2048², compact 1024²; một pass bóng chính. Cruise/replay
+  cập nhật cùng khung chuyển động. Trên 60 xe hoặc quality thấp vẫn tắt bóng
+  theo ngân sách scene.
 - Camera TV nhìn xuống xe nên thiên thể có thể nằm ngoài khung; xoay camera
   thấp hướng về chúng để thấy trực tiếp. Nhãn tránh vùng điều khiển giờ ở góc phải.
 
@@ -1039,3 +1039,40 @@ IAB fixture xác nhận ngày tắt/đêm bật, công suất khoảng 0,913 lú
 pause giữ khoảng trôi, bốn nguồn trên desktop và hai nguồn ở viewport 390px.
 Ảnh đối chiếu trong `output/playwright/streetlights/` (ignored). Đây là bằng
 chứng local; chưa xác nhận production hoặc FPS trên thiết bị thật.
+
+## Bóng chuyển động và nhịp render — 10/10/2026
+
+- Bản trước giới hạn shadow map khoảng 10 Hz trong cruise, dù cảnh/xe đã
+  cập nhật pose mới. Mẫu local Top 10 ghi nhận 88/120 khung chuyển động dùng
+  bóng cũ, có chuỗi ba khung liên tiếp. Bản sửa cập nhật 120/120 khung, không
+  còn khung chuyển động dùng lại bóng cũ trong mẫu này.
+- `SceneLighting` chạy sau pose xe, scenery travel và camera positioning.
+  Khi đứng yên, chỉ đổi ánh sáng, camera target/projection hoặc caster mới
+  yêu cầu vẽ lại bóng; không tự vẽ liên tục lúc tạm dừng/ẩn tab.
+- Xe dùng một batch silhouette gồm thùng, cabin và chassis: 36 tam giác/xe,
+  thay cho 5.030 tam giác/xe của thân, bốn bánh và beacon. Batch này chỉ ghi
+  vào shadow pass, không ghi màu/depth trong hình chính. Nó dùng đúng body
+  transform khi nhún, skid, chọn/hover và replay; instance alpha ≤ 0,1 được
+  thu về zero scale để không để lại bóng xe đã fade. Trên 60 xe/quality thấp,
+  batch được ẩn cùng ngân sách bóng hiện có. Xe thật vẫn nhận bóng.
+- `DriveClock` yêu cầu khung tiếp theo trong `useFrame` khi đang chạy, theo
+  nhịp màn hình và khả năng render. Bỏ timer cruise 30 Hz/replay 60 Hz; không
+  cam kết FPS cố định. Tạm dừng, reduced motion và hidden tab dừng yêu cầu
+  khung; visibility resume đánh thức canvas.
+- Ban ngày, spotlight pool được đặt `visible=false` để Three bỏ vòng tính
+  các đèn tắt trong shader. Bỏ ghi matrix halo/pool/target lúc không sáng;
+  đổi sang đêm khi đang pause vẫn khởi tạo đúng vị trí pool/target ngay.
+- Mẫu Top 10 trước/sau ở khung có cập nhật bóng: 32 → 28 draw call,
+  170.408 → 120.828 tam giác. Đây là bộ đếm công việc render của fixture,
+  không phải tỷ lệ tăng FPS; bản mới vẽ bóng ở mỗi khung chuyển động.
+
+Kiểm chứng: 586/586 test qua; build, lint phần sửa và diff check qua. Fixture
+IAB ở `extracted/day-night-preview/` (ignored); có chế độ đối chứng từ commit
+`5292859`. Nhịp callback trong IAB thay đổi nên không dùng nó để kết luận
+FPS/khả năng 60 FPS, GPU time hay hiệu năng thiết bị thật.
+
+Kiểm tra bổ sung: Top 50/Worst có body và shadow instance matrix trùng nhau
+(sai lệch 0 trong fixture); Replay cũng giữ sai lệch 0. Đổi sang đêm khi pause
+khởi tạo nguồn/vệt sáng đúng chỗ. Viewport thực 390×844 dùng map 1024² và hai
+spotlight, scene không báo lỗi. Sau khi pause ổn định, bộ đếm render và khoảng
+trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác được.

@@ -7,6 +7,7 @@ import Roadside from './Roadside.jsx';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
 import { getRoadsideSpan, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
+import { createTruckShadowGeometry } from '../../utils/sceneShadows.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
@@ -105,14 +106,16 @@ export function DriveClock({ clockRef, items, motion, running, playbackRate }) {
     invalidate();
   }, [clockRef, running, invalidate]);
   useEffect(() => {
-    if (!running) return undefined;
-    // Cruise needs only 30fps; replay gets 60fps. No idle render loop when
-    // paused/hidden, and camera interaction can still request its own frames.
-    const timer = window.setInterval(invalidate, 1000 / (motionKey == null ? 30 : 60));
-    return () => window.clearInterval(timer);
-  }, [running, motionKey, invalidate]);
+    const resume = () => { if (running && !document.hidden) invalidate(); };
+    document.addEventListener('visibilitychange', resume);
+    return () => document.removeEventListener('visibilitychange', resume);
+  }, [running, invalidate]);
   useFrame((_, delta) => {
-    advanceDriveClock(clockRef.current, items, motion, delta, running, playbackRate);
+    const active = running && !document.hidden;
+    advanceDriveClock(clockRef.current, items, motion, delta, active, playbackRate);
+    // Request the next display frame, rather than an interval that quantizes
+    // cruise to 30 Hz. Paused/hidden scenes stop requesting frames altogether.
+    if (active) invalidate();
     if (import.meta.env.DEV) {
       const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
       handle.drive = { ...clockRef.current };
@@ -156,7 +159,6 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
       name={`prr-${part.key}`}
       ref={(m) => register(index, m)}
       args={[geometry, undefined, count]}
-      castShadow={castShadow}
       receiveShadow={castShadow}
       frustumCulled={false}
       raycast={noRaycast}
@@ -299,6 +301,9 @@ export function TruckFleet({
   const flameScale = useMemo(() => new THREE.Vector3(), []);
 
   const meshes = useRef([]);
+  const shadowMesh = useRef(null);
+  const shadowGeometry = useMemo(createTruckShadowGeometry, []);
+  useEffect(() => () => shadowGeometry.dispose(), [shadowGeometry]);
   const itemsRef = useRef(items);
   const alphaRef = useRef(alphaArray);
   const frameDeltas = useRef([]);
@@ -407,6 +412,18 @@ export function TruckFleet({
       if (attribute) attribute.needsUpdate = true;
     });
 
+    // One inexpensive silhouette per truck follows the exact body pose, also
+    // during skids, suspension, hover and replay. Fully faded trucks cast none.
+    if (shadowMesh.current && castShadow) {
+      for (let i = 0; i < count; i++) {
+        roadQuaternion(headings[i], pitches[i] + ridePitches[i]);
+        _quat.multiply(_rollQuat.setFromAxisAngle(_rollAxis, rolls[i]));
+        _truckMatrix.compose(_pos.set(xs[i], ys[i] + bobs[i], zs[i]), _quat, flameScale.setScalar(alphaArray[i] > 0.1 ? 1 : 0));
+        shadowMesh.current.setMatrixAt(i, _truckMatrix);
+      }
+      shadowMesh.current.instanceMatrix.needsUpdate = true;
+    }
+
     // One fixed billboard batch for W1. Staggered births, soft density and
     // gentle spread form tyre haze; ageing follows the paused simulation.
     const smoke = skidSmoke.current;
@@ -504,7 +521,7 @@ export function TruckFleet({
       handle.fleet = { items, positions, motion, t };
     }
 
-    // Suspension is too small to warrant a new 2048px shadow map every cruise frame.
+    // Initial/data/selection changes can also invalidate a paused shadow map.
     if (animated || updateColors) gl.shadowMap.needsUpdate = true;
 
     return { t, active: animated && t < 1 };
@@ -515,11 +532,12 @@ export function TruckFleet({
   useLayoutEffect(() => {
     endedKeyRef.current = null;
     frameDeltas.current = [];
+    shadowMesh.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     write(true);
     invalidate();
     // write() closes over the props listed here; it is intentionally not a dependency itself
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, roadLength, roadWidth, paintMode, invalidate]);
+  }, [items, motionKey, goodC, badC, hoveredId, selectedId, reducedMotion, roadLength, roadWidth, paintMode, castShadow, invalidate]);
 
   useFrame((_, delta) => {
     if (!clockRef.current.step) {
@@ -547,6 +565,10 @@ export function TruckFleet({
 
   return (
     <group>
+      <instancedMesh name="prr-truck-shadows" ref={shadowMesh} args={[shadowGeometry, undefined, count]} castShadow={castShadow}
+        visible={castShadow} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial colorWrite={false} depthWrite={false} />
+      </instancedMesh>
       {truckParts.map((part, index) => (
         <FleetPart
           key={part.key}
