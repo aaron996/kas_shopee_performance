@@ -21,7 +21,7 @@ import { groupDatesByWeek, normalizeDashboardRows, filterRowsByScope, collectHub
 import { supabase } from './utils/supabaseClient';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
-import { navigationModules } from './modules/moduleRegistry.jsx';
+import { navigationModules, preloadDashboardModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
 import { clientVisitToken, needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
@@ -100,8 +100,6 @@ export default function App() {
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
   const [activeTab, setActiveTab] = useState(initialView.tab);
-  const [hasOpenedCodTab, setHasOpenedCodTab] = useState(initialView.tab === 'cod-suspicion');
-  const [hasOpenedDevTab, setHasOpenedDevTab] = useState(initialView.tab === 'dev-admin');
   const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', region: 'ALL', province: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
   const [codSuspicionRegions, setCodSuspicionRegions] = useState([]);
@@ -109,10 +107,18 @@ export default function App() {
   const [codSearchFocus, setCodSearchFocus] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
+  const [coreModulesReady, setCoreModulesReady] = useState(false);
+  const startupEmail = currentUser?.email;
+  const startupIsDevAdmin = currentUser?.isDevAdmin;
   useEffect(() => {
-    if (activeTab === 'cod-suspicion') setHasOpenedCodTab(true);
-    if (activeTab === 'dev-admin') setHasOpenedDevTab(true);
-  }, [activeTab]);
+    if (!startupEmail) return undefined;
+    let cancelled = false;
+    setCoreModulesReady(false);
+    void preloadDashboardModules({ email: startupEmail, isDevAdmin: startupIsDevAdmin }).then(() => {
+      if (!cancelled) setCoreModulesReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [startupEmail, startupIsDevAdmin]);
 
   // --- Embed support (Control Tower "Sức khỏe vận hành" tab) -------------
   // When this app is loaded inside an <iframe>, the host page can pass the
@@ -333,9 +339,8 @@ export default function App() {
   // refreshes never re-show it, so previously loaded numbers stay on screen
   // (see the lastSyncedAt comment below).
   const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(!!LOCAL_PREVIEW_USER);
-  // True once the first LIVE sync attempt of the session has finished (success or
-  // failure). The cache restore does not count: the brand intro is there to cover
-  // the wait for fresh data, so it keeps playing over a cache hit.
+  // Core live data releases the intro before secondary reports finish. A failed
+  // attempt also releases it to show the error/retry UI; cache restore does not.
   const [liveSyncSettled, setLiveSyncSettled] = useState(!!LOCAL_PREVIEW_USER);
   const [overviewDataReady, setOverviewDataReady] = useState(!!LOCAL_PREVIEW_USER);
   // Giờ đồng bộ THÀNH CÔNG gần nhất — hiển thị ở Header cho MỌI tab (trước đây
@@ -483,7 +488,20 @@ export default function App() {
     // Primary path: Apps Script pushes the Sheet's tabs into Supabase on a
     // timer (no longer depends on the Sheet being publicly link-shared —
     // see docs/google-sheet-supabase-sync.md).
-    const supaRes = await fetchSupabaseSheetSync();
+    const supaRes = await fetchSupabaseSheetSync(undefined, {
+      onCoreReady: ({ pickData, deliData, fdData }) => {
+        // Overview and Region/Hub share these datasets. Ca1/Leadtime keep
+        // loading in parallel without delaying entry to the dashboard.
+        setPickRows(normalizeRows(pickData));
+        setDeliRows(normalizeRows(deliData));
+        if (fdData) setFdRows(normalizeRows(fdData));
+        setDataSources(prev => ({ ...prev, pick: 'Supabase', deli: 'Supabase', fd: fdData ? 'Supabase' : prev.fd }));
+        liveSyncDoneRef.current = true;
+        setOverviewDataReady(true);
+        setHasCompletedInitialSync(true);
+        setLiveSyncSettled(true);
+      }
+    });
     if (supaRes.success) {
       applySupabaseRows(supaRes, 'Supabase');
       setOverviewDataReady(true);
@@ -499,7 +517,17 @@ export default function App() {
 
     // Fallback: the old direct-CSV approach, kept for sheets that are still
     // publicly link-shared (e.g. a dev/test sheet set via Data Source Manager).
-    const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA');
+    const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA', {
+      onCoreReady: ({ pickData, deliData }) => {
+        setPickRows(normalizeRows(pickData));
+        setDeliRows(normalizeRows(deliData));
+        setDataSources(prev => ({ ...prev, pick: 'Google Sheet', deli: 'Google Sheet' }));
+        liveSyncDoneRef.current = true;
+        setOverviewDataReady(true);
+        setHasCompletedInitialSync(true);
+        setLiveSyncSettled(true);
+      }
+    });
 
     if (res.success) {
       setOverviewDataReady(true);
@@ -787,7 +815,7 @@ export default function App() {
       />}
 
       {/* Brand intro over the first live data sync of every load (10–15s); skippable. */}
-      {introVisible && <BrandSplash key={userEmail} ready={liveSyncSettled} canSkip={overviewDataReady} onComplete={handleIntroComplete} />}
+      {introVisible && <BrandSplash key={userEmail} ready={liveSyncSettled && coreModulesReady} canSkip={overviewDataReady} onComplete={handleIntroComplete} />}
 
       {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
       <CommandPalette
@@ -860,8 +888,8 @@ export default function App() {
               <div className="main-content-initial-loading">
                 <LoadingScreen variant="page" />
               </div>
-            ) : (
-              <>
+            ) : null}
+              <div hidden={!ownsItsData && !hasCompletedInitialSync}>
                 {!ownsItsData && syncStatus.kind === 'error' && <div className="report-data-context">
                   <StatusNotice tone="warning">
                     {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
@@ -871,11 +899,10 @@ export default function App() {
                   activeModuleId={activeTab}
                   runtimeByModule={runtimeByModule}
                   currentUser={currentUser}
-                  warmModuleIds={[...(hasOpenedCodTab ? ['cod-suspicion'] : []), ...(hasOpenedDevTab ? ['dev-admin'] : [])]}
+                  warmModuleIds={currentUser ? ['cod-suspicion', ...(currentUser.isDevAdmin ? ['dev-admin'] : [])] : []}
                   onBackToOverview={() => setActiveTab('home')}
                 />
-              </>
-            )}
+              </div>
           </main>
 
           {/* Mobile Bottom Navigation Bar */}

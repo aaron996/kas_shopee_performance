@@ -33,7 +33,7 @@ const GROUPS = [
 const SECTIONS = GROUPS.flatMap(group => group.items.map(item => ({ ...item, group: group.label })));
 const normalize = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/gi, 'd').toLowerCase();
 
-export default function DevAdminDashboard({ onlineUsers = [], currentUser, active = true }) {
+export default function DevAdminDashboard({ onlineUsers = [], currentUser }) {
   useEffect(() => () => clearDevDataCache(), []);
   const [sectionId, setSectionId] = useState('chat-config');
   const [search, setSearch] = useState('');
@@ -56,7 +56,7 @@ export default function DevAdminDashboard({ onlineUsers = [], currentUser, activ
       </details>
       <section id="dev-panel-content" className="dev-panel-content" aria-labelledby="dev-panel-section-title">
         <header className="dev-panel-section-header"><h2 id="dev-panel-section-title">{section.label}</h2><div>{section.description}</div></header>
-        {active && (section.view ? <AiOperationsDashboard key={section.id} currentUser={currentUser} view={section.view} feature={section.feature || 'chat'} />
+        {(section.view ? <AiOperationsDashboard key={section.id} currentUser={currentUser} view={section.view} feature={section.feature || 'chat'} />
           : section.id === 'roles' ? <AppRoleSettings currentUser={currentUser} />
             : section.id === 'cod-threshold' ? <CodSmsThresholdSettings currentUser={currentUser} />
               : section.id === 'cod-schedule' ? <CodSmsScheduleSettings currentUser={currentUser} />

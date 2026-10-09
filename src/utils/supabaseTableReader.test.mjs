@@ -224,3 +224,39 @@ test('optional source failures remain nullable while required source failures fa
   assert.deepEqual(await fetchSupabaseSheetSync(requiredFailure), { success: false, error: 'Pickup unavailable' });
   assert.deepEqual(await fetchSupabaseSheetSync(fakeClient([])), { success: false, error: 'NO_SYNCED_DATA' });
 });
+
+test('all datasets start together but core readiness does not wait for Ca1 or Leadtime', async () => {
+  let releaseOptional;
+  const optionalGate = new Promise(resolve => { releaseOptional = resolve; });
+  let coreReady;
+  const ready = new Promise(resolve => { coreReady = resolve; });
+  const started = new Set();
+  const datasets = Object.fromEntries(['pick', 'deli', 'ca1', 'leadtime', 'fd'].map((name, index) =>
+    [`kas_${name}_data`, makeRows([index + 1])]));
+  const client = fakeClient(datasets, { async onRequest(state) {
+    started.add(state.table);
+    if (['kas_ca1_data', 'kas_leadtime_data'].includes(state.table)) await optionalGate;
+  } });
+  let finished = false;
+  const sync = fetchSupabaseSheetSync(client, { onCoreReady: coreReady }).then(result => {
+    finished = true;
+    return result;
+  });
+  const core = await ready;
+  assert.equal(started.size, 5);
+  assert.equal(finished, false);
+  assert.deepEqual(core.pickData, datasets.kas_pick_data);
+  assert.deepEqual(core.deliData, datasets.kas_deli_data);
+  assert.deepEqual(core.fdData, datasets.kas_fd_data);
+  releaseOptional();
+  assert.equal((await sync).success, true);
+});
+
+test('empty required data never signals core readiness', async () => {
+  let ready = false;
+  const result = await fetchSupabaseSheetSync(fakeClient({ kas_pick_data: makeRows([1]) }), {
+    onCoreReady: () => { ready = true; }
+  });
+  assert.equal(result.success, false);
+  assert.equal(ready, false);
+});

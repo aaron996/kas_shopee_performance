@@ -25,22 +25,30 @@ import { fetchAllSnapshotRows } from './supabaseTableReader.js';
 // avoiding OFFSET's repeated traversal of rows from earlier pages. Keep the
 // full dataset: reports need history, client switches, rankings and exports.
 
-export async function fetchSupabaseSheetSync(client = supabase) {
+export async function fetchSupabaseSheetSync(client = supabase, { onCoreReady } = {}) {
   const fetchAllRows = table => fetchAllSnapshotRows(client, table);
   try {
-    const [pickData, deliData, ca1Data, leadtimeData, fdData] = await Promise.all([
+    const core = Promise.all([
       fetchAllRows('kas_pick_data'),
       fetchAllRows('kas_deli_data'),
+      fetchAllRows('kas_fd_data').catch(err => {
+        console.warn('Could not fetch kas_fd_data:', err?.message);
+        return [];
+      })
+    ]).then(([pickData, deliData, fdData]) => {
+      if (pickData.length && deliData.length) {
+        onCoreReady?.({ pickData, deliData, fdData: fdData.length ? fdData : null });
+      }
+      return { pickData, deliData, fdData };
+    });
+    const [{ pickData, deliData, fdData }, ca1Data, leadtimeData] = await Promise.all([
+      core,
       fetchAllRows('kas_ca1_data').catch(err => {
         console.warn('Could not fetch kas_ca1_data:', err?.message);
         return [];
       }),
       fetchAllRows('kas_leadtime_data').catch(err => {
         console.warn('Could not fetch kas_leadtime_data:', err?.message);
-        return [];
-      }),
-      fetchAllRows('kas_fd_data').catch(err => {
-        console.warn('Could not fetch kas_fd_data:', err?.message);
         return [];
       })
     ]);

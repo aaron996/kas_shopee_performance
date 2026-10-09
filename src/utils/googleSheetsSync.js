@@ -50,12 +50,18 @@ export async function fetchSheetTabCsv(gid, sheetId = SPREADSHEET_ID) {
   }
 }
 
-export async function syncAllGoogleSheetTabs(sheetId = SPREADSHEET_ID) {
+export async function syncAllGoogleSheetTabs(sheetId = SPREADSHEET_ID, { onCoreReady } = {}) {
   try {
-    const [pickData, deliData, ca1Data] = await Promise.all([
+    const core = Promise.all([
       fetchSheetTabCsv(TAB_GIDS.pick, sheetId),
-      fetchSheetTabCsv(TAB_GIDS.deli, sheetId),
-      fetchSheetTabCsv(TAB_GIDS.ca1, sheetId)
+      fetchSheetTabCsv(TAB_GIDS.deli, sheetId)
+    ]).then(([pickData, deliData]) => {
+      onCoreReady?.({ pickData, deliData });
+      return { pickData, deliData };
+    });
+    const [{ pickData, deliData }, ca1Data] = await Promise.all([
+      core,
+      fetchSheetTabCsv(TAB_GIDS.ca1, sheetId).catch(() => null)
     ]);
 
     return {

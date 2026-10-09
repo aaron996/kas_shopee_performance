@@ -97,7 +97,6 @@ function getResolutionLabel(resolution) {
 }
 
 export default function CodSuspicionReport({
-  active = true,
   filters,
   onAvailableWarehouses,
   onAvailableRegions,
@@ -421,8 +420,10 @@ export default function CodSuspicionReport({
   }, [manualRunState.isRunning]);
 
   useEffect(() => {
-    if (active) loadData();
-  }, [active, loadData]);
+    // Mounted at startup, including while hidden behind the intro. Navigation
+    // keeps these results; explicit refresh still forces fresh reads.
+    loadData();
+  }, [loadData]);
 
   // Normalize all rows
   const normalizedOrders = useMemo(() => rawData.map(raw => {

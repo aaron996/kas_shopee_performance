@@ -12,11 +12,11 @@ import './BrandSplash.css';
  *  - It is the FIRST thing painted: App mounts it in the very first render
  *    (the signed-in user is restored synchronously from localStorage), as an
  *    opaque white layer above the app, so the dashboard never shows through.
- *  - `ready` flips true when the first LIVE sync has settled (a cache restore does
+ *  - `ready` flips true when the core LIVE data and overview code are ready (a cache restore does
  *    not count — the intro exists to cover the wait for fresh data). The splash
  *    then fades out (400ms), but never before MIN_SHOW_MS so a fast sync does not
  *    flash the video.
- *  - "Bỏ qua" appears only after the live sync finishes, and skips the remaining
+ *  - "Bỏ qua" appears only after the core live data is ready, and skips the remaining
  *    video time. onComplete runs after the fade, before client onboarding opens.
  *  - prefers-reduced-motion, or a blocked/failed autoplay, shows the static
  *    logo instead of the video.

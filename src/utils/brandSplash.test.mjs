@@ -27,9 +27,9 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
-test('App mounts BrandSplash from the first render and releases it only when the LIVE sync settles (not on cache restore)', () => {
+test('App mounts BrandSplash immediately and waits for core live data and overview chunks, not cache restore', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /introVisible && <BrandSplash key=\{userEmail\} ready=\{liveSyncSettled\} canSkip=\{overviewDataReady\} onComplete=\{handleIntroComplete\} \/>/);
+  assert.match(app, /introVisible && <BrandSplash key=\{userEmail\} ready=\{liveSyncSettled && coreModulesReady\} canSkip=\{overviewDataReady\} onComplete=\{handleIntroComplete\} \/>/);
   assert.match(app, /setLiveSyncSettled\(true\)/);
   const cacheRestore = app.slice(app.indexOf('loadSyncSnapshot(currentUser.email)'), app.indexOf('autoRefreshBusinessDayRef = '));
   assert.doesNotMatch(cacheRestore, /setLiveSyncSettled/, 'a cache hit must not dismiss the intro');
