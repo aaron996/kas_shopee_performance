@@ -16,6 +16,9 @@ import {
 import { Play } from 'lucide-react';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { pickSceneTheme } from '../../utils/sceneThemes.js';
+import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
+import SceneLighting from './SceneLighting.jsx';
+import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { tvCameraGoal } from '../../utils/sceneCamera.js';
 import { createTourConvoy, tourProgress, viewOffset, VIEW_TOUR_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
@@ -33,6 +36,7 @@ const STAGGER_LANE_COUNT = 4;
 const LANE_WIDTH = 2.6; // breathing room for the taller GHN truck model
 const LEADER_GAP = 6; // two truck lengths; visual rank emphasis, not a KPI distance
 const FOV = 64; // wide perspective complements the bowed road and planet surface
+const INITIAL_CAMERA = { position: [0, 9, 14], fov: FOV }; // keep orbit when lighting controls re-render
 const TILT_DEG = 35; // camera elevation above the road
 const TARGET_Y = 1; // look slightly above the asphalt so truck labels fit
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
@@ -78,40 +82,10 @@ function useThemeColors() {
   return colors;
 }
 
-// Phones and tablets: no shadows and a lower pixel-ratio cap.
+// Phones and tablets use smaller shadow maps and a lower pixel-ratio cap.
 function useCompactDevice() {
   const [compact] = useState(() => window.matchMedia('(pointer: coarse), (max-width: 768px)').matches);
   return compact;
-}
-
-/**
- * Sky gradient (scene.background) and fog. The default camera looks down at the road, so most of
- * the time only the ground and its fade into the horizon colour are visible; the sky shows when the
- * user orbits down towards the horizon. Fog starts beyond the road so trucks are never washed out.
- */
-function Atmosphere({ theme, roadLength }) {
-  const sky = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-    gradient.addColorStop(0, theme.skyTop);
-    gradient.addColorStop(1, theme.skyBottom);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 2, 256);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }, [theme]);
-  useEffect(() => () => sky.dispose(), [sky]);
-  const near = roadLength * 0.9 + 60;
-  return (
-    <>
-      <primitive object={sky} attach="background" />
-      <fog attach="fog" args={[theme.horizon, near, near * 2.6 + 260]} />
-    </>
-  );
 }
 
 /**
@@ -392,8 +366,13 @@ export default function RoadScene3D({
   rankView = 'best', animateViewChange = true
 }) {
   const colors = useThemeColors();
-  const theme = pickSceneTheme(colors.isDark);
+  // UI theme changes label/status colours; the world follows its own solar time.
+  const theme = pickSceneTheme(false);
   const clockRef = useRef(createDriveClock());
+  const [lightingMode, setLightingMode] = useState('auto');
+  const phaseRef = useRef(INITIAL_DAY_PHASE);
+  const lightingRef = useRef(null);
+  const timeRef = useRef(null);
   const laneMode = 'stagger'; // 'stagger' | 'region'
   const paintMode = 'hub'; // stable roof identity by default
   const [hoveredId, setHoveredId] = useState(null);
@@ -425,7 +404,8 @@ export default function RoadScene3D({
   // Adaptive quality: a motion that ran under QUALITY_MIN_FPS drops to the low tier for good.
   const [quality, setQuality] = useState('high');
   const lowQuality = quality === 'low';
-  const shadowsOn = count <= SHADOW_MAX_TRUCKS && !compact && !lowQuality;
+  const shadowsOn = count <= SHADOW_MAX_TRUCKS && !lowQuality;
+  const streetlightCount = lowQuality ? 0 : compact || count > SHADOW_MAX_TRUCKS ? 2 : 4;
   const dprRange = lowQuality ? 0.8 : [1, compact ? 1.25 : 1.5];
   // One slow motion can be a hiccup (tab in background, first shader compile), so the tier only
   // drops after QUALITY_STRIKES slow motions in a row; a good one resets the count.
@@ -618,10 +598,10 @@ export default function RoadScene3D({
         frameloop="demand"
         dpr={dprRange}
         shadows={shadowsOn ? 'percentage' : false}
-        camera={{ position: [0, 9, 14], fov: FOV }}
+        camera={INITIAL_CAMERA}
         onCreated={({ gl, scene, camera }) => {
           // Dev-only handle for perf/leak measurement (docs/performance-ranking-3d.md, "Đo hiệu năng").
-          // The light never moves, so the shadow map is re-rendered only when trucks change.
+          // Celestial motion schedules bounded updates; replay can request extra frames.
           gl.shadowMap.autoUpdate = false;
           gl.shadowMap.needsUpdate = true;
           if (import.meta.env.DEV) {
@@ -634,24 +614,11 @@ export default function RoadScene3D({
         }}
       >
         <DriveClock clockRef={clockRef} items={fleetItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate} />
-        <Atmosphere theme={theme} roadLength={roadLength} />
-        <hemisphereLight args={[theme.hemisphere.sky, theme.hemisphere.ground, theme.hemisphere.intensity]} />
-        <directionalLight
-          position={[roadLength * 0.1, 26, 14]}
-          color={theme.sun.color}
-          intensity={theme.sun.intensity}
-          castShadow={shadowsOn}
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-roadLength / 2 - 6}
-          shadow-camera-right={roadLength / 2 + 6}
-          shadow-camera-top={14}
-          shadow-camera-bottom={-14}
-          shadow-camera-near={1}
-          shadow-camera-far={80}
-          shadow-radius={4}
-        />
+        <SceneLighting mode={lightingMode} phaseRef={phaseRef} lightingRef={lightingRef} clockRef={clockRef} running={running} reducedMotion={reducedMotion}
+          roadLength={roadLength} shadowsOn={shadowsOn} compact={compact} timeRef={timeRef} />
 
-        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} />
+        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} castShadow={shadowsOn}
+          lightingRef={lightingRef} streetlightCount={streetlightCount} />
         <TruckFleet
           // an InstancedMesh cannot be resized: remount when the number of drawn trucks changes
           key={fleetItems.length}
@@ -687,6 +654,12 @@ export default function RoadScene3D({
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
+      <div className="prr-lighting-controls" role="group" aria-label="Thời gian trong cảnh">
+        <span className="prr-scene-time" ref={timeRef} title="Giờ mô phỏng · Một vòng ngày đêm trong 6 phút khi đang chạy">09:00</span>
+        {[['auto', 'Tự động'], ['day', 'Ban ngày'], ['night', 'Ban đêm']].map(([mode, label]) => <button key={mode} type="button"
+          aria-pressed={lightingMode === mode} onClick={() => setLightingMode(mode)}
+          title={mode === 'auto' ? (reducedMotion ? 'Chu kỳ đứng yên khi bật giảm chuyển động' : 'Một vòng ngày đêm trong 6 phút · dừng theo nút tạm dừng') : undefined}>{label}</button>)}
+      </div>
       {scene.tour && <div className="prr-tour-status" role="status">{rankView === 'worst' ? 'Lùi về cuối đoàn · Worst' : 'Tiến về đầu đoàn · Best'}</div>}
 
       <div className="prr-3d-controls">

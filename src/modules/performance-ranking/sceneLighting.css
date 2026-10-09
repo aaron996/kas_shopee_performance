@@ -1,0 +1,33 @@
+.prr-scene3d > .prr-lighting-controls {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-pill, 20px);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 12px;
+}
+.prr-scene-time { padding: 0 8px; font-variant-numeric: tabular-nums; color: #e2e8f0; }
+.prr-lighting-controls button {
+  border: 0;
+  border-radius: var(--radius-pill, 20px);
+  padding: 7px 10px;
+  min-height: 32px;
+  color: #e2e8f0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.prr-lighting-controls button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
+.prr-lighting-controls button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+@container (max-width: 560px) {
+  .prr-scene3d > .prr-lighting-controls { top: 8px; right: 8px; font-size: 11px; }
+  .prr-lighting-controls button { min-height: 40px; padding: 7px 8px; }
+  .prr-scene-time { padding: 0 6px; }
+}

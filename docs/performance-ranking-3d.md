@@ -259,7 +259,8 @@ nằm ở [performance-ranking-3d-plan.md](performance-ranking-3d-plan.md). File
 | `labelOverlay.js` | Đo và vẽ nhãn xe, nhãn checkpoint, nhãn làn, chip Replay lên canvas 2D phủ trên cảnh |
 | `utils/sceneLabelStyle.js` | Bảng màu nhãn + hàm tính độ tương phản WCAG (có test `sceneLabelStyle.test.mjs`) |
 | `SceneErrorBoundary.jsx` | Bắt lỗi tải chunk 3D / lỗi render để rơi về 2D |
-| `utils/sceneThemes.js` | Màu cảnh theo theme sáng/tối (trời, nền, nhựa đường, cây, biển báo, đèn) và vị trí cây/biển báo (`computeRoadside`). Có test `sceneThemes.test.mjs` |
+| `utils/sceneThemes.js` | Palette vật liệu cảnh. Cảnh 3D dùng palette sáng cố định; thời gian và ánh sáng độc lập với theme UI. Có test `sceneThemes.test.mjs` |
+| `SceneLighting.jsx`, `utils/sceneLighting.js` | Chu kỳ ngày đêm, bầu trời, mặt trời/mặt trăng, nguồn sáng và vùng bóng theo camera. Có test `sceneLighting.test.mjs` |
 | `TruckTag.jsx` | Nhãn xe dùng chung cho 2D và 3D (`.prr-truck-tag*`) |
 | `utils/rankingSceneLayout.js` | Hàm thuần `computeSceneLayout`, `getRoadLength`, `assignRegionLanes`, `getRegionRoadLength`, `computeReplayFrames`, `computeTransitionFrames`, easing. Có test `rankingSceneLayout.test.mjs` |
 | `utils/sceneCapability.js` | Hàm thuần: `detectWebGL2(createCanvas)`, `pickDefaultSceneMode(...)`. Có test `sceneCapability.test.mjs` |
@@ -383,7 +384,8 @@ dải đèn trên nóc cabin, màu lấy từ token `--status-success-fg` (đạ
 - Góc nhìn nghiêng 35°, tự fit theo chiều dài đường và tỉ lệ khung. `OrbitControls`
   giới hạn: không xuống dưới mặt đường (`maxPolarAngle`), zoom từ 6 đến 1,35 lần
   khoảng cách fit, điểm nhìn bị kẹp trong đường.
-- 1 `hemisphereLight` + 1 `directionalLight`. Bóng đổ (PCF) chỉ bật khi ≤ 60 xe.
+- 1 `hemisphereLight` + 1 `directionalLight` theo mặt trời hoặc mặt trăng. Bóng đổ
+  (PCF) bật khi ≤ 60 xe và chưa hạ chất lượng: desktop 2048², compact 1024².
 - `frameloop="demand"`: đứng yên không tốn CPU/GPU, chỉ vẽ khi dữ liệu hoặc camera
   đổi.
 - Nhãn (hai checkpoint, nhãn xe, nhãn làn, chip Replay) được vẽ lên một **canvas 2D** đặt
@@ -652,7 +654,7 @@ một div đơn lẻ: 9,7 fps ở CPU ×4); đặt `contain`, `will-change`, b�
 | Chọn xe bằng một lớp "pick" riêng (ray–hộp theo từng xe, không phải `InstancedMesh.raycast`) | `InstancedMesh.raycast` của three thử bounding-sphere và tam giác cho từng thể hiện của 11 mesh (~13.000 phép thử mỗi lần di chuột với 1.167 xe) | Bỏ ~55 ms/3 giây khỏi hồ sơ CPU; chọn vẫn đúng (kiểm thử tương tác) |
 | Không cập nhật hover khi đang giữ nút chuột | Kéo xoay quét qua nhiều xe gây render lại React liên tục | 4 → 7 fps (trước khi vẽ nhãn bằng canvas) |
 | Đo kích thước nhãn một lần (không đọc `offsetWidth` mỗi khung), chỉ ghi style khi đổi | Tránh ép layout cả tài liệu mỗi khung hình | Giảm, kết hợp các mục trên |
-| `shadowMap.autoUpdate = false`, chỉ cập nhật khi xe đổi chỗ | Đèn đứng yên nên bản đồ bóng không cần vẽ lại khi chỉ xoay camera | Bỏ 1 lượt vẽ bóng/khung khi xoay |
+| `shadowMap.autoUpdate = false` | Trước chu kỳ ngày đêm: chỉ cập nhật khi xe đổi chỗ. Hiện tại: đèn và cảnh chuyển động cập nhật bóng khoảng 10 Hz; replay hoặc vùng camera đổi có thể yêu cầu thêm | Số đo cũ không đại diện cho phiên bản chu kỳ ngày đêm |
 | Chip Replay vẽ trên canvas 2D (không còn CSS animation DOM) | CSS animation DOM cũng gây vẽ lại cả trang mỗi khung | Replay 33 → 61 fps (GPU thật, 20 xe, build dev) |
 | Bộ giám sát chất lượng tự viết (xem dưới) thay cho `PerformanceMonitor` của drei | `PerformanceMonitor` đo giữa các khung *được vẽ*, nên với `frameloop="demand"` mọi khoảng nghỉ đều bị tính là chậm | Không dùng drei `PerformanceMonitor` |
 | Material `transparent` ngay từ đầu | Tránh biên dịch lại shader khi Replay bắt đầu | Không còn bước biên dịch giữa chừng |
@@ -978,3 +980,62 @@ Khói dùng 24 mặt phẳng hướng về camera với texture mật độ mề
 ở mép, lệch nhịp phát giữa hai bánh và giãn/tan dần. Texture tạo một lần
 trong scene và dispose khi tháo; geometry giữ một batch cố định. Cảnh 2D
 dùng gradient mềm tương ứng, tránh các cục khói có viền cứng.
+
+## Chu kỳ ngày đêm và thiên thể — 09/10/2026
+
+- Scene mặc định `Tự động`, bắt đầu lúc 09:00 mô phỏng. Một vòng 24 giờ mất
+  360 giây hoạt động, độc lập với tốc độ xe. `Ban ngày` đặt 12:00, `Ban đêm`
+  đặt 00:00; chọn lại `Tự động` chạy tiếp từ giờ đang chọn. Đây là giờ mô phỏng,
+  không đồng bộ giờ địa phương. Chuyển theme UI không đổi thời gian trong scene.
+- Pause, tab ẩn và giảm chuyển động đóng băng chu kỳ; giới hạn delta 0,1 giây
+  tránh nhảy giờ khi quay lại tab. Giờ hiển thị chỉ ghi vào DOM khi đổi phút.
+- Mặt trời và mặt trăng là hai sphere dùng chung hệ quỹ đạo đối nhau. Halo dùng
+  plane hướng camera; texture hố trăng tạo local một lần và dispose khi tháo.
+  Mọc lúc 06:00, lặn lúc 18:00; ánh sáng vàng gần chân trời, trắng ấm ban ngày,
+  xanh dịu dưới trăng. Ánh nền giữ nhãn và xe đọc được. Bầu trời shader và fog
+  đổi màu liên tục; không upload texture bầu trời theo từng frame.
+- Một nguồn định hướng theo thiên thể đang ở trên chân trời. Độ sáng và độ
+  đậm bóng giảm về 0 khi nguồn đổi, tránh bóng nhảy hướng ở bình minh/hoàng hôn.
+  Vùng shadow theo camera target và khoảng cách nhìn, bao gồm TV/Best/Worst/
+  overview/bám xe. Ground, asphalt, shoulder, vạch đường và xe nhận bóng;
+  cây, khối nhà và cột được phép đổ bóng; hills không tạo thêm bóng.
+- Shadow map desktop 2048², compact 1024²; một pass bóng chính. Cruise cập nhật
+  khoảng 10 Hz, replay và camera đổi vùng có thể yêu cầu thêm. Trên 60 xe hoặc
+  quality thấp vẫn tắt bóng theo ngân sách scene.
+- Camera TV nhìn xuống xe nên thiên thể có thể nằm ngoài khung; xoay camera
+  thấp hướng về chúng để thấy trực tiếp. Nhãn tránh vùng điều khiển giờ ở góc phải.
+
+Kiểm chứng local: 579/579 test qua, gồm sáu test chu kỳ/quỹ đạo/độ sáng/chuyển tiếp;
+build và lint các file sửa qua. IAB fixture đã kiểm tra mặt trời/mặt trăng thật
+trong khung, ngày/đêm, auto/pause, theme UI độc lập, reduced motion, Top 50/Worst
+và viewport 390px với shadow map 1024². Fixture ở
+`extracted/day-night-preview/`, ảnh ở `output/playwright/day-night-cycle/`;
+cả hai là dữ liệu/ảnh kiểm thử local được ignore. Chưa phải xác nhận production
+hay hiệu năng thiết bị thật.
+
+## Đèn đường — 09/10/2026
+
+- Cột đèn tay vươn đặt ở lề xa, cách khoảng 18 đơn vị đường, cao 5,4 đơn vị.
+  Chân cột nằm ngoài mặt đường, tay đèn có khoảng trống trên 4,5 đơn vị cho xe.
+  `sceneStreetlights.js` tạo layout xác định, tối đa 160 cột cho tuyến dài.
+- Thân/trụ/tay/chụp gộp vào batch box/pole hiện có. Bóng đèn, quầng sáng hướng
+  camera và vệt sáng mềm trên đường dùng ba batch instanced riêng. Texture
+  quầng sáng tạo local một lần, lọc tuyến tính và dispose theo vòng đời scene.
+- Độ sáng dùng `streetlightPower` từ cùng chu kỳ ngày đêm: tắt giữa ngày,
+  tăng dần khi chạng vạng, sáng đầy đủ ban đêm và giảm dần sau bình minh.
+  Pause và giảm chuyển động giữ vị trí cột cùng cảnh; đổi giờ thủ công khi
+  pause vẫn cập nhật độ sáng. Theme UI không ảnh hưởng công suất đèn.
+- Có tối đa bốn spotlight ấm gần camera trên desktop, hai trên compact hoặc
+  đoàn trên 60 xe, không spotlight khi quality thấp. Pool chọn cột gần camera
+  target và giảm cường độ nguồn xa; cột ngoài pool vẫn có bóng đèn/vệt sáng.
+  Spotlight chiếu thật lên mặt đường và thân xe, không thêm shadow pass cho
+  từng cột. Cột đèn vẫn đổ bóng theo nguồn mặt trời/mặt trăng hiện có.
+- Cột, bóng đèn, vị trí nguồn và vệt sáng dùng chung anchor trong roadside
+  fleet, cùng khoảng trôi của đường. Bán kính recycle tính cả vệt sáng để tránh
+  chuyển một vùng sáng còn đang nằm trong khung camera.
+
+Kiểm chứng local: 583/583 test qua; build, lint các file sửa và diff check qua.
+IAB fixture xác nhận ngày tắt/đêm bật, công suất khoảng 0,913 lúc 18:00,
+pause giữ khoảng trôi, bốn nguồn trên desktop và hai nguồn ở viewport 390px.
+Ảnh đối chiếu trong `output/playwright/streetlights/` (ignored). Đây là bằng
+chứng local; chưa xác nhận production hoặc FPS trên thiết bị thật.
