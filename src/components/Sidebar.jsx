@@ -106,8 +106,8 @@ export default function Sidebar({
             className="sidebar-logo"
           />
           <div className="sidebar-brand-text">
-            <div className="brand-name">BCĐH Shopee</div>
-            <div className="brand-subtitle">Performance System</div>
+            <div className="brand-name">GHN</div>
+            <div className="brand-subtitle">PERFORMANCE</div>
           </div>
         </button>
 
