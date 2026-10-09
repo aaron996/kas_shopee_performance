@@ -1,5 +1,13 @@
 # React + Vite
 
+## Tài liệu vận hành dữ liệu
+
+- [Google Sheet → Supabase](docs/google-sheet-supabase-sync.md): nguồn, project,
+  bản script hiện hành, lịch chạy và cách tổ chức các job.
+- [OPS incremental sync](docs/ops-incremental-sync.md): thay đổi ngày 09/10/2026,
+  delta RPC, retry, kiểm tra và rollback; Leadtime đang pending tối ưu.
+- [Raw → HCM](docs/raw-hcm-sync.md): bỏ dedup/history và giữ check result.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

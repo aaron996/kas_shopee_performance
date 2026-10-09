@@ -1,139 +1,88 @@
-# Đồng bộ Google Sheet → Supabase (thay cho link CSV public)
+# Đồng bộ Google Sheet → Supabase
 
-> Phía app: snapshot Supabase gần nhất được cache vào IndexedDB để F5 hiện số ngay
-> và sync ngầm, xem [sync-cache.md](sync-cache.md).
+## Trạng thái ngày 09/10/2026
 
-## Vì sao cần đổi
+Luồng OPS đã chuyển từ full refresh sang sync phần thay đổi cho **Pick, Deli,
+CA1 và FD**. **Leadtime vẫn giữ full refresh; tối ưu Leadtime đang pending.**
+Datajob/query BI giữ nguyên. Chi tiết kỹ thuật, bằng chứng, retry và rollback:
+[ops-incremental-sync.md](ops-incremental-sync.md).
 
-App trước đây đọc data bằng cách gọi thẳng link CSV export của Google Sheet
-(`docs.google.com/spreadsheets/d/.../export?format=csv`) từ browser, không
-đăng nhập. Cách này **chỉ** chạy được khi Sheet để chế độ
-"Anyone with link can view". Từ khi GHN chặn share-ra-ngoài ở cấp Workspace,
-sheet không thể để chế độ đó nữa → link CSV trả 401/403 → app không tự sync
-được.
+Các thay đổi raw → HCM thuộc project khác, xem [raw-hcm-sync.md](raw-hcm-sync.md).
+Cache dashboard được ghi ở [sync-cache.md](sync-cache.md); COD có tài liệu
+[kas221-cod-suspicion-sync.md](kas221-cod-suspicion-sync.md).
 
-Quan trọng: không có cấp share nào khác (kể cả share nội bộ domain
-`@ghn.vn`) cứu được cách gọi cũ, vì một `fetch()` không đăng nhập không bao
-giờ mang theo cookie Google của người xem — nó luôn là request vô danh. Nên
-đây là đổi kiến trúc, không phải chỉnh 1 setting.
+## Nguồn và nơi chạy
 
-## Hướng giải quyết
+- Sheet OPS: `1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA`.
+- [Project Apps Script auto](https://script.google.com/u/1/home/projects/1lMpmSpiIwGEdIioykYn3fjExBvncIsp8jlk2_J-uCOEwKDJRnXiaMCAZ/edit).
+- Supabase: TTS Dashboard, project `iyjsihwgnzcytbojvoom`.
+- Bảng: `kas_pick_data`, `kas_deli_data`, `kas_ca1_data`,
+  `kas_leadtime_data`, `kas_fd_data`.
 
-Một Google Apps Script gắn thẳng vào file Sheet nguồn, chạy dưới quyền của
-người sở hữu/đang mở file (không phải "public"), tự đẩy dữ liệu 5 tab
-(Pick / Deli / Ca1 / Leadtime / FD) vào 5 bảng quan hệ bình thường trên Supabase theo lịch —
-mỗi dòng sheet là 1 dòng SQL, không phải 1 blob JSON — để dữ liệu này còn
-dùng SQL query/join cho các việc khác ngoài app này. App đọc dữ liệu từ
-Supabase (project đã dùng sẵn cho auth) thay vì đọc trực tiếp Google Sheet.
+Apps Script đọc Sheet bằng quyền tài khoản có quyền truy cập nguồn. Cách này
+không phụ thuộc link CSV public vốn bị chặn khi GHN hạn chế share ngoài domain.
+Dashboard đọc Supabase qua `src/utils/supabaseSheetSync.js`; fallback CSV chỉ có
+ích với nguồn còn public. Mỗi dòng Sheet vẫn là một dòng SQL để query/join.
 
-```
-Google Sheet (Apps Script, quyền owner)
-        │  UrlFetchApp.fetch() mỗi 15' — không phụ thuộc share settings
-        │  POST /rest/v1/rpc/sync_kas_<tab>_data  (full-refresh atomic)
-        ▼
-Supabase tables: kas_pick_data / kas_deli_data / kas_ca1_data / kas_leadtime_data / kas_fd_data
-        (service_role ghi qua RPC, authenticated đọc)
-        │  supabase-js (anon key + user session)
-        ▼
-App (src/utils/supabaseSheetSync.js) → App.jsx state (pickRows/deliRows/ca1Rows/leadtimeRows/fdRows)
+```text
+Sheet OPS → Apps Script (queue: mỗi execution một tab)
+          → ops_kpi_sync_manifest + sync_ops_kpi_delta (Pick/Deli/CA1/FD)
+          → sync_kas_leadtime_data (Leadtime full refresh)
+          → Supabase tables → dashboard
 ```
 
-Mỗi tab có 1 hàm SQL full-refresh riêng: `sync_kas_pick_data(payload jsonb)`,
-`sync_kas_deli_data(payload jsonb)`, `sync_kas_ca1_data(payload jsonb)`,
-`sync_kas_leadtime_data(payload jsonb)`, `sync_kas_fd_data(payload jsonb)` —
-mỗi lần gọi sẽ **xoá hết + insert lại** dữ liệu bảng đó trong 1 transaction.
-Không upsert theo key vì kiểm tra thực tế cho thấy data sheet không có cột
-nào là unique key tự nhiên (vd `report_date+hub+client_name` hay
-`ngay+lane+vung_giao` đều có thể trùng).
+## Mã nguồn nào là bản hiện hành?
 
-Code đã có sẵn trong repo:
-- `src/utils/supabaseSheetSync.js` — app đọc từ các bảng Supabase (`select *`
-  mỗi bảng), format ra đúng shape mà `App.jsx` đang cần.
-- `src/utils/supabaseTableReader.js` — phân trang theo khóa chính `id` (tối đa
-  1.000 dòng/request), dùng `id > cursor` và giới hạn ở ID cuối của lượt tải.
-  Sau khi đọc, kiểm tra lại `id,synced_at` của dòng cuối; nếu job sync thay dữ
-  liệu giữa chừng thì bỏ kết quả cũ và thử lại một lần. Timeout 15 giây hủy
-  request; vượt 100 trang hoặc thiếu dòng cuối trả lỗi, không báo dữ liệu thiếu
-  là một snapshot thành công. Vẫn lấy đủ lịch sử, khách hàng và cột hiện có.
-- `src/App.jsx` — tự động gọi Supabase trước, fallback qua CSV cũ nếu chưa
-  có data (chỉ hữu ích cho sheet test còn public, không phải sheet nội bộ).
-- `scripts/apps-script/sync-to-supabase.gs` — script cần cài **vào chính
-  Google Sheet nguồn** (không nằm trong repo này khi chạy — Apps Script sống
-  trong Google, không phải trong Git).
-- Migration Supabase `20260820_create_kas_leadtime_data.sql` — tạo bảng
-  `kas_leadtime_data` + hàm RPC `sync_kas_leadtime_data`. RLS: role `authenticated`
-  được `SELECT`; ghi chỉ qua các hàm RPC (`security definer`, quyền `EXECUTE`
-  chỉ cấp cho `service_role`).
+- [ops-sync-live-20261009.gs](../scripts/apps-script/ops-sync-live-20261009.gs):
+  snapshot đầy đủ **Code.gs** đã lưu ở project auto ngày 09/10. Các file COD,
+  copy HNO và new.gs của project là file riêng, không nằm trong snapshot này.
+- [ops-incremental-sync.gs](../scripts/apps-script/ops-incremental-sync.gs):
+  helper delta dùng để review và kiểm tra local.
+- [ops-kpi-incremental-sync.sql](../scripts/sql/ops-kpi-incremental-sync.sql):
+  RPC bổ sung, đã áp dụng trên Supabase ngày 09/10.
+- `scripts/apps-script/sync-to-supabase.gs`: bản full refresh cũ, có logic
+  optional COD riêng; **không dùng để ghi đè project auto đang chạy delta**.
 
-## Tần suất chạy: 1 lần/ngày sau 8h30, không phải mỗi 15 phút
+Thay đổi Git không tự cập nhật Apps Script hay chạy SQL. Bằng chứng áp dụng trực
+tiếp trong phiên 09/10 được ghi riêng trong runbook; merge repo chỉ lưu lại mã
+và tài liệu. Project dùng Script Property `SUPABASE_SERVICE_ROLE_KEY`;
+không hardcode service key.
 
-Bản đầu chạy mỗi 15 phút cả ngày (full delete+insert 4 bảng mỗi lần) — quá
-tải ghi (disk I/O) cho compute tier nhỏ của Supabase khi chạy liên tục.
-BI chỉ đổ data về Sheet 1 lần/ngày lúc 8h15, nên **không cần sync nhiều hơn
-1 lần/ngày**. Bản `.gs` hiện tại:
+## Lịch chạy, retry và cách tổ chức project
 
-- Chỉ tạo **1 trigger/ngày**, ghim gần giờ `MIN_RUN_HOUR:MIN_RUN_MINUTE`
-  (mặc định 8:30, đổi ở đầu file `.gs` nếu cần) bằng `createDailyTrigger()` —
-  xem bước 5 bên dưới. KHÔNG tạo trigger qua UI (Triggers > Add Trigger) kiểu
-  "Day timer, 8am to 9am": UI đó chỉ hứa chạy đâu đó TRONG khung giờ, có thể
-  rơi vào 8:01AM — trước khi BI kịp đổ data.
-- Có thêm chốt chặn NGAY TRONG code (`isBeforeRunWindow_`): nếu hàm
-  `syncAllTabs` vì lý do gì đó chạy trước `MIN_RUN_HOUR:MIN_RUN_MINUTE` (kể
-  cả bấm Run tay để test), nó tự bỏ qua thay vì đẩy data cũ/thiếu lên
-  Supabase — log lại lý do bỏ qua trong Executions, không báo lỗi.
+BI dự kiến đổ dữ liệu khoảng 08:15; guard OPS không cho sync trước 08:30 theo
+timezone Sheet Việt Nam. Trigger `nearMinute` có jitter, không phải giờ tuyệt
+đối. Nếu trigger chạy sớm, code hẹn một lần chạy sau mốc này.
 
-## Cài đặt / cập nhật (cần người có quyền edit Sheet)
+Giữ **một project auto**, các job có handler riêng. Queue KPI chạy lần lượt
+Pick/Deli/CA1/Leadtime/FD; mỗi execution một tab, trigger tiếp tục cách ít nhất
+60 giây. COD và copy HNO/SPB giữ trigger riêng. Tại thời điểm kiểm tra cuối
+09/10 còn đúng ba trigger hằng ngày; trigger retry tạm đã được dọn.
 
-> Nếu bạn đã cài bản cũ rồi — chỉ cần **dán lại code `.gs` mới**
-> (bước 3 dưới) vào đúng project Apps Script đã tạo, RỒI CHẠY LẠI
-> `createDailyTrigger` (bước 5) một lần để thay trigger cũ (mỗi 15 phút)
-> bằng trigger mới (1 lần/ngày) — không cần tạo lại Script Property.
+Lỗi tạm thời retry sau 5/10/20 phút, tối đa bốn lần thử mỗi tab. Tab đã thành công
+không gửi lại trong cùng job. ScriptLock chặn queue chạy chồng; watchdog 7 phút
+được cài trước khi đọc Sheet/gọi RPC để phục hồi khi execution bị ngắt.
 
-1. Lấy **service_role secret key** trong Supabase Dashboard → chọn project
-   *TTS Dashboard* (`iyjsihwgnzcytbojvoom`) → Project Settings → API →
-   `service_role` secret. **Không đưa key này vào code/git** — nó có quyền
-   ghi bỏ qua RLS. (Nếu đã làm bước này ở lần cài trước, không cần lại.)
-2. Mở Google Sheet nguồn (spreadsheet ID
-   `1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA`) → **Extensions → Apps
-   Script**.
-3. Xoá code cũ, dán toàn bộ nội dung mới nhất của
-   `scripts/apps-script/sync-to-supabase.gs`.
-4. (Chỉ cần nếu chưa làm) Trong Apps Script editor: **Project Settings**
-   (icon bánh răng bên trái) → **Script Properties** → **Add script
-   property**:
-   - Property: `SUPABASE_SERVICE_ROLE_KEY`
-   - Value: (key lấy ở bước 1)
-5. Quay lại tab **Editor**, chọn hàm `syncAllTabs` ở dropdown trên cùng →
-   bấm **Run** một lần (nếu là lần đầu sẽ cần cấp quyền / Authorize access —
-   chọn tài khoản Google đang có quyền mở Sheet này, chấp nhận quyền đọc
-   Sheet + gọi URL ngoài).
-6. Kiểm tra **Executions** (icon đồng hồ, tab bên trái) không có lỗi, hoặc
-   xem `Logger.log` trong View → Logs — sẽ thấy dòng
-   `pick: đã đẩy N dòng lên Supabase (bảng kas_pick_data).` cho các tab.
-7. Cài lịch tự động: chọn hàm `createDailyTrigger` ở dropdown trên cùng →
-   bấm **Run** một lần. Hàm này tự xoá mọi trigger cũ của `syncAllTabs`
-   (kể cả trigger "Every 15 minutes" tạo qua UI ở bản trước) rồi tạo 1
-   trigger mới chạy 1 lần/ngày, gần giờ `MIN_RUN_HOUR:MIN_RUN_MINUTE` (mặc
-   định 8:30, xem đầu file `.gs`). Không cần vào tab **Triggers** ⏰ để tạo
-   tay — chỉ dùng tab đó để **xem lại** trigger đã tạo đúng chưa.
-   - Muốn đổi giờ chạy: sửa `MIN_RUN_HOUR`/`MIN_RUN_MINUTE` đầu file `.gs`,
-     lưu, rồi chạy lại `createDailyTrigger` để áp dụng.
+Chưa cần tách project. Chia file theo trách nhiệm là đủ để quản lý; tách project
+khi khác tài khoản/quyền/người quản lý hoặc cần phát hành độc lập. Nếu bandwidth
+tiếp tục lỗi, xem xét giãn giờ các job độc lập trước; **chưa đổi lịch** trong
+phiên này. Tạo nhiều project cùng tài khoản không bảo đảm hết quota.
 
-Xong — từ giờ Apps Script tự chạy nền 1 lần/ngày, app sẽ tự thấy data mới
-mỗi lần load hoặc bấm "Sync Từ Supabase" trong modal Dev Admin → "Quản Lý
-Nguồn Dữ Liệu".
+## Kiểm tra và vận hành
 
-## Debug khi app không thấy data mới
+1. Dùng `showOpsSyncStatus` xem `pending/completed/failed`; xem log từng execution
+   để biết `transferredRows` và kết quả RPC. `syncAllTabs` chỉ khởi động queue,
+   không có nghĩa cả năm tab đã xong khi execution đầu kết thúc.
+2. `syncOptimizedOpsTabs` chỉ khởi động Pick/Deli/CA1/FD qua queue; các hàm
+   `syncPickOnly`/`syncDeliOnly`/`syncCa1Only`/`syncFdOnly` chạy riêng một tab.
+   Các hàm chạy tay bỏ guard giờ, nên chỉ chạy khi nguồn đã refresh xong.
+3. Snapshot không đổi sẽ có `transferredRows=0`, không đổi `synced_at`. Đây là
+   thành công; `synced_at` phản ánh mutation, không phải heartbeat mỗi ngày.
+4. HTTP 401/403: kiểm tra service key/quyền. HTTP 404: kiểm tra RPC đã được cài.
+   Header, ngày hoặc payload sai sẽ giữ snapshot cũ; retry không chứng minh BI
+   đã đổ đủ dữ liệu. Không reset state khi execution đang chạy.
+5. Dashboard dùng cursor `id` và kiểm tra biên `id,synced_at` qua
+   `src/utils/supabaseTableReader.js`; RPC delta vẫn cập nhật biên khi mutation.
+   Timeout 15 giây, vượt 100 trang hoặc snapshot không đủ sẽ báo lỗi.
 
-1. Vào Apps Script → **Executions** — xem lần chạy gần nhất có lỗi không.
-   Một dòng log "Bỏ qua lần chạy này: mới HH:mm, còn trước 8:30" là **bình
-   thường**, không phải lỗi — đó là chốt chặn giờ chạy hoạt động đúng.
-2. Kiểm tra các bảng `kas_pick_data` / `kas_deli_data` / `kas_ca1_data` / `kas_leadtime_data` trong
-   Supabase Table Editor — cột `synced_at` có cập nhật gần đây không, số
-   dòng có hợp lý không.
-3. Nếu Executions báo lỗi `SUPABASE_SERVICE_ROLE_KEY` chưa cấu hình → làm lại
-   bước 4 ở trên.
-4. Nếu lỗi HTTP 401/403 từ Supabase → service_role key sai hoặc bị revoke —
-   lấy lại key mới trong Supabase Dashboard.
-5. Nếu lỗi HTTP 404 ở `/rest/v1/rpc/sync_kas_...` → project Supabase chưa có
-   migration `create_kas_leadtime_data` hoặc các hàm sync tương ứng.
+Rollback và phạm vi kiểm tra xem [runbook delta](ops-incremental-sync.md).
