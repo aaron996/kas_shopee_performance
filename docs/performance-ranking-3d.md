@@ -1076,3 +1076,28 @@ Kiểm tra bổ sung: Top 50/Worst có body và shadow instance matrix trùng nh
 khởi tạo nguồn/vệt sáng đúng chỗ. Viewport thực 390×844 dùng map 1024² và hai
 spotlight, scene không báo lỗi. Sau khi pause ổn định, bộ đếm render và khoảng
 trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác được.
+
+## Chế độ chỉ scene và xoay ngang BXH
+
+- Riêng BXH, thay cụm tiện ích chung của header bằng toàn bộ điều khiển BXH,
+  giữ bộ lọc Client/Vùng/Loại Hub và bỏ thanh điều khiển riêng dưới header.
+  Mobile bỏ hàng thương hiệu/tiện ích dư thừa; các tab khác giữ header cũ.
+  Khi xem immersive, điều khiển chuyển vào vùng scene và trở lại header khi thoát.
+- Thanh công cụ PC dùng một hàng: KPI hiển thị nhãn ngắn (`1st Pick`, OPR,
+  `1st Deli`, ODR), bỏ số mục tiêu, tiêu đề BXH và dòng phạm vi/ngày.
+  Chỉ scene/hiện UI, ánh sáng và camera dùng icon có tooltip, tên truy cập
+  và trạng thái chọn trên cả PC lẫn mobile.
+- Nút **Chỉ scene** ẩn thanh lọc chung, thanh công cụ BXH, nhãn Hub, camera,
+  giờ mô phỏng, replay và các panel; cảnh vẫn chạy với KPI/Top đang chọn.
+  Nút **Hiện giao diện** tự ẩn sau 3 giây. Chạm vào cảnh để hiện lại nút,
+  hoặc nhấn Escape để khôi phục giao diện. Áp dụng cả 2D và 3D.
+- Trên điện thoại, giữ KPI và Best/Worst ở thanh chính. Số Hub, tạm dừng,
+  tốc độ, 2D/3D và bảng số liệu nằm trong **Tùy chỉnh**.
+- Nút **Xoay ngang** thử fullscreen và `screen.orientation.lock('landscape')`.
+  Nếu API thiếu hoặc bị từ chối, thoát fullscreen và xoay vùng BXH bằng CSS.
+  Canvas dùng kích thước layout trước transform để giữ đúng tỉ lệ camera/nhãn.
+  Tắt xoay ngang hoặc rời BXH sẽ giải phóng fullscreen/khóa hướng do BXH tạo.
+- Kiểm tra local: 64 test về presentation, KPI, scene layout và Best/Worst tour;
+  build, lint file sửa và diff check qua. Codex IAB với 60 Hub mẫu đã kiểm tra
+  desktop, mobile 375px, xoay ngang dự phòng, 2D Top 50, ẩn/hiện UI và mở bảng.
+  Chưa xác nhận khóa hướng native trên điện thoại thật hoặc dữ liệu production.

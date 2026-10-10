@@ -43,11 +43,11 @@ export default function Header({
   const hubSummary = selectedHubTypes.length === allHubTypes.length ? 'Tất cả loại Hub' : selectedHubTypes.length ? `${selectedHubTypes.length}/${allHubTypes.length} loại Hub được chọn` : 'Chưa chọn loại Hub nào';
   const sharedPopover = { state: popover, setState: setPopover };
   return <header ref={headerRef} className="navbar app-header compact-header">
-    <div className="compact-mobile-brand"><strong>GHN Performance</strong><div className="compact-mobile-settings">
+    {activeTab !== 'ranking' && <div className="compact-mobile-brand"><strong>GHN Performance</strong><div className="compact-mobile-settings">
       <IconButton icon={isDarkMode ? 'Sun' : 'Moon'} label={isDarkMode ? 'Giao diện sáng' : 'Giao diện tối'} onClick={() => setIsDarkMode(!isDarkMode)} />
       {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" aria-label="Dev" onClick={() => setActiveTab('dev-admin')}><ShieldCheck size={18} /></button>}
       <button className="nav-btn-sleek icon-btn" aria-label="Đăng xuất" onClick={onLogout}><LogOut size={18} /></button>
-    </div></div>
+    </div></div>}
     <div className="compact-header-toolbar">
       {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
         {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter} badge={clientFilter === 'ALL' ? undefined : '•'}>
@@ -88,7 +88,7 @@ export default function Header({
             </div>
           )}
 
-      <div className="compact-header-actions">
+      {activeTab === 'ranking' ? <div id="ranking-header-controls" /> : <div className="compact-header-actions">
         <HeaderPopover {...sharedPopover} name="sync" icon="RefreshCw" label="Đồng bộ dữ liệu" summary={syncSummary} align="right" status={isLoading ? 'is-loading' : syncStatus?.kind === 'error' ? 'is-error' : 'is-current'}>
           <dl className="sync-details"><div><dt>{hasDistinctFdDate ? 'Pickup/Giao tới' : 'Dữ liệu tới'}</dt><dd>{d1DateFormatted || 'Chưa có dữ liệu'}</dd></div>{hasDistinctFdDate && <div><dt>FD tới</dt><dd>{fdD1DateFormatted}</dd></div>}<div><dt>Đồng bộ gần nhất</dt><dd>{lastSyncedLabel || 'Chưa xác định'}</dd></div></dl>
           {syncStatus?.kind === 'error' && <p className="sync-error-note">Chưa tải được dữ liệu mới. Bạn có thể thử đồng bộ lại.</p>}
@@ -99,7 +99,7 @@ export default function Header({
         <IconButton className="desktop-header-action" icon="Rows3" label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} aria-pressed={density === 'compact'} />
         <IconButton className="desktop-header-action" icon={isFullscreen ? 'Minimize2' : 'Maximize2'} label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'} onClick={() => setIsFullscreen(!isFullscreen)} aria-pressed={isFullscreen} />
         {supportsExport && <IconButton className="primary" icon="Download" label={exportLabel} disabled={!canExport} onClick={exportCsv} />}
-      </div>
+      </div>}
     </div>
   </header>;
 }

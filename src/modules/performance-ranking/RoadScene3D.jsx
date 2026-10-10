@@ -13,7 +13,7 @@ import {
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
-import { Play } from 'lucide-react';
+import { RotateCcw, SunMoon, Sun, Moon, Video, Scan, Focus } from 'lucide-react';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { pickSceneTheme } from '../../utils/sceneThemes.js';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
@@ -37,6 +37,9 @@ const LANE_WIDTH = 2.6; // breathing room for the taller GHN truck model
 const LEADER_GAP = 6; // two truck lengths; visual rank emphasis, not a KPI distance
 const FOV = 64; // wide perspective complements the bowed road and planet surface
 const INITIAL_CAMERA = { position: [0, 9, 14], fov: FOV }; // keep orbit when lighting controls re-render
+// CSS landscape rotates the stage; its bounding box swaps axes, but the camera
+// and label canvas need the local layout dimensions before that transform.
+const CANVAS_RESIZE = { offsetSize: true };
 const TILT_DEG = 35; // camera elevation above the road
 const TARGET_Y = 1; // look slightly above the asphalt so truck labels fit
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
@@ -595,6 +598,7 @@ export default function RoadScene3D({
       onKeyDown={handleKeyDown}
     >
       <Canvas
+        resize={CANVAS_RESIZE}
         frameloop="demand"
         dpr={dprRange}
         shadows={shadowsOn ? 'percentage' : false}
@@ -656,9 +660,10 @@ export default function RoadScene3D({
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
       <div className="prr-lighting-controls" role="group" aria-label="Thời gian trong cảnh">
         <span className="prr-scene-time" ref={timeRef} title="Giờ mô phỏng · Một vòng ngày đêm trong 6 phút khi đang chạy">09:00</span>
-        {[['auto', 'Tự động'], ['day', 'Ban ngày'], ['night', 'Ban đêm']].map(([mode, label]) => <button key={mode} type="button"
+        {[['auto', 'Tự động', SunMoon], ['day', 'Ban ngày', Sun], ['night', 'Ban đêm', Moon]].map(([mode, label, Icon]) => <button key={mode} type="button"
+          aria-label={label}
           aria-pressed={lightingMode === mode} onClick={() => setLightingMode(mode)}
-          title={mode === 'auto' ? (reducedMotion ? 'Chu kỳ đứng yên khi bật giảm chuyển động' : 'Một vòng ngày đêm trong 6 phút · dừng theo nút tạm dừng') : undefined}>{label}</button>)}
+          title={mode === 'auto' ? `${label} · ${reducedMotion ? 'Chu kỳ đứng yên khi bật giảm chuyển động' : 'Một vòng ngày đêm trong 6 phút · dừng theo nút tạm dừng'}` : label}><Icon size={16} aria-hidden="true" /></button>)}
       </div>
       {scene.tour && <div className="prr-tour-status" role="status">{rankView === 'worst' ? 'Lùi về cuối đoàn · Worst' : 'Tiến về đầu đoàn · Best'}</div>}
 
@@ -666,33 +671,36 @@ export default function RoadScene3D({
         <button
           type="button"
           className="prr-replay-btn"
+          aria-label="Xem lại thay đổi thứ hạng D-8 sang D-1"
           disabled={!canReplay || replaying || !running || reducedMotion}
           title={reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : !running ? 'Tiếp tục chuyển động xe để chạy replay' : canReplay ? 'Xem lại thứ hạng chuyển từ D-8 sang D-1 (hạng trong nhóm đối soát chung)' : 'Chưa có dữ liệu D-8 để so sánh'}
           onClick={startReplay}
         >
-          <Play size={12} aria-hidden="true" />
-          <span>Replay D-8 → D-1</span>
+          <RotateCcw size={16} aria-hidden="true" />
         </button>
         <div className="prr-segmented-limit" role="group" aria-label="Chế độ camera">
-          <button type="button" disabled={Boolean(scene.tour)} className={`seg-btn ${activeCamMode === 'tv' ? 'active' : ''}`} aria-pressed={activeCamMode === 'tv'} title="Góc nhìn chéo dọc tuyến, tập trung vào nhóm đang xem" onClick={() => { sceneCamMode.current = 'tv'; setCamMode('tv'); }}>TV cam</button>
+          <button type="button" disabled={Boolean(scene.tour)} className={`seg-btn prr-camera-icon ${activeCamMode === 'tv' ? 'active' : ''}`} aria-label="TV cam" aria-pressed={activeCamMode === 'tv'} title="TV cam · Góc nhìn chéo dọc tuyến, tập trung vào nhóm đang xem" onClick={() => { sceneCamMode.current = 'tv'; setCamMode('tv'); }}><Video size={16} aria-hidden="true" /></button>
           <button
             type="button"
-            className={`seg-btn ${activeCamMode === 'overview' ? 'active' : ''}`}
+            className={`seg-btn prr-camera-icon ${activeCamMode === 'overview' ? 'active' : ''}`}
+            aria-label="Toàn cảnh"
+            title="Toàn cảnh"
             disabled={Boolean(scene.tour)}
             aria-pressed={activeCamMode === 'overview'}
             onClick={() => { sceneCamMode.current = 'overview'; setCamMode('overview'); }}
           >
-            Toàn cảnh
+            <Scan size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
-            className={`seg-btn ${camMode === 'follow' && selectedTruck ? 'active' : ''}`}
+            className={`seg-btn prr-camera-icon ${camMode === 'follow' && selectedTruck ? 'active' : ''}`}
+            aria-label="Bám xe"
             aria-pressed={camMode === 'follow' && Boolean(selectedTruck)}
             disabled={!selectedTruck || Boolean(scene.tour)}
-            title={selectedTruck ? undefined : 'Chọn một xe để camera bám theo'}
+            title={selectedTruck ? 'Bám xe' : 'Bám xe · Chọn một xe để camera bám theo'}
             onClick={() => setCamMode('follow')}
           >
-            Bám xe
+            <Focus size={16} aria-hidden="true" />
           </button>
         </div>
       </div>

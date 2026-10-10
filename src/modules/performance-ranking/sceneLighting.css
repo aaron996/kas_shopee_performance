@@ -17,8 +17,12 @@
 .prr-lighting-controls button {
   border: 0;
   border-radius: var(--radius-pill, 20px);
-  padding: 7px 10px;
-  min-height: 32px;
+  padding: 0;
+  width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #e2e8f0;
   background: transparent;
   font: inherit;
@@ -28,6 +32,5 @@
 .prr-lighting-controls button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 @container (max-width: 560px) {
   .prr-scene3d > .prr-lighting-controls { top: 8px; right: 8px; font-size: 11px; }
-  .prr-lighting-controls button { min-height: 40px; padding: 7px 8px; }
   .prr-scene-time { padding: 0 6px; }
 }
