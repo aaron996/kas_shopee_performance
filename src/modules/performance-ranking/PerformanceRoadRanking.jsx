@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback, useId, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Truck,
   ArrowUp,
@@ -16,13 +17,15 @@ import {
   Table2,
   Trophy,
   TrendingDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  EyeOff,
+  Eye,
+  RotateCw
 } from 'lucide-react';
 import {
   calculatePerformanceRanking,
   SUPPORTED_KPIS,
   SMALL_SAMPLE_THRESHOLD,
-  getMetricDef,
   selectSceneHubs,
   SCENE_TOP_LIMITS
 } from '../../utils/performanceRanking.js';
@@ -40,6 +43,7 @@ import SceneErrorBoundary from './SceneErrorBoundary.jsx';
 import useScenePlayback from './useScenePlayback.js';
 import { MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { useToast } from '../../components/ui/Toast.jsx';
+import useRankingPresentation from './useRankingPresentation.js';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
@@ -95,6 +99,13 @@ export default function PerformanceRoadRanking({
   const insightPanelRef = useRef(null);
   const tableCardRef = useRef(null);
   const sceneHostRef = useRef(null);
+  const stageRef = useRef(null);
+  const sceneToggleRef = useRef(null);
+  const settingsRef = useRef(null);
+  const [headerTarget, setHeaderTarget] = useState(() => document.getElementById('ranking-header-controls'));
+  useEffect(() => { setHeaderTarget(document.getElementById('ranking-header-controls')); }, []);
+  const presentation = useRankingPresentation(stageRef, sceneToggleRef);
+  const { sceneOnly, setSceneOnly, landscape, immersive, toggleSceneOnly, toggleLandscape } = presentation;
   const playback = useScenePlayback(sceneHostRef);
   const speedControlId = useId();
   const speedLabel = `${playback.rate.toLocaleString('vi-VN')}×`;
@@ -160,9 +171,10 @@ export default function PerformanceRoadRanking({
 
   // Select / deselect a Hub by composite ID
   const handleSelectHub = useCallback((hubId) => {
+    if (sceneOnly) return;
     setTableOpen(false);
     setSelectedHubId(prev => (prev === hubId ? null : hubId));
-  }, []);
+  }, [sceneOnly]);
 
   // 3D failed (chunk did not load, render error, WebGL context lost): show 2D for this visit only.
   // The saved preference is left alone so a transient failure does not pin the user to 2D.
@@ -177,8 +189,10 @@ export default function PerformanceRoadRanking({
   }, [showToast]);
 
   const handleViewTable = useCallback(() => {
+    if (sceneOnly) return;
     setTableOpen(true);
-  }, []);
+    if (settingsRef.current) settingsRef.current.open = false;
+  }, [sceneOnly]);
 
   useEffect(() => {
     if (tableOpen) tableCardRef.current?.focus({ preventScroll: true });
@@ -207,13 +221,16 @@ export default function PerformanceRoadRanking({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (selectedHubId) setSelectedHubId(null);
+        if (sceneOnly) setSceneOnly(false);
+        else if (settingsRef.current?.open) settingsRef.current.open = false;
+        else if (selectedHubId) setSelectedHubId(null);
         else if (tableOpen) setTableOpen(false);
+        else if (landscape) void toggleLandscape();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedHubId, tableOpen]);
+  }, [selectedHubId, tableOpen, sceneOnly, landscape, setSceneOnly, toggleLandscape]);
 
   // Handle drill-down CTA "Mở chi tiết Hub"
   const handleDrillDown = useCallback(() => {
@@ -244,14 +261,21 @@ export default function PerformanceRoadRanking({
   const d1Formatted = d1Date ? formatDateLabel(d1Date).replace('\n', ' ') : 'Chưa có ngày';
   const d8Formatted = d8Date ? formatDateLabel(d8Date).replace('\n', ' ') : null;
 
-  return (
-    <div className={`performance-road-ranking-tab ${density === 'compact' ? 'density-compact' : ''}`}>
-      <header className="prr-stage-header">
+  const stageControls = (
+      <div className="prr-stage-header" role="toolbar" aria-label="Điều khiển BXH" hidden={sceneOnly}>
         <div className="prr-stage-heading">
           {onExit && <button type="button" className="prr-stage-back" onClick={onExit} aria-label="Quay về Tổng quan" title="Tổng quan"><ArrowLeft size={18} /></button>}
-          <h1>BXH Performance</h1>
-          <span className="prr-stage-scope">{clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter} · D-1 {d1Formatted}</span>
           <span className="prr-stage-count">{sceneTrucks.length} / {rankedCount} Hub</span>
+          <div className="prr-presentation-actions">
+            <button ref={sceneToggleRef} type="button" className="prr-replay-btn prr-scene-toggle prr-icon-action" onClick={() => {
+              setSelectedHubId(null); setTableOpen(false);
+              if (settingsRef.current) settingsRef.current.open = false;
+              toggleSceneOnly();
+            }} aria-label="Chỉ scene" title="Ẩn giao diện, chỉ xem scene"><EyeOff size={16} aria-hidden="true" /></button>
+            <button type="button" className="prr-replay-btn prr-icon-action" onClick={toggleLandscape}
+              aria-label={landscape ? 'Tắt xoay ngang' : 'Xoay ngang'} title={landscape ? 'Trở về hướng tự động' : 'Xem BXH theo chiều ngang'}
+              aria-pressed={landscape} disabled={presentation.rotating}><RotateCw size={16} /></button>
+          </div>
         </div>
         <div className="prr-stage-toolbar">
           <div className="prr-kpi-selector" role="tablist" aria-label="Chọn KPI xếp hạng">
@@ -259,8 +283,7 @@ export default function PerformanceRoadRanking({
               <button key={kpi.id} type="button" role="tab" aria-selected={metricKey === kpi.id}
                 className={`prr-kpi-tab ${metricKey === kpi.id ? 'is-active' : ''}`}
                 onClick={() => { setMetricKey(kpi.id); setSelectedHubId(null); }}>
-                <span className="kpi-tab-label">{kpi.label}</span>
-                <span className="kpi-tab-target">{getMetricDef(kpi.id).target}%</span>
+                <span className="kpi-tab-label">{kpi.shortLabel}</span>
               </button>
             ))}
           </div>
@@ -277,21 +300,31 @@ export default function PerformanceRoadRanking({
               <Trophy size={16} className={rankView === 'best' ? 'is-current' : ''} aria-hidden="true" />
               <TrendingDown size={16} className={rankView === 'worst' ? 'is-current' : ''} aria-hidden="true" />
             </button>
-            <div className="prr-segmented-limit prr-count-selector" role="group" aria-label="Số Hub trên đường">
+            <div className="prr-segmented-limit prr-count-selector prr-desktop-control" role="group" aria-label="Số Hub trên đường">
               {SCENE_TOP_LIMITS.map(limit => <button key={limit} type="button" className={`seg-btn ${sceneDisplayLimit === limit ? 'active' : ''}`}
                 aria-label={`${limit} Hub`} title={`${rankView === 'worst' ? 'Worst' : 'Best'} ${limit} Hub`}
                 aria-pressed={sceneDisplayLimit === limit} onClick={() => setSceneDisplayLimit(limit)}>{limit}</button>)}
             </div>
-            <button type="button" className="prr-replay-btn prr-playback-btn prr-icon-action"
+            <button type="button" className="prr-replay-btn prr-playback-btn prr-icon-action prr-desktop-control"
               disabled={playback.reducedMotion || sceneTrucks.length === 0} aria-pressed={playback.paused}
               aria-label={playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
               title={playback.reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : playback.paused ? 'Tiếp tục chuyển động xe' : 'Tạm dừng chuyển động xe'}
               onClick={() => playback.setPaused(value => !value)}>
               {playback.paused || playback.reducedMotion ? <Play size={15} /> : <Pause size={15} />}
             </button>
-            <details className="prr-stage-settings">
+            <details ref={settingsRef} className="prr-stage-settings">
               <summary className="prr-icon-action" aria-label="Tùy chỉnh" title="Tốc độ và chế độ 2D/3D"><SlidersHorizontal size={16} aria-hidden="true" /></summary>
               <div className="prr-stage-settings-panel">
+                <div className="prr-mobile-controls">
+                  <span>Số Hub trên đường</span>
+                  <div className="prr-segmented-limit" role="group" aria-label="Số Hub trên đường">
+                    {SCENE_TOP_LIMITS.map(limit => <button key={limit} type="button" className={`seg-btn ${sceneDisplayLimit === limit ? 'active' : ''}`}
+                      aria-pressed={sceneDisplayLimit === limit} onClick={() => setSceneDisplayLimit(limit)}>{limit} Hub</button>)}
+                  </div>
+                  <button type="button" className="prr-replay-btn" disabled={playback.reducedMotion || sceneTrucks.length === 0}
+                    onClick={() => playback.setPaused(value => !value)}>{playback.paused ? <Play size={15} /> : <Pause size={15} />}{playback.paused ? 'Tiếp tục' : 'Tạm dừng'}</button>
+                  <button type="button" className="prr-replay-btn" onClick={handleViewTable}><Table2 size={16} />Bảng số liệu</button>
+                </div>
                 <div className="prr-speed-control">
                   <label htmlFor={speedControlId}>Tốc độ</label>
                   <input id={speedControlId} type="range" min={MIN_DRIVE_RATE} max={MAX_DRIVE_RATE} step="0.25" value={playback.rate}
@@ -309,11 +342,20 @@ export default function PerformanceRoadRanking({
                 <p><AlertTriangle size={12} /> Mẫu dưới {SMALL_SAMPLE_THRESHOLD} đơn</p>
               </div>
             </details>
-            <button type="button" className="prr-replay-btn prr-icon-action" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={16} aria-hidden="true" /></button>
+            <button type="button" className="prr-replay-btn prr-icon-action prr-desktop-control" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={16} aria-hidden="true" /></button>
           </div>
         </div>
-      </header>
-      <section ref={sceneHostRef} className="prr-scene-card" aria-label="Tuyến đường xếp hạng Hub">
+      </div>
+  );
+
+  return (
+    <div ref={stageRef} tabIndex={-1}
+      className={`performance-road-ranking-tab ${density === 'compact' ? 'density-compact' : ''} ${immersive ? 'prr-immersive' : ''} ${landscape ? 'prr-landscape' : ''} ${sceneOnly ? 'prr-scene-only' : ''}`}
+      onPointerDown={sceneOnly ? presentation.revealRestore : undefined}>
+      {headerTarget && !immersive ? createPortal(stageControls, headerTarget) : stageControls}
+      {sceneOnly && <button type="button" className={`prr-restore-interface ${presentation.restoreVisible ? 'is-visible' : ''}`}
+        onClick={toggleSceneOnly} onFocus={presentation.revealRestore} aria-label="Hiện giao diện" title="Hiện giao diện (Esc)"><Eye size={16} aria-hidden="true" /></button>}
+      <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} aria-label="Tuyến đường xếp hạng Hub">
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (
           <div className="prr-scene-empty">
@@ -363,7 +405,7 @@ export default function PerformanceRoadRanking({
       </section>
 
       {/* 3. Selected Hub Insight Detail Panel */}
-      {selectedHubItem && (
+      {!sceneOnly && selectedHubItem && (
         <section
           ref={insightPanelRef}
           tabIndex={-1}
@@ -497,7 +539,7 @@ export default function PerformanceRoadRanking({
       )}
 
       {/* 4. Full Audit & Verification Table Section */}
-      {tableOpen && <section ref={tableCardRef} tabIndex={-1} className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
+      {!sceneOnly && tableOpen && <section ref={tableCardRef} tabIndex={-1} className="prr-table-card" aria-label="Bảng đối soát thứ hạng Hub">
         <div className="prr-table-toolbar">
           <div className="table-toolbar-left">
             <h2 className="table-toolbar-title">Bảng Đối Soát Thứ Hạng Vận Hành</h2>
