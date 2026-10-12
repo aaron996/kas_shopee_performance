@@ -2,6 +2,14 @@
 export const DAY_CYCLE_SECONDS = 360;
 export const INITIAL_DAY_PHASE = 9 / 24;
 export const LIGHTING_MODES = ['auto', 'day', 'night'];
+
+// Match the viewed stretch, not the full road (which includes the tour bridge).
+// The main fleet stays clear; distant scenery merges gradually into the sky.
+export function sceneFogRange(cameraDistance) {
+  const distance = Number.isFinite(cameraDistance) ? Math.max(6, cameraDistance) : 20;
+  const near = Math.max(30, distance * 1.65 + 8);
+  return { near, far: Math.max(140, near + distance * 4.5 + 48) };
+}
 const TAU = Math.PI * 2;
 const clamp01 = value => Math.max(0, Math.min(1, value));
 const smooth = (a, b, value) => { const t = clamp01((value - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -43,7 +51,7 @@ export function sampleSceneLighting(phase) {
   const day = smooth(-0.12, 0.3, altitude);
   const twilight = smooth(-0.23, -0.02, altitude) * (1 - smooth(0.08, 0.48, altitude));
   const sunIntensity = smooth(0, 0.22, altitude) * (1.4 + 0.8 * Math.max(0, altitude));
-  const moonIntensity = 0.36 * smooth(0, 0.22, -altitude);
+  const moonIntensity = 0.5 * smooth(0, 0.22, -altitude);
   const source = altitude >= 0 ? 'sun' : 'moon';
   const sunColor = mixColor('#ff9b55', '#fff2d5', smooth(0.03, 0.6, altitude));
   return {
@@ -56,9 +64,9 @@ export function sampleSceneLighting(phase) {
     sunColor,
     sunOpacity: smooth(-0.06, 0.02, altitude),
     moonOpacity: smooth(-0.06, 0.02, -altitude),
-    ambientIntensity: 0.46 + 1.15 * day + 0.15 * twilight,
+    ambientIntensity: 0.68 + 0.75 * day + 0.12 * twilight,
     ambientSky: mixColor('#7e9bcc', '#e6f0ff', day),
-    ambientGround: mixColor('#384453', '#8e9d78', day),
+    ambientGround: mixColor('#556270', '#82986e', day),
     skyTop: mixColor(mixColor('#071225', '#5e9bd4', day), '#656b9e', twilight * 0.45),
     horizon: mixColor(mixColor('#182a48', '#d8e9ed', day), '#f6b27b', twilight * 0.82)
   };

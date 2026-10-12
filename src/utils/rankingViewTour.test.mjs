@@ -5,7 +5,7 @@ import { calculatePerformanceRanking, selectSceneHubs } from './performanceRanki
 import { computeSceneLayout, computeReplayFrames, getRoadLength } from './rankingSceneLayout.js';
 import { tvCameraGoal } from './sceneCamera.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
-import { createTourConvoy, tourProgress, viewOffset, VIEW_TOUR_LENGTH } from './rankingViewTour.js';
+import { createTourConvoy, tourProgress, tourShot, viewOffset, VIEW_TOUR_LENGTH } from './rankingViewTour.js';
 
 test('Worst selects the actual tail of 1,000 ranked Hubs without mutating rank or identity', () => {
   const ranked = Array.from({ length: 1000 }, (_, i) => ({ id: `hub-${i}`, rank: i + 1 }));
@@ -20,6 +20,23 @@ test('Worst selects the actual tail of 1,000 ranked Hubs without mutating rank o
   assert.equal(selectSceneHubs(ranked, 'ALL', 'worst').length, 20);
   assert.deepEqual(selectSceneHubs([], 50, 'worst'), []);
   assert.equal(selectSceneHubs(ranked.slice(0, 1), 50, 'worst')[0], ranked[0]);
+});
+
+test('tour opens, passes close to the convoy, and settles exactly at either endpoint', () => {
+  for (const p of [0, 1]) {
+    const shot = tourShot(p);
+    assert.equal(shot.distanceScale, 1); assert.equal(shot.lift, 0);
+    assert.equal(shot.fovOffset, 0); assert.equal(shot.lookAhead, 0);
+  }
+  assert.equal(tourShot(0.1).stage, 'depart');
+  assert.equal(tourShot(0.45).stage, 'convoy');
+  assert.equal(tourShot(0.9).stage, 'arrive');
+  assert.ok(tourShot(0.45).distanceScale < 0.8);
+  assert.ok(tourShot(0.1).lift > 0 && tourShot(0.9).lift > 0);
+  for (const boundary of [0.16, 0.24, 0.46, 0.7, 0.76]) {
+    const before = tourShot(boundary - 1e-5), after = tourShot(boundary + 1e-5);
+    for (const key of ['distanceScale', 'lift', 'lookAhead', 'fovOffset']) assert.ok(Math.abs(before[key] - after[key]) < 0.001);
+  }
 });
 
 test('Worst follows canonical ties and excludes missing/zero-sample Hubs', () => {

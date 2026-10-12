@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, wrapDayPhase } from '../../utils/sceneLighting.js';
+import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, sceneFogRange, wrapDayPhase } from '../../utils/sceneLighting.js';
 import { shouldRefreshSceneShadow } from '../../utils/sceneShadows.js';
 
 const SKY_VERTEX = `varying vec3 vDirection;
@@ -98,6 +98,9 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
     sunRef.current.material.color.set(state.sunColor);
     const light = lightRef.current;
     const focus = controls?.target || target.position;
+    const fogRange = sceneFogRange(camera.position.distanceTo(focus));
+    fogRef.current.near = fogRange.near;
+    fogRef.current.far = fogRange.far;
     // Track the viewed road segment, including Best/Worst and follow camera.
     const extent = Math.max(24, camera.position.distanceTo(focus) * Math.max(1, camera.aspect) * 0.75);
     const distance = extent * 3;
@@ -122,17 +125,16 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
     if (timeRef.current && timeRef.current.textContent !== text) timeRef.current.textContent = text;
     if (import.meta.env.DEV) {
       const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
-      handle.lighting = { ...state, mode, cycleSeconds: DAY_CYCLE_SECONDS, shadowsOn, shadowSize: compact ? 1024 : 2048, shadowExtent: extent };
+      handle.lighting = { ...state, mode, cycleSeconds: DAY_CYCLE_SECONDS, shadowsOn, shadowSize: compact ? 1024 : 2048, shadowExtent: extent, fog: fogRange };
     }
   }, -0.1); // after truck/scenery travel and camera positioning, before rendering
 
-  const fogNear = roadLength * 0.9 + 60;
   return <>
     <mesh name="prr-sky" ref={skyRef} renderOrder={-20} frustumCulled={false} raycast={() => {}}>
       <sphereGeometry args={[1, 24, 16]} />
       <shaderMaterial vertexShader={SKY_VERTEX} fragmentShader={SKY_FRAGMENT} uniforms={skyUniforms} side={THREE.BackSide} depthWrite={false} />
     </mesh>
-    <fog ref={fogRef} attach="fog" args={['#d8e9ed', fogNear, fogNear * 2.6 + 260]} />
+    <fog ref={fogRef} attach="fog" args={['#d8e9ed', 41, 179]} />
     <mesh name="prr-sun" ref={sunRef} raycast={() => {}}>
       <sphereGeometry args={[1, 24, 16]} /><meshBasicMaterial color="#fff2d5" fog={false} toneMapped={false} transparent />
     </mesh>

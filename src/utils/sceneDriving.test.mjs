@@ -4,7 +4,7 @@ import { computeTransitionFrames, computeSceneLayout } from './rankingSceneLayou
 import {
   advanceDriveClock, createDriveClock, sampleDrivePose, driveHeading, CRUISE_SPEED,
   wrapRoadTravel, leaderSurge, worstRideStrength, truckRidePhase, sampleWorstRide,
-  sampleWorstSkid, skidRoadZ
+  sampleWorstSkid, skidRoadZ, createTruckSuspension, advanceTruckSuspension, leaderExhaust
 } from './sceneDriving.js';
 
 const moving = (id, fromX, toX, fromZ = 0, toZ = 0) => ({
@@ -27,7 +27,7 @@ test('W1 weaves on both sides with bounded heading and spinning tyres', () => {
     min = Math.min(min, skid.lateral); max = Math.max(max, skid.lateral);
     assert.ok(Math.abs(skid.lateral) <= 1.06);
     assert.ok(Math.abs(skid.yaw) <= 0.41);
-    assert.ok(skid.smoke >= 0.45 && skid.smoke <= 1);
+    assert.ok(skid.smoke >= 0.06 && skid.smoke <= 1);
     assert.ok(skid.spinExtra >= previousSpin);
     previousSpin = skid.spinExtra;
     // A rotated 3.1 x 1.4 truck stays on asphalt for every lane count.
@@ -41,6 +41,39 @@ test('W1 weaves on both sides with bounded heading and spinning tyres', () => {
     }
   }
   assert.ok(min < -0.9 && max > 0.9);
+});
+
+test('Worst skid has quiet and strong episodes instead of a continuous dense plume', () => {
+  let quiet = 1, strong = 0;
+  for (let time = 0; time <= 60; time += 0.05) {
+    const { smoke } = sampleWorstSkid(time, 1, truckRidePhase('last'));
+    quiet = Math.min(quiet, smoke); strong = Math.max(strong, smoke);
+  }
+  assert.ok(quiet < 0.2 && strong > 0.65);
+});
+
+test('sprung body leans into a lane change and settles without moving the wheels or rank pose', () => {
+  for (const fps of [20, 30, 60]) {
+    const state = createTruckSuspension();
+    for (let frame = 0; frame < fps; frame++) advanceTruckSuspension(state, CRUISE_SPEED + frame / fps * 8, 0.16, 1 / fps);
+    assert.ok(state.pitch < -0.025 && Math.abs(state.pitch) <= 0.06);
+    assert.ok(state.roll < -0.04 && Math.abs(state.roll) <= 0.07);
+    const held = { ...state };
+    advanceTruckSuspension(state, 200, -0.18, 0);
+    assert.deepEqual(state, held, 'pause must not integrate body motion');
+    for (let frame = 0; frame < fps * 2; frame++) advanceTruckSuspension(state, held.speed, 0, 1 / fps);
+    assert.ok(Math.abs(state.pitch) < 0.001 && Math.abs(state.roll) < 0.001);
+    advanceTruckSuspension(state, 100, 0.18, 0.1, true);
+    assert.equal(state.pitch, 0); assert.equal(state.roll, 0);
+  }
+});
+
+test('leader exhaust stays subtle in cruise and emphasizes a forward surge', () => {
+  for (let time = 0; time < 12; time += 0.05) {
+    const idle = leaderExhaust(time), surge = leaderExhaust(time, 1);
+    assert.ok(idle.length < 0.6 && idle.width < 0.15);
+    assert.ok(surge.length > idle.length * 6);
+  }
 });
 
 test('skid, wheelspin and historical smoke ages freeze on pause with no anchor displacement', () => {
