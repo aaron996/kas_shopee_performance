@@ -8,12 +8,14 @@ import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../ut
 import { getRoadsideSpan, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import { createTruckShadowGeometry } from '../../utils/sceneShadows.js';
+import { patchTruckSurface, patchTruckWheelSurface } from '../../utils/sceneTruckSurface.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
 import {
   advanceDriveClock, driveHeading, sampleDrivePose, leaderSurge, WHEEL_RADIUS,
-  wrapRoadTravel, worstRideStrength, truckRidePhase, sampleWorstRide, sampleWorstSkid, skidRoadZ
+  wrapRoadTravel, worstRideStrength, truckRidePhase, sampleWorstRide, sampleWorstSkid, skidRoadZ,
+  advanceTruckSuspension, createTruckSuspension, leaderExhaust
 } from '../../utils/sceneDriving.js';
 
 export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
@@ -65,7 +67,8 @@ const _ringQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0
 function roadQuaternion(heading, pitch) {
   return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
 }
-const paintCacheKey = () => 'instanceAlpha-truckRoof-v2';
+const paintCacheKey = () => 'instanceAlpha-truckRoof-surface-v3';
+const wheelCacheKey = () => 'instanceAlpha-rubber-v2';
 
 const noRaycast = () => {};
 
@@ -149,8 +152,12 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
   // hitch. At alpha 1 a transparent material renders the same as an opaque one.
   const materialProps = {
     transparent: true,
-    onBeforeCompile: painted ? (shader) => { patchInstanceAlpha(shader); patchTruckPaint(shader, glyphTexture); } : patchInstanceAlpha,
-    customProgramCacheKey: painted ? paintCacheKey : alphaCacheKey
+    onBeforeCompile: (shader) => {
+      patchInstanceAlpha(shader);
+      if (painted) { patchTruckPaint(shader, glyphTexture); patchTruckSurface(shader); }
+      else if (part.wheel) patchTruckWheelSurface(shader);
+    },
+    customProgramCacheKey: painted ? paintCacheKey : part.wheel ? wheelCacheKey : alphaCacheKey
   };
   const color = part.color === 'status' ? '#ffffff' : part.color;
 
@@ -165,7 +172,7 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
     >
       {part.basic
         ? <meshBasicMaterial {...materialProps} color={color} />
-        : <meshStandardMaterial {...materialProps} color={color} map={part.map} roughness={0.85} metalness={0} />}
+        : <meshStandardMaterial {...materialProps} color={color} map={part.map} roughness={part.wheel ? 0.94 : 0.78} metalness={0} />}
     </instancedMesh>
   );
 }
@@ -326,6 +333,8 @@ export function TruckFleet({
   };
   const arrowMesh = useRef(null);
   const endedKeyRef = useRef(null);
+  const suspensionRef = useRef(new Map());
+  const lastRideTime = useRef(clockRef.current.time);
 
   const register = (index, node) => {
     meshes.current[index] = node;
@@ -350,6 +359,12 @@ export function TruckFleet({
     const animated = Boolean(motion);
     const positions = positionsRef.current;
     positions.clear();
+    if (updateColors) {
+      const ids = new Set(items.map(item => item.id));
+      for (const id of suspensionRef.current.keys()) if (!ids.has(id)) suspensionRef.current.delete(id);
+    }
+    const rideDelta = Math.max(0, clock.time - lastRideTime.current);
+    lastRideTime.current = clock.time;
 
     const { xs, ys, zs, travelXs, pitches, headings, bobs, ridePitches, rolls } = buffers;
     for (let i = 0; i < count; i++) {
@@ -365,19 +380,26 @@ export function TruckFleet({
       const frame = sampleRoadFrame(x, z, roadLength);
       const surge = animated && !reducedMotion ? leaderSurge(item, t) : 0;
       const ride = sampleWorstRide(clock.time, rides[i].strength, rides[i].phase, reducedMotion);
+      const steering = animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0;
+      let suspension = suspensionRef.current.get(item.id);
+      if (!suspension) { suspension = createTruckSuspension(); suspension.speed = clock.speed; suspension.roadX = x; suspensionRef.current.set(item.id, suspension); }
+      const truckSpeed = rideDelta > 0 ? Math.max(0, clock.speed + (x - suspension.roadX) / rideDelta) : suspension.speed;
+      advanceTruckSuspension(suspension, truckSpeed, steering, rideDelta, reducedMotion || item.ghost);
+      suspension.roadX = x;
       const skid = sampleWorstSkid(clock.time, item.ghost ? null : item.worstOrder, rides[i].phase, reducedMotion);
       const skidding = !item.ghost && item.worstOrder === 1 && !reducedMotion;
       const visualRoadZ = skidding ? skidRoadZ(z, skid.lateral, roadWidth) : z;
       const visualFrame = sampleRoadFrame(x, visualRoadZ, roadLength);
       xs[i] = visualFrame.x; ys[i] = visualFrame.y + lift; zs[i] = visualFrame.z; travelXs[i] = x + skid.spinExtra; pitches[i] = visualFrame.pitch + surge * 0.045;
-      headings[i] = visualFrame.heading + ride.yaw + skid.yaw + (animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0);
+      headings[i] = visualFrame.heading + ride.yaw + skid.yaw + steering;
       bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : ride.bounce + Math.sin(clock.time * 8 + i * 2.399) * 0.012;
-      ridePitches[i] = ride.pitch; rolls[i] = ride.roll;
+      ridePitches[i] = ride.pitch + suspension.pitch; rolls[i] = ride.roll + suspension.roll;
       alphaArray[i] = a;
       positions.set(item.id, {
         x: frame.x, z: frame.z, lift: frame.y + lift, heading: frame.heading, pitch: frame.pitch,
         roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost), ride, skid,
-        visual: { x: visualFrame.x, z: visualFrame.z, lift: visualFrame.y + lift, heading: headings[i], pitch: visualFrame.pitch, roadZ: visualRoadZ }
+        visual: { x: visualFrame.x, z: visualFrame.z, lift: visualFrame.y + lift, heading: headings[i], pitch: visualFrame.pitch, roadZ: visualRoadZ },
+        body: { x: xs[i], y: ys[i] + bobs[i], z: zs[i], heading: headings[i], pitch: pitches[i] + ridePitches[i], roll: rolls[i] }
       });
     }
 
@@ -486,9 +508,9 @@ export function TruckFleet({
       if (!visible) return;
       const item = items[leader];
       const surge = motion ? leaderSurge(item, t) : 0;
-      const pulse = 1 + Math.sin(clock.time * 22) * 0.12;
-      const length = (1.8 + surge * 3.2) * pulse * (layer ? 0.7 : 1);
-      const width = (layer ? 0.12 : 0.23) * (1 + surge * 0.5);
+      const exhaust = leaderExhaust(clock.time, surge);
+      const length = exhaust.length * (layer ? 0.7 : 1);
+      const width = exhaust.width * (layer ? 0.52 : 1);
       mesh.material.color.set(surge > 0 ? (layer ? '#fff5c2' : '#ffbd35') : (layer ? '#d9fbff' : '#16bfff'));
       _truckMatrix.compose(_pos.set(xs[leader], ys[leader], zs[leader]), roadQuaternion(headings[leader], pitches[leader]), _scale);
       _quat.setFromAxisAngle(_pitchAxis, Math.PI / 2); // cone tip trails towards -x
@@ -712,11 +734,11 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, castSh
         <meshStandardMaterial color={theme.ground} roughness={1} />
       </mesh>
       <mesh geometry={surfaces.asphalt} receiveShadow>
-        <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} roughness={0.95} />
+        <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} bumpMap={asphaltTexture} bumpScale={0.018} roughness={0.95} />
       </mesh>
       {surfaces.shoulders.map((geometry, i) => (
         <mesh key={i} geometry={geometry} receiveShadow>
-          <meshStandardMaterial color={theme.shoulder} />
+          <meshStandardMaterial color={theme.shoulder} roughness={0.85} />
         </mesh>
       ))}
       <instancedMesh name="prr-road-dashes" key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false} receiveShadow>

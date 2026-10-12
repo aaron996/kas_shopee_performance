@@ -195,3 +195,27 @@ export function computeRoadsideLayout(roadLength, roadWidth) {
   }
   return { span, batches, landmarks, streetlights };
 }
+
+// A separate, shadow-free fleet supplies a middle skyline and two distant
+// ridge bands. It cannot expand the bounds/lifetime of near-road landmarks.
+export function computeBackdropLayout(roadLength, roadWidth) {
+  const span = Math.max(768, getRoadsideSpan(roadLength));
+  const batches = { hill: [], box: [] };
+  const edge = roadWidth / 2;
+  for (let index = -span / 96; index < span / 96; index++) {
+    const anchor = index * 48;
+    const seed = index * 211;
+    batches.hill.push(
+      { anchor, x: -9, y: -1.2, z: -(edge + 48), scale: [34 + hash01(seed + 1) * 12, 5 + hash01(seed + 2) * 5, 24], color: 'backdropNear', yaw: hash01(seed + 3), roll: 0 },
+      { anchor, x: 12, y: -1.5, z: -(edge + 108), scale: [46 + hash01(seed + 4) * 16, 9 + hash01(seed + 5) * 6, 38], color: 'backdropFar', yaw: hash01(seed + 6), roll: 0 }
+    );
+    if (index % 3 === 0) {
+      const height = 3.2 + hash01(seed + 7) * 2;
+      batches.box.push(
+        { anchor, x: 5, y: height / 2, z: -(edge + 30), scale: [13, height, 7], color: 'backdropDepot', yaw: 0, roll: 0 },
+        { anchor, x: -5, y: height * 0.36, z: -(edge + 36), scale: [8, height * 0.72, 5], color: 'backdropDepot', yaw: 0, roll: 0 }
+      );
+    }
+  }
+  return { span, batches };
+}

@@ -18,10 +18,11 @@ import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.j
 import { pickSceneTheme } from '../../utils/sceneThemes.js';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
 import SceneLighting from './SceneLighting.jsx';
+import TruckRoadLighting from './TruckRoadLighting.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
-import { tvCameraGoal } from '../../utils/sceneCamera.js';
-import { createTourConvoy, tourProgress, viewOffset, VIEW_TOUR_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
+import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
+import { createTourConvoy, tourProgress, tourShot, viewOffset, VIEW_TOUR_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
   Road,
@@ -45,7 +46,6 @@ const TARGET_Y = 1; // look slightly above the asphalt so truck labels fit
 const TAGGED_TOP_N = 10; // Top N trucks always get a label (when it fits)
 const ALWAYS_LABELLED = 3; // podium labels get first placement and collision offsets
 const MEDAL_BORDER = ['#f5b800', '#b8c4d0', '#a0522d'];
-const FOLLOW_OFFSET = new THREE.Vector3(-3.5, 5, 9); // camera offset from the followed truck
 const QUALITY_MIN_FPS = 30; // median fps of a replay/transition below this counts as slow
 const QUALITY_STRIKES = 2; // slow motions in a row before dropping to the low tier
 const QUALITY_MIN_FRAMES = 12;
@@ -159,7 +159,7 @@ function CanvasSetup({ label }) {
  * or flies to a followed truck. Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, reducedMotion, animateViewChange, positionsRef, tour, onTourReveal, onTourEnd }) {
+function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, tour, onTourReveal, onTourEnd }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -175,6 +175,10 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
     document.addEventListener('visibilitychange', resetTime);
     return () => document.removeEventListener('visibilitychange', resetTime);
   }, []);
+  useEffect(() => {
+    if (tourRef.current) tourRef.current.lastTime = performance.now();
+    if (running) invalidate();
+  }, [running, invalidate]);
 
   // On a narrow canvas the whole road would shrink to a thin strip: frame the leading part of it
   // (rank 1 end) and let the user orbit or pinch for the rest. Wide canvases still frame it all.
@@ -200,8 +204,8 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
   const goal = useMemo(() => {
     if (hasFocus) {
       const f = sampleRoadFrame(focusX, focusZ, roadLength);
-      const target = new THREE.Vector3(f.x, f.y + 0.8, f.z);
-      return { target, position: target.clone().add(FOLLOW_OFFSET), fov: FOV };
+      const follow = followCameraGoal(f, aspectRatio);
+      return { target: new THREE.Vector3(...follow.target), position: new THREE.Vector3(...follow.position), fov: follow.fov };
     }
     if (mode === 'tv') {
       const tv = tvCameraGoal(roadLength, roadWidth, aspectRatio, { view: rankView, localLength, offsetX });
@@ -262,31 +266,33 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
     const travel = tourRef.current;
     if (travel) {
       const now = performance.now();
-      if (document.hidden) { travel.lastTime = now; return; }
+      if (document.hidden || !running) { travel.lastTime = now; return; }
       // Wall time keeps the camera trip at 3s even on a low-FPS device;
       // document visibility resets the timestamp without skipping the trip.
       travel.elapsed += now - travel.lastTime;
       travel.lastTime = now;
       const t = Math.min(1, travel.elapsed / VIEW_TOUR_DURATION_MS);
       const p = tourProgress(t);
+      const shot = tourShot(p);
       const roadX = THREE.MathUtils.lerp(travel.startX, goal.roadX, p);
-      const frame = sampleRoadFrame(roadX, 0, roadLength);
+      const direction = Math.sign(goal.roadX - travel.startX);
+      const frame = sampleRoadFrame(roadX + direction * shot.lookAhead, 0, roadLength);
       const startFrame = sampleRoadFrame(travel.startX, 0, roadLength);
       const targetOnRoad = new THREE.Vector3(frame.x, frame.y + 0.6, frame.z);
       const correction = travel.startTarget.clone().sub(new THREE.Vector3(startFrame.x, startFrame.y + 0.6, startFrame.z)).multiplyScalar(1 - p);
       controls.target.copy(targetOnRoad).add(correction);
       const cameraOffset = travel.startPosition.clone().sub(travel.startTarget).lerp(goal.position.clone().sub(goal.target), p);
-      // A small lift opens the long convoy before settling on the rear group.
-      cameraOffset.y += Math.sin(Math.PI * p) * 3;
+      cameraOffset.multiplyScalar(shot.distanceScale);
+      cameraOffset.y += shot.lift;
       camera.position.copy(controls.target).add(cameraOffset);
-      camera.fov = THREE.MathUtils.lerp(travel.startFov, goal.fov, p);
+      camera.fov = THREE.MathUtils.lerp(travel.startFov, goal.fov, p) + shot.fovOffset;
       camera.updateProjectionMatrix();
       controls.update();
       if (!travel.revealed && p >= VIEW_TOUR_REVEAL) {
         travel.revealed = true;
         onTourReveal(travel.key);
       }
-      if (import.meta.env.DEV && window.__ranking3d) window.__ranking3d.tour = { key: travel.key, t, p, roadX, view: rankView };
+      if (import.meta.env.DEV && window.__ranking3d) window.__ranking3d.tour = { key: travel.key, t, p, roadX, view: rankView, stage: shot.stage };
       if (t === 1) {
         camera.position.copy(goal.position);
         controls.target.copy(goal.target);
@@ -302,20 +308,25 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       if (previous?.id === focus.id) {
         // Translate the camera with its truck while preserving the user's
         // orbit angle and zoom. Rank changes never turn the camera around.
-        const dx = pose.x - previous.x;
-        const dz = pose.z - previous.z;
-        const dy = pose.lift - previous.lift;
+        const weight = reducedMotion || flight ? 1 : 1 - Math.exp(-Math.min(delta, 0.1) * FLIGHT_SPEED);
+        const dx = (pose.x - previous.x) * weight;
+        const dz = (pose.z - previous.z) * weight;
+        const dy = (pose.lift - previous.lift) * weight;
         camera.position.x += dx;
         camera.position.z += dz;
         camera.position.y += dy;
         controls.target.x += dx;
         controls.target.z += dz;
         controls.target.y += dy;
+        followedRef.current = { id: focus.id, x: previous.x + dx, z: previous.z + dz, lift: previous.lift + dy };
+        if (Math.abs(pose.x - followedRef.current.x) + Math.abs(pose.z - followedRef.current.z) > 0.003) invalidate();
+      } else {
+        followedRef.current = { id: focus.id, x: pose.x, z: pose.z, lift: pose.lift };
       }
-      followedRef.current = { id: focus.id, x: pose.x, z: pose.z, lift: pose.lift };
       if (flight) {
-        flight.target.set(pose.x, pose.lift + 0.8, pose.z);
-        flight.position.copy(flight.target).add(FOLLOW_OFFSET);
+        const follow = followCameraGoal({ ...pose, y: pose.lift }, aspectRatio);
+        flight.target.fromArray(follow.target);
+        flight.position.fromArray(follow.position);
       }
       controls.update();
     } else {
@@ -645,6 +656,7 @@ export default function RoadScene3D({
           roadWidth={roadWidth}
           paintMode={paintMode}
         />
+        <TruckRoadLighting key={`lighting-${fleetItems.length}`} items={fleetItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
         {selectedTruck && !scene.tour && (
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
         )}
@@ -653,7 +665,7 @@ export default function RoadScene3D({
         <ContextWatcher onLost={handleContextLost} />
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
-        <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
+        <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} running={running} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
           tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour} />
       </Canvas>
 

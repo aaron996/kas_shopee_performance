@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { advanceRoadsideFleet, computeRoadsideLayout, createRoadsideFleet, roadsideWorldPose, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
+import { advanceRoadsideFleet, computeBackdropLayout, computeRoadsideLayout, createRoadsideFleet, roadsideWorldPose, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import RoadsideLights from './RoadsideLights.jsx';
 
@@ -28,11 +28,11 @@ function SceneryTravel({ fleet, span, roadLength, clockRef }) {
   return null;
 }
 
-function makeGeometry(shape) {
+function makeGeometry(shape, backdrop = false) {
   if (shape === 'cone') return new THREE.ConeGeometry(1, 1, 6);
   if (shape === 'round' || shape === 'rock') return new THREE.IcosahedronGeometry(1, 0);
   if (shape === 'hill') {
-    const geometry = new THREE.SphereGeometry(1, 7, 3, 0, Math.PI * 2, 0, Math.PI / 2);
+    const geometry = new THREE.SphereGeometry(1, backdrop ? 12 : 7, backdrop ? 6 : 3, 0, Math.PI * 2, 0, Math.PI / 2);
     return geometry;
   }
   if (shape === 'pole') return new THREE.CylinderGeometry(0.5, 0.5, 1, 5);
@@ -63,13 +63,13 @@ function paletteColor(theme, token) {
   return theme[key] || theme.props[key];
 }
 
-function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, castShadow }) {
+function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, castShadow, backdrop = false }) {
   const meshRef = useRef(null);
   const invalidate = useThree(state => state.invalidate);
   const resources = useMemo(() => {
-    const geometry = makeGeometry(shape);
+    const geometry = makeGeometry(shape, backdrop);
     return { geometry, matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), localRotation: new THREE.Quaternion(), axis: new THREE.Vector3(0, 1, 0), pitchAxis: new THREE.Vector3(0, 0, 1), pitch: new THREE.Quaternion(), roll: new THREE.Quaternion(), color: new THREE.Color() };
-  }, [shape]);
+  }, [shape, backdrop]);
   useEffect(() => () => resources.geometry.dispose(), [resources]);
   const write = (colors = false) => {
     const mesh = meshRef.current;
@@ -100,10 +100,20 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parts, fleet, roadLength, theme, resources, invalidate]);
   useFrame(() => { if (clockRef.current.step) write(); });
-  return <instancedMesh name={`prr-scenery-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
-    castShadow={castShadow && ['cone', 'round', 'box', 'pole'].includes(shape)} receiveShadow={shape !== 'hill'}>
+  return <instancedMesh name={`prr-${backdrop ? 'backdrop' : 'scenery'}-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
+    castShadow={castShadow && ['cone', 'round', 'box', 'pole'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
     <meshStandardMaterial color="#ffffff" map={shape === 'sign' ? texture : null} roughness={0.95} flatShading />
   </instancedMesh>;
+}
+
+function Backdrop({ roadLength, roadWidth, theme, clockRef }) {
+  const layout = useMemo(() => computeBackdropLayout(roadLength, roadWidth), [roadLength, roadWidth]);
+  const fleet = useMemo(() => createRoadsideFleet(layout, clockRef.current.distance), [layout, clockRef]);
+  return <group name="prr-distant-landscape">
+    <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
+    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={shape} shape={shape} parts={parts}
+      fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} castShadow={false} backdrop />)}
+  </group>;
 }
 
 export default function Roadside({ roadLength, roadWidth, theme, clockRef, castShadow = false, lightingRef, streetlightCount = 0 }) {
@@ -112,6 +122,7 @@ export default function Roadside({ roadLength, roadWidth, theme, clockRef, castS
   const texture = useMemo(brandTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
   return <group name="prr-logistics-roadside">
+    <Backdrop roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} />
     <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
     {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} castShadow={castShadow} />)}
     <RoadsideLights lamps={layout.streetlights} fleet={fleet} roadLength={roadLength} clockRef={clockRef} lightingRef={lightingRef} sourceCount={streetlightCount} />
