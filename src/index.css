@@ -8330,3 +8330,13 @@ body.dark-mode .prr-scope-chip.highlight {
 }
 .export-filter-footer .btn-primary-sleek:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; }
 .msd-search input:focus-visible { outline: 0; box-shadow: none; }
+
+/* Chế độ xem Theo tuần của Chi tiết Vùng/Hub (WeeklyKpiTable). */
+.weekly-kpi-note { padding: 2.5rem; text-align: center; color: var(--text-muted); }
+.weekly-kpi-badge { background: var(--surface-hover); color: var(--ghn-blue-dark); }
+.weekly-kpi-expander { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.weekly-kpi-expander:focus-visible { outline: 2px solid var(--ghn-blue); outline-offset: 2px; border-radius: 4px; }
+table.weekly-kpi-table td.weekly-kpi-hub { padding-left: 1.6rem; font-weight: 400; }
+table.weekly-kpi-table td.weekly-kpi-more { color: var(--text-muted); font-size: 0.75rem; text-align: left; }
+table.weekly-kpi-table td.lbl { min-width: 150px; max-width: 220px; }
+@media (max-width: 720px) { .view-mode-toggle { margin-left: 0 !important; } }

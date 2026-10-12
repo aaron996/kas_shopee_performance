@@ -738,6 +738,7 @@ export default function App() {
       clientFilter,
       expandAllHubs,
       selectedRegions,
+      selectedHubTypes,
       isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
       emptyFilter: allHubTypes.length > 0 && selectedHubTypes.length === 0 ? 'hubTypes' : (selectedRegions.length === 0 ? 'regions' : null),
       onResetFilters: resetFilters,

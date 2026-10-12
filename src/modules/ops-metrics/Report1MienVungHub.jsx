@@ -1,5 +1,6 @@
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
+import WeeklyKpiTable from './WeeklyKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
@@ -12,6 +13,14 @@ import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
 
+const WEEKLY_TITLES = {
+  p1st: 'Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)',
+  popr: 'Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)',
+  d1st: 'Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)',
+  dodr: 'Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)',
+  fd: 'Mục 1.5: Tỷ lệ hoàn thành FD (FD)'
+};
+
 export default function Report1MienVungHub({
   pickRows,
   deliRows,
@@ -19,6 +28,7 @@ export default function Report1MienVungHub({
   clientFilter,
   expandAllHubs,
   selectedRegions = [],
+  selectedHubTypes = null,
   isHubTypeFiltered = false,
   emptyFilter = null,
   onResetFilters = null,
@@ -43,6 +53,8 @@ export default function Report1MienVungHub({
   const [activeTableTab, setActiveTableTab] = useState(() => {
     return focusTarget?.metricKey || 'p1st';
   });
+  // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
+  const [viewMode, setViewMode] = useState('day');
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -1268,9 +1280,26 @@ export default function Report1MienVungHub({
               FD
             </button>
           </div>
+          {/* Không dùng role="tab": bộ xử lý phím mũi tên ở trên chỉ duyệt các tab chỉ số. */}
+          <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem" style={{ marginLeft: 'auto' }}>
+            <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={() => setViewMode('day')}>
+              Theo ngày
+            </button>
+            <button type="button" aria-pressed={viewMode === 'week'} className={`kpi-table-tab ${viewMode === 'week' ? 'active' : ''}`} onClick={() => setViewMode('week')}>
+              Theo tuần
+            </button>
+          </div>
         </div>
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
-          {metricTables[activeTableTab]?.()}
+          {viewMode === 'week' ? (
+            <WeeklyKpiTable
+              metricKey={activeTableTab}
+              title={WEEKLY_TITLES[activeTableTab]}
+              clientFilter={clientFilter}
+              selectedRegions={selectedRegions}
+              selectedHubTypes={selectedHubTypes}
+            />
+          ) : metricTables[activeTableTab]?.()}
         </div>
       </div>
 
