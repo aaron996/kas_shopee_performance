@@ -44,6 +44,7 @@ import useScenePlayback from './useScenePlayback.js';
 import { MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { useToast } from '../../components/ui/Toast.jsx';
 import useRankingPresentation from './useRankingPresentation.js';
+import RankingMusicWidget from './RankingMusicWidget.jsx';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
@@ -75,6 +76,7 @@ function getInitialSceneMode(webgl2) {
 
 
 export default function PerformanceRoadRanking({
+  active = true,
   pickRows = EMPTY_ROWS,
   deliRows = EMPTY_ROWS,
   clientFilter = 'ALL',
@@ -355,6 +357,8 @@ export default function PerformanceRoadRanking({
       {headerTarget && !immersive ? createPortal(stageControls, headerTarget) : stageControls}
       {sceneOnly && <button type="button" className={`prr-restore-interface ${presentation.restoreVisible ? 'is-visible' : ''}`}
         onClick={toggleSceneOnly} onFocus={presentation.revealRestore} aria-label="Hiện giao diện" title="Hiện giao diện (Esc)"><Eye size={16} aria-hidden="true" /></button>}
+      <div className="prr-scene-surface">
+      <RankingMusicWidget active={active} />
       <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} aria-label="Tuyến đường xếp hạng Hub">
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (
@@ -403,6 +407,7 @@ export default function PerformanceRoadRanking({
           )
         )}
       </section>
+      </div>
 
       {/* 3. Selected Hub Insight Detail Panel */}
       {!sceneOnly && selectedHubItem && (
