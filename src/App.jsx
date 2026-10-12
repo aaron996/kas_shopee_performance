@@ -1,5 +1,5 @@
 import { getAppPermissions } from './utils/appRoles';
-import AnimatedIcon from './components/ui/AnimatedIcon';
+import MobileNavigation from './components/MobileNavigation';
 import IconInteractions from './components/ui/IconInteractions';
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
@@ -21,7 +21,7 @@ import { groupDatesByWeek, normalizeDashboardRows, filterRowsByScope, collectHub
 import { supabase } from './utils/supabaseClient';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
-import { navigationModules, preloadDashboardModules } from './modules/moduleRegistry.jsx';
+import { preloadDashboardModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
 import { clientVisitToken, needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
@@ -907,21 +907,7 @@ export default function App() {
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
-          <nav className="mobile-bottom-nav">
-            {navigationModules('mobile', currentUser).map(module => {
-              return (
-                <button
-                  key={module.id}
-                  className={`mobile-nav-item ${activeTab === module.id ? 'active' : ''}`}
-                  aria-current={activeTab === module.id ? 'page' : undefined}
-                  onClick={() => setActiveTab(module.id)}
-                >
-                  <AnimatedIcon name={module.motionIcon} size={18} />
-                  <span>{module.mobileLabel}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <MobileNavigation activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} />
 
           {/* Executive D-1 vs D-8 Summary Modal */}
           <ExecutiveSummaryModal

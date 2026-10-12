@@ -1198,7 +1198,12 @@ export default function Report1MienVungHub({
     </StatusNotice>
   );
 
-  if (overview) return <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} />;
+  const exportDialog = <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV} />;
+
+  if (overview) return <>
+    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} />
+    {exportDialog}
+  </>;
 
   return (
     <div className={`ops-workspace ${isFullscreen ? 'fullscreen-mode-active' : ''}`}>
@@ -1303,7 +1308,7 @@ export default function Report1MienVungHub({
         </div>
       </div>
 
-      <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV} />
+      {exportDialog}
 
       {showHomeBtn && (
         <button className="home-fab" onClick={scrollToTop} aria-label="Cuộn lên đầu trang">
