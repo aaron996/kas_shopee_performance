@@ -21,7 +21,8 @@ export function truckRidePhase(id) {
 }
 
 export function sampleWorstRide(time, strength, phase = 0, reducedMotion = false) {
-  const s = reducedMotion ? 0 : clamp01(strength);
+  const breath = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 0.65 + phase)) ** 2;
+  const s = reducedMotion ? 0 : clamp01(strength) * breath;
   if (!s) return { bounce: 0, pitch: 0, roll: 0, yaw: 0 };
   const beat = time * 4.8 + phase;
   const jolt = Math.max(0, Math.sin(beat * 1.7)) ** 8;
@@ -38,13 +39,47 @@ export function sampleWorstRide(time, strength, phase = 0, reducedMotion = false
 export function sampleWorstSkid(time, order, phase = 0, reducedMotion = false) {
   if (order !== 1 || reducedMotion) return { lateral: 0, yaw: 0, smoke: 0, spinExtra: 0 };
   const beat = time * 2.6 + phase;
-  const yaw = -0.32 * Math.cos(beat) + 0.09 * Math.sin(beat * 1.9);
+  const episode = 0.38 + 0.62 * (0.5 + 0.5 * Math.cos(time * 0.62 + phase)) ** 2;
+  const yaw = (-0.32 * Math.cos(beat) + 0.09 * Math.sin(beat * 1.9)) * episode;
   return {
-    lateral: 0.82 * Math.sin(beat) + 0.24 * Math.sin(beat * 1.9 + 0.5),
+    lateral: (0.82 * Math.sin(beat) + 0.24 * Math.sin(beat * 1.9 + 0.5)) * episode,
     yaw,
-    smoke: 0.45 + 0.55 * Math.abs(yaw) / 0.41,
+    smoke: 0.06 + episode * (0.12 + 0.72 * Math.abs(yaw) / 0.41),
     spinExtra: time * 1.8
   };
+}
+
+export function createTruckSuspension() {
+  return { speed: CRUISE_SPEED, pitch: 0, roll: 0, pitchVelocity: 0, rollVelocity: 0 };
+}
+
+// Critical damping (mass 1, stiffness 100, damping 20) gives a heavy body
+// response without oscillating the wheels or altering any rank anchor.
+export function advanceTruckSuspension(state, speed, steering, delta, reducedMotion = false) {
+  if (reducedMotion) {
+    Object.assign(state, createTruckSuspension(), { speed });
+    return state;
+  }
+  const dt = Number.isFinite(delta) ? Math.max(0, Math.min(0.2, delta)) : 0;
+  if (!dt) return state;
+  const acceleration = (speed - state.speed) / dt;
+  state.speed = speed;
+  const pitch = Math.max(-0.06, Math.min(0.06, -acceleration * 0.008));
+  const roll = Math.max(-0.07, Math.min(0.07, -steering * 0.32));
+  const steps = Math.ceil(dt * 120), step = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    for (const [axis, target] of [['pitch', pitch], ['roll', roll]]) {
+      const velocity = `${axis}Velocity`;
+      state[velocity] += ((target - state[axis]) * 100 - state[velocity] * 20) * step;
+      state[axis] += state[velocity] * step;
+    }
+  }
+  return state;
+}
+
+export function leaderExhaust(time, surge = 0) {
+  const emphasis = clamp01(surge);
+  return { length: (0.48 + emphasis * 3.6) * (1 + Math.sin(time * 6) * 0.06), width: 0.13 + emphasis * 0.18 };
 }
 
 // Bias an outer-lane skid towards the road centre and retain clearance for

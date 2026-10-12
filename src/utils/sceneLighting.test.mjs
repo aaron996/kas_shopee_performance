@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, INITIAL_DAY_PHASE, phaseForLightingMode, sampleSceneLighting, wrapDayPhase } from './sceneLighting.js';
+import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, INITIAL_DAY_PHASE, phaseForLightingMode, sampleSceneLighting, sceneFogRange, wrapDayPhase } from './sceneLighting.js';
 
 test('solar time loops after six active minutes at different frame rates', () => {
   for (const fps of [20, 30, 60]) {
@@ -12,6 +12,18 @@ test('solar time loops after six active minutes at different frame rates', () =>
   assert.equal(formatSceneTime(1), '00:00');
   assert.equal(formatSceneTime(9 / 24), '09:00');
   assert.equal(formatSceneTime(23 / 24 + 59 / 1440), '23:59');
+});
+
+test('fog preserves the near fleet and expands with overview zoom rather than total road length', () => {
+  for (const distance of [6, 10, 20, 35, 80, 200]) {
+    const range = sceneFogRange(distance);
+    assert.ok(range.near > distance && range.far > range.near + 60);
+    assert.ok(Number.isFinite(range.near) && Number.isFinite(range.far));
+  }
+  assert.ok(sceneFogRange(20).near < 50);
+  assert.ok(sceneFogRange(20).far < 200);
+  assert.ok(sceneFogRange(80).near > sceneFogRange(20).far / 2);
+  assert.deepEqual(sceneFogRange(NaN), sceneFogRange(20));
 });
 
 test('pause freezes time and a background gap cannot skip hours', () => {
@@ -52,6 +64,8 @@ test('day has stronger light and shorter shadows than early morning; moonlight i
   assert.ok(noon.ambientIntensity > night.ambientIntensity);
   assert.ok(noon.shadowIntensity > night.shadowIntensity);
   assert.equal(noon.moonOpacity, 0); assert.equal(night.sunOpacity, 0);
+  assert.ok(night.ambientIntensity >= 0.65 && night.keyIntensity >= 0.45, 'night retains readable vehicle forms');
+  assert.ok(noon.ambientIntensity < 1.5, 'daylight leaves room for directional shape');
 });
 
 test('sunrise, sunset and midnight wrap have continuous brightness and sky colours', () => {

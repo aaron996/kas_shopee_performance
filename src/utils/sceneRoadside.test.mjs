@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Frustum, Matrix4, PerspectiveCamera, Sphere, Vector3 } from 'three';
-import { advanceRoadsideFleet, computeRoadsideLayout, createRoadsideFleet, sampleSceneryFrame } from './sceneRoadside.js';
+import { advanceRoadsideFleet, computeBackdropLayout, computeRoadsideLayout, createRoadsideFleet, sampleSceneryFrame } from './sceneRoadside.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
 import { tvCameraGoal } from './sceneCamera.js';
 
@@ -14,6 +14,37 @@ test('visible scenery travels past the old cutoff and loop seam without teleport
   const paused = structuredClone(fleet);
   assert.deepEqual(advanceRoadsideFleet(fleet, 1000, layout.span, () => false), []);
   assert.deepEqual(fleet, paused);
+});
+
+test('distant landscape recycles only outside the camera and keeps a bounded fleet through long travel', () => {
+  for (const length of [196, 284]) {
+    const layout = computeBackdropLayout(length, 11), fleet = createRoadsideFleet(layout);
+    const count = fleet.clusters.size;
+    assert.ok(count <= 24);
+    const camera = new PerspectiveCamera(56, 1280 / 674, 0.5, length * 2);
+    const goal = tvCameraGoal(length, 11, camera.aspect);
+    camera.position.fromArray(goal.position); camera.lookAt(...goal.target); camera.updateMatrixWorld();
+    const frustum = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const sphere = new Sphere();
+    const visible = (anchor, radius) => {
+      const f = sampleSceneryFrame(anchor, 0, length);
+      sphere.center.set(f.x, f.y, f.z); sphere.radius = radius;
+      return frustum.intersectsSphere(sphere);
+    };
+    let recycles = 0;
+    for (let distance = 2; distance <= 4000; distance += 2) {
+      const events = advanceRoadsideFleet(fleet, distance, layout.span, visible);
+      recycles += events.length;
+      for (const event of events) {
+        const radius = fleet.clusters.get(event.id).radius;
+        assert.equal(visible(event.from, radius), false);
+        assert.equal(visible(event.to, radius), false);
+      }
+    }
+    assert.ok(recycles > count);
+    assert.equal(fleet.clusters.size, count);
+    assert.ok([...fleet.clusters.values()].every(cluster => Number.isFinite(cluster.anchor) && Math.abs(cluster.anchor) < layout.span * 2));
+  }
 });
 
 test('recycling skips a visible arrival and keeps the same finite fleet', () => {

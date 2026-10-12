@@ -1,5 +1,62 @@
 # BXH Performance dạng 3D
 
+## Ánh sáng xe, chất liệu và chuyển động (2026-10-12)
+
+- `TruckRoadLighting.jsx` dùng bốn InstancedMesh chung cho đèn đầu, đèn
+  hậu, vùng sáng trên nhựa đường và bóng tiếp xúc. Đèn đi theo pose thân
+  xe, còn pool/bóng tiếp xúc theo mặt đường cong; không thêm nguồn sáng
+  hoặc shadow pass theo từng xe. Đoàn xe trang trí trong tour cũng có đèn.
+- `sceneTruckSurface.js` phân vùng phản ứng ánh sáng trên model hiện tại:
+  kính cabin bóng hơn sơn, thùng hàng mờ hơn, cao su mờ và vành bánh kim loại.
+  Texture, geometry và byte của GLB gốc giữ nguyên. Ánh sáng nền đêm được
+  nâng vừa phải để đọc khối xe, daylight bớt fill để bóng tạo khối rõ hơn;
+  nhựa đường có bump rất nhẹ từ texture đang dùng.
+- Thân xe dùng spring tắt dần (mass 1, stiffness 100, damping 20), phản ứng
+  với thay đổi tốc độ riêng từng xe và góc chuyển làn. Bánh và vị trí thứ
+  hạng không bị spring dịch chuyển. Pause giữ state; reduced motion đưa
+  thân xe về tư thế tĩnh. Nitro lúc cruise gọn hơn và mở mạnh khi surge;
+  Worst ride/skid/khói có nhịp mạnh–dịu theo phase ổn định của Hub.
+- `tourShot()` chia đường bay liền mạch 3 giây thành depart → convoy → arrive:
+  mở khung khi rời nhóm, tiến gần đoàn xe ở giữa, mở lại rồi ổn định tại đích.
+  Pause giữ tiến độ tour, resume tiếp tục phần còn lại; đổi nhanh giữ tính
+  ngắt/khởi động lại từ vị trí đang thấy. Follow camera dịch theo xe với độ
+  trễ nhẹ, giữ góc orbit/zoom của người xem.
+- Kiểm chứng local: 601/601 tests, changed-source lint, build, diff-check;
+  shader trong IAB link thành công. Mẫu runtime Worst 50 ghi nhận đủ ba
+  chặng tour, 100 đèn đầu + 100 đèn hậu + 50 pool + 50 bóng tiếp xúc,
+  tất cả batch đèn không cast shadow. Sai lệch pose bóng < 0.000001 và
+  đèn < 0.00001 world units trong các mẫu đã thu. Pause giữa tour giữ
+  simulation time, khoảng chạy và `t`; reduced motion đổi nhóm ngay.
+- Ảnh và probes: `output/playwright/bxh-visual-audit/complete/`. Kiểm tra
+  desktop và viewport 390 × 844 với dữ liệu mẫu, không quy renderer calls
+  hoặc callback cadence thành FPS thiết bị thật. Cảnh đêm vẫn giữ vùng
+  tối có chủ đích; chưa đo FPS điện thoại thật hoặc xác minh BXH production.
+
+## Chiều sâu thế giới và camera (2026-10-12)
+
+- TV cam hạ góc nhìn từ 34° xuống 23° trên khung rộng, nhìn dọc tuyến ở
+  góc 42°. Khung hẹp tăng elevation/FOV và lùi camera theo aspect để giữ
+  xe dẫn đầu/W1 trong hình, kể cả silhouette lúc W1 trượt ngang.
+- Góc khởi tạo bám xe theo tiếp tuyến và độ dốc của đường, nhìn trước xe
+  2.6 đơn vị. Khi đã ổn định, tiếp tục giữ orbit/zoom người xem và dịch
+  camera theo xe; không khóa lại góc nhìn mỗi frame.
+- `sceneFogRange()` tính khoảng fog theo khoảng cách camera–target. Cảnh
+  gần vẫn rõ; cảnh xa hòa dần vào màu trời. Zoom toàn cảnh mở rộng fog,
+  độc lập với chiều dài đoạn nối tour Best/Worst.
+- `computeBackdropLayout()` thêm hai lớp đồi xa và silhouette kho trung cảnh.
+  Backdrop có pool riêng, dùng hai InstancedMesh không cast/receive shadow,
+  chung đồng hồ chạy/dừng với cảnh. Chỉ tái sử dụng cụm khi cả vị trí cũ
+  lẫn mới nằm ngoài camera; không mở rộng lifetime của props ven đường.
+- Kiểm tra local bằng Codex IAB riêng với dữ liệu mẫu: ngày/đêm, Best/Worst,
+  20/50 xe, TV/follow/overview, replay, pause, giảm chuyển động và viewport
+  dọc 390 × 844. Pause giữ nguyên khoảng chạy đã lấy mẫu. Kiểm tra hình học
+  bao toàn thân xe khi skid, nhãn xe đầu, hướng bám xe, fog khi zoom và
+  tái sử dụng backdrop trong lượt chạy dài.
+- Ảnh kết quả: `output/playwright/bxh-visual-audit/world-depth-v1/`.
+  Preview local: `extracted/bxh-visual-audit/`. Đây là bằng chứng renderer
+  local với dữ liệu mẫu, chưa chứng minh dữ liệu BXH production, FPS hoặc
+  trải nghiệm trên điện thoại thật.
+
 ## Ven đường theo concept logistics GHN (2026-10-07)
 
 - Nền cỏ xanh nhạt (sáng) / xanh trầm (tối), đồi thấp dạng đa giác, mây thưa;
