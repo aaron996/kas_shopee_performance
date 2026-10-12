@@ -66,6 +66,7 @@ sync hằng ngày trước khi dữ liệu cuối của backfill rơi khỏi c�
   gọi RPC, chạy `normalizeDashboardRows`, lọc theo client, Vùng, Loại Hub đang chọn, rồi cộng tử và mẫu theo tuần
   trước khi chia. Mỗi tuần hai cột (% và volume), tối đa 9 tuần, hàng Toàn quốc > Miền > Vùng, bấm Vùng để mở hub
   (10 hub nhiều đơn trễ nhất tuần mới nhất; FD là kho giao). Tuần chưa đủ 7 ngày ghi rõ số ngày.
+- Bộ lọc khoảng ngày nằm ở header bảng theo tuần (`DateField` + preset 4 tuần / 8 tuần / Tất cả). Dữ liệu chỉ có theo tuần nên khoảng ngày giữ các tuần có ngày nằm trong khoảng; lọc đúng theo ngày cần RPC trả dữ liệu theo ngày. Bảng "Theo ngày" chưa có bộ lọc.
 - Kết quả được nhớ theo bảng nguồn trong phiên (chuyển 1st Pickup <-> OPR không gọi lại); lỗi RPC hiện nút
   Thử lại. Không có cột "Tốt nhất 6 tuần" và "Cùng ngày tháng trước".
 - Số theo tuần có thể lệch bảng theo ngày ở các ngày nằm trong cả hai nguồn nếu hai bảng được refresh ở hai
