@@ -513,7 +513,7 @@
   ],
   "narrative": {
     "northStar": "The Calm Operations Desk",
-    "overview": "GHN KAS is an operations workspace, not a marketing surface. It should make scope, freshness, risk, and the next drill-down legible at a glance. The visual language is airy and pastel-blue, while the density and wording remain practical enough for repeated daily analysis.\n\nWhite data surfaces sit on a pale blue canvas. Cyan is reserved for primary interaction and orange for GHN emphasis or attention; status colors communicate state, not decoration. The system favors compact controls, clear borders, and restrained diffuse elevation over glossy or ornamental treatment.\n\n**Key Characteristics:",
+    "overview": "GHN KAS is an operations workspace, not a marketing surface. It should make scope, freshness, risk, and the next drill-down legible at a glance. The visual language is airy and pastel-blue, while the density and wording remain practical enough for repeated daily analysis.\n\nWhite data surfaces sit on a pale blue canvas. Cyan is reserved for primary interaction and orange for GHN emphasis or attention; status colors communicate state, not decoration. The system favors compact controls, clear borders, and restrained diffuse elevation over glossy or ornamental treatment.",
     "keyCharacteristics": [
       "Operational hierarchy before decoration.",
       "One shared shape scale for repeated UI roles.",
