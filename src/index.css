@@ -8339,4 +8339,8 @@ body.dark-mode .prr-scope-chip.highlight {
 table.weekly-kpi-table td.weekly-kpi-hub { padding-left: 1.6rem; font-weight: 400; }
 table.weekly-kpi-table td.weekly-kpi-more { color: var(--text-muted); font-size: 0.75rem; text-align: left; }
 table.weekly-kpi-table td.lbl { min-width: 150px; max-width: 220px; }
-@media (max-width: 720px) { .view-mode-toggle { margin-left: 0 !important; } }
+.weekly-range { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
+.weekly-range-sep { color: var(--text-muted); }
+.weekly-range-presets { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.weekly-range .export-filter-error { flex-basis: 100%; margin: 0; }
+@media (max-width: 720px) { .view-mode-toggle { margin-left: 0 !important; } .weekly-range { margin-left: 0; } }

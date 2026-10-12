@@ -41,7 +41,7 @@
 
 .sidebar-nav .sidebar-nav-item.active{border-left-color:transparent}
 .ops-workspace .top-split-left{background:transparent;border:0;box-shadow:none;padding:0;backdrop-filter:none}.ops-workspace .kpi-header-accent{display:none}.ops-workspace .kpi-header-title{font-size:14px}.ops-workspace .metric-title{flex:1}.ops-workspace .metric-header{gap:8px}.ops-workspace .risk-chips-list-sleek{flex-wrap:nowrap;overflow-x:auto;min-width:0}.ops-workspace .risk-chip-sleek{flex-shrink:0}.ops-workspace .alert-strip-sleek{align-items:center}.ops-workspace .risk-alert-title-sleek{flex-shrink:0}
-.ops-workspace .kpi-table-tabs{position:relative}.ops-workspace .kpi-table-tabs .selection-indicator{background:var(--action-primary);box-shadow:none;z-index:0}.ops-workspace .kpi-table-tab{position:relative;z-index:1;box-shadow:none}.ops-workspace .kpi-table-tab.active{background:transparent;box-shadow:none}.ops-workspace .kpi-tab-group{background:var(--surface-subtle)}
+.ops-workspace .kpi-table-tabs{position:relative}.ops-workspace .kpi-table-tabs .selection-indicator{background:var(--action-primary);box-shadow:none;z-index:0}.ops-workspace .kpi-table-tab{position:relative;z-index:1;box-shadow:none}.ops-workspace .kpi-table-tab.active{background:transparent;box-shadow:none}.ops-workspace .kpi-tab-group{background:var(--surface-subtle)}.ops-workspace .view-mode-toggle .kpi-table-tab.active{background:var(--action-primary);color:#fff}
 
 @media(max-width:767px){.mobile-bottom-nav{padding-left:6px;padding-right:6px}.mobile-bottom-nav .mobile-nav-item{min-width:56px;flex:1 0 56px}.home-kpi-card{scroll-margin-top:120px}.ops-workspace .metric-header .btn-secondary{min-width:36px}}
 
