@@ -17,7 +17,9 @@ import './BrandSplash.css';
  *    then fades out (400ms), but never before MIN_SHOW_MS so a fast sync does not
  *    flash the video.
  *  - "Bỏ qua" appears only after the core live data is ready, and skips the remaining
- *    video time. onComplete runs after the fade, before client onboarding opens.
+ *    video time. `skipAnytime` (dev, or user who already saw the intro today) shows
+ *    it immediately, even right after an app update while data is still loading.
+ *    onComplete runs after the fade, before client onboarding opens.
  *  - prefers-reduced-motion, or a blocked/failed autoplay, shows the static
  *    logo instead of the video.
  */
@@ -30,11 +32,11 @@ function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }
 
-export default function BrandSplash({ ready, canSkip = ready, onComplete }) {
+export default function BrandSplash({ ready, canSkip = ready, skipAnytime = false, onComplete }) {
   const [phase, setPhase] = useState('show');
   const [useStatic, setUseStatic] = useState(prefersReducedMotion);
   const [minElapsed, setMinElapsed] = useState(false);
-  const skipVisible = ready && canSkip && phase === 'show';
+  const skipVisible = (skipAnytime || (ready && canSkip)) && phase === 'show';
   const videoRef = useRef(null);
 
   useEffect(() => {

@@ -29,7 +29,7 @@ test('BrandSplash is accessible, muted, and falls back to the static logo', () =
 
 test('App mounts BrandSplash immediately and waits for core live data and overview chunks, not cache restore', () => {
   assert.match(app, /import BrandSplash from '\.\/components\/BrandSplash\.jsx'/);
-  assert.match(app, /introVisible && <BrandSplash key=\{userEmail\} ready=\{liveSyncSettled && coreModulesReady\} canSkip=\{overviewDataReady\} onComplete=\{handleIntroComplete\} \/>/);
+  assert.match(app, /introVisible && <BrandSplash key=\{userEmail\} ready=\{liveSyncSettled && coreModulesReady\} canSkip=\{overviewDataReady\} skipAnytime=\{introSkipAnytime\} onComplete=\{handleIntroComplete\} \/>/);
   assert.match(app, /setLiveSyncSettled\(true\)/);
   const cacheRestore = app.slice(app.indexOf('loadSyncSnapshot(currentUser.email)'), app.indexOf('autoRefreshBusinessDayRef = '));
   assert.doesNotMatch(cacheRestore, /setLiveSyncSettled/, 'a cache hit must not dismiss the intro');
@@ -40,7 +40,9 @@ test('App mounts BrandSplash immediately and waits for core live data and overvi
 });
 
 test('splash has a skip button, a minimum display time, and a gentle reveal', () => {
-  assert.match(splash, /const skipVisible = ready && canSkip && phase === 'show'/);
+  assert.match(splash, /const skipVisible = \(skipAnytime \|\| \(ready && canSkip\)\) && phase === 'show'/);
+  assert.match(app, /introSkipAnytime = Boolean\(currentUser\?\.isDevAdmin\) \|\| introSeenToday/);
+  assert.match(app, /markIntroSeen\(localStorage, userEmail\)/);
   assert.match(splash, /\{skipVisible && \(/);
   assert.doesNotMatch(splash, /SKIP_DELAY_MS|setSkipVisible/);
   assert.match(splash, /Bỏ qua/);
