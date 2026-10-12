@@ -1,7 +1,7 @@
 import { getAppPermissions } from './utils/appRoles';
 import AnimatedIcon from './components/ui/AnimatedIcon';
 import IconInteractions from './components/ui/IconInteractions';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
@@ -24,7 +24,8 @@ import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { navigationModules, preloadDashboardModules } from './modules/moduleRegistry.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import BrandSplash from './components/BrandSplash.jsx';
-import { clientVisitToken, needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
+import { hasSeenIntroToday, markIntroSeen } from './utils/introSeen.js';
+import { clientVisitToken,needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
 import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay } from './utils/syncCache.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
@@ -144,7 +145,16 @@ export default function App() {
   const hasPickedClient = hostPickedClient || !userEmail ||
     clientChoiceToken === clientVisitToken(userEmail, __APP_BUILD_ID__) ||
     !needsClientChoice(localStorage, userEmail, __APP_BUILD_ID__);
-  const handleIntroComplete = useCallback(() => setIntroCompletedFor(userEmail), [userEmail]);
+  // Read once per user at mount: marking on completion must not retroactively change this visit.
+  const introSeenToday = useMemo(
+    () => !!userEmail && hasSeenIntroToday(localStorage, userEmail),
+    [userEmail]
+  );
+  const introSkipAnytime = Boolean(currentUser?.isDevAdmin) || introSeenToday;
+  const handleIntroComplete = useCallback(() => {
+    if (userEmail) markIntroSeen(localStorage, userEmail);
+    setIntroCompletedFor(userEmail);
+  }, [userEmail]);
 
   // Let the host page (Control Tower) update the scope live via postMessage
   // instead of reloading the iframe. Expected shape:
@@ -816,7 +826,7 @@ export default function App() {
       />}
 
       {/* Brand intro over the first live data sync of every load (10–15s); skippable. */}
-      {introVisible && <BrandSplash key={userEmail} ready={liveSyncSettled && coreModulesReady} canSkip={overviewDataReady} onComplete={handleIntroComplete} />}
+      {introVisible && <BrandSplash key={userEmail} ready={liveSyncSettled && coreModulesReady} canSkip={overviewDataReady} skipAnytime={introSkipAnytime} onComplete={handleIntroComplete} />}
 
       {/* Command palette — Cmd/Ctrl+K từ bất kỳ đâu */}
       <CommandPalette
