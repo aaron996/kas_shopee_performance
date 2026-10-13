@@ -68,3 +68,33 @@
   .prr-music-disc { animation: none; }
   .prr-music-toggle { transition: none; }
 }
+
+/* Dev-only playlist editor */
+.prr-music-manager { max-width: 640px; }
+.prr-mm-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 8px; }
+.prr-mm-head h2 { margin: 0; font-size: 17px; }
+.prr-mm-body { padding: 8px 20px; overflow-y: auto; min-height: 120px; }
+.prr-mm-note { margin: 0; font-size: 12px; color: var(--text-secondary, var(--text-primary)); }
+.prr-mm-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.prr-mm-item { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 10px; }
+.prr-mm-item[data-inactive='true'] { opacity: 0.6; }
+.prr-mm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.prr-mm-title {
+  flex: 1 1 160px; min-width: 0; height: 36px; padding: 0 10px;
+  border: 1px solid var(--border-subtle); border-radius: 8px;
+  background: var(--surface-default); color: var(--text-primary); font: inherit; font-size: 14px;
+}
+.prr-mm-active { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.prr-mm-audio { width: 100%; height: 36px; }
+.prr-mm-icon, .prr-mm-text, .prr-mm-danger, .prr-mm-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 36px; height: 36px; padding: 0 10px; border: 0; border-radius: 8px;
+  background: var(--surface-subtle); color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer;
+}
+.prr-mm-icon { padding: 0; }
+.prr-mm-danger { background: #dc2626; color: #fff; }
+.prr-mm-primary { background: var(--action-primary); color: var(--text-on-brand); font-weight: 600; }
+.prr-mm-icon:disabled, .prr-mm-primary:disabled, .prr-mm-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.prr-mm-icon:focus-visible, .prr-mm-text:focus-visible, .prr-mm-danger:focus-visible, .prr-mm-primary:focus-visible,
+.prr-mm-title:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+.prr-mm-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px 16px; border-top: 1px solid var(--border-subtle); }

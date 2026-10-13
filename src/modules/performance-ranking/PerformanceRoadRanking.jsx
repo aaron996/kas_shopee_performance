@@ -84,7 +84,8 @@ export default function PerformanceRoadRanking({
   selectedHubTypes = null,
   onJumpToReport1,
   onExit,
-  density = 'comfortable'
+  density = 'comfortable',
+  canManageMusic = false
 }) {
   const [metricKey, setMetricKey] = useState('p1st');
   const [selectedHubId, setSelectedHubId] = useState(null);
@@ -358,7 +359,7 @@ export default function PerformanceRoadRanking({
       {sceneOnly && <button type="button" className={`prr-restore-interface ${presentation.restoreVisible ? 'is-visible' : ''}`}
         onClick={toggleSceneOnly} onFocus={presentation.revealRestore} aria-label="Hiện giao diện" title="Hiện giao diện (Esc)"><Eye size={16} aria-hidden="true" /></button>}
       <div className="prr-scene-surface">
-      <RankingMusicWidget active={active} />
+      <RankingMusicWidget active={active} canManage={canManageMusic} />
       <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} aria-label="Tuyến đường xếp hạng Hub">
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (
