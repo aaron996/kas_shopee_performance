@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchDailyRows, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
+import { fetchDailyRangeRows, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 
 // Cụm lọc khoảng ngày của "Theo ngày". `bounds` là ngày đầu/cuối có thể chọn của chỉ số đang xem.
@@ -37,7 +37,7 @@ export default function DailyRangeKpiTable({
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
-  fetchRows = fetchDailyRows,
+  fetchRows = fetchDailyRangeRows,
   client = supabase
 }) {
   const metric = WEEKLY_METRICS[metricKey];

@@ -77,7 +77,6 @@ function getInitialSceneMode(webgl2) {
 
 
 export default function PerformanceRoadRanking({
-  active = true,
   pickRows = EMPTY_ROWS,
   deliRows = EMPTY_ROWS,
   clientFilter = 'ALL',
@@ -85,8 +84,7 @@ export default function PerformanceRoadRanking({
   selectedHubTypes = null,
   onJumpToReport1,
   onExit,
-  density = 'comfortable',
-  canManageMusic = false
+  density = 'comfortable'
 }) {
   const [metricKey, setMetricKey] = useState('p1st');
   const [selectedHubId, setSelectedHubId] = useState(null);
@@ -374,7 +372,7 @@ export default function PerformanceRoadRanking({
       {sceneOnly && <button type="button" className={`prr-restore-interface ${presentation.restoreVisible ? 'is-visible' : ''}`}
         onClick={toggleSceneOnly} onFocus={presentation.revealRestore} aria-label="Hiện giao diện" title="Hiện giao diện (Esc)"><Eye size={16} aria-hidden="true" /></button>}
       <div className="prr-scene-surface">
-      <RankingMusicWidget active={active} canManage={canManageMusic} />
+      <RankingMusicWidget />
       <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} aria-label="Tuyến đường xếp hạng Hub">
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (

@@ -14,7 +14,7 @@ import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchWeeklyRows, clearWeeklyCache, WEEKLY_WEEKS, resolveDayRange } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange } from '../../utils/weeklyKpi';
 
 const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
 const EXPORT_MODES = [{ value: 'day', label: 'Theo ngày' }, { value: 'week', label: 'Theo tuần' }];
@@ -490,7 +490,9 @@ export default function Report1MienVungHub({
   const exportDateRange = useMemo(() => {
     const d = exportSources.map(x => x.r.report_date).filter(Boolean).sort();
     if (!d.length) return null;
-    if (!isWeeklyExport) return { min: d[0], max: d[d.length - 1] };
+    // Theo ngày: mặc định là dữ liệu đang có trong trang; kéo "Từ ngày" lùi tới 90 ngày (bảng lịch sử) thì
+    // mới truy vấn DB khi bấm Tải CSV.
+    if (!isWeeklyExport) return { min: addIsoDays(d[d.length - 1], -(DAILY_EXPORT_DAYS - 1)), max: d[d.length - 1], defaultFrom: d[0] };
     // Theo tuần: 9 tuần (tuần mới nhất + 8 tuần trước), tính từ thứ Hai của ngày mới nhất, không cần hỏi DB.
     const last = new Date(`${d[d.length - 1]}T00:00:00Z`);
     const monday = addIsoDays(d[d.length - 1], -((last.getUTCDay() + 6) % 7));
@@ -511,6 +513,8 @@ export default function Report1MienVungHub({
     matchesField(selection.hub, exportFields[4].options.length, hub) &&
     inExportRange(r, from, to, weekly));
   const selectExportRows = (filters) => filterExportRows(exportSources, filters, false);
+  // Theo ngày: khoảng bắt đầu trước dữ liệu có sẵn trong trang thì phải lấy thêm từ bảng lịch sử.
+  const dayNeedsDb = (filters) => Boolean(filters.from) && Boolean(exportDateRange?.defaultFrom) && filters.from < exportDateRange.defaultFrom;
 
   const downloadExportCsv = (rows, filters, weekly) => {
     const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Loại hub', 'Hub / Kho giao',
@@ -548,11 +552,31 @@ export default function Report1MienVungHub({
 
   // Trả false để hộp thoại giữ nguyên (lỗi hoặc không có dòng); còn lại hộp thoại tự đóng.
   const handleExportCSV = async (filters) => {
-    if (!isWeeklyExport) {
+    if (!isWeeklyExport && !dayNeedsDb(filters)) {
       const rows = selectExportRows(filters);
       if (!rows.length) return false;
       downloadExportCsv(rows, filters, false);
       return true;
+    }
+    if (!isWeeklyExport) {
+      // Khoảng dài: chỉ lấy bảng mà các chỉ số đã chọn cần, lần lượt từng bảng, theo lát 31 ngày.
+      const need = new Set(filters.selection.metric.map(m => EXPORT_METRIC_DATASET[m]));
+      try {
+        const loaded = { pick: [], deli: [], fd: [] };
+        for (const dataset of ['pick', 'deli', 'fd']) {
+          if (need.has(dataset)) loaded[dataset] = await fetchDailyRows(supabase, dataset, filters.from, filters.to || exportDateRange.max);
+        }
+        const rows = filterExportRows(buildExportSources(loaded.pick, loaded.deli, loaded.fd), filters, false);
+        if (!rows.length) {
+          showToast('Không có dòng nào khớp bộ lọc trong khoảng ngày đã chọn.', { tone: 'warning' });
+          return false;
+        }
+        downloadExportCsv(rows, filters, false);
+        return true;
+      } catch (error) {
+        showToast('Không tải được dữ liệu theo ngày. Thử lại sau ít phút.', { tone: 'warning' });
+        return false;
+      }
     }
     // Chỉ lấy những bảng mà các chỉ số đã chọn cần, lần lượt từng bảng (DB nhỏ, không bắn song song).
     const need = new Set(filters.selection.metric.map(m => EXPORT_METRIC_DATASET[m]));
@@ -1270,7 +1294,7 @@ export default function Report1MienVungHub({
     </StatusNotice>
   );
 
-  const exportDialog = <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={isWeeklyExport ? null : (f) => selectExportRows(f).length} onConfirm={handleExportCSV}
+  const exportDialog = <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={isWeeklyExport ? null : (f) => (dayNeedsDb(f) ? null : selectExportRows(f).length)} onConfirm={handleExportCSV}
     modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode} />;
 
   if (overview) return <>
