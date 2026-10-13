@@ -43,7 +43,7 @@
 .prr-music-status { display: inline-flex; align-items: center; gap: 6px; }
 .prr-music-live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: prr-live-pulse 1.6s ease-in-out infinite; }
 .prr-music-progress { position: absolute; left: 14px; right: 14px; bottom: 2px; height: 2px; border-radius: 2px; background: var(--border-subtle); overflow: hidden; }
-.prr-music-progress > span { display: block; width: 100%; height: 100%; background: var(--action-primary); transform: scaleX(0); transform-origin: left; }
+.prr-music-progress > span { display: block; width: 100%; height: 100%; background: var(--action-primary); transform: scaleX(var(--radio-progress, 0)); transform-origin: left; }
 .prr-music-toggle {
   display: grid;
   place-items: center;
@@ -176,3 +176,18 @@
 @media (prefers-reduced-motion: reduce) {
   .prr-mm-progress > span, .prr-mm-switch, .prr-mm-switch > span, .prr-mm-item { transition: none; }
 }
+
+/* Floating radio: shown on every tab except BXH while the listener has sound on */
+.prr-music.prr-music--floating {
+  position: fixed; right: auto; bottom: auto; z-index: 120;
+  cursor: grab; user-select: none; touch-action: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+.prr-music--floating[data-dragging='true'] { cursor: grabbing; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.26); }
+.prr-music--floating:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
+.prr-music--floating .prr-music-toggle { cursor: pointer; }
+.prr-radio-ghost {
+  position: fixed; display: none; place-items: center; z-index: 121; overflow: hidden; pointer-events: none;
+  background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff;
+}
+.prr-radio-ghost > span { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; font-family: Outfit, 'IBM Plex Sans', sans-serif; font-size: 1.5rem; font-weight: 700; }
