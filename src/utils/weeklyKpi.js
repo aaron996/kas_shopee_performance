@@ -3,7 +3,7 @@
 // mang đúng tên cột của dòng hàng ngày (report_date là thứ Hai của tuần) nên chạy lại
 // được normalizeDashboardRows (KA, CK, GXT) rồi cộng tuần như bình thường.
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset.js';
-import { normalizeDashboardRows, getHubType, getWeekNumber, formatShortDate } from './dataProcessor.js';
+import { normalizeDashboardRows, getHubType, getWeekNumber, formatShortDate, formatDateLabel } from './dataProcessor.js';
 import { getHubIdentityKey } from './performanceRanking.js';
 
 export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trước đó
@@ -45,6 +45,47 @@ export function fetchWeeklyRows(client, dataset, weeks = WEEKLY_WEEKS) {
   return cache.get(key);
 }
 
+// "Theo ngày" khi người dùng chọn khoảng ngày: đọc hub-ngày từ cùng bảng lịch sử qua
+// get_kas_daily_range_compact. Payload giữ khoá `weeks` cho danh sách ngày để dùng chung bộ dựng ma trận.
+export const DAILY_MAX_DAYS = 92;
+
+export function fetchDailyRangeRows(client, dataset, from, to) {
+  const key = `${dataset}:day:${from}:${to}`;
+  if (!cache.has(key)) {
+    const request = (async () => {
+      const { data, error } = await client.rpc('get_kas_daily_range_compact', { dataset, date_from: from, date_to: to });
+      if (error) throw error;
+      if (!data || !Array.isArray(data.weeks) || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_DAILY_PAYLOAD');
+      return { weeks: data.weeks, rows: normalizeDashboardRows(expandCompactRows(data.cols, data.rows)) };
+    })();
+    request.catch(() => cache.delete(key));
+    cache.set(key, request);
+  }
+  return cache.get(key);
+}
+
+export function dayLabel(day) {
+  const [date, weekday] = formatDateLabel(day).split(String.fromCharCode(10));
+  return { title: date, range: weekday || '', note: '' };
+}
+
+export function addDays(day, n) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Khoảng ngày thực tế gửi lên DB: ô bỏ trống lấy mốc của bảng, và không vượt DAILY_MAX_DAYS ngày.
+// Trả null khi chưa chọn gì hoặc khoảng sai chiều (không đổi luồng đọc trong các trường hợp đó).
+export function resolveDayRange(range, bounds) {
+  if (!range.from && !range.to) return null;
+  if (range.from && range.to && range.from > range.to) return null;
+  const span = DAILY_MAX_DAYS - 1;
+  const to = range.to || (range.from ? addDays(range.from, span) : bounds.max);
+  const from = range.from || addDays(to, -span);
+  return { from, to: to > bounds.max ? bounds.max : to };
+}
+
 // Dòng hub-ngày từ bảng lịch sử cho Xuất CSV "Theo ngày" với khoảng dài hơn dữ liệu trong trang.
 // Chia khoảng thành lát 10 ngày (RPC cho tối đa 14) và tải lần lượt, không bắn song song.
 export const DAILY_EXPORT_DAYS = 90; // khớp retention của prune_kas_history
@@ -67,12 +108,6 @@ export function clearWeeklyCache() {
 
 const num = value => Number(value) || 0;
 
-function addDays(day, n) {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
 // "Tuần 41" + khoảng ngày; tuần cuối chưa đủ 7 ngày ghi rõ số ngày đã có.
 export function weekLabel(start, days) {
   const partial = days > 0 && days < 7;
@@ -85,9 +120,10 @@ export function weekLabel(start, days) {
 
 const toStat = ({ tot, ont }) => ({ tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null });
 
-// Dựng ma trận Toàn quốc > Miền > Vùng > Hub x tuần.
+// Dựng ma trận Toàn quốc > Miền > Vùng > Hub x tuần (hoặc x ngày khi truyền labelFor = dayLabel).
 export function buildWeeklyMatrix({
-  rows, weeks, metricKey, clientFilter = 'ALL', selectedRegions = null, selectedHubTypes = null, hubLimit = 10
+  rows, weeks, metricKey, clientFilter = 'ALL', selectedRegions = null, selectedHubTypes = null, hubLimit = 10,
+  labelFor = (start, days) => weekLabel(start, days)
 }) {
   const metric = WEEKLY_METRICS[metricKey];
   if (!metric) throw new Error(`Unknown weekly metric: ${metricKey}`);
@@ -172,7 +208,7 @@ export function buildWeeklyMatrix({
 
   return {
     metric,
-    weeks: weeks.map((start, index) => ({ start, days: weekDays[index], ...weekLabel(start, weekDays[index]) })),
+    weeks: weeks.map((start, index) => ({ start, days: weekDays[index], ...labelFor(start, weekDays[index]) })),
     all: allStats,
     miens,
     maxPct,

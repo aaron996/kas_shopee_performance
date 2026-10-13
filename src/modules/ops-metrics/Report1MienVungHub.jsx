@@ -1,6 +1,7 @@
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import WeeklyKpiTable from './WeeklyKpiTable';
+import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
@@ -13,7 +14,7 @@ import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange } from '../../utils/weeklyKpi';
 
 const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
 const EXPORT_MODES = [{ value: 'day', label: 'Theo ngày' }, { value: 'week', label: 'Theo tuần' }];
@@ -65,6 +66,9 @@ export default function Report1MienVungHub({
   });
   // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
   const [viewMode, setViewMode] = useState('day');
+  // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
+  // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
+  const [dayRange, setDayRange] = useState({ from: '', to: '' });
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -1248,6 +1252,14 @@ export default function Report1MienVungHub({
     );
   };
 
+  // Ngày chọn được của chỉ số đang xem: từ ngày mới nhất của bảng đó lùi 90 ngày (retention bảng lịch sử).
+  const dayRangeBounds = useMemo(() => {
+    const dates = activeTableTab === 'fd' ? fdDates : (activeTableTab === 'd1st' || activeTableTab === 'dodr') ? deliDates : pickDates;
+    const max = dates?.length ? dates[dates.length - 1] : '';
+    return max ? { min: addIsoDays(max, -90), max } : null;
+  }, [activeTableTab, pickDates, deliDates, fdDates]);
+  const activeDayRange = viewMode === 'day' && dayRangeBounds ? resolveDayRange(dayRange, dayRangeBounds) : null;
+
   const metricTables = {
     p1st: () => renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st'),
     popr: () => renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr'),
@@ -1380,8 +1392,22 @@ export default function Report1MienVungHub({
             </button>
           </div>
         </div>
+        {viewMode === 'day' && dayRangeBounds && (
+          <div className="day-range-bar">
+            <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />
+          </div>
+        )}
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
-          {viewMode === 'week' ? (
+          {activeDayRange ? (
+            <DailyRangeKpiTable
+              metricKey={activeTableTab}
+              title={WEEKLY_TITLES[activeTableTab]}
+              range={activeDayRange}
+              clientFilter={clientFilter}
+              selectedRegions={selectedRegions}
+              selectedHubTypes={selectedHubTypes}
+            />
+          ) : viewMode === 'week' ? (
             <WeeklyKpiTable
               metricKey={activeTableTab}
               title={WEEKLY_TITLES[activeTableTab]}

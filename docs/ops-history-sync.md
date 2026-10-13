@@ -155,3 +155,14 @@ mốc quét `CreatedDate_Partition` 2 ngày làm tuần đầu thiếu 12 đơn,
 - `node --test src/utils/weeklyKpi.test.mjs` (12 test): cộng tuần rồi mới chia, xếp Miền/Vùng/hub, lọc client/vùng/
   loại Hub, nhãn tuần chưa đủ ngày, FD, chuẩn hoá KA/CK/GXT, cache và retry của `fetchWeeklyRows`.
 - Kiểm thử không chạm Supabase hay Apps Script thật, và chưa kiểm tra giao diện trên trình duyệt có đăng nhập.
+
+## Theo ngày có khoảng ngày (RPC `get_kas_daily_range_compact`)
+
+Chi tiết Vùng/Hub > "Theo ngày" có thêm cụm lọc khoảng ngày. Để trống thì vẫn đọc bảng 14 ngày
+(`kas_*_data`, có WTD, tốt nhất 6 tuần, cùng ngày tháng trước). Chọn khoảng ngày thì đổi luồng đọc
+sang bảng lịch sử `kas_*_history` qua RPC `get_kas_daily_range_compact(dataset, date_from, date_to)`
+và bỏ ba nhóm cột trên (bảng lịch sử không có benchmark). Mỗi ngày hai cột (% và volume), dựng bằng
+cùng `buildWeeklyMatrix` với `labelFor = dayLabel`. Khoảng tối đa 92 ngày; đo thử Deli 57 ngày
+(17/08 → 12/10) chạy ~9 giây, trần `statement_timeout` là 30 giây. Ngày chọn được: từ ngày mới nhất
+của bảng đang xem lùi 90 ngày (retention). Lưu ý: hàm `get_kas_daily_compact` (giới hạn 14 ngày) là
+của luồng khác, không dùng chung.
