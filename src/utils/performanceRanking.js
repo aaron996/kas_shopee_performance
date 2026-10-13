@@ -12,6 +12,8 @@ export const SUPPORTED_KPIS = [
 // Ngưỡng cảnh báo mẫu nhỏ cấu hình tạm thời (30 đơn) để nhận diện trạm có lượng đơn thấp;
 // cần bộ phận nghiệp vụ/vận hành xác nhận ngưỡng chính thức theo từng loại Hub.
 export const SMALL_SAMPLE_THRESHOLD = 30;
+// Hubs with fewer D-1 orders than this are left out of the ranking (adjustable in the UI).
+export const DEFAULT_MIN_SAMPLE = 10;
 
 export function getMetricDef(kpiKey) {
   const def = SUPPORTED_KPIS.find(k => k.id === kpiKey) || SUPPORTED_KPIS[0];
@@ -77,8 +79,10 @@ export function calculatePerformanceRanking({
   metricKey = 'p1st',
   clientFilter = 'ALL',
   selectedRegions = null,
-  selectedHubTypes = null
+  selectedHubTypes = null,
+  minSample = DEFAULT_MIN_SAMPLE
 } = {}) {
+  const minSampleN = Math.max(0, Number(minSample) || 0);
   const metricDef = getMetricDef(metricKey);
   const { isDeli, label: metricLabel, target } = metricDef;
 
@@ -98,6 +102,8 @@ export function calculatePerformanceRanking({
       totalCount: 0,
       rankedCount: 0,
       unrankedCount: 0,
+      excludedCount: 0,
+      minSample: minSampleN,
       scopeEmpty: true,
       smallSampleThreshold: SMALL_SAMPLE_THRESHOLD
     };
@@ -128,6 +134,8 @@ export function calculatePerformanceRanking({
       totalCount: 0,
       rankedCount: 0,
       unrankedCount: 0,
+      excludedCount: 0,
+      minSample: minSampleN,
       scopeEmpty: false,
       smallSampleThreshold: SMALL_SAMPLE_THRESHOLD
     };
@@ -146,6 +154,8 @@ export function calculatePerformanceRanking({
       totalCount: 0,
       rankedCount: 0,
       unrankedCount: 0,
+      excludedCount: 0,
+      minSample: minSampleN,
       scopeEmpty: false,
       smallSampleThreshold: SMALL_SAMPLE_THRESHOLD
     };
@@ -213,6 +223,18 @@ export function calculatePerformanceRanking({
       hubD8Agg.set(hubId, cur);
     }
   });
+
+  // Drop hubs whose D-1 volume is below the threshold (0 orders stays "unranked").
+  let excludedCount = 0;
+  if (minSampleN > 0) {
+    hubMetaMap.forEach((meta, hubId) => {
+      const d1 = hubD1Agg.get(hubId);
+      if (d1 && d1.sample > 0 && d1.sample < minSampleN) {
+        hubMetaMap.delete(hubId);
+        excludedCount += 1;
+      }
+    });
+  }
 
   // Build Common Cohort for fair Delta Rank calculation
   // Common cohort consists ONLY of Hubs that have valid data on BOTH D-1 and D-8
@@ -364,6 +386,8 @@ export function calculatePerformanceRanking({
     totalCount: ranked.length + unranked.length,
     rankedCount: ranked.length,
     unrankedCount: unranked.length,
+    excludedCount,
+    minSample: minSampleN,
     scopeEmpty: false,
     smallSampleThreshold: SMALL_SAMPLE_THRESHOLD
   };

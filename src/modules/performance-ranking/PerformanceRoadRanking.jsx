@@ -26,6 +26,7 @@ import {
   calculatePerformanceRanking,
   SUPPORTED_KPIS,
   SMALL_SAMPLE_THRESHOLD,
+  DEFAULT_MIN_SAMPLE,
   selectSceneHubs,
   SCENE_TOP_LIMITS
 } from '../../utils/performanceRanking.js';
@@ -94,6 +95,8 @@ export default function PerformanceRoadRanking({
   const [animateViewChange, setAnimateViewChange] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
+  const [minSample, setMinSample] = useState(DEFAULT_MIN_SAMPLE);
+  const minSampleId = useId();
   const [webgl2] = useState(detectWebGL2InBrowser);
   const [sceneMode, setSceneMode] = useState(() => getInitialSceneMode(webgl2));
   const showToast = useToast();
@@ -121,9 +124,10 @@ export default function PerformanceRoadRanking({
       metricKey,
       clientFilter,
       selectedRegions,
-      selectedHubTypes
+      selectedHubTypes,
+      minSample
     });
-  }, [pickRows, deliRows, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
+  }, [pickRows, deliRows, metricKey, clientFilter, selectedRegions, selectedHubTypes, minSample]);
 
   const {
     metricLabel,
@@ -135,6 +139,7 @@ export default function PerformanceRoadRanking({
     totalCount,
     rankedCount,
     unrankedCount,
+    excludedCount,
     scopeEmpty
   } = rankingData;
 
@@ -339,6 +344,16 @@ export default function PerformanceRoadRanking({
                   <button type="button" className={`seg-btn ${sceneMode === '2d' ? 'active' : ''}`} aria-pressed={sceneMode === '2d'} onClick={() => handleSceneModeChange('2d')}>2D</button>
                   <button type="button" className={`seg-btn ${sceneMode === '3d' ? 'active' : ''}`} aria-pressed={sceneMode === '3d'} disabled={!webgl2}
                     title={webgl2 ? undefined : WEBGL2_UNAVAILABLE_HINT} onClick={() => handleSceneModeChange('3d')}>3D</button>
+                </div>
+                <div className="prr-speed-control">
+                  <label htmlFor={minSampleId}>Loại Hub dưới</label>
+                  <input id={minSampleId} type="number" min="0" step="1" inputMode="numeric" value={minSample}
+                    aria-label="Số đơn tối thiểu của Hub để được xếp hạng"
+                    onChange={event => {
+                      const n = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                      setMinSample(n); setSelectedHubId(null);
+                    }} />
+                  <output>đơn{excludedCount > 0 ? ` · ẩn ${excludedCount} Hub` : ''}</output>
                 </div>
                 <p>{Array.isArray(selectedRegions) ? `${selectedRegions.length} vùng` : 'Tất cả vùng'} · {Array.isArray(selectedHubTypes) ? `${selectedHubTypes.length} loại Hub` : 'Tất cả loại Hub'}</p>
                 <p><span className="legend-dot meets-target" /> Đạt mục tiêu {target}% · <span className="legend-dot below-target" /> Chưa đạt</p>
@@ -550,7 +565,7 @@ export default function PerformanceRoadRanking({
           <div className="table-toolbar-left">
             <h2 className="table-toolbar-title">Bảng Đối Soát Thứ Hạng Vận Hành</h2>
             <span className="table-toolbar-meta">
-              Tổng cộng <strong>{totalCount} Hub</strong> ({rankedCount} đã xếp hạng, {unrankedCount} chưa đủ dữ liệu)
+              Tổng cộng <strong>{totalCount} Hub</strong> ({rankedCount} đã xếp hạng, {unrankedCount} chưa đủ dữ liệu{excludedCount > 0 ? `, ${excludedCount} Hub dưới ${minSample} đơn bị loại` : ''})
             </span>
           </div>
 
