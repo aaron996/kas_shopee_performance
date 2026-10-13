@@ -138,7 +138,7 @@ export default function RankingMusicManager({ isOpen, onClose, onChanged }) {
                     onClick={() => setConfirmId(track.id)} aria-label="Xóa bài"><Trash2 size={16} aria-hidden="true" /></button>
                 )}
               </div>
-              <audio className="prr-mm-audio" controls preload="none" src={trackUrl(track.file_path)} />
+              <audio className="prr-mm-audio" controls preload="metadata" src={trackUrl(track.file_path)} />
             </li>
           ))}
         </ul>
