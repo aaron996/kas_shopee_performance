@@ -14,10 +14,12 @@ export function patchTruckSurface(shader) {
         && abs(vTruckSurfaceNormal.y) < 0.65
         && diffuseColor.b > diffuseColor.r * 1.5
         && diffuseColor.g < 0.12 && diffuseColor.b > 0.018 && diffuseColor.b < 0.22;
-      roughnessFactor = glass ? 0.18 : cab ? 0.43 : 0.78;
+      bool roof = !cab && vTruckSurfacePosition.y > 1.49 && vTruckSurfaceNormal.y > 0.5;
+      float panel = sin(vTruckSurfacePosition.x * 46.0) * 0.018;
+      roughnessFactor = glass ? 0.14 : cab ? 0.35 : roof ? 0.48 : 0.67 + panel;
     `)
     .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
-      metalnessFactor = glass ? 0.08 : vTruckSurfacePosition.y < 0.38 ? 0.28 : 0.04;
+      metalnessFactor = glass ? 0.0 : vTruckSurfacePosition.y < 0.38 ? 0.38 : 0.06;
     `);
 }
 

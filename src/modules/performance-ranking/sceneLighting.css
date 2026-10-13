@@ -30,7 +30,26 @@
 }
 .prr-lighting-controls button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
 .prr-lighting-controls button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.prr-scene3d > .prr-world-controls {
+  position: absolute; z-index: 6; top: 12px; right: 12px; display: flex; align-items: center;
+  padding: 4px; gap: 2px; background: rgba(15, 23, 42, 0.92); color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.2); border-radius: var(--radius-pill);
+}
+.prr-world-controls select {
+  min-height: 44px; width: 112px; padding: 0 8px; color: #e2e8f0; background: #0f172a;
+  border: 0; border-radius: var(--radius-control); font: inherit; font-size: 12px; cursor: pointer;
+}
+.prr-world-controls button {
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px;
+  border: 0; border-radius: var(--radius-pill); background: transparent; color: #e2e8f0; cursor: pointer;
+}
+.prr-world-controls button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
+.prr-world-controls :is(button, select):focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.prr-world-controls :disabled { opacity: 0.45; cursor: default; }
 @container (max-width: 560px) {
   .prr-scene3d > .prr-lighting-controls { top: 8px; right: 8px; font-size: 11px; }
   .prr-scene-time { padding: 0 6px; }
+  .prr-scene3d > .prr-world-controls { top: 8px; left: 8px; right: auto; }
+  .prr-world-controls select { width: 98px; }
 }
+@container (max-width: 400px) { .prr-scene-time { display: none; } }

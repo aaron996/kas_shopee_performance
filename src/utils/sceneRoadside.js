@@ -36,7 +36,7 @@ export function createRoadsideFleet(layout, distance = 0) {
     const cluster = clusters.get(part.anchor) || { anchor: wrapRoadTravel(part.anchor, distance, -layout.span / 2, layout.span), radius: 0 };
     // A conservative sphere encloses every local offset and every primitive,
     // including distant hills/clouds, roofs and the ends of the billboard.
-    const radius = Math.hypot(part.x, part.y, part.z) + Math.hypot(...part.scale);
+    const radius = Math.hypot(part.x, part.y, part.z) + Math.hypot(...part.scale) + (part.motionExtent || 0);
     cluster.radius = Math.max(cluster.radius, radius);
     clusters.set(part.anchor, cluster);
   }

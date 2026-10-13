@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, sceneFogRange, wrapDayPhase } from '../../utils/sceneLighting.js';
 import { shouldRefreshSceneShadow } from '../../utils/sceneShadows.js';
+import { worldRegion } from '../../utils/sceneWorld.js';
 
 const SKY_VERTEX = `varying vec3 vDirection;
 void main() { vDirection = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -36,7 +37,7 @@ function makeMoonTexture() {
 }
 
 // Mutates a small fixed pool; no React renders or texture uploads per frame.
-export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, running, reducedMotion, roadLength, shadowsOn, compact, timeRef }) {
+export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, running, reducedMotion, roadLength, shadowsOn, compact, timeRef, journeyRef }) {
   const skyRef = useRef(null), sunRef = useRef(null), moonRef = useRef(null);
   const sunGlowRef = useRef(null), moonGlowRef = useRef(null), lightRef = useRef(null), ambientRef = useRef(null), fogRef = useRef(null);
   const invalidate = useThree(state => state.invalidate);
@@ -47,6 +48,7 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   const moonGlow = useMemo(() => ({ color: { value: new THREE.Color('#a6caff') }, opacity: { value: 0.24 } }), []);
   const previous = useRef({ mode: null, phase: null, dirty: true, source: null, extent: 0, focus: new THREE.Vector3(Infinity, Infinity, Infinity) });
   const sampled = useRef(null);
+  const tint = useMemo(() => ({ from: new THREE.Color(), to: new THREE.Color() }), []);
   useEffect(() => () => moonTexture.dispose(), [moonTexture]);
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -57,7 +59,7 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   }, [phaseRef, invalidate]);
   useLayoutEffect(() => { previous.current.dirty = true; invalidate(); }, [mode, shadowsOn, compact, roadLength, running, reducedMotion, invalidate]);
 
-  useFrame(({ camera, controls, gl }, delta) => {
+  useFrame(({ camera, controls, gl, scene }, delta) => {
     const cache = previous.current;
     if (cache.mode !== mode) {
       phaseRef.current = phaseForLightingMode(mode, phaseRef.current);
@@ -77,7 +79,11 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
     skyRef.current.scale.setScalar(camera.far * 0.94);
     skyUniforms.topColor.value.set(state.skyTop);
     skyUniforms.horizonColor.value.set(state.horizon);
-    fogRef.current.color.set(state.horizon);
+    const journey = journeyRef.current;
+    tint.from.set(worldRegion(journey.from).far).lerp(tint.to.set(worldRegion(journey.to).far), journey.mix);
+    skyUniforms.horizonColor.value.lerp(tint.from, state.sunOpacity * 0.3);
+    scene.environmentIntensity = 0.10 + state.sunOpacity * 0.28;
+    fogRef.current.color.copy(skyUniforms.horizonColor.value);
     ambientRef.current.color.set(state.ambientSky);
     ambientRef.current.groundColor.set(state.ambientGround);
     ambientRef.current.intensity = state.ambientIntensity;

@@ -8,7 +8,7 @@ function hubHash(id) {
   return hash >>> 0;
 }
 export function hubPaintColor(id) {
-  return `hsl(${(hubHash(id) / 4294967296 * 360).toFixed(4)}, 68%, 53%)`;
+  return `hsl(${(hubHash(id) / 4294967296 * 360).toFixed(4)}, 46%, 49%)`;
 }
 // Visual identifier, not the business Hub code or current rank.
 export function hubRoofCode(id) {
@@ -45,9 +45,10 @@ export function patchTruckPaint(shader, glyphTexture) {
       // Replace only upward cargo roof, including its upside-down source decal.
       if (vPaintPosition.x <= ${TRUCK_ROOF.maxX} && vPaintPosition.y >= ${TRUCK_ROOF.minY} && vRoofNormal > 0.5) {
         vec3 roofColor = vec3(0.91, 0.90, 0.86);
-        if (vPaintPosition.x >= ${TRUCK_ROOF.bandX}) {
-          roofColor = vInstancePaint.r >= 0.0 ? vInstancePaint : vec3(0.88, 0.19, 0.025);
-        }
+        float bandEdge = max(fwidth(vPaintPosition.x), 0.002);
+        float band = smoothstep(${TRUCK_ROOF.bandX} - bandEdge, ${TRUCK_ROOF.bandX} + bandEdge, vPaintPosition.x);
+        vec3 bandColor = vInstancePaint.r >= 0.0 ? vInstancePaint : vec3(0.88, 0.19, 0.025);
+        roofColor = mix(roofColor, bandColor, band);
         // Text reads across the truck, top towards the cab.
         vec2 codeUV = vec2((vPaintPosition.z + 0.44) / 0.88, (vPaintPosition.x + 0.84) / 0.48);
         if (codeUV.x >= 0.0 && codeUV.x < 1.0 && codeUV.y >= 0.0 && codeUV.y <= 1.0) {
