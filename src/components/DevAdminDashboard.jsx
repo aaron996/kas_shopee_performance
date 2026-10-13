@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, Bot, ChevronRight, Clock, Layers, MessageSquare, Search, ShieldCheck, SlidersHorizontal, Users, Wallet } from 'lucide-react';
 import AiOperationsDashboard from './AiOperationsDashboard';
 import AppRoleSettings from './AppRoleSettings';
+import AllowedEmailSettings from './AllowedEmailSettings';
 import CodSmsThresholdSettings from './CodSmsThresholdSettings';
 import CodSmsScheduleSettings from './CodSmsScheduleSettings';
 import DevAccessActivity from './DevAccessActivity';
@@ -27,6 +28,7 @@ const GROUPS = [
   ] },
   { label: 'Tài khoản & truy cập', items: [
     { id: 'roles', label: 'Phân quyền', icon: ShieldCheck, description: 'Quản lý quyền User, Admin và Dev cho tài khoản đã đăng nhập.' },
+    { id: 'allowlist', label: 'Email ngoài GHN', icon: Users, description: 'Thêm hoặc xóa email ngoài @ghn.vn được phép đăng nhập vào app.' },
     { id: 'access', label: 'Lịch sử truy cập', icon: Activity, description: 'Theo dõi phiên online, lượt truy cập và xuất lịch sử.' }
   ] }
 ];
@@ -58,7 +60,8 @@ export default function DevAdminDashboard({ onlineUsers = [], currentUser }) {
         <header className="dev-panel-section-header"><h2 id="dev-panel-section-title">{section.label}</h2><div>{section.description}</div></header>
         {(section.view ? <AiOperationsDashboard key={section.id} currentUser={currentUser} view={section.view} feature={section.feature || 'chat'} />
           : section.id === 'roles' ? <AppRoleSettings currentUser={currentUser} />
-            : section.id === 'cod-threshold' ? <CodSmsThresholdSettings currentUser={currentUser} />
+            : section.id === 'allowlist' ? <AllowedEmailSettings />
+            :section.id === 'cod-threshold' ? <CodSmsThresholdSettings currentUser={currentUser} />
               : section.id === 'cod-schedule' ? <CodSmsScheduleSettings currentUser={currentUser} />
                 : <DevAccessActivity onlineUsers={onlineUsers} currentUser={currentUser} />)}
       </section>

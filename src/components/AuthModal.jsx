@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ShieldCheck, AlertCircle, Mail } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
-import { isAllowedEmail } from '../utils/authPolicy';
+import { checkEmailAllowed } from '../utils/authPolicy';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
 
@@ -98,14 +98,13 @@ export default function AuthModal({ isOpen }) {
       return;
     }
 
-    if (!isAllowedEmail(email)) {
-      setErrorMsg(`⚠️ Truy cập bị từ chối: Tài khoản "${email}" không thuộc danh sách được phép truy cập hệ thống GHN (@ghn.vn). Vui lòng đăng nhập bằng email GHN.`);
-      triggerShake();
-      return;
-    }
-
     try {
       setLoading(true);
+      if (!(await checkEmailAllowed(email, supabase))) {
+        setErrorMsg(`⚠️ Truy cập bị từ chối: Tài khoản "${email}" không thuộc danh sách được phép truy cập hệ thống GHN (@ghn.vn). Vui lòng đăng nhập bằng email GHN hoặc liên hệ Dev để được thêm vào danh sách.`);
+        triggerShake();
+        return;
+      }
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
