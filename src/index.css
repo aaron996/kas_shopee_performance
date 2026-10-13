@@ -6751,6 +6751,9 @@ body.dark-mode .prr-scope-chip.highlight {
   border-radius: var(--radius-pill);
 }
 
+/* Only the ranking tab (rankingStage.css) shows the leaderboard. */
+.prr-3d-leaderboard { display: none; }
+
 .prr-3d-table-link {
   border: 0;
   background: transparent;

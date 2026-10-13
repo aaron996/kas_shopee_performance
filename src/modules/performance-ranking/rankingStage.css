@@ -33,7 +33,7 @@
 }
 .performance-road-ranking-tab:fullscreen { height: 100dvh; }
 body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
-.performance-road-ranking-tab.prr-scene-only :is(.prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-caption, .prr-3d-labels, .prr-truck-tag) { display: none; }
+.performance-road-ranking-tab.prr-scene-only :is(.prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-caption, .prr-3d-labels, .prr-truck-tag) { display: none; }
 .prr-restore-interface {
   position: absolute; z-index: 40; top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 8px;
@@ -168,7 +168,41 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; min-width: 44px; min-height: 44px; padding: 0;
 }
-.performance-road-ranking-tab .prr-3d-caption { bottom: 20px; left: 20px; padding: 6px 10px; }
+/* Top-left HUD: what the order means, plus the first five Hubs as exact numbers (the labels in the
+   scene shrink when the convoy is crowded). The bottom corners stay free for the music widget and controls. */
+.performance-road-ranking-tab .prr-3d-hud {
+  position: absolute; top: 16px; left: 20px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 8px; width: min(340px, calc(50% - 190px)); pointer-events: none;
+}
+.performance-road-ranking-tab .prr-3d-hud > * { pointer-events: auto; }
+.performance-road-ranking-tab .prr-3d-caption {
+  position: static; display: block; max-width: 100%; padding: 6px 12px; border-radius: 12px;
+  font-size: 12px; line-height: 1.4; color: #e2e8f0;
+}
+.performance-road-ranking-tab .prr-3d-caption .prr-3d-table-link { margin-left: 6px; }
+.performance-road-ranking-tab .prr-3d-leaderboard {
+  display: grid; gap: 2px; width: 100%; margin: 0; padding: 6px; list-style: none;
+  border-radius: 12px; background: rgba(15, 23, 42, 0.78); color: #e2e8f0; font-size: 12px;
+}
+.performance-road-ranking-tab .prr-3d-leaderboard button {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; width: 100%; min-height: 28px;
+  padding: 2px 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.performance-road-ranking-tab .prr-3d-leaderboard button:hover { background: rgba(148, 163, 184, 0.16); }
+.performance-road-ranking-tab .prr-3d-leaderboard button.is-selected { border-color: #38bdf8; background: rgba(56, 189, 248, 0.14); }
+.performance-road-ranking-tab .prr-3d-leaderboard button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 1px; }
+.prr-lb-rank { color: #f59e0b; font-weight: 700; }
+.prr-lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #fff; }
+.prr-lb-kpi { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-weight: 700; }
+.prr-lb-kpi.is-good { color: #34d399; }
+.prr-lb-kpi.is-below { color: #f87171; }
+.prr-lb-delta { min-width: 28px; padding: 0 5px; border-radius: 4px; font: 600 11px var(--font-mono, ui-monospace, Consolas, monospace); text-align: center; color: #94a3b8; background: rgba(148, 163, 184, 0.2); }
+.prr-lb-delta.is-up { color: #34d399; background: rgba(52, 211, 153, 0.2); }
+.prr-lb-delta.is-down { color: #f87171; background: rgba(248, 113, 113, 0.2); }
+/* The assistant mascot / "Hiện trợ lý" button is fixed to the bottom-right of the window; keep the scene controls beside it, not under it. */
+@media (min-width: 801px) {
+  body:has(.chat-mascot-launcher, .chat-mascot-reveal) .performance-road-ranking-tab .prr-3d-controls { right: 172px; }
+}
 .performance-road-ranking-tab .prr-insight-panel,
 .performance-road-ranking-tab .prr-table-card {
   position: absolute; z-index: 30; background: var(--surface-default);
@@ -219,7 +253,7 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   .performance-road-ranking-tab .prr-3d-controls .prr-segmented-limit { min-width: 0; }
   .performance-road-ranking-tab .prr-3d-controls .seg-btn,
   .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 44px; font-size: 11px; padding: 4px 8px; }
-  .performance-road-ranking-tab .prr-3d-caption { display: none; }
+  .performance-road-ranking-tab .prr-3d-hud { display: none; }
   .performance-road-ranking-tab .prr-table-card { inset: 112px 8px 8px; padding: 12px; }
   .performance-road-ranking-tab:not(.prr-immersive) .prr-table-card { inset: 8px; }
   .performance-road-ranking-tab .prr-insight-panel { right: 8px; bottom: 68px; width: calc(100% - 16px); max-height: calc(100% - 190px); }

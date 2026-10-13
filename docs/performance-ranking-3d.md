@@ -1158,3 +1158,24 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
   build, lint file sửa và diff check qua. Codex IAB với 60 Hub mẫu đã kiểm tra
   desktop, mobile 375px, xoay ngang dự phòng, 2D Top 50, ẩn/hiện UI và mở bảng.
   Chưa xác nhận khóa hướng native trên điện thoại thật hoặc dữ liệu production.
+
+## Rà soát UI tab 3D (nhãn, HUD, widget nhạc)
+
+- Nhãn xe từ hạng 4 trở đi là **mini** (một dòng: hạng + tên); hover/chọn mở thành
+  nhãn đầy đủ. Top 3 giữ nhãn đầy đủ + huy hiệu. Nhãn đầy đủ có thêm chip `n <sampleD1>`
+  vì hạng xếp theo KPI D-1, hòa thì theo số mẫu D-1 (xem `calculatePerformanceRanking`).
+- Tên Hub: hiện đủ nếu vừa chỗ, nếu không rút tiền tố ("Kho Giao Hàng" → "KGH",
+  "Bưu Cục" → "BC") rồi mới cắt đuôi (`abbreviateHubName`, `labelOverlay.js`).
+- `LabelProjector`: nhãn mini/hover/chọn bị đè thì đẩy lên (tối đa 3 bậc) và nối đường kẻ
+  về xe thay vì bị ẩn. Lớp nhãn né vùng HUD (đo bằng `ResizeObserver` trên `hudRef`);
+  nhãn podium nằm sau HUD dịch sang mép phải HUD. Vùng đáy chừa 84px trên desktop (≥ 800px).
+- HUD góc trái trên (`.prr-3d-hud`, chỉ trong tab BXH, ≥ 801px): dòng chú thích tiêu chí xếp
+  hạng + bảng mini 5 Hub đầu (Worst: 5 Hub cuối, W1–W5). Bấm dòng để chọn Hub. Ẩn ở mobile
+  và chế độ Chỉ scene.
+- Widget nhạc chuyển xuống góc trái dưới (mobile: ngay trên hàng nút camera).
+- Cụm replay/camera dời sang trái 172px khi mascot hoặc nút "Hiện trợ lý" (cố định góc
+  phải dưới, `mascot.css`) đang hiện, tránh bị che.
+- Kiểm tra: lint và 55 test ranking/layout đạt; xem bằng trang preview tạm dữ liệu giả
+  20 Hub ở 1440px (không commit). `vite build` không chạy được trong môi trường này do
+  thiếu `@react-three/fiber` ở repo chính, bản chưa sửa cũng lỗi giống vậy. Chưa kiểm
+  tra mobile, mascot thật và dữ liệu production.

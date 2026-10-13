@@ -2,8 +2,8 @@
 .prr-scene-surface .prr-scene3d > .prr-lighting-controls { top: max(88px, calc(env(safe-area-inset-top) + 80px)); }
 .prr-music {
   position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: max(20px, env(safe-area-inset-left));
   z-index: 25;
   display: flex;
   align-items: center;
@@ -53,12 +53,13 @@
   transition: background-color 160ms var(--ease-snappy);
 }
 .prr-music-toggle:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
-.prr-scene-only .prr-music { top: max(68px, calc(env(safe-area-inset-top) + 56px)); }
 @media (hover: hover) and (pointer: fine) {
   .prr-music-toggle:hover { background: var(--border-subtle); }
 }
 @media (max-width: 600px) {
-  .prr-music { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); gap: 8px; padding: 6px 8px; }
+  /* above the full-width camera/replay row */
+  .prr-music { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 56px); left: max(10px, env(safe-area-inset-left)); gap: 8px; padding: 6px 8px; }
+  .prr-scene-only .prr-music { bottom: max(12px, env(safe-area-inset-bottom)); }
   .prr-music-disc { width: 36px; height: 36px; }
   .prr-music-copy { max-width: 150px; }
 }
