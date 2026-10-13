@@ -19,3 +19,8 @@ test('production CSP permits embedded GLB textures through both browser image lo
   assert.deepEqual(directives.get('object-src'), ["'none'"]);
   assert.deepEqual(directives.get('frame-ancestors'), ["'self'", 'https://ka-control-tower.vercel.app']);
 });
+
+test('production CSP lets the ranking radio load audio from Supabase storage only', () => {
+  // Without media-src, default-src 'self' blocks the <audio> source and the radio reports an error.
+  assert.deepEqual(directives.get('media-src'), ["'self'", 'https://iyjsihwgnzcytbojvoom.supabase.co']);
+});
