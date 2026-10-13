@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWeeklyMatrix, fetchWeeklyRows, clearWeeklyCache, weekLabel, WEEKLY_METRICS } from './weeklyKpi.js';
+import { buildWeeklyMatrix, fetchWeeklyRows, expandCompactRows, clearWeeklyCache, weekLabel, WEEKLY_METRICS } from './weeklyKpi.js';
 
 const W1 = '2026-10-05';
 const W2 = '2026-10-12';
@@ -97,17 +97,19 @@ test('FD dùng deliverywh và fd_hoan_thanh, không có target', () => {
 
 test('dòng đi qua normalizeDashboardRows: KA và CK về đúng vùng riêng, GXT theo Miền', async () => {
   clearWeeklyCache();
+  const cols = ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'days'];
   const payload = {
     weeks: [W2],
+    cols,
     rows: [
-      { report_date: W2, region: 'HCM', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'BC', client_name: 'SPE', mau_pu: 10, ontime_pu_1st: 9, ontime_pu_opr: 9, days: 7 },
-      { report_date: W2, region: 'HCM', hub: 'Bưu cục CK Thủ Đức', hub_type: 'BC', client_name: 'SPE', mau_pu: 20, ontime_pu_1st: 18, ontime_pu_opr: 18, days: 7 },
-      { report_date: W2, region: 'HCM', hub: 'Bưu cục thường', hub_type: 'BC', client_name: 'SPE', mau_pu: 30, ontime_pu_1st: 27, ontime_pu_opr: 27, days: 7 }
+      [W2, 'HCM', 'Key Account Warehouse Ho Chi Minh', 'BC', 'SPE', 10, 9, 9, 7],
+      [W2, 'HCM', 'Bưu cục CK Thủ Đức', 'BC', 'SPE', 20, 18, 18, 7],
+      [W2, 'HCM', 'Bưu cục thường', 'BC', 'SPE', 30, 27, 27, 7]
     ]
   };
   const client = { rpc: async (name, args) => { client.last = { name, args }; return { data: payload, error: null }; } };
   const result = await fetchWeeklyRows(client, 'pick');
-  assert.deepEqual(client.last, { name: 'get_kas_weekly_rows', args: { dataset: 'pick', weeks: 9 } });
+  assert.deepEqual(client.last, { name: 'get_kas_weekly_compact', args: { dataset: 'pick', weeks: 9 } });
   const m = buildWeeklyMatrix({ rows: result.rows, weeks: result.weeks, metricKey: 'p1st' });
   const names = m.miens.flatMap(x => x.regions.map(r => r.region)).sort();
   assert.deepEqual(names, ['HCM', 'HCM - CK', 'HCM - KA']);
@@ -118,7 +120,7 @@ test('dòng đi qua normalizeDashboardRows: KA và CK về đúng vùng riêng, 
 test('fetchWeeklyRows nhớ kết quả theo bảng, báo lỗi RPC và thử lại sau lỗi', async () => {
   clearWeeklyCache();
   let calls = 0;
-  const ok = { weeks: [W2], rows: [] };
+  const ok = { weeks: [W2], cols: [], rows: [] };
   const client = { rpc: async () => { calls++; return { data: ok, error: null }; } };
   await fetchWeeklyRows(client, 'deli');
   await fetchWeeklyRows(client, 'deli');
@@ -133,7 +135,11 @@ test('fetchWeeklyRows nhớ kết quả theo bảng, báo lỗi RPC và thử l�
   assert.deepEqual((await fetchWeeklyRows(recovered, 'pick')).weeks, [W2]);
 
   clearWeeklyCache();
-  await assert.rejects(fetchWeeklyRows({ rpc: async () => ({ data: { weeks: 'x' }, error: null }) }, 'pick'), /INVALID_WEEKLY_PAYLOAD/);
+  await assert.rejects(fetchWeeklyRows({ rpc: async () => ({ data: { weeks: 'x', cols: [], rows: [] }, error: null }) }, 'pick'), /INVALID_WEEKLY_PAYLOAD/);
+});
+
+test('expandCompactRows ghép cột với giá trị, giữ null', () => {
+  assert.deepEqual(expandCompactRows(['a', 'b'], [[1, null], [2, 'x']]), [{ a: 1, b: null }, { a: 2, b: 'x' }]);
 });
 
 test('mọi chỉ số có bảng nguồn và cột hợp lệ', () => {

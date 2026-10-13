@@ -465,8 +465,13 @@ export default function Report1MienVungHub({
     if (!isExportOpen || exportMode !== 'week') return undefined;
     let cancelled = false;
     setWeeklyExport(prev => ({ ...prev, status: 'loading' }));
-    Promise.all(['pick', 'deli', 'fd'].map(dataset => fetchWeeklyRows(supabase, dataset)))
-      .then(([pick, deli, fd]) => { if (!cancelled) setWeeklyExport({ status: 'ready', pick: pick.rows, deli: deli.rows, fd: fd.rows }); })
+    // Tải lần lượt (không song song): DB nhỏ, 3 lệnh nặng cùng lúc dễ cùng bị statement timeout.
+    (async () => {
+      const loaded = {};
+      for (const dataset of ['pick', 'deli', 'fd']) loaded[dataset] = (await fetchWeeklyRows(supabase, dataset)).rows;
+      return loaded;
+    })()
+      .then(({ pick, deli, fd }) => { if (!cancelled) setWeeklyExport({ status: 'ready', pick, deli, fd }); })
       .catch(() => { if (!cancelled) setWeeklyExport({ status: 'error', pick: [], deli: [], fd: [] }); });
     return () => { cancelled = true; };
   }, [isExportOpen, exportMode, weeklyAttempt]);
