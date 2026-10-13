@@ -51,3 +51,5 @@ Browser kiểm tra bốn vùng ngày/đêm, 10/20/50 xe, chọn/bám xe, đổi 
 Kết quả ngày 13/10/2026: 637/637 test pass, build và oxlint scoped pass. Hành trình desktop đã tự đổi từ Miền Tây sang Rừng mưa; ghim Cảng biển được giữ sau unmount/mount. Hai vòng chọn đủ bốn vùng khi pause cho cùng counter nghỉ theo từng vùng: Miền Tây 31 geometry/25 program, Rừng mưa 32/28, Alps 32/27, Cảng biển 29/25; mỗi vùng 11 texture, shader link thành công và không ghi lỗi. Đây là kiểm tra vòng đời ngắn, không phải đo memory trong phiên dài. Responsive được xem ở viewport IAB 390×844.
 
 Giới hạn bằng chứng: đây là local fixture, không phải dữ liệu production đã đăng nhập, kết quả user playtest hoặc FPS trên điện thoại thật. Cần xem ảnh runtime và trải nghiệm trực tiếp để duyệt mỹ thuật. Build vẫn có cảnh báo chunk 3D lớn; kết quả build không thay cho kiểm tra tải asset/memory trên thiết bị thật.
+
+Kiểm tra trước merge sau khi rebase lên `459c705` (HUD mới): 645/645 test pass, build, oxlint scoped và verifier GLB pass. Điều khiển vùng tham gia cùng transition ẩn/hiện HUD mới và tôn trọng reduced motion.
