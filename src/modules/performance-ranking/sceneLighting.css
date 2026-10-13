@@ -35,6 +35,11 @@
   padding: 4px; gap: 2px; background: rgba(15, 23, 42, 0.92); color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.2); border-radius: var(--radius-pill);
 }
+/* The full BXH canvas extends behind the app header. Reserve that measured
+   height, as the lighting controls do, so the region picker stays reachable. */
+.prr-scene-surface .prr-scene3d > .prr-world-controls {
+  top: calc(var(--prr-controls-height, 0px) + max(28px, calc(env(safe-area-inset-top) + 20px)));
+}
 .prr-world-controls select {
   min-height: 44px; width: 112px; padding: 0 8px; color: #e2e8f0; background: #0f172a;
   border: 0; border-radius: var(--radius-control); font: inherit; font-size: 12px; cursor: pointer;
@@ -50,6 +55,9 @@
   .prr-scene3d > .prr-lighting-controls { top: 8px; right: 8px; font-size: 11px; }
   .prr-scene-time { padding: 0 6px; }
   .prr-scene3d > .prr-world-controls { top: 8px; left: 8px; right: auto; }
+  .prr-scene-surface .prr-scene3d > .prr-world-controls {
+    top: calc(var(--prr-controls-height, 0px) + max(88px, calc(env(safe-area-inset-top) + 80px)));
+  }
   .prr-world-controls select { width: 98px; }
 }
 @container (max-width: 400px) { .prr-scene-time { display: none; } }
