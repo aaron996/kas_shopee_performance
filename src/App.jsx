@@ -30,6 +30,8 @@ import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
+import { RadioProvider } from './modules/performance-ranking/RadioProvider.jsx';
+import RadioFloatingLayer from './modules/performance-ranking/RadioFloatingLayer.jsx';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -151,6 +153,11 @@ export default function App() {
     [userEmail]
   );
   const introSkipAnytime = Boolean(currentUser?.isDevAdmin) || introSeenToday;
+  // The radio stays idle until the first visit to the BXH tab, then keeps playing on every tab.
+  const [radioStarted, setRadioStarted] = useState(false);
+  useEffect(() => {
+    if (activeTab === 'ranking' && !introVisible) setRadioStarted(true);
+  }, [activeTab, introVisible]);
   const handleIntroComplete = useCallback(() => {
     if (userEmail) markIntroSeen(localStorage, userEmail);
     setIntroCompletedFor(userEmail);
@@ -769,8 +776,7 @@ export default function App() {
       selectedHubTypes,
       allHubTypes,
       onJumpToReport1: handleJumpFromRankingToReport1,
-      density,
-      canManageMusic: Boolean(currentUser?.isDevAdmin)
+      density
     },
     report5: {
       ca1Rows: filteredCa1Rows,
@@ -812,6 +818,7 @@ export default function App() {
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1 };
   return (
+    <RadioProvider started={radioStarted} canManage={Boolean(currentUser?.isDevAdmin)}>
     <div className="app-container" inert={introVisible} aria-hidden={introVisible ? true : undefined}>
       <IconInteractions />
       {/* Authentication Protection Modal */}
@@ -957,6 +964,8 @@ export default function App() {
           )}
         </div>
       </div>
+      <RadioFloatingLayer activeTab={activeTab} suppressed={introVisible} />
     </div>
+    </RadioProvider>
   );
 }

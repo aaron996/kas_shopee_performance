@@ -37,7 +37,8 @@ async function fetchRadio() {
 
 // Shared radio state: the active playlist, the shared anchor and a server-corrected clock.
 // Listeners poll; only devs can move the anchor (RPC is guarded by is_dev_admin()).
-export function useRankingRadio() {
+// `enabled` keeps the radio idle (no requests) until a listener first opens the BXH tab.
+export function useRankingRadio({ enabled = true } = {}) {
   const [state, setState] = useState({ ready: false, tracks: [], anchor: null, offsetMs: 0 });
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -55,12 +56,13 @@ export function useRankingRadio() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     refresh();
     const timer = window.setInterval(refresh, POLL_MS);
     const onVisible = () => { if (!document.hidden) refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const now = useCallback(() => Date.now() + stateRef.current.offsetMs, []);
 
