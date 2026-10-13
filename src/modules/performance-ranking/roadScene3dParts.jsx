@@ -756,6 +756,7 @@ const NEAR_RANGE_FACTOR = 2.5; // far-label cutoff = camera-to-target distance *
 const MIN_NEAR_RANGE = 30;
 const COMPACT_WIDTH = 560; // canvas narrower than this: compact labels
 const BOTTOM_RESERVED = 34; // px kept free of labels (caption + controls row)
+const DESKTOP_BOTTOM_RESERVED = 84; // ranking tab: 44px camera buttons and the music widget sit 20px above the edge
 
 /**
  * Projects 3D anchor points to screen space and draws the labels on a 2D overlay canvas
@@ -772,13 +773,15 @@ const BOTTOM_RESERVED = 34; // px kept free of labels (caption + controls row)
  * @param replayRef MutableRefObject<{active: boolean, t: number}> while active, the replay chip is drawn
  * @param replayLabels {from: string, to: string} text of the replay chip ends
  */
-export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, replayLabels }) {
+export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, replayLabels, hudRef }) {
   const invalidate = useThree((s) => s.invalidate);
   const vec = useMemo(() => new THREE.Vector3(), []);
   const order = useMemo(() => [...labels].sort((a, b) => (b.priority || 0) - (a.priority || 0)), [labels]);
   const fontsRef = useRef(null);
   const boxes = useRef(new Map()); // label key -> measured layout (cleared when labels/fonts/size class change)
   const lastCompact = useRef(null);
+  const hudRect = useRef(null); // HUD box (caption + leaderboard) in canvas pixels; labels keep out of it
+  const hudDirty = useRef(true);
 
   const resetMeasure = useMemo(() => () => { boxes.current = new Map(); }, []);
 
@@ -803,9 +806,26 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
     return () => document.fonts.removeEventListener('loadingdone', onLoaded);
   }, [resetMeasure, invalidate]);
 
+  useEffect(() => {
+    const hud = hudRef && hudRef.current;
+    if (!hud || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => { hudDirty.current = true; invalidate(); });
+    observer.observe(hud);
+    for (const child of hud.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [hudRef, invalidate, labels]);
+
   useFrame(({ camera, size, controls, gl }) => {
     const canvas = overlayRef.current;
     if (!canvas) return;
+    if (hudDirty.current || hudRect.current?.w !== size.width) {
+      hudDirty.current = false;
+      const hud = hudRef && hudRef.current;
+      const hudBox = hud ? hud.getBoundingClientRect() : null;
+      const canvasBox = canvas.getBoundingClientRect();
+      const visible = hudBox && hudBox.width > 0 && hudBox.height > 0 && getComputedStyle(hud).position === 'absolute';
+      hudRect.current = visible ? { l: hudBox.left - canvasBox.left - 6, r: hudBox.right - canvasBox.left + 6, t: hudBox.top - canvasBox.top - 6, b: hudBox.bottom - canvasBox.top + 6, w: size.width } : { w: size.width };
+    }
     // The DOM canvas can commit after the Fiber scene (especially a cached
     // GLB mount). Initialise once it exists, rather than losing every label.
     if (!fontsRef.current) {
@@ -834,11 +854,12 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
     const nearRange = Math.max(MIN_NEAR_RANGE, (target ? camera.position.distanceTo(target) : 0) * NEAR_RANGE_FACTOR);
 
     // The bottom strip holds the caption and the controls: labels never sit under them.
-    const reserved = size.width < 400 ? 140 : compact ? 100 : BOTTOM_RESERVED;
+    const reserved = size.width < 400 ? 140 : compact ? 100 : size.width >= 800 ? DESKTOP_BOTTOM_RESERVED : BOTTOM_RESERVED;
     const placed = [
       { l: 0, r: size.width, t: size.height - reserved, b: size.height },
       { l: Math.max(0, size.width - 320), r: size.width, t: 0, b: compact ? 64 : 56 }
     ];
+    if (hudRect.current && hudRect.current.r) placed.push(hudRect.current);
     const debug = [];
     for (const label of order) {
       const followed = label.followId ? positionsRef.current.get(label.followId) : null;
@@ -865,11 +886,19 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       const collides = h => placed.some(o => h.l < o.r && h.r > o.l && h.t < o.b && h.b > o.t);
       const bounds = (x, y) => ({ l: x - LABEL_PADDING, r: x + box.w + LABEL_PADDING, t: y - LABEL_PADDING, b: y + box.h + LABEL_PADDING });
       let hit = bounds(left, top);
-      if ((label.spec.medal || label.spec.emphasized) && collides(hit)) {
-        // Keep the three emphasized Best/Worst labels legible.
+      const originTop = top;
+      const emphasized = Boolean(label.spec.medal || label.spec.emphasized);
+      const flexible = emphasized || label.spec.mini || (label.spec.state && label.spec.state !== 'rest');
+      if (flexible && collides(hit)) {
+        // Keep the three emphasized Best/Worst labels legible; stagger the one-row tags upward instead of dropping them.
+        const step = box.h + (emphasized ? 8 : 4);
+        const dys = emphasized ? [0, -step, -2 * step, box.h + 8] : [0, -step, -2 * step, -3 * step];
+        const dxs = emphasized ? [0, -box.w - 8, box.w + 8] : [0, -box.w / 2 - 4, box.w / 2 + 4];
+        // a podium label hidden behind the HUD steps out to its right edge rather than disappearing
+        if (emphasized && hudRect.current?.r) dxs.push(hudRect.current.r + LABEL_PADDING - left);
         let candidate = null;
-        for (const dy of [0, -box.h - 8, -2 * (box.h + 8), box.h + 8]) {
-          for (const dx of [0, -box.w - 8, box.w + 8]) {
+        for (const dy of dys) {
+          for (const dx of dxs) {
             const x = Math.max(LABEL_PADDING, Math.min(size.width - box.w - LABEL_PADDING, left + dx));
             const y = Math.max(LABEL_PADDING, top + dy);
             const h = bounds(x, y);
@@ -883,9 +912,9 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       placed.push(hit);
       ctx.save();
       ctx.globalAlpha = followed?.alpha ?? 1;
-      if (label.spec.medal || label.spec.emphasized) {
+      if (emphasized || Math.abs(top - originTop) > 1) {
         ctx.beginPath(); ctx.moveTo(left + box.w / 2, top + box.h); ctx.lineTo(cx, rawY + 8);
-        ctx.strokeStyle = label.spec.medal || '#e58b76'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = label.spec.medal || (emphasized ? '#e58b76' : 'rgba(203, 213, 225, 0.75)'); ctx.lineWidth = emphasized ? 1.5 : 1; ctx.stroke();
       }
       drawLabel(ctx, label.spec, box, left, top, fonts);
       ctx.restore();
