@@ -1,5 +1,36 @@
 # BXH Performance dạng 3D
 
+## Bảng ranking và ẩn/hiện HUD (2026-10-13)
+
+- Bỏ dòng giải thích Best/Worst trên bảng và bộ đếm `20 / ... Hub` ở thanh
+  điều khiển. Bảng năm Hub giữ nền tối, tên tối đa hai dòng, số mẫu dưới tên,
+  cột KPI và biến động hạng D-8 thẳng hàng. Nút **Bảng số liệu** mở bảng đầy đủ.
+- Toàn tab BXH hiển thị **Kho Giao Hàng Nặng → GXT**, **Bưu cục → BC**.
+  Chỉ đổi phần hiển thị; tên nguồn, loại Hub, khóa ghép, thứ tự xếp hạng và
+  payload mở báo cáo chi tiết giữ nguyên.
+- `RankingHudToggle` nằm trực tiếp trong toolbar, giữ vị trí và thứ tự Tab
+  khi ẩn/hiện; Esc cũng khôi phục được HUD. Cảnh luôn phủ cùng viewport,
+  header và HUD nằm bên trên, nên ẩn HUD không đổi kích thước canvas hoặc
+  buộc camera đổi khung. Scope filters và các control đang ẩn có `inert`.
+- Mobile có nút **Bảng** một chạm; ngày dữ liệu luôn đọc được ở bảng nhỏ
+  hoặc trên cảnh mobile/2D. Cột **Δ hạng** ghi rõ biến động hạng; nhóm Worst
+  có cả W1/W2 và hạng thật. Chữ cột/số mẫu tăng lên 11px. Bộ tab KPI có
+  roving tabindex, ArrowLeft/Right, Home/End và panel liên kết bằng ARIA.
+- Trạng thái rỗng phân biệt bộ lọc rỗng, chưa có dữ liệu, Hub bị loại do
+  ngưỡng mẫu và chưa có mẫu hợp lệ. Có nút giảm ngưỡng hoặc mở đối soát
+  theo nguyên nhân, không gọi dữ liệu bị loại là dữ liệu chưa có.
+- HUD mờ/trượt 8px trong 160–200ms, có thể đảo chiều khi bấm nhanh;
+  `prefers-reduced-motion` chuyển trạng thái ngay. Nút cạnh HUD là
+  **Xoay ngang màn hình** dùng biểu tượng màn hình ngang, thử API native
+  rồi dùng CSS dự phòng.
+- Kiểm tra local: build, lint các file sửa, 635/635 tests; IAB với dữ liệu
+  mẫu, Best/Worst, mở bảng một chạm, 2D/3D, ẩn/hiện/Esc, keyboard KPI và
+  các trạng thái rỗng/phục hồi. Canvas giữ đúng 1280 × 720 trên desktop
+  và 390 × 844 trên mobile trước/sau ẩn HUD; nút giữ nguyên tọa độ ở cả
+  portrait và CSS landscape. Console không ghi nhận lỗi trong fixture
+  đã bundle riêng. Chưa kiểm chứng production, xoay màn hình native hoặc
+  điện thoại thật. Ảnh mới: `output/playwright/ranking-hud/fixes/`.
+
 ## Ánh sáng xe, chất liệu và chuyển động (2026-10-12)
 
 - `TruckRoadLighting.jsx` dùng bốn InstancedMesh chung cho đèn đầu, đèn

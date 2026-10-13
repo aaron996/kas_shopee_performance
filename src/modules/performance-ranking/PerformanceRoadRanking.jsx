@@ -18,9 +18,7 @@ import {
   Trophy,
   TrendingDown,
   SlidersHorizontal,
-  EyeOff,
-  Eye,
-  RotateCw
+  RectangleHorizontal
 } from 'lucide-react';
 import {
   calculatePerformanceRanking,
@@ -46,6 +44,9 @@ import { MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { useToast } from '../../components/ui/Toast.jsx';
 import useRankingPresentation from './useRankingPresentation.js';
 import RankingMusicWidget from './RankingMusicWidget.jsx';
+import RankingHudToggle from './RankingHudToggle.jsx';
+import { formatRankingHubName } from '../../utils/rankingHubName.js';
+import { rankingEmptyState, rankingKpiNavigationIndex } from '../../utils/rankingUi.js';
 
 // three.js lives in this lazy chunk; the 2D path never loads it.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
@@ -105,9 +106,15 @@ export default function PerformanceRoadRanking({
   const sceneHostRef = useRef(null);
   const stageRef = useRef(null);
   const sceneToggleRef = useRef(null);
+  const kpiButtonRefs = useRef(new Map());
+  const kpiGroupId = useId();
   const settingsRef = useRef(null);
   const [headerTarget, setHeaderTarget] = useState(() => document.getElementById('ranking-header-controls'));
-  useEffect(() => { setHeaderTarget(document.getElementById('ranking-header-controls')); }, []);
+  const [headerHeadingTarget, setHeaderHeadingTarget] = useState(() => document.getElementById('ranking-header-heading'));
+  useEffect(() => {
+    setHeaderTarget(document.getElementById('ranking-header-controls'));
+    setHeaderHeadingTarget(document.getElementById('ranking-header-heading'));
+  }, []);
   const presentation = useRankingPresentation(stageRef, sceneToggleRef);
   const { sceneOnly, setSceneOnly, landscape, immersive, toggleSceneOnly, toggleLandscape } = presentation;
   const playback = useScenePlayback(sceneHostRef);
@@ -266,34 +273,47 @@ export default function PerformanceRoadRanking({
   // Format dates for display
   const d1Formatted = d1Date ? formatDateLabel(d1Date).replace('\n', ' ') : 'Chưa có ngày';
   const d8Formatted = d8Date ? formatDateLabel(d8Date).replace('\n', ' ') : null;
+  const emptyState = rankingEmptyState({ scopeEmpty, excludedCount, unrankedCount, minSample });
 
-  const stageControls = (
-      <div className="prr-stage-header" role="toolbar" aria-label="Điều khiển BXH" hidden={sceneOnly}>
+  const handleToggleHud = () => {
+    setSelectedHubId(null); setTableOpen(false);
+    if (settingsRef.current) settingsRef.current.open = false;
+    toggleSceneOnly();
+  };
+
+  const headingControls = (
         <div className="prr-stage-heading">
-          {onExit && <button type="button" className="prr-stage-back" onClick={onExit} aria-label="Quay về Tổng quan" title="Tổng quan"><ArrowLeft size={18} /></button>}
-          <span className="prr-stage-count">{sceneTrucks.length} / {rankedCount} Hub</span>
+          {onExit && <button type="button" className="prr-stage-back prr-hud-control" inert={sceneOnly || undefined} onClick={onExit} aria-label="Quay về Tổng quan" title="Tổng quan"><ArrowLeft size={18} /></button>}
           <div className="prr-presentation-actions">
-            <button ref={sceneToggleRef} type="button" className="prr-replay-btn prr-scene-toggle prr-icon-action" onClick={() => {
-              setSelectedHubId(null); setTableOpen(false);
-              if (settingsRef.current) settingsRef.current.open = false;
-              toggleSceneOnly();
-            }} aria-label="Chỉ scene" title="Ẩn giao diện, chỉ xem scene"><EyeOff size={16} aria-hidden="true" /></button>
-            <button type="button" className="prr-replay-btn prr-icon-action" onClick={toggleLandscape}
-              aria-label={landscape ? 'Tắt xoay ngang' : 'Xoay ngang'} title={landscape ? 'Trở về hướng tự động' : 'Xem BXH theo chiều ngang'}
-              aria-pressed={landscape} disabled={presentation.rotating}><RotateCw size={16} /></button>
+            <RankingHudToggle buttonRef={sceneToggleRef} sceneOnly={sceneOnly} onToggle={handleToggleHud} />
+            <button type="button" className="prr-replay-btn prr-icon-action prr-hud-control" inert={sceneOnly || undefined} onClick={toggleLandscape}
+              aria-label={landscape ? 'Tắt xoay ngang' : 'Xoay ngang màn hình'} title={landscape ? 'Tắt xoay ngang · Trở về hướng tự động' : 'Xoay ngang màn hình · Xem BXH theo chiều ngang'}
+              aria-pressed={landscape} disabled={presentation.rotating}><RectangleHorizontal size={16} aria-hidden="true" /></button>
           </div>
         </div>
+  );
+  const toolbarControls = (
         <div className="prr-stage-toolbar">
-          <div className="prr-kpi-selector" role="tablist" aria-label="Chọn KPI xếp hạng">
-            {SUPPORTED_KPIS.map(kpi => (
+          <div className="prr-kpi-selector prr-hud-control" inert={sceneOnly || undefined} role="tablist" aria-label="Chọn KPI xếp hạng">
+            {SUPPORTED_KPIS.map((kpi, index) => (
               <button key={kpi.id} type="button" role="tab" aria-selected={metricKey === kpi.id}
+                id={`${kpiGroupId}-${kpi.id}`} aria-controls={`${kpiGroupId}-panel`} tabIndex={metricKey === kpi.id ? 0 : -1}
+                ref={node => { if (node) kpiButtonRefs.current.set(kpi.id, node); else kpiButtonRefs.current.delete(kpi.id); }}
                 className={`prr-kpi-tab ${metricKey === kpi.id ? 'is-active' : ''}`}
+                onKeyDown={event => {
+                  const next = rankingKpiNavigationIndex(event.key, index, SUPPORTED_KPIS.length);
+                  if (next === null) return;
+                  event.preventDefault();
+                  const nextKpi = SUPPORTED_KPIS[next];
+                  setMetricKey(nextKpi.id); setSelectedHubId(null);
+                  kpiButtonRefs.current.get(nextKpi.id)?.focus();
+                }}
                 onClick={() => { setMetricKey(kpi.id); setSelectedHubId(null); }}>
                 <span className="kpi-tab-label">{kpi.shortLabel}</span>
               </button>
             ))}
           </div>
-          <div className="prr-stage-actions">
+          <div className="prr-stage-actions prr-hud-control" inert={sceneOnly || undefined}>
             <button type="button" role="switch" aria-checked={rankView === 'worst'}
               aria-label="Hiển thị nhóm Worst" className="prr-rank-switch" data-view={rankView}
               title={rankView === 'best' ? 'Best · KPI cao nhất. Chuyển sang Worst' : 'Worst · KPI thấp nhất. Chuyển sang Best'}
@@ -329,7 +349,6 @@ export default function PerformanceRoadRanking({
                   </div>
                   <button type="button" className="prr-replay-btn" disabled={playback.reducedMotion || sceneTrucks.length === 0}
                     onClick={() => playback.setPaused(value => !value)}>{playback.paused ? <Play size={15} /> : <Pause size={15} />}{playback.paused ? 'Tiếp tục' : 'Tạm dừng'}</button>
-                  <button type="button" className="prr-replay-btn" onClick={handleViewTable}><Table2 size={16} />Bảng số liệu</button>
                 </div>
                 <div className="prr-speed-control">
                   <label htmlFor={speedControlId}>Tốc độ</label>
@@ -358,32 +377,33 @@ export default function PerformanceRoadRanking({
                 <p><AlertTriangle size={12} /> Mẫu dưới {SMALL_SAMPLE_THRESHOLD} đơn</p>
               </div>
             </details>
-            <button type="button" className="prr-replay-btn prr-icon-action prr-desktop-control" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen} onClick={() => setTableOpen(value => !value)}><Table2 size={16} aria-hidden="true" /></button>
+            <button type="button" className="prr-replay-btn prr-table-action" aria-label="Bảng số liệu" title="Bảng số liệu" aria-expanded={tableOpen}
+              onClick={() => { if (tableOpen) setTableOpen(false); else handleViewTable(); }}><Table2 size={16} aria-hidden="true" /><span>Bảng</span></button>
           </div>
         </div>
-      </div>
   );
 
   return (
     <div ref={stageRef} tabIndex={-1}
       className={`performance-road-ranking-tab ${density === 'compact' ? 'density-compact' : ''} ${immersive ? 'prr-immersive' : ''} ${landscape ? 'prr-landscape' : ''} ${sceneOnly ? 'prr-scene-only' : ''}`}
-      onPointerDown={sceneOnly ? presentation.revealRestore : undefined}>
-      {headerTarget && !immersive ? createPortal(stageControls, headerTarget) : stageControls}
-      {sceneOnly && <button type="button" className={`prr-restore-interface ${presentation.restoreVisible ? 'is-visible' : ''}`}
-        onClick={toggleSceneOnly} onFocus={presentation.revealRestore} aria-label="Hiện giao diện" title="Hiện giao diện (Esc)"><Eye size={16} aria-hidden="true" /></button>}
+      >
+      {headerTarget && headerHeadingTarget && !landscape ? <>
+        {createPortal(headingControls, headerHeadingTarget)}
+        {createPortal(toolbarControls, headerTarget)}
+      </> : <div className="prr-stage-header" role="toolbar" aria-label="Điều khiển BXH">{headingControls}{toolbarControls}</div>}
       <div className="prr-scene-surface">
+      {d1Date && <div className={`prr-scene-date ${sceneMode === '2d' ? 'is-2d' : ''}`} aria-label={`Ngày dữ liệu ${d1Formatted}`}>Dữ liệu {d1Formatted}</div>}
       <RankingMusicWidget />
-      <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} aria-label="Tuyến đường xếp hạng Hub">
+      <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} role="tabpanel"
+        id={`${kpiGroupId}-panel`} aria-labelledby={`${kpiGroupId}-${metricKey}`}>
         {/* Empty Scope / No data notice */}
         {scopeEmpty || sceneTrucks.length === 0 ? (
           <div className="prr-scene-empty">
             <Truck size={42} className="text-muted mb-2" />
-            <h3>Không có Hub nào phù hợp với bộ lọc hiện tại</h3>
-            <p className="text-muted">
-              {scopeEmpty
-                ? 'Bộ lọc Vùng hoặc Loại Hub đang chọn rỗng. Vui lòng chọn ít nhất một Vùng hoặc Loại Hub để xem xếp hạng.'
-                : 'Không tìm thấy dữ liệu vận hành nào cho điều kiện lọc đã chọn.'}
-            </p>
+            <h3>{emptyState.title}</h3>
+            <p className="text-muted">{emptyState.message}</p>
+            {emptyState.action === 'sample' && <button type="button" className="prr-replay-btn" onClick={() => setMinSample(0)}>Xem Hub có dữ liệu · Ngưỡng 0 đơn</button>}
+            {emptyState.action === 'table' && <button type="button" className="prr-replay-btn" onClick={handleViewTable}>Mở bảng đối soát</button>}
           </div>
         ) : (
           sceneMode === '3d' ? (
@@ -443,7 +463,7 @@ export default function PerformanceRoadRanking({
                 <h3 className="insight-hub-title">{selectedHubItem.displayName || selectedHubItem.hub}</h3>
                 <div className="insight-hub-tags">
                   <span className="meta-tag"><MapPin size={12} /> {selectedHubItem.region}</span>
-                  <span className="meta-tag"><Building2 size={12} /> {selectedHubItem.hubType}</span>
+                  <span className="meta-tag"><Building2 size={12} /> {formatRankingHubName(selectedHubItem.hubType)}</span>
                   <span className={`status-pill ${selectedHubItem.meetsTarget ? 'is-good' : selectedHubItem.hasData ? 'is-bad' : 'is-none'}`}>
                     {selectedHubItem.meetsTarget ? 'Đạt chuẩn KPI' : selectedHubItem.hasData ? 'Dưới mục tiêu' : 'Chưa đủ dữ liệu'}
                   </span>
@@ -544,12 +564,12 @@ export default function PerformanceRoadRanking({
               <p className="stat-narrative">
                 {selectedHubItem.hasData ? (
                   selectedHubItem.meetsTarget ? (
-                    `Hub ${selectedHubItem.hub} đạt chuẩn vận hành ${metricLabel} (${selectedHubItem.kpiD1.toFixed(1)}% ≥ ${target}%) trên tổng sản lượng ${formatVol(selectedHubItem.sampleD1)} đơn tại ngày D-1.`
+                    `Hub ${formatRankingHubName(selectedHubItem.hub)} đạt chuẩn vận hành ${metricLabel} (${selectedHubItem.kpiD1.toFixed(1)}% ≥ ${target}%) trên tổng sản lượng ${formatVol(selectedHubItem.sampleD1)} đơn tại ngày D-1.`
                   ) : (
-                    `Hub ${selectedHubItem.hub} chưa đạt mục tiêu ${metricLabel} (${selectedHubItem.kpiD1.toFixed(1)}% < ${target}%), còn thiếu ${(target - selectedHubItem.kpiD1).toFixed(1)}% pp trên ${formatVol(selectedHubItem.sampleD1)} đơn.`
+                    `Hub ${formatRankingHubName(selectedHubItem.hub)} chưa đạt mục tiêu ${metricLabel} (${selectedHubItem.kpiD1.toFixed(1)}% < ${target}%), còn thiếu ${(target - selectedHubItem.kpiD1).toFixed(1)}% pp trên ${formatVol(selectedHubItem.sampleD1)} đơn.`
                   )
                 ) : (
-                  `Chưa ghi nhận sản lượng hợp lệ cho Hub ${selectedHubItem.hub} trong ngày D-1.`
+                  `Chưa ghi nhận sản lượng hợp lệ cho Hub ${formatRankingHubName(selectedHubItem.hub)} trong ngày D-1.`
                 )}
               </p>
             </div>
@@ -639,7 +659,7 @@ export default function PerformanceRoadRanking({
                         {/* Hub */}
                         <td className="hub-cell">
                           <strong>{item.displayName || item.hub}</strong>
-                          <span className="hub-type-tag">{item.hubType}</span>
+                          <span className="hub-type-tag">{formatRankingHubName(item.hubType)}</span>
                         </td>
 
                         {/* Vùng */}
@@ -751,7 +771,7 @@ export default function PerformanceRoadRanking({
                             <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>–</td>
                             <td className="hub-cell">
                               <span>{item.displayName || item.hub}</span>
-                              <span className="hub-type-tag">{item.hubType}</span>
+                              <span className="hub-type-tag">{formatRankingHubName(item.hubType)}</span>
                             </td>
                             <td><span className="region-pill">{item.region}</span></td>
                             <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>–</td>

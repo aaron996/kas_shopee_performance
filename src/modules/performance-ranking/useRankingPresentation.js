@@ -5,25 +5,20 @@ export default function useRankingPresentation(stageRef, sceneToggleRef) {
   const [sceneOnly, setSceneOnly] = useState(false);
   const [landscape, setLandscape] = useState(false);
   const [rotating, setRotating] = useState(false);
-  const [restoreVisible, setRestoreVisible] = useState(true);
-  const restoreTimer = useRef(null);
   const requestVersion = useRef(0);
   const nativeActive = useRef(false);
   const previousSceneOnly = useRef(false);
   const immersive = sceneOnly || landscape;
-  const clearRestoreTimer = useCallback(() => clearTimeout(restoreTimer.current), []);
   const cancelRequest = useCallback(() => { requestVersion.current += 1; }, []);
-
-  const revealRestore = useCallback(() => {
-    setRestoreVisible(true);
-    clearTimeout(restoreTimer.current);
-    restoreTimer.current = setTimeout(() => setRestoreVisible(false), 3000);
-  }, []);
 
   const toggleSceneOnly = useCallback(() => {
     setSceneOnly(value => !value);
-    revealRestore();
-  }, [revealRestore]);
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('ranking-presentation-change', { detail: { hidden: sceneOnly || landscape } }));
+    return () => window.dispatchEvent(new CustomEvent('ranking-presentation-change', { detail: { hidden: false } }));
+  }, [sceneOnly, landscape]);
 
   const toggleLandscape = useCallback(async () => {
     if (rotating) return;
@@ -63,12 +58,11 @@ export default function useRankingPresentation(stageRef, sceneToggleRef) {
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => {
       cancelRequest();
-      clearRestoreTimer();
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       // Only release the orientation/fullscreen owned by this stage.
       if (document.fullscreenElement === element) void releaseRankingLandscape(element, document, window.screen.orientation);
     };
-  }, [stageRef, clearRestoreTimer, cancelRequest]);
+  }, [stageRef, cancelRequest]);
 
   useEffect(() => {
     if (!immersive) return undefined;
@@ -80,10 +74,9 @@ export default function useRankingPresentation(stageRef, sceneToggleRef) {
   useEffect(() => {
     if (previousSceneOnly.current === sceneOnly) return;
     previousSceneOnly.current = sceneOnly;
-    // Move focus out of the controls that are about to be hidden.
-    if (sceneOnly) stageRef.current?.focus({ preventScroll: true });
-    else sceneToggleRef.current?.focus({ preventScroll: true });
+    // The persistent toggle stays available outside the hidden/inert HUD.
+    sceneToggleRef.current?.focus({ preventScroll: true });
   }, [sceneOnly, stageRef, sceneToggleRef]);
 
-  return { sceneOnly, setSceneOnly, landscape, rotating, immersive, restoreVisible, revealRestore, toggleSceneOnly, toggleLandscape };
+  return { sceneOnly, setSceneOnly, landscape, rotating, immersive, toggleSceneOnly, toggleLandscape };
 }

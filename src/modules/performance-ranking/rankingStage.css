@@ -1,22 +1,24 @@
-/* BXH uses the viewport as its stage; shell filters remain reachable above it. */
+/* The scene always fills the same viewport; HUD overlays never resize its camera. */
 .app-layout-ranking .app-sidebar { display: none; }
 .app-layout-ranking .mobile-bottom-nav { display: none; }
 .app-layout-ranking .app-main { padding-bottom: 0; }
 .app-layout-ranking .main-content { padding: 0; max-width: none; }
 .app-layout-ranking .tab-view-content { animation: none; }
-.app-layout-ranking .app-header { height: auto; min-height: 52px; }
+.app-layout-ranking .app-header {
+  height: auto; min-height: 52px; z-index: 1110;
+  transition: background-color 200ms var(--ease-snappy), border-color 200ms var(--ease-snappy);
+}
 .app-layout-ranking .compact-header-toolbar { flex-wrap: wrap; }
-#ranking-header-controls, #ranking-header-controls .prr-stage-header,
+#ranking-header-heading, #ranking-header-controls, #ranking-header-controls .prr-stage-header,
 #ranking-header-controls .prr-stage-toolbar { display: contents; }
-.app-layout-ranking .compact-header-toolbar > .scope-filter-cluster { order: 2; }
-#ranking-header-controls .prr-stage-heading { order: 0; }
-#ranking-header-controls .prr-kpi-selector { order: 1; }
+.app-layout-ranking .compact-header-toolbar > .scope-filter-cluster { order: 1; }
+#ranking-header-heading .prr-stage-heading { order: 0; }
+#ranking-header-controls .prr-kpi-selector { order: 2; }
 #ranking-header-controls .prr-stage-actions { order: 3; margin-left: auto; }
-#ranking-header-controls .prr-stage-count { white-space: nowrap; }
 #ranking-header-controls .prr-stage-settings-panel { top: calc(100% + 12px); }
 .performance-road-ranking-tab {
-  position: relative;
-  height: calc(100dvh - var(--app-header-height, 52px));
+  --prr-controls-height: var(--app-header-height, 52px);
+  position: fixed; inset: 0; z-index: 1100; width: 100%; height: 100dvh;
   min-height: 0;
   max-width: none;
   margin: 0;
@@ -27,23 +29,53 @@
 .prr-stage-header[hidden] { display: none; }
 .prr-presentation-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .prr-mobile-controls { display: none; }
-.performance-road-ranking-tab.prr-immersive {
-  position: fixed; inset: 0; z-index: 1100; width: 100%; height: 100dvh;
-  background: var(--surface-default);
-}
 .performance-road-ranking-tab:fullscreen { height: 100dvh; }
-body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
-.performance-road-ranking-tab.prr-scene-only :is(.prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-caption, .prr-3d-labels, .prr-truck-tag) { display: none; }
-.prr-restore-interface {
-  position: absolute; z-index: 40; top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 8px;
-  width: 44px; min-height: 44px; padding: 0; justify-content: center; border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill); background: var(--surface-default); color: var(--text-primary);
-  font: inherit; font-size: 12px; cursor: pointer; opacity: 0; pointer-events: none;
-  transition: opacity 160ms var(--ease-snappy);
+body:has(.prr-landscape) .app-layout-ranking .app-header {
+  opacity: 0; visibility: hidden; pointer-events: none;
 }
-.prr-restore-interface.is-visible, .prr-restore-interface:focus-visible { opacity: 1; pointer-events: auto; }
-.prr-restore-interface:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
+body:has(.prr-scene-only:not(.prr-landscape)) .app-layout-ranking .app-header {
+  background: transparent; border-color: transparent; box-shadow: none; pointer-events: none;
+}
+.app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+.performance-road-ranking-tab :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag) {
+  transition: opacity 200ms var(--ease-snappy), visibility 0s;
+}
+.app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+.performance-road-ranking-tab :is(.prr-hud-control, .prr-lighting-controls, .prr-3d-controls, .prr-3d-hud) {
+  transition: opacity 200ms var(--ease-snappy), transform 200ms var(--ease-snappy), visibility 0s;
+}
+body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+.performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag) {
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 160ms var(--ease-snappy), transform 160ms var(--ease-snappy), visibility 0s 160ms;
+}
+.performance-road-ranking-tab.prr-scene-only :is(.prr-lighting-controls, .prr-3d-hud) { transform: translateY(-8px); }
+body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+.performance-road-ranking-tab.prr-scene-only .prr-hud-control { transform: translateY(-8px); }
+.performance-road-ranking-tab.prr-scene-only .prr-3d-controls { transform: translateY(8px); }
+.prr-hud-toggle {
+  position: relative; z-index: 40; flex: none; display: grid; place-items: center; pointer-events: auto;
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill); background: var(--surface-default); color: var(--text-primary);
+  font: inherit; cursor: pointer;
+}
+.prr-hud-toggle svg { grid-area: 1 / 1; transition: opacity 160ms var(--ease-snappy), transform 160ms var(--ease-snappy); }
+.prr-hud-toggle svg.is-hidden { opacity: 0; transform: scale(.92); }
+.prr-hud-toggle:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .prr-hud-toggle:hover { background: var(--surface-subtle); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-layout-ranking .app-header,
+  .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+  body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+  .performance-road-ranking-tab :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag),
+  .performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag),
+  .prr-hud-toggle svg { transition: none; }
+  body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
+  .performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-lighting-controls, .prr-3d-controls, .prr-3d-hud),
+  .prr-hud-toggle svg.is-hidden { transform: none; }
+}
 @media (orientation: portrait) {
   .performance-road-ranking-tab.prr-landscape {
     inset: auto; top: 50%; left: 50%; width: 100dvh; height: 100dvw;
@@ -53,12 +85,20 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
 .prr-stage-header {
   display: flex; align-items: center; gap: 16px;
   flex: none;
-  position: relative;
+  position: absolute; inset: 0 0 auto;
   z-index: 10;
   background: var(--surface-default);
   border-bottom: 1px solid var(--border-subtle);
   padding: 10px 20px;
 }
+.prr-scene-only > .prr-stage-header { background: transparent; border-color: transparent; pointer-events: none; }
+.prr-scene-date {
+  display: none; position: absolute; top: calc(var(--prr-controls-height) + 12px); left: 20px; z-index: 5;
+  padding: 6px 10px; border-radius: var(--radius-control); background: rgb(19 30 46 / 94%);
+  color: #dce5ef; font-size: 11px; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.prr-scene-date.is-2d { display: block; }
+#ranking-header-controls .prr-table-action, .prr-stage-header .prr-table-action { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; min-height: 44px; }
 .prr-stage-heading, .prr-stage-toolbar, .prr-stage-actions { display: flex; align-items: center; gap: 12px; }
 .prr-stage-heading { flex: none; }
 .prr-stage-back, .prr-panel-close {
@@ -66,8 +106,6 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   border: 0; border-radius: var(--radius-control); color: var(--text-primary);
   background: var(--surface-subtle); cursor: pointer; width: 32px; height: 32px; flex: none;
 }
-.prr-stage-count { font-size: 12px; color: var(--text-secondary); }
-.prr-stage-count { margin-left: auto; font-variant-numeric: tabular-nums; }
 .prr-stage-toolbar { flex: 1; min-width: 0; justify-content: space-between; flex-wrap: wrap; }
 .prr-stage-actions { gap: 8px; flex-wrap: nowrap; flex: none; }
 .prr-rank-switch {
@@ -138,11 +176,11 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   .prr-skidding { animation: none; }
   .prr-tyre-smoke { display: none; }
 }
-.prr-stage-header .prr-kpi-tab { flex-direction: row; gap: 8px; min-height: 32px; padding: 5px 12px; }
+#ranking-header-controls .prr-kpi-tab, .prr-stage-header .prr-kpi-tab { flex-direction: row; gap: 8px; min-height: 32px; padding: 5px 12px; }
 .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn { min-height: 32px; }
 .prr-stage-settings { position: relative; font-size: 12px; }
 .prr-stage-settings summary { cursor: pointer; padding: 8px 10px; border-radius: var(--radius-pill); }
-.prr-stage-settings summary.prr-icon-action { padding: 0; list-style: none; background: var(--surface-subtle); color: var(--text-secondary); }
+.prr-stage-settings summary.prr-icon-action { display: grid; place-items: center; padding: 0; list-style: none; background: var(--surface-subtle); color: var(--text-secondary); }
 .prr-stage-settings summary::marker, .prr-stage-settings summary::-webkit-details-marker { display: none; content: ''; }
 .prr-stage-settings-panel {
   position: absolute; top: calc(100% + 8px); right: 0; width: 280px; padding: 16px;
@@ -158,7 +196,9 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
 }
 .performance-road-ranking-tab .prr-scene3d,
 .performance-road-ranking-tab .prr-road-viewport { flex: 1; height: 100%; min-height: 0; border: 0; border-radius: 0; }
-.performance-road-ranking-tab .prr-scene-empty { flex: 1; align-self: center; }
+.performance-road-ranking-tab .prr-scene-empty { flex: 1; align-self: center; padding: calc(var(--prr-controls-height) + 20px) 20px 20px; }
+.performance-road-ranking-tab .prr-scene-empty p { max-width: 54ch; }
+.performance-road-ranking-tab .prr-scene-empty .prr-replay-btn { margin-top: 12px; min-height: 44px; }
 .performance-road-ranking-tab .prr-road-canvas { height: 100%; min-height: 320px; }
 .performance-road-ranking-tab .prr-lanes-container { top: 50%; transform: translateY(-50%); }
 .performance-road-ranking-tab .prr-truck-node { margin-top: max(0px, calc((100dvh - var(--app-header-height, 52px) - 420px) / 2)); }
@@ -168,37 +208,54 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; min-width: 44px; min-height: 44px; padding: 0;
 }
-/* Top-left HUD: what the order means, plus the first five Hubs as exact numbers (the labels in the
-   scene shrink when the convoy is crowded). The bottom corners stay free for the music widget and controls. */
+/* Compact comparison sheet: names and samples lead; numeric columns stay aligned. */
 .performance-road-ranking-tab .prr-3d-hud {
-  position: absolute; top: 16px; left: 20px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start;
-  gap: 8px; width: min(340px, calc(50% - 190px)); pointer-events: none;
+  position: absolute; top: calc(var(--prr-controls-height) + 16px); left: 20px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start;
+  width: min(400px, calc(100% - 280px)); pointer-events: none;
 }
 .performance-road-ranking-tab .prr-3d-hud > * { pointer-events: auto; }
-.performance-road-ranking-tab .prr-3d-caption {
-  position: static; display: block; max-width: 100%; padding: 6px 12px; border-radius: 12px;
-  font-size: 12px; line-height: 1.4; color: #e2e8f0;
+.prr-leaderboard-panel {
+  width: 100%; overflow: hidden; border-radius: var(--radius-surface);
+  background: rgb(19 30 46 / 94%); color: #f1f5f9; font-size: 12px;
 }
-.performance-road-ranking-tab .prr-3d-caption .prr-3d-table-link { margin-left: 6px; }
+.prr-leaderboard-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px 4px; }
+.prr-leaderboard-heading strong { font-size: 14px; font-weight: 650; }
+.prr-leaderboard-heading > div { display: grid; gap: 3px; }
+.prr-leaderboard-date { color: #adbbcc; font-size: 11px; font-variant-numeric: tabular-nums; }
+.prr-leaderboard-heading button {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 0 4px 8px;
+  border: 0; background: transparent; color: #b9d9f3; font: inherit; cursor: pointer;
+}
+.prr-leaderboard-columns {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) 58px 52px; gap: 8px;
+  padding: 4px 14px 8px; color: #adbbcc; font-size: 11px;
+}
+.prr-leaderboard-columns > :nth-last-child(-n+2) { text-align: right; }
 .performance-road-ranking-tab .prr-3d-leaderboard {
-  display: grid; gap: 2px; width: 100%; margin: 0; padding: 6px; list-style: none;
-  border-radius: 12px; background: rgba(15, 23, 42, 0.78); color: #e2e8f0; font-size: 12px;
+  display: block; width: 100%; margin: 0; padding: 0 6px 6px; list-style: none;
 }
+.performance-road-ranking-tab .prr-3d-leaderboard li + li { border-top: 1px solid rgb(173 187 204 / 12%); }
 .performance-road-ranking-tab .prr-3d-leaderboard button {
-  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; width: 100%; min-height: 28px;
-  padding: 2px 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) 58px 52px; align-items: center; gap: 8px; width: 100%; min-height: 52px;
+  padding: 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
-.performance-road-ranking-tab .prr-3d-leaderboard button:hover { background: rgba(148, 163, 184, 0.16); }
-.performance-road-ranking-tab .prr-3d-leaderboard button.is-selected { border-color: #38bdf8; background: rgba(56, 189, 248, 0.14); }
-.performance-road-ranking-tab .prr-3d-leaderboard button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 1px; }
-.prr-lb-rank { color: #f59e0b; font-weight: 700; }
-.prr-lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #fff; }
-.prr-lb-kpi { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-weight: 700; }
-.prr-lb-kpi.is-good { color: #34d399; }
-.prr-lb-kpi.is-below { color: #f87171; }
-.prr-lb-delta { min-width: 28px; padding: 0 5px; border-radius: 4px; font: 600 11px var(--font-mono, ui-monospace, Consolas, monospace); text-align: center; color: #94a3b8; background: rgba(148, 163, 184, 0.2); }
-.prr-lb-delta.is-up { color: #34d399; background: rgba(52, 211, 153, 0.2); }
-.prr-lb-delta.is-down { color: #f87171; background: rgba(248, 113, 113, 0.2); }
+@media (hover: hover) and (pointer: fine) {
+  .performance-road-ranking-tab .prr-3d-leaderboard button:hover { background: rgb(173 187 204 / 10%); }
+}
+.performance-road-ranking-tab .prr-3d-leaderboard button.is-selected { background: rgb(125 211 252 / 14%); }
+.prr-leaderboard-panel button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.prr-lb-rank { display: grid; gap: 3px; color: #dce5ef; font-weight: 700; font-variant-numeric: tabular-nums; }
+.prr-lb-canonical { color: #adbbcc; font-size: 11px; font-weight: 500; }
+.prr-3d-leaderboard li:first-child .prr-lb-rank { color: #fcd36a; }
+.prr-lb-hub { display: grid; gap: 3px; min-width: 0; }
+.prr-lb-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: 1.35; font-weight: 600; }
+.prr-lb-sample { color: #adbbcc; font-size: 11px; font-variant-numeric: tabular-nums; }
+.prr-lb-kpi { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.prr-lb-kpi.is-good { color: #6ee7b7; }
+.prr-lb-kpi.is-below { color: #fda4af; }
+.prr-lb-delta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; color: #adbbcc; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.prr-lb-delta.is-up { color: #6ee7b7; }
+.prr-lb-delta.is-down { color: #fda4af; }
 /* The assistant mascot / "Hiện trợ lý" button is fixed to the bottom-right of the window; keep the scene controls beside it, not under it. */
 @media (min-width: 801px) {
   body:has(.chat-mascot-launcher, .chat-mascot-reveal) .performance-road-ranking-tab .prr-3d-controls { right: 172px; }
@@ -211,7 +268,7 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
 .performance-road-ranking-tab .prr-insight-panel { right: 16px; bottom: 74px; width: min(450px, calc(100% - 32px)); max-height: calc(100% - 180px); padding: 18px; }
 .performance-road-ranking-tab .insight-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .performance-road-ranking-tab .prr-table-card { inset: 110px 16px 74px; padding: 18px; display: flex; flex-direction: column; }
-.performance-road-ranking-tab:not(.prr-immersive) .prr-table-card { inset: 12px 12px 74px; }
+.performance-road-ranking-tab .prr-table-card { inset: calc(var(--prr-controls-height) + 12px) 12px 74px; }
 .performance-road-ranking-tab .prr-table-responsive { flex: 1; overflow: auto; }
 .performance-road-ranking-tab .prr-table-toolbar { flex: none; }
 .prr-panel-close { margin-left: auto; order: 3; }
@@ -220,9 +277,9 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
 .prr-panel-close:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 3px; }
 @media (max-width: 800px), (max-height: 500px) and (pointer: coarse) {
   .app-layout-ranking .compact-header-toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; }
-  #ranking-header-controls, #ranking-header-controls .prr-stage-header { display: contents; }
+  #ranking-header-heading, #ranking-header-controls, #ranking-header-controls .prr-stage-header { display: contents; }
   .app-layout-ranking .compact-header-toolbar > .scope-filter-cluster { grid-column: 2; grid-row: 1; justify-self: end; }
-  #ranking-header-controls .prr-stage-heading { grid-column: 1; grid-row: 1; justify-content: flex-start; margin: 0; gap: 4px; }
+  #ranking-header-heading .prr-stage-heading { grid-column: 1; grid-row: 1; justify-content: flex-start; margin: 0; gap: 4px; }
   #ranking-header-controls .prr-stage-toolbar { display: flex; grid-column: 1 / -1; grid-row: 2; }
   #ranking-header-controls .prr-stage-settings-panel { top: calc(100% + 4px); max-height: calc(100dvh - var(--app-header-height, 52px) - 16px); }
   .prr-stage-header { display: block; padding: 6px 12px; }
@@ -231,11 +288,11 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   .prr-presentation-actions { gap: 4px; margin-left: auto; }
   .prr-stage-header .prr-scene-toggle { width: 44px; min-width: 44px; padding: 0; }
   .prr-stage-toolbar { gap: 6px; flex-wrap: nowrap; }
-  .prr-stage-header .prr-kpi-selector { min-width: 0; flex: 1; display: flex; flex-wrap: nowrap; }
-  .prr-stage-header .prr-kpi-tab { min-width: 0; flex: 1; padding: 4px; gap: 0; min-height: 44px; font-size: 11px; }
-  .prr-stage-header .kpi-tab-label { white-space: normal; text-align: center; line-height: 1.2; }
+  #ranking-header-controls .prr-kpi-selector, .prr-stage-header .prr-kpi-selector { min-width: 0; flex: 1; display: flex; flex-wrap: nowrap; }
+  #ranking-header-controls .prr-kpi-tab, .prr-stage-header .prr-kpi-tab { min-width: 0; flex: 1; padding: 4px; gap: 0; min-height: 44px; font-size: 11px; }
+  #ranking-header-controls .kpi-tab-label, .prr-stage-header .kpi-tab-label { white-space: normal; text-align: center; line-height: 1.2; }
   .prr-stage-actions { gap: 4px; }
-  .prr-stage-header .prr-desktop-control { display: none; }
+  #ranking-header-controls .prr-desktop-control, .prr-stage-header .prr-desktop-control { display: none; }
   .prr-mobile-controls { display: grid; gap: 10px; }
   .prr-mobile-controls .prr-segmented-limit { display: flex; }
   .prr-mobile-controls .seg-btn { flex: 1; }
@@ -243,10 +300,9 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn, .prr-stage-settings summary { min-height: 40px; }
   .prr-rank-switch { height: 44px; }
   .prr-rank-switch-indicator { height: 36px; }
-  .prr-stage-header .prr-icon-action { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
+  #ranking-header-heading .prr-icon-action, #ranking-header-controls .prr-icon-action, .prr-stage-header .prr-icon-action { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
   .prr-stage-header .seg-btn { padding: 4px 8px; font-size: 11px; }
   .prr-stage-header .prr-count-selector .seg-btn { width: 28px; padding: 4px 0; min-height: 44px; }
-  .prr-stage-heading .prr-stage-count { display: none; }
   .prr-stage-settings { position: static; }
   .prr-stage-settings-panel { right: 12px; top: calc(100% + 4px); width: min(300px, calc(100% - 24px)); max-height: calc(100dvh - var(--app-header-height, 52px) - 128px); overflow: auto; overscroll-behavior: contain; }
   .performance-road-ranking-tab .prr-3d-controls { bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; right: 12px; justify-content: center; flex-wrap: nowrap; }
@@ -254,17 +310,18 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
   .performance-road-ranking-tab .prr-3d-controls .seg-btn,
   .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 44px; font-size: 11px; padding: 4px 8px; }
   .performance-road-ranking-tab .prr-3d-hud { display: none; }
+  .performance-road-ranking-tab .prr-scene-date { display: block; left: 12px; }
   .performance-road-ranking-tab .prr-table-card { inset: 112px 8px 8px; padding: 12px; }
-  .performance-road-ranking-tab:not(.prr-immersive) .prr-table-card { inset: 8px; }
+  .performance-road-ranking-tab .prr-table-card { inset: calc(var(--prr-controls-height) + 8px) 8px 8px; }
   .performance-road-ranking-tab .prr-insight-panel { right: 8px; bottom: 68px; width: calc(100% - 16px); max-height: calc(100% - 190px); }
   .performance-road-ranking-tab .prr-truck-node { margin-top: 56px; }
   .performance-road-ranking-tab .prr-lanes-container { top: 56px; transform: none; }
 }
 /* A rotated phone keeps its controls in a single compact rail. */
+.prr-landscape { --prr-controls-height: 64px; }
 .prr-landscape .prr-stage-header { display: flex; align-items: center; gap: 16px; padding: 6px max(12px, env(safe-area-inset-left)); }
 .prr-landscape .prr-stage-header[hidden] { display: none; }
 .prr-landscape .prr-stage-heading { margin: 0; gap: 6px; }
-.prr-landscape .prr-stage-count { display: none; }
 .prr-landscape .prr-stage-toolbar { flex: 1; min-width: 0; flex-wrap: nowrap; gap: 6px; }
 .prr-landscape .prr-stage-header .prr-kpi-selector { flex: 1; min-width: 0; }
 .prr-landscape .prr-stage-header .prr-kpi-tab { flex: 1; min-width: 0; padding: 4px 6px; min-height: 44px; }
@@ -274,4 +331,3 @@ body:has(.prr-immersive) .app-layout-ranking .app-header { visibility: hidden; }
 .prr-landscape .prr-stage-settings-panel { top: calc(100% + 4px); right: 12px; max-height: calc(min(100dvw, 100dvh) - 76px); overflow: auto; }
 .prr-landscape .prr-table-card { inset: 68px 8px 8px; }
 .prr-landscape .prr-insight-panel { max-height: calc(100% - 136px); }
-@media (prefers-reduced-motion: reduce) { .prr-restore-interface { transition: none; } }

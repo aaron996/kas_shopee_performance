@@ -13,6 +13,7 @@
 //   { kind: 'lane', text }
 
 import { LABEL_PALETTE as P } from '../../utils/sceneLabelStyle.js';
+import { formatRankingHubName } from '../../utils/rankingHubName.js';
 
 const rgba = (fill) => {
   const h = fill.color.replace('#', '');
@@ -47,6 +48,7 @@ function fit(ctx, text, maxWidth) {
 const NAME_PREFIXES = [[/^Kho Giao Hàng\s+/i, 'KGH '], [/^Bưu Cục\s+/i, 'BC ']];
 
 export function abbreviateHubName(name) {
+  name = formatRankingHubName(name);
   for (const [pattern, short] of NAME_PREFIXES) {
     if (pattern.test(name)) return name.replace(pattern, short);
   }
@@ -55,6 +57,7 @@ export function abbreviateHubName(name) {
 
 /** The full name when it fits, else the abbreviated one, truncated only as a last resort. */
 function fitName(ctx, name, maxWidth) {
+  name = formatRankingHubName(name);
   return ctx.measureText(name).width <= maxWidth ? name : fit(ctx, abbreviateHubName(name), maxWidth);
 }
 
