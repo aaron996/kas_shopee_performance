@@ -12,6 +12,15 @@ import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, ge
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
+import { supabase } from '../../utils/supabaseClient';
+import { fetchWeeklyRows, clearWeeklyCache } from '../../utils/weeklyKpi';
+
+const EXPORT_MODES = [{ value: 'day', label: 'Theo ngày' }, { value: 'week', label: 'Theo tuần' }];
+const addIsoDays = (day, n) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 
 const WEEKLY_TITLES = {
   p1st: 'Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)',
@@ -448,14 +457,29 @@ export default function Report1MienVungHub({
   // Giá trị trống vẫn phải là một lựa chọn lọc, nếu không dòng đó bị loại khỏi CSV (hay gặp ở FD).
   const EXPORT_BLANK = '(Không xác định)';
   const orBlank = (v) => v || EXPORT_BLANK;
+  // "Theo tuần": đọc các bảng lịch sử qua RPC (report_date = thứ Hai của tuần), chỉ tải khi chọn.
+  const [exportMode, setExportMode] = useState('day');
+  const [weeklyAttempt, setWeeklyAttempt] = useState(0);
+  const [weeklyExport, setWeeklyExport] = useState({ status: 'idle', pick: [], deli: [], fd: [] });
+  useEffect(() => {
+    if (!isExportOpen || exportMode !== 'week') return undefined;
+    let cancelled = false;
+    setWeeklyExport(prev => ({ ...prev, status: 'loading' }));
+    Promise.all(['pick', 'deli', 'fd'].map(dataset => fetchWeeklyRows(supabase, dataset)))
+      .then(([pick, deli, fd]) => { if (!cancelled) setWeeklyExport({ status: 'ready', pick: pick.rows, deli: deli.rows, fd: fd.rows }); })
+      .catch(() => { if (!cancelled) setWeeklyExport({ status: 'error', pick: [], deli: [], fd: [] }); });
+    return () => { cancelled = true; };
+  }, [isExportOpen, exportMode, weeklyAttempt]);
+  const isWeeklyExport = exportMode === 'week';
   const exportSources = useMemo(() => {
     const src = (metrics, r, hub) => metrics.map(metric => ({ metric, r, hub: orBlank(hub), hubType: orBlank(getHubType(r)) }));
+    const [pick, deli, fd] = isWeeklyExport ? [weeklyExport.pick, weeklyExport.deli, weeklyExport.fd] : [pickRows, deliRows, fdRows];
     return [
-      ...pickRows.flatMap(r => src(['1st Pickup', 'OPR'], r, r.hub)),
-      ...deliRows.flatMap(r => src(['1st Deli', 'ODR'], r, r.hub)),
-      ...fdRows.flatMap(r => src(['FD'], r, r.deliverywh))
+      ...pick.flatMap(r => src(['1st Pickup', 'OPR'], r, r.hub)),
+      ...deli.flatMap(r => src(['1st Deli', 'ODR'], r, r.hub)),
+      ...fd.flatMap(r => src(['FD'], r, r.deliverywh))
     ];
-  }, [pickRows, deliRows, fdRows]);
+  }, [isWeeklyExport, weeklyExport, pickRows, deliRows, fdRows]);
   const exportFields = useMemo(() => {
     const uniq = (fn) => [...new Set(exportSources.map(fn))].sort().map(v => ({ value: v, label: v }));
     const clients = uniq(x => orBlank(x.r.client_name));
@@ -469,31 +493,41 @@ export default function Report1MienVungHub({
   }, [exportSources, clientFilter]);
   const exportDateRange = useMemo(() => {
     const d = exportSources.map(x => x.r.report_date).filter(Boolean).sort();
-    return d.length ? { min: d[0], max: d[d.length - 1] } : null;
-  }, [exportSources]);
+    if (!d.length) return null;
+    // Theo tuần: report_date là thứ Hai, khoảng ngày kéo đến Chủ nhật của tuần cuối.
+    return { min: d[0], max: isWeeklyExport ? addIsoDays(d[d.length - 1], 6) : d[d.length - 1] };
+  }, [exportSources, isWeeklyExport]);
+  // Theo tuần: lấy các tuần có ngày nằm trong khoảng đã chọn (cùng cách hiểu với bảng "Theo tuần").
+  const inExportRange = (r, from, to) => isWeeklyExport
+    ? (!from || addIsoDays(r.report_date, 6) >= from) && (!to || r.report_date <= to)
+    : (!from || r.report_date >= from) && (!to || r.report_date <= to);
   const selectExportRows = ({ selection, from, to }) => exportSources.filter(({ metric, r, hub, hubType }) =>
     (selection.client || []).includes(orBlank(r.client_name)) &&
     (selection.metric || []).includes(metric) &&
     (selection.region || []).includes(orBlank(r.region)) &&
     (selection.hubType || []).includes(hubType) &&
     (selection.hub || []).includes(hub) &&
-    (!from || r.report_date >= from) && (!to || r.report_date <= to));
+    inExportRange(r, from, to));
 
   const handleExportCSV = (filters) => {
     const rows = selectExportRows(filters);
     if (!rows.length) return;
-    const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Loại hub', 'Hub / Kho giao', 'Report Date', 'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
+    const headers = ['Nghiệp vụ', 'Client', 'Vùng', 'Loại hub', 'Hub / Kho giao',
+      ...(isWeeklyExport ? ['Tuần', 'Tuần bắt đầu (T2)', 'Số ngày có dữ liệu'] : ['Report Date']),
+      'Total Vol', 'Ontime / Hoàn thành', '% Ontime / Hoàn thành'];
     const csvRows = [headers.join(',')];
     rows.forEach(({ metric, r, hub, hubType }) => {
       const def = EXPORT_METRIC_DEFS[metric];
       const tot = def.tot(r);
       const ont = def.ont(r);
       const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
-      csvRows.push([metric, orBlank(r.client_name), orBlank(r.region), hubType, hub, r.report_date, tot, ont, `${pct}%`].map(csvCell).join(','));
+      const dateCols = isWeeklyExport ? [`Tuần ${getWeekNumber(r.report_date)}`, r.report_date, getRowVal(r, 'days')] : [r.report_date];
+      csvRows.push([metric, orBlank(r.client_name), orBlank(r.region), hubType, hub, ...dateCols, tot, ont, `${pct}%`].map(csvCell).join(','));
     });
 
     const context = {
       ...(exportContextRef.current || {}),
+      'Dữ liệu tải': isWeeklyExport ? 'Theo tuần' : 'Theo ngày',
       'Khoảng ngày tải': `${filters.from || ''} → ${filters.to || ''}`,
       'Client đã chọn': filters.selection.client.join(' | '),
       'Loại chỉ số đã chọn': filters.selection.metric.join(' | '),
@@ -505,7 +539,7 @@ export default function Report1MienVungHub({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GHN_Shopee_Performance_${filters.from || 'all'}_${filters.to || 'data'}.csv`;
+    link.download = `GHN_Shopee_Performance${isWeeklyExport ? '_Weekly' : ''}_${filters.from || 'all'}_${filters.to || 'data'}.csv`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
     showToast(`Đã tạo CSV (${rows.length.toLocaleString('vi-VN')} dòng) theo bộ lọc đã chọn.`, { tone: 'success' });
@@ -1198,7 +1232,9 @@ export default function Report1MienVungHub({
     </StatusNotice>
   );
 
-  const exportDialog = <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV} />;
+  const exportDialog = <ExportFilterModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} fields={exportFields} dateRange={exportDateRange} countRows={(f) => selectExportRows(f).length} onConfirm={handleExportCSV}
+    modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode}
+    status={isWeeklyExport ? { loading: weeklyExport.status === 'loading', error: weeklyExport.status === 'error', onRetry: () => { clearWeeklyCache(); setWeeklyAttempt(n => n + 1); } } : null} />;
 
   if (overview) return <>
     <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} />

@@ -11,21 +11,25 @@ const shiftIso = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days *
 // fields: [{ key, label, options: [{ value, label }], initial?: string[] }]
 // dateRange: { min, max } (YYYY-MM-DD) or null to hide the date filter.
 // countRows(filters) -> number of rows the current selection would export.
-export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về dữ liệu', fields, dateRange, countRows, onConfirm }) {
+// Optional granularity switch: modes: [{ value, label }], mode, onModeChange(value), status: { loading?, error?, onRetry? }.
+export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về dữ liệu', fields, dateRange, countRows, onConfirm, modes = null, mode = null, onModeChange = null, status = null }) {
   const initialSelection = useMemo(() => Object.fromEntries(fields.map(f => [f.key, f.initial || f.options.map(o => o.value)])), [fields]);
   const [selection, setSelection] = useState(initialSelection);
   const [from, setFrom] = useState(dateRange?.min || '');
   const [to, setTo] = useState(dateRange?.max || '');
-  const [wasOpen, setWasOpen] = useState(false);
+  const [seed, setSeed] = useState(null);
 
-  // Re-seed defaults (header scope / latest data range) each time the dialog opens.
-  if (isOpen && !wasOpen) {
-    setWasOpen(true);
+  // Re-seed defaults (header scope / latest data range) each time the dialog opens,
+  // and when the data behind it changes (switching day/week, weekly rows finishing loading).
+  const seedKey = isOpen ? { mode, fields, dateRange } : null;
+  const seedChanged = seedKey && (!seed || seed.mode !== mode || seed.fields !== fields || seed.dateRange !== dateRange);
+  if (seedChanged) {
+    setSeed(seedKey);
     setSelection(initialSelection);
     setFrom(dateRange?.min || '');
     setTo(dateRange?.max || '');
-  } else if (!isOpen && wasOpen) {
-    setWasOpen(false);
+  } else if (!isOpen && seed) {
+    setSeed(null);
   }
 
   const filters = { selection, from, to };
@@ -45,7 +49,15 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
       <button type="button" className="export-filter-close" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
     </div>
     <div className="export-filter-body">
-      {dateRange && <section className="export-filter-group" aria-labelledby="export-filter-date">
+      {modes && <section className="export-filter-group" aria-labelledby="export-filter-mode">
+        <h4 id="export-filter-mode">Dữ liệu</h4>
+        <div className="export-filter-presets" role="group" aria-label="Dữ liệu theo ngày hoặc theo tuần">
+          {modes.map(m => <button key={m.value} type="button" aria-pressed={mode === m.value} className={`export-filter-preset ${mode === m.value ? 'is-active' : ''}`} onClick={() => onModeChange?.(m.value)}>{m.label}</button>)}
+        </div>
+        {status?.loading && <p role="status">Đang tải dữ liệu theo tuần…</p>}
+        {status?.error && <p className="export-filter-error" role="alert">Không tải được dữ liệu theo tuần. {status.onRetry && <button type="button" className="export-filter-preset" onClick={status.onRetry}>Thử lại</button>}</p>}
+      </section>}
+      {dateRange &&<section className="export-filter-group" aria-labelledby="export-filter-date">
         <h4 id="export-filter-date">Khoảng ngày</h4>
         <div className="export-filter-dates">
           <DateField label="Từ ngày" value={from} min={dateRange.min} max={to || dateRange.max} onChange={setFrom} />
