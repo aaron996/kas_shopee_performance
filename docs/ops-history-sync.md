@@ -44,6 +44,12 @@ bảng cùng tồn tại, gộp lại là việc giai đoạn sau (khi có đủ
   `prune_kas_history` không cần sửa. Nếu nghi lệch, chạy lại
   `select public.refresh_kas_<pick|deli|fd>_weekly(array(select distinct week_start from public.kas_<...>_history))`.
   Nút "Xuất CSV" chế độ Theo tuần cũng đọc qua RPC này.
+- **`get_kas_weekly_compact`** (migration [20261013140000](../supabase/migrations/20261013140000_kas_weekly_compact_rpc.sql)):
+  app dùng bản này, mỗi dòng là mảng theo thứ tự `cols` (Pick 4,2 MB → 1,7 MB, cùng số dòng). Lý do: ngày 13/10
+  3 lệnh `get_kas_weekly_rows` gọi song song từ trình duyệt đều trả 500 `57014 statement timeout` sau ~37 giây dù
+  hàm chỉ chạy 0,4–0,75 giây khi gọi trực tiếp; lúc đó trang đang bắn ~190 request và `app_user_roles` cũng bị
+  ngắt kết nối, tức tầng API của DB nhỏ bị nghẽn. Xuất CSV theo tuần giờ tải lần lượt từng bảng, không song song.
+  `get_kas_weekly_rows` giữ nguyên cho bản frontend cũ.
 - Bảng bật RLS, không cấp quyền cho `anon`/`authenticated`; app chỉ đọc qua RPC.
 - Retention: `prune_kas_history(keep_days default 90)`, chỉ `service_role`, tối thiểu 70 ngày (không cắt vào
   8 tuần nguyên + tuần hiện tại), tính theo giờ Việt Nam. Job pg_cron `prune_kas_history_daily` chạy lúc

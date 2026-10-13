@@ -19,16 +19,25 @@ export const WEEKLY_METRICS = {
 
 const cache = new Map(); // dataset -> Promise<{ weeks, rows }>
 
+// RPC gọn trả mỗi dòng là một mảng theo thứ tự `cols` (nhỏ hơn ~60% so với đối tượng lặp tên cột).
+export function expandCompactRows(cols, rows) {
+  return rows.map(values => {
+    const row = {};
+    for (let i = 0; i < cols.length; i++) row[cols[i]] = values[i];
+    return row;
+  });
+}
+
 // Gọi RPC và chuẩn hoá vùng/loại Hub. Kết quả được nhớ theo bảng nguồn để chuyển tab
 // 1st Pickup <-> OPR không gọi lại; lỗi thì bỏ khỏi cache để lần sau thử lại.
 export function fetchWeeklyRows(client, dataset, weeks = WEEKLY_WEEKS) {
   const key = `${dataset}:${weeks}`;
   if (!cache.has(key)) {
     const request = (async () => {
-      const { data, error } = await client.rpc('get_kas_weekly_rows', { dataset, weeks });
+      const { data, error } = await client.rpc('get_kas_weekly_compact', { dataset, weeks });
       if (error) throw error;
-      if (!data || !Array.isArray(data.weeks) || !Array.isArray(data.rows)) throw new Error('INVALID_WEEKLY_PAYLOAD');
-      return { weeks: data.weeks, rows: normalizeDashboardRows(data.rows) };
+      if (!data || !Array.isArray(data.weeks) || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_WEEKLY_PAYLOAD');
+      return { weeks: data.weeks, rows: normalizeDashboardRows(expandCompactRows(data.cols, data.rows)) };
     })();
     request.catch(() => cache.delete(key));
     cache.set(key, request);
