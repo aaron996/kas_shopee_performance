@@ -769,7 +769,8 @@ export default function App() {
       selectedHubTypes,
       allHubTypes,
       onJumpToReport1: handleJumpFromRankingToReport1,
-      density
+      density,
+      canManageMusic: Boolean(currentUser?.isDevAdmin)
     },
     report5: {
       ca1Rows: filteredCa1Rows,

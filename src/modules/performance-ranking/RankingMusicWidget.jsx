@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Music2, SkipForward, Volume2, VolumeX } from 'lucide-react';
-import { RANKING_PLAYLIST } from './rankingPlaylist.js';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Music2, Settings2, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { invalidateRankingPlaylist, useRankingPlaylist } from './useRankingPlaylist.js';
 import './rankingMusic.css';
 
 const PREFERENCE_KEY = 'ghn-ranking-music-enabled';
@@ -10,7 +10,29 @@ function readPreference() {
   catch { return false; }
 }
 
-export default function RankingMusicWidget({ active = true, playlist = RANKING_PLAYLIST }) {
+// Loaded only for devs; everyone else never downloads the editor.
+const RankingMusicManager = lazy(() => import('./RankingMusicManager.jsx'));
+
+// Waits for the playlist before mounting the player so a late list never interrupts playback.
+export default function RankingMusicWidget({ active = true, playlist: playlistOverride, canManage = false }) {
+  const [version, setVersion] = useState(0);
+  const [managing, setManaging] = useState(false);
+  const remote = useRankingPlaylist(version);
+  if (!playlistOverride && !remote.ready) return null;
+  // key: a dev edit remounts the player so it restarts from the first track of the new list.
+  return (
+    <>
+      <RankingMusicPlayer key={version} active={active} playlist={playlistOverride || remote.playlist}
+        onManage={canManage ? () => setManaging(true) : undefined} />
+      {canManage && managing && <Suspense fallback={null}>
+        <RankingMusicManager isOpen onClose={() => setManaging(false)}
+          onChanged={() => { invalidateRankingPlaylist(); setVersion(v => v + 1); }} />
+      </Suspense>}
+    </>
+  );
+}
+
+function RankingMusicPlayer({ active, playlist, onManage }) {
   const audioRef = useRef(null);
   const playAttempt = useRef(0);
   const [enabled, setEnabled] = useState(readPreference);
@@ -110,6 +132,8 @@ export default function RankingMusicWidget({ active = true, playlist = RANKING_P
       {playlist.length > 1 && <button type="button" className="prr-music-toggle"
         onClick={() => setTrackIndex(index => (index + 1) % playlist.length)}
         aria-label="Bài tiếp theo" title="Bài tiếp theo"><SkipForward size={17} aria-hidden="true" /></button>}
+      {onManage && <button type="button" className="prr-music-toggle" onClick={onManage}
+        aria-label="Quản lý nhạc" title="Quản lý nhạc (Dev)"><Settings2 size={17} aria-hidden="true" /></button>}
     </aside>
   );
 }
