@@ -36,6 +36,14 @@ bảng cùng tồn tại, gộp lại là việc giai đoạn sau (khi có đủ
   (`report_date` là thứ Hai của tuần, thêm `days` là số ngày có dữ liệu). Giữ mức hub (không cộng sẵn lên
   vùng) vì app còn phải chạy `normalizeDashboardRows` (KA, CK theo hub/`wh_id`, GXT theo Miền). Đo trên
   dữ liệu thật 12/10: Pick 8 tuần là 19.885 dòng, khoảng 3,7 MB JSON chưa nén.
+- **Bảng cộng sẵn theo tuần** (migration [20261013120000](../supabase/migrations/20261013120000_kas_weekly_rollup.sql)):
+  `kas_{pick,deli,fd}_weekly`, cùng khoá nhóm với RPC cũ cộng `days`. `get_kas_weekly_rows` đọc bảng này thay vì
+  `GROUP BY` ~120 nghìn dòng hub-ngày: đo ngày 13/10 trên DB thật, Deli từ 9,6 giây xuống 0,36 giây, kết quả
+  khớp từng dòng với bản cũ (3 bảng, 9 tuần). Bảng được giữ đồng bộ bằng trigger mức câu lệnh trên bảng lịch
+  sử (INSERT/UPDATE/DELETE tính lại đúng các tuần bị chạm, TRUNCATE xoá bảng tuần), nên upsert, backfill và
+  `prune_kas_history` không cần sửa. Nếu nghi lệch, chạy lại
+  `select public.refresh_kas_<pick|deli|fd>_weekly(array(select distinct week_start from public.kas_<...>_history))`.
+  Nút "Xuất CSV" chế độ Theo tuần cũng đọc qua RPC này.
 - Bảng bật RLS, không cấp quyền cho `anon`/`authenticated`; app chỉ đọc qua RPC.
 - Retention: `prune_kas_history(keep_days default 90)`, chỉ `service_role`, tối thiểu 70 ngày (không cắt vào
   8 tuần nguyên + tuần hiện tại), tính theo giờ Việt Nam. Job pg_cron `prune_kas_history_daily` chạy lúc
