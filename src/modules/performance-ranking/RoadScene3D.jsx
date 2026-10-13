@@ -13,9 +13,11 @@ import {
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
-import { RotateCcw, SunMoon, Sun, Moon, Video, Scan, Focus } from 'lucide-react';
+import { RotateCcw, SunMoon, Sun, Moon, Video, Scan, Focus, Pin, Route } from 'lucide-react';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
-import { pickSceneTheme } from '../../utils/sceneThemes.js';
+import { WORLD_REGIONS, worldRegion, worldTheme, nextWorld, createWorldJourney } from '../../utils/sceneWorld.js';
+import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
+import LeaderTrail from './LeaderTrail.jsx';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
 import SceneLighting from './SceneLighting.jsx';
 import TruckRoadLighting from './TruckRoadLighting.jsx';
@@ -88,7 +90,13 @@ function useThemeColors() {
 
 // Phones and tablets use smaller shadow maps and a lower pixel-ratio cap.
 function useCompactDevice() {
-  const [compact] = useState(() => window.matchMedia('(pointer: coarse), (max-width: 768px)').matches);
+  const [compact, setCompact] = useState(() => window.matchMedia('(pointer: coarse), (max-width: 768px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(pointer: coarse), (max-width: 768px)');
+    const update = () => setCompact(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   return compact;
 }
 
@@ -382,7 +390,22 @@ export default function RoadScene3D({
 }) {
   const colors = useThemeColors();
   // UI theme changes label/status colours; the world follows its own solar time.
-  const theme = pickSceneTheme(false);
+  const [world, setWorld] = useState(() => {
+    try { return worldRegion(localStorage.getItem('ghn-ranking-world-pin') || sessionStorage.getItem('ghn-ranking-world-next')).id; }
+    catch { return 'canyon'; }
+  });
+  const [pinnedWorld, setPinnedWorld] = useState(() => { try { return Boolean(localStorage.getItem('ghn-ranking-world-pin')); } catch { return false; } });
+  const [automaticWorld, setAutomaticWorld] = useState(false);
+  const journeyRef = useRef(createWorldJourney(world));
+  const worldInteractionRef = useRef(false);
+  const theme = useMemo(() => worldTheme(world), [world]);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ghn-ranking-world-next', nextWorld(world));
+      if (pinnedWorld) localStorage.setItem('ghn-ranking-world-pin', world);
+      else localStorage.removeItem('ghn-ranking-world-pin');
+    } catch { /* Storage can be disabled; the current scene remains usable. */ }
+  }, [world, pinnedWorld]);
   const clockRef = useRef(createDriveClock());
   const [lightingMode, setLightingMode] = useState('auto');
   const phaseRef = useRef(INITIAL_DAY_PHASE);
@@ -608,11 +631,16 @@ export default function RoadScene3D({
     <div
       className="prr-scene3d"
       data-rank-view={rankView}
+      data-world={world}
       data-view-tour={scene.tour ? 'travelling' : 'idle'}
       role="group"
       tabIndex={0}
       aria-label={ariaLabel}
       onKeyDown={handleKeyDown}
+      onPointerDown={() => { worldInteractionRef.current = true; }}
+      onPointerUp={() => { worldInteractionRef.current = false; }}
+      onPointerCancel={() => { worldInteractionRef.current = false; }}
+      onPointerLeave={() => { worldInteractionRef.current = false; }}
     >
       <Canvas
         resize={CANVAS_RESIZE}
@@ -635,11 +663,15 @@ export default function RoadScene3D({
         }}
       >
         <DriveClock clockRef={clockRef} items={fleetItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate} />
+        <TruckEnvironment />
+        <WorldEnvironment world={world} journeyRef={journeyRef} roadLength={roadLength} roadWidth={roadWidth} clockRef={clockRef}
+          lightingRef={lightingRef} streetlightCount={streetlightCount} compact={compact || lowQuality} running={running}
+          reducedMotion={reducedMotion} automatic={automaticWorld && !pinnedWorld && !compact}
+          blocked={Boolean(scene.tour || selectedHubId || hoveredId)} interactionRef={worldInteractionRef} onAutomatic={setWorld} />
         <SceneLighting mode={lightingMode} phaseRef={phaseRef} lightingRef={lightingRef} clockRef={clockRef} running={running} reducedMotion={reducedMotion}
-          roadLength={roadLength} shadowsOn={shadowsOn} compact={compact} timeRef={timeRef} />
+          roadLength={roadLength} shadowsOn={shadowsOn} compact={compact} timeRef={timeRef} journeyRef={journeyRef} />
 
-        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} castShadow={shadowsOn}
-          lightingRef={lightingRef} streetlightCount={streetlightCount} />
+        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} journeyRef={journeyRef} />
         <TruckFleet
           // an InstancedMesh cannot be resized: remount when the number of drawn trucks changes
           key={fleetItems.length}
@@ -662,6 +694,8 @@ export default function RoadScene3D({
           roadWidth={roadWidth}
           paintMode={paintMode}
         />
+        <LeaderTrail items={fleetItems} positionsRef={positionsRef} clockRef={clockRef} roadLength={roadLength}
+          journeyRef={journeyRef} compact={compact || lowQuality} reducedMotion={reducedMotion} motion={scene.motion} />
         <TruckRoadLighting key={`lighting-${fleetItems.length}`} items={fleetItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
         {selectedTruck && !scene.tour && (
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
@@ -676,6 +710,14 @@ export default function RoadScene3D({
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
+      <div className="prr-world-controls" role="group" aria-label="Vùng cảnh quan">
+        <select aria-label="Chọn vùng cảnh quan" value={world} onChange={event => setWorld(event.target.value)} disabled={Boolean(scene.tour)}>
+          {WORLD_REGIONS.map(region => <option key={region.id} value={region.id}>{region.label}</option>)}
+        </select>
+        <button type="button" aria-label="Giữ vùng yêu thích" aria-pressed={pinnedWorld} title="Giữ vùng này cho lần mở tiếp theo" onClick={() => setPinnedWorld(value => !value)}><Pin size={16} aria-hidden="true" /></button>
+        {!compact && <button type="button" aria-label="Tự động đổi vùng" aria-pressed={automaticWorld} disabled={reducedMotion || pinnedWorld}
+          title={pinnedWorld ? 'Bỏ ghim vùng để bật hành trình tự động' : 'Tự động đổi vùng sau 55 giây đang xem'} onClick={() => setAutomaticWorld(value => !value)}><Route size={16} aria-hidden="true" /></button>}
+      </div>
       <div className="prr-lighting-controls" role="group" aria-label="Thời gian trong cảnh">
         <span className="prr-scene-time" ref={timeRef} title="Giờ mô phỏng · Một vòng ngày đêm trong 6 phút khi đang chạy">09:00</span>
         {[['auto', 'Tự động', SunMoon], ['day', 'Ban ngày', Sun], ['night', 'Ban đêm', Moon]].map(([mode, label, Icon]) => <button key={mode} type="button"

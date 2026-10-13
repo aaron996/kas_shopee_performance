@@ -3,12 +3,13 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
-import Roadside from './Roadside.jsx';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
 import { getRoadsideSpan, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
 import { createTruckShadowGeometry } from '../../utils/sceneShadows.js';
 import { patchTruckSurface, patchTruckWheelSurface } from '../../utils/sceneTruckSurface.js';
+import { worldTheme } from '../../utils/sceneWorld.js';
+import { atlasTile, patchRoadAtlas, useWorldAtlas } from './worldSurfaces.js';
 import {
   REPLAY_ARROWS_MS,
 } from '../../utils/rankingSceneLayout.js';
@@ -67,7 +68,7 @@ const _ringQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0
 function roadQuaternion(heading, pitch) {
   return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
 }
-const paintCacheKey = () => 'instanceAlpha-truckRoof-surface-v3';
+const paintCacheKey = () => 'instanceAlpha-truckRoof-surface-v4';
 const wheelCacheKey = () => 'instanceAlpha-rubber-v2';
 
 const noRaycast = () => {};
@@ -171,7 +172,7 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
       raycast={noRaycast}
     >
       {part.basic
-        ? <meshBasicMaterial {...materialProps} color={color} />
+        ? <meshStandardMaterial {...materialProps} color={color} roughness={0.36} metalness={0.08} />
         : <meshStandardMaterial {...materialProps} color={color} map={part.map} roughness={part.wheel ? 0.94 : 0.78} metalness={0} />}
     </instancedMesh>
   );
@@ -281,11 +282,12 @@ export function TruckFleet({
     context.fillStyle = '#ffffff';
     [...'0123456789ABCDEF'].forEach((glyph, i) => context.fillText(glyph, i * 64 + 32, 48));
     const texture = new THREE.CanvasTexture(canvas);
-    texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = Math.min(4, gl.capabilities.getMaxAnisotropy());
     return texture;
-  }, []);
+  }, [gl]);
   useEffect(() => () => glyphTexture.dispose(), [glyphTexture]);
   const arrowGeometry = useMemo(() => new THREE.ConeGeometry(0.45, 0.9, 12), []);
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry]);
@@ -503,7 +505,7 @@ export function TruckFleet({
     const leader = items.findIndex(item => !item.ghost && item.item?.rank === 1);
     [nitroOuter.current, nitroInner.current].forEach((mesh, layer) => {
       if (!mesh) return;
-      const visible = !reducedMotion && leader >= 0 && alphaArray[leader] > 0.3;
+      const visible = !reducedMotion && leader >= 0 && alphaArray[leader] > 0.3 && motion && leaderSurge(items[leader], t) > 0.05;
       mesh.count = visible ? 2 : 0;
       if (!visible) return;
       const item = items[leader];
@@ -662,7 +664,7 @@ function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
 }
 
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
-export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, castShadow = false, lightingRef, streetlightCount = 0 }) {
+export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journeyRef }) {
   const roadWidth = laneCount * laneWidth + 0.6;
   const pavedLength = getRoadsideSpan(roadLength);
   const edgeZ = roadWidth / 2 + 0.25;
@@ -675,23 +677,15 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, castSh
     surfaces.ground.dispose(); surfaces.asphalt.dispose(); surfaces.shoulders.forEach(g => g.dispose());
   }, [surfaces]);
   const dashRef = useRef(null);
+  const groundRef = useRef(null), shoulderRefs = useRef([]);
+  const surfaceColors = useMemo(() => ({ from: new THREE.Color(), to: new THREE.Color() }), []);
+  const atlas = useWorldAtlas();
+  const groundUniforms = useMemo(() => ({ surfaceFrom: { value: new THREE.Vector2(...atlasTile(journeyRef.current.to)) },
+    surfaceTo: { value: new THREE.Vector2(...atlasTile(journeyRef.current.to)) }, surfaceBlend: { value: 1 },
+    surfaceScale: { value: new THREE.Vector2((pavedLength + 100) / 7, getRoadCurveRadius(roadLength) * 1.8 / 7) }, surfaceTravel: { value: 0 } }), [pavedLength, roadLength, journeyRef]);
+  const asphaltUniforms = useMemo(() => ({ surfaceFrom: { value: new THREE.Vector2(1 / 3, 0) }, surfaceTo: { value: new THREE.Vector2(1 / 3, 0) }, surfaceBlend: { value: 1 },
+    surfaceScale: { value: new THREE.Vector2(pavedLength / 4, roadWidth / 4) }, surfaceTravel: { value: 0 } }), [pavedLength, roadWidth]);
   const invalidate = useThree((s) => s.invalidate);
-  const asphaltTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#c4c4c4';
-    ctx.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 1100; i++) {
-      ctx.fillStyle = i % 2 ? '#b4b4b4' : '#d0d0d0';
-      ctx.fillRect((i * 73) % 128, (i * 37 + Math.floor(i / 128) * 19) % 128, 1, 1);
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(pavedLength / 4, roadWidth / 4);
-    return texture;
-  }, [pavedLength, roadWidth]);
-  useEffect(() => () => asphaltTexture.dispose(), [asphaltTexture]);
 
   const dashes = useMemo(() => {
     const list = [];
@@ -716,37 +710,45 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, castSh
       mesh.setMatrixAt(i, _matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    asphaltTexture.offset.x = (distance / 4) % 1;
+    asphaltUniforms.surfaceTravel.value = (distance / 4) % 1;
   };
   useLayoutEffect(() => {
     writeRoad();
     invalidate();
     // Geometry/texture changes need an initial draw even while playback is paused.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashes, asphaltTexture, invalidate]);
+  }, [dashes, asphaltUniforms, invalidate]);
   useFrame(() => {
     if (clockRef.current.step) writeRoad();
+    const journey = journeyRef.current;
+    const from = worldTheme(journey.from), to = worldTheme(journey.to);
+    groundRef.current.color.copy(surfaceColors.from.set(from.ground).lerp(surfaceColors.to.set(to.ground), journey.mix)).lerp(surfaceColors.to.set('#ffffff'), 0.82);
+    for (const material of shoulderRefs.current) if (material) material.color.copy(surfaceColors.from.set(from.shoulder).lerp(surfaceColors.to.set(to.shoulder), journey.mix));
+    groundUniforms.surfaceFrom.value.fromArray(atlasTile(journey.from));
+    groundUniforms.surfaceTo.value.fromArray(atlasTile(journey.to));
+    groundUniforms.surfaceBlend.value = journey.mix;
+    groundUniforms.surfaceTravel.value = (clockRef.current.distance / 7) % 1;
   });
 
   return (
     <group>
       <mesh geometry={surfaces.ground} receiveShadow>
-        <meshStandardMaterial color={theme.ground} roughness={1} />
+        <meshStandardMaterial ref={groundRef} color="#ffffff" map={atlas} roughness={1}
+          onBeforeCompile={shader => patchRoadAtlas(shader, groundUniforms)} customProgramCacheKey={() => 'world-ground-atlas-v1'} />
       </mesh>
       <mesh geometry={surfaces.asphalt} receiveShadow>
-        <meshStandardMaterial color={theme.asphalt} map={asphaltTexture} bumpMap={asphaltTexture} bumpScale={0.018} roughness={0.95} />
+        <meshStandardMaterial color="#ffffff" map={atlas} roughness={0.94}
+          onBeforeCompile={shader => patchRoadAtlas(shader, asphaltUniforms)} customProgramCacheKey={() => 'world-asphalt-atlas-v1'} />
       </mesh>
       {surfaces.shoulders.map((geometry, i) => (
         <mesh key={i} geometry={geometry} receiveShadow>
-          <meshStandardMaterial color={theme.shoulder} roughness={0.85} />
+          <meshStandardMaterial ref={material => { shoulderRefs.current[i] = material; }} color={theme.shoulder} roughness={0.9} />
         </mesh>
       ))}
       <instancedMesh name="prr-road-dashes" key={dashes.length} ref={dashRef} args={[undefined, undefined, dashes.length]} frustumCulled={false} receiveShadow>
         <boxGeometry args={[2, 0.01, 0.1]} />
         <meshStandardMaterial color={theme.dash} roughness={0.95} />
       </instancedMesh>
-      <Roadside roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} castShadow={castShadow}
-        lightingRef={lightingRef} streetlightCount={streetlightCount} />
     </group>
   );
 }

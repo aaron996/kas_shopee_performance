@@ -1,7 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { advanceRoadsideFleet, computeBackdropLayout, computeRoadsideLayout, createRoadsideFleet, roadsideWorldPose, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
+import { advanceRoadsideFleet, createRoadsideFleet, roadsideWorldPose, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
+import { createWorldLayout, worldPartMotion } from '../../utils/sceneWorldLayout.js';
+import { worldGeometry, patchWorldMaterial } from './worldGeometry.js';
+import { useWorldAtlas } from './worldSurfaces.js';
 import { getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import RoadsideLights from './RoadsideLights.jsx';
 
@@ -28,18 +31,6 @@ function SceneryTravel({ fleet, span, roadLength, clockRef }) {
   return null;
 }
 
-function makeGeometry(shape, backdrop = false) {
-  if (shape === 'cone') return new THREE.ConeGeometry(1, 1, 6);
-  if (shape === 'round' || shape === 'rock') return new THREE.IcosahedronGeometry(1, 0);
-  if (shape === 'hill') {
-    const geometry = new THREE.SphereGeometry(1, backdrop ? 12 : 7, backdrop ? 6 : 3, 0, Math.PI * 2, 0, Math.PI / 2);
-    return geometry;
-  }
-  if (shape === 'pole') return new THREE.CylinderGeometry(0.5, 0.5, 1, 5);
-  if (shape === 'sign') return new THREE.PlaneGeometry(1, 1);
-  return new THREE.BoxGeometry(1, 1, 1);
-}
-
 function brandTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 1024; canvas.height = 288;
@@ -63,13 +54,17 @@ function paletteColor(theme, token) {
   return theme[key] || theme.props[key];
 }
 
-function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, castShadow, backdrop = false }) {
+function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, castShadow, backdrop = false, world, journeyRef }) {
   const meshRef = useRef(null);
+  const atlas = useWorldAtlas();
   const invalidate = useThree(state => state.invalidate);
   const resources = useMemo(() => {
-    const geometry = makeGeometry(shape, backdrop);
+    const geometry = worldGeometry(shape, backdrop);
+    geometry.setAttribute('instanceSurface', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part =>
+      part.color === 'wood' || part.color === 'treeTrunk' ? 1 : part.color === 'stone' || shape === 'mesa' || shape === 'peak' ? 2 : part.color === 'apron' ? 3 : 0)), 1));
     return { geometry, matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), localRotation: new THREE.Quaternion(), axis: new THREE.Vector3(0, 1, 0), pitchAxis: new THREE.Vector3(0, 0, 1), pitch: new THREE.Quaternion(), roll: new THREE.Quaternion(), color: new THREE.Color() };
-  }, [shape, backdrop]);
+  }, [shape, backdrop, parts]);
+  const visibility = useMemo(() => ({ value: 1 }), []);
   useEffect(() => () => resources.geometry.dispose(), [resources]);
   const write = (colors = false) => {
     const mesh = meshRef.current;
@@ -77,13 +72,16 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     const { matrix, position, scale, rotation, localRotation, axis, pitchAxis, pitch, roll, color } = resources;
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      const pose = roadsideWorldPose(part, fleet.clusters.get(part.anchor).anchor, roadLength);
+      const motion = worldPartMotion(part, journeyRef.current.time);
+      const movingPart = motion ? { ...part, x: part.x + motion.x, y: part.y + motion.y } : part;
+      const pose = roadsideWorldPose(movingPart, fleet.clusters.get(part.anchor).anchor, roadLength);
       // Buildings are rigid clusters: curve the anchor, then transform local
       // offsets together. Curving every roof/wall separately pulls them apart.
       rotation.setFromAxisAngle(axis, pose.heading).multiply(pitch.setFromAxisAngle(pitchAxis, pose.pitch));
       position.set(pose.x, pose.y, pose.z);
-      rotation.multiply(localRotation.setFromAxisAngle(axis, part.yaw)).multiply(roll.setFromAxisAngle(pitchAxis, part.roll));
+      rotation.multiply(localRotation.setFromAxisAngle(axis, part.yaw + (motion?.yaw || 0))).multiply(roll.setFromAxisAngle(pitchAxis, part.roll + (motion?.roll || 0)));
       scale.fromArray(part.scale);
+      if (motion?.scaleY) scale.y *= motion.scaleY;
       // A curb/rail segment follows the inner/outer arc length of its shoulder.
       if (shape === 'box' && part.radius < 2) scale.x *= 1 - part.z / getRoadCurveRadius(roadLength);
       matrix.compose(position, rotation, scale);
@@ -99,32 +97,43 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     // Only repaint when layout/theme changes; cruise uploads poses.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parts, fleet, roadLength, theme, resources, invalidate]);
-  useFrame(() => { if (clockRef.current.step) write(); });
+  useFrame(() => {
+    const journey = journeyRef.current;
+    visibility.value = world === journey.to ? journey.mix : world === journey.from ? 1 - journey.mix : 0;
+    // Opaque scenery writes depth in its resting state. During the brief blend
+    // both environments share the frame without invisible depth occluders.
+    meshRef.current.visible = visibility.value > 0.001;
+    meshRef.current.material.depthWrite = visibility.value >= 0.999;
+    if (clockRef.current.step) write();
+  });
   return <instancedMesh name={`prr-${backdrop ? 'backdrop' : 'scenery'}-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
     castShadow={castShadow && ['cone', 'round', 'box', 'pole'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
-    <meshStandardMaterial color="#ffffff" map={shape === 'sign' ? texture : null} roughness={0.95} flatShading />
+    <meshStandardMaterial color="#ffffff" map={shape === 'sign' ? texture : null} transparent
+      roughness={shape === 'water' ? 0.28 : shape === 'box' ? 0.72 : 0.88} metalness={shape === 'water' ? 0.15 : 0}
+      side={shape === 'leaf' || shape === 'water' ? THREE.DoubleSide : THREE.FrontSide}
+      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v2-${shape}`} />
   </instancedMesh>;
 }
 
-function Backdrop({ roadLength, roadWidth, theme, clockRef }) {
-  const layout = useMemo(() => computeBackdropLayout(roadLength, roadWidth), [roadLength, roadWidth]);
+function Backdrop({ roadLength, roadWidth, theme, clockRef, world, compact, journeyRef }) {
+  const layout = useMemo(() => createWorldLayout(roadLength, roadWidth, world, compact, true), [roadLength, roadWidth, world, compact]);
   const fleet = useMemo(() => createRoadsideFleet(layout, clockRef.current.distance), [layout, clockRef]);
   return <group name="prr-distant-landscape">
     <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
     {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={shape} shape={shape} parts={parts}
-      fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} castShadow={false} backdrop />)}
+      fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} castShadow={false} world={world} journeyRef={journeyRef} backdrop />)}
   </group>;
 }
 
-export default function Roadside({ roadLength, roadWidth, theme, clockRef, castShadow = false, lightingRef, streetlightCount = 0 }) {
-  const layout = useMemo(() => computeRoadsideLayout(roadLength, roadWidth), [roadLength, roadWidth]);
+export default function Roadside({ roadLength, roadWidth, theme, clockRef, castShadow = false, lightingRef, streetlightCount = 0, world = 'canyon', compact = false, journeyRef }) {
+  const layout = useMemo(() => createWorldLayout(roadLength, roadWidth, world, compact), [roadLength, roadWidth, world, compact]);
   const fleet = useMemo(() => createRoadsideFleet(layout, clockRef.current.distance), [layout, clockRef]);
   const texture = useMemo(brandTexture, []);
   useEffect(() => () => texture.dispose(), [texture]);
   return <group name="prr-logistics-roadside">
-    <Backdrop roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} />
+    <Backdrop roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} world={world} compact={compact} journeyRef={journeyRef} />
     <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
-    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} castShadow={castShadow} />)}
+    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} castShadow={castShadow} world={world} journeyRef={journeyRef} />)}
     <RoadsideLights lamps={layout.streetlights} fleet={fleet} roadLength={roadLength} clockRef={clockRef} lightingRef={lightingRef} sourceCount={streetlightCount} />
   </group>;
 }
