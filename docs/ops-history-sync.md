@@ -50,6 +50,11 @@ bảng cùng tồn tại, gộp lại là việc giai đoạn sau (khi có đủ
   hàm chỉ chạy 0,4–0,75 giây khi gọi trực tiếp; lúc đó trang đang bắn ~190 request và `app_user_roles` cũng bị
   ngắt kết nối, tức tầng API của DB nhỏ bị nghẽn. Xuất CSV theo tuần giờ tải lần lượt từng bảng, không song song.
   `get_kas_weekly_rows` giữ nguyên cho bản frontend cũ.
+- **Xuất CSV "Theo tuần" chỉ truy vấn khi bấm "Tải CSV"** (quy tắc chung cho mọi export, xem `AGENTS.md`). Hộp thoại
+  dựng danh sách Client/Vùng/Loại hub/Hub từ dữ liệu 14 ngày đã có trong trang và khoảng 9 tuần từ ngày mới
+  nhất; chọn "tất cả" một trường thì không lọc trường đó (tuần cũ có thể có hub không nằm trong danh sách). Khi bấm
+  tải, app gọi `get_kas_weekly_compact` lần lượt cho đúng những bảng mà các chỉ số đã chọn cần, rồi lọc và tạo CSV.
+  Hub chỉ có ở tuần cũ vẫn xuất được nhưng không chọn riêng được trong hộp thoại.
 - Bảng bật RLS, không cấp quyền cho `anon`/`authenticated`; app chỉ đọc qua RPC.
 - Retention: `prune_kas_history(keep_days default 90)`, chỉ `service_role`, tối thiểu 70 ngày (không cắt vào
   8 tuần nguyên + tuần hiện tại), tính theo giờ Việt Nam. Job pg_cron `prune_kas_history_daily` chạy lúc
