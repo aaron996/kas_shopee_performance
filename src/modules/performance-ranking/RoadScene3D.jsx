@@ -511,6 +511,7 @@ export default function RoadScene3D({
 
   // Labels drawn on the 2D overlay canvas by LabelProjector.
   const overlayRef = useRef(null);
+  const hudRef = useRef(null);
   const labels = useMemo(() => {
     if (scene.tour && !scene.tour.revealed) return [];
     const list = [];
@@ -550,6 +551,9 @@ export default function RoadScene3D({
           rank: item.rank,
           viewRank: rankView === 'worst' ? idx + 1 : null,
           emphasized: idx < ALWAYS_LABELLED,
+          // Past the podium a tag shrinks to one row (rank + name) until hovered/selected, so a packed convoy stays readable.
+          mini: idx >= ALWAYS_LABELLED && !isSelected && !isHovered,
+          sample: Number.isFinite(item.sampleD1) ? `n ${item.sampleD1.toLocaleString('vi-VN')}` : null,
           name: item.displayName || item.hub,
           kpi: `${item.kpiD1.toFixed(1)}%`,
           good: Boolean(item.meetsTarget),
@@ -597,6 +601,7 @@ export default function RoadScene3D({
   const canvasLabel = `${rankView === 'worst' ? 'Worst' : 'Best'}. ${kpiPart}${count} Hub trên đường, ${meetCount} đạt mục tiêu${top3 ? `. ${rankView === 'worst' ? 'Cuối bảng' : 'Dẫn đầu'}: ${top3}` : ''}. Mở Bảng số liệu để xem số liệu chính xác.`;
   const ariaLabel = 'Cảnh 3D tuyến đường xếp hạng. Phím mũi tên trái phải để chuyển Hub, Enter để mở chi tiết.';
   const selectedItem = selectedTruck ? selectedTruck.item : null;
+  const leaderboard = useMemo(() => sceneTrucks.slice(0, 5), [sceneTrucks]);
 
   return (
     <div
@@ -661,7 +666,7 @@ export default function RoadScene3D({
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
         )}
 
-        <LabelProjector labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
+        <LabelProjector hudRef={hudRef} labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
         <ContextWatcher onLost={handleContextLost} />
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
@@ -717,9 +722,27 @@ export default function RoadScene3D({
         </div>
       </div>
 
-      <div className="prr-3d-caption">
-        <span>{rankView === 'worst' ? 'Worst: xe tệ nhất ở cuối đoàn · W1, W2, W3…' : 'Best: xe tốt nhất dẫn đầu'} · Vị trí theo thứ hạng</span>
+      <div className="prr-3d-hud" ref={hudRef}>
+      <div className="prr-3d-caption" title="Xếp hạng theo KPI D-1 từ cao xuống thấp. Hai Hub bằng KPI thì Hub có số mẫu D-1 (n) lớn hơn xếp trên; vẫn bằng thì theo tên A-Z.">
+        <span>{rankView === 'worst' ? 'Worst: Hub thấp nhất ở cuối đoàn (W1, W2, W3…)' : 'Best: Hub dẫn đầu ở phía trước'} · Xếp theo KPI D-1, bằng nhau thì theo số mẫu (n)</span>
         <button type="button" className="prr-3d-table-link" onClick={onViewTable}>Xem dạng bảng</button>
+      </div>
+      {leaderboard.length > 0 && <ol className="prr-3d-leaderboard" aria-label={rankView === 'worst' ? 'Năm Hub cuối bảng' : 'Năm Hub dẫn đầu'}>
+        {leaderboard.map((item, i) => {
+          const delta = item.hasCommonBaseline === false ? { text: 'Mới', tone: 'none' }
+            : item.deltaRank ? { text: item.deltaRank > 0 ? `+${item.deltaRank}` : String(item.deltaRank), tone: item.deltaRank > 0 ? 'up' : 'down' } : null;
+          return <li key={item.id}>
+            <button type="button" className={item.id === selectedHubId ? 'is-selected' : ''} aria-pressed={item.id === selectedHubId}
+              title={`${item.displayName || item.hub} · KPI ${item.kpiD1.toFixed(1)}% · n ${item.sampleD1 ?? '—'}`}
+              onClick={() => handleSelect(item.id)}>
+              <span className="prr-lb-rank">{rankView === 'worst' ? `W${i + 1}` : `#${item.rank}`}</span>
+              <span className="prr-lb-name">{item.displayName || item.hub}</span>
+              <span className={`prr-lb-kpi ${item.meetsTarget ? 'is-good' : 'is-below'}`}>{item.kpiD1.toFixed(1)}%</span>
+              {delta && <span className={`prr-lb-delta is-${delta.tone}`}>{delta.text}</span>}
+            </button>
+          </li>;
+        })}
+      </ol>}
       </div>
       <div className="prr-3d-sr" aria-live="polite">
         {replaying ? `${running ? 'Đang chạy' : 'Đã tạm dừng'} Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}

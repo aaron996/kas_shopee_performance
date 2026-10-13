@@ -7,7 +7,8 @@
 // behaves like the WebGL canvas itself: no DOM or layout work at all.
 //
 // Label specs (plain data, built in RoadScene3D):
-//   { kind: 'tag',  rank, name, kpi, good, delta: { text, tone: 'up' | 'down' | 'none' } | null, warn, state: 'rest' | 'hover' | 'selected' }
+//   { kind: 'tag',  rank, name, kpi, good, delta: { text, tone: 'up' | 'down' | 'none' } | null, sample, warn, mini, state: 'rest' | 'hover' | 'selected' }
+//   `mini` tags are one row (rank + short name): they keep a crowded pack readable and expand to the full tag on hover/select.
 //   { kind: 'pill', text, color }
 //   { kind: 'lane', text }
 
@@ -42,6 +43,21 @@ function fit(ctx, text, maxWidth) {
   return `${out}…`;
 }
 
+// Hub names often share a long prefix ("Kho Giao Hàng ..."), so a truncated name hides the part that tells hubs apart.
+const NAME_PREFIXES = [[/^Kho Giao Hàng\s+/i, 'KGH '], [/^Bưu Cục\s+/i, 'BC ']];
+
+export function abbreviateHubName(name) {
+  for (const [pattern, short] of NAME_PREFIXES) {
+    if (pattern.test(name)) return name.replace(pattern, short);
+  }
+  return name;
+}
+
+/** The full name when it fits, else the abbreviated one, truncated only as a last resort. */
+function fitName(ctx, name, maxWidth) {
+  return ctx.measureText(name).width <= maxWidth ? name : fit(ctx, abbreviateHubName(name), maxWidth);
+}
+
 const toneStyle = { up: P.deltaUp, down: P.deltaDown, none: P.deltaNone };
 
 /** Computes a label's box and the draw instructions (so measuring and drawing agree). */
@@ -58,29 +74,32 @@ export function layoutLabel(ctx, spec, fonts, compact) {
   }
   // tag
   if (spec.medal) { m.name += 1; m.rank += 1; m.kpi += 1; m.nameMax += compact ? 8 : 16; }
+  if (spec.state && spec.state !== 'rest') m.nameMax += compact ? 40 : 80; // hovered / selected: show more of the name
+  const mini = spec.mini === true;
   ctx.font = `700 ${m.rank}px ${fonts.family}`;
   const rankText = `#${spec.rank}${spec.viewRank ? ` · W${spec.viewRank}` : ''}`;
   const rankW = ctx.measureText(rankText).width;
   ctx.font = `600 ${m.name}px ${fonts.family}`;
-  const nameText = fit(ctx, spec.name, m.nameMax);
+  const nameText = fitName(ctx, spec.name, m.nameMax);
   const nameW = ctx.measureText(nameText).width;
   ctx.font = `700 ${m.kpi}px ${fonts.mono}`;
   const kpiW = ctx.measureText(spec.kpi).width;
 
   const chips = [];
-  if (!compact) {
+  if (!compact && !mini) {
     ctx.font = `600 ${m.chip}px ${fonts.mono}`;
     if (spec.delta) chips.push({ text: spec.delta.text, style: toneStyle[spec.delta.tone] || P.deltaNone, w: ctx.measureText(spec.delta.text).width + 6 });
+    if (spec.sample) chips.push({ text: spec.sample, style: P.deltaNone, w: ctx.measureText(spec.sample).width + 6 });
     if (spec.warn) chips.push({ text: '!', style: P.warning, w: ctx.measureText('!').width + 6 });
   }
   const chipsW = chips.reduce((a, c) => a + c.w + m.gap, 0);
   const row1W = rankW + m.gap + nameW;
   const row2W = kpiW + chipsW;
-  const w = Math.ceil(Math.max(row1W, row2W) + m.padX * 2);
+  const w = Math.ceil(Math.max(row1W, mini ? 0 : row2W) + m.padX * 2);
   const rowH = Math.ceil(m.name + 3);
-  const h = m.padY * 2 + rowH * 2 + m.rowGap + 2; // + 2px accent bar
+  const h = m.padY * 2 + rowH * (mini ? 1 : 2) + (mini ? 0 : m.rowGap) + 2; // + 2px accent bar
   const medalH = spec.medal ? compact ? 30 : 36 : 0;
-  return { w, h: h + medalH, medalH, m, rankText, rankW, nameText, kpiW, chips, rowH };
+  return { w, h: h + medalH, medalH, mini, m, rankText, rankW, nameText, kpiW, chips, rowH };
 }
 
 /** Draws a label with its top-left corner at (x, y). `box` comes from layoutLabel. */
@@ -178,6 +197,7 @@ export function drawLabel(ctx, spec, box, x, y, fonts) {
   ctx.fillStyle = P.name;
   ctx.fillText(nameText, cx, row1Y);
 
+  if (box.mini) { ctx.restore(); return; }
   cx = x + m.padX;
   ctx.font = `700 ${m.kpi}px ${fonts.mono}`;
   ctx.fillStyle = spec.good ? P.tagGood : P.tagBelow; // KPI text carries the target status too
