@@ -1,30 +1,32 @@
-# Nhạc nền BXH
+# Radio BXH
 
-## Nguồn nhạc
+Nhạc nền của tab BXH chạy như một đài radio: tại mỗi thời điểm, mọi người dùng nghe cùng một bài ở cùng một giây. Chỉ role `dev` được chuyển bài.
 
-- Danh sách bài lấy từ Supabase: bảng `public.ranking_music_tracks` (migration `supabase/migrations/20261013150000_ranking_music_tracks.sql`).
-- File nhạc nằm trong bucket **public** `ranking-music` (tối đa 15 MB/file; mp3, m4a, ogg, wav).
-- Hook `src/modules/performance-ranking/useRankingPlaylist.js` đọc các dòng `active = true` theo `sort_order`, dựng URL công khai từ `file_path`. Kết quả được cache một lần cho mỗi lần tải trang.
-- Nếu Supabase lỗi hoặc không có bài nào, widget dùng danh sách dự phòng `rankingPlaylist.js` (`public/music/how-it-works.mp3`). Widget chỉ hiện sau khi biết danh sách, nên danh sách đến muộn không làm gián đoạn nhạc đang phát.
-- App chỉ có quyền đọc (RLS: anon/authenticated chỉ `select` dòng đang active). Thêm/sửa/xóa làm qua Supabase Dashboard (service role).
+## Cách đồng bộ
 
-## Quản lý trong app (chỉ role `dev`)
+- Một "mỏ neo" dùng chung trong `public.ranking_radio_state`: `track_id` + `started_at` (giờ server). Không ai đọc/ghi bảng này trực tiếp; client đọc qua RPC `get_ranking_radio()` (kèm `server_now_ms`), dev ghi qua `dev_ranking_radio_play(track_id, offset_seconds)`.
+- Từ mỏ neo, thứ tự bài (`sort_order`) và thời lượng (`duration_seconds`), mọi client tự tính ra bài và giây hiện tại: `src/utils/radioSchedule.js` (hàm thuần, có test). Hết bài thì sang bài kế, hết danh sách quay về đầu.
+- Client hiệu chỉnh lệch đồng hồ bằng `server_now_ms` (lấy điểm giữa vòng gọi mạng). Mỗi 4 giây khi đang phát, nếu lệch quá 1,5 giây thì tua lại cho khớp.
+- Client hỏi lại server mỗi 15 giây (và khi tab được mở lại). Dev đổi bài thì người nghe khác bắt kịp trong tối đa ~15 giây; chính dev thấy ngay.
+- Bài chưa có `duration_seconds` không vào lịch phát. Nếu không có bài nào dùng được hoặc Supabase lỗi, widget phát lặp bài mặc định `public/music/how-it-works.mp3` (không đồng bộ).
 
-- Tài khoản `dev` thấy thêm nút ⚙ trên widget nhạc ở tab BXH, mở `RankingMusicManager.jsx`: tải mp3/m4a/ogg/wav (≤ 15 MB), nghe thử, đổi tên, bật/tắt, đưa lên/xuống, xóa (có xác nhận).
-- Quyền được chặn ở database, không phải ở giao diện: migration `20261013160000_ranking_music_dev_write.sql` chỉ cho `public.is_dev_admin()` (role `dev` trong `app_user_roles`, không gồm `admin`) ghi bảng `ranking_music_tracks` và `storage.objects` của bucket `ranking-music`. Dev còn đọc được cả bài đang tắt.
-- Tên file khi upload được chuyển thành dạng không dấu, không khoảng trắng và thêm hậu tố để không trùng (`src/utils/rankingMusicFiles.js`). Nếu ghi bảng lỗi sau khi upload, file vừa upload được xóa lại.
-- Sau mỗi thay đổi, widget của dev tải lại danh sách và phát từ bài đầu; người dùng khác thấy khi tải lại trang.
+## Nghe
 
-## Thêm / đổi bài (Dashboard)
+- Phát khi chuyển tab trình duyệt hoặc thu nhỏ cửa sổ. Rời tab BXH trong app vẫn tạm dừng (widget gắn với tab BXH). Nếu trình duyệt tự dừng thì sẽ phát lại khi quay lại tab.
+- Mỗi người chỉ có công tắc bật/tắt âm của riêng mình (lưu trong localStorage, mặc định tắt). Tắt âm không làm lệch radio: bật lại sẽ vào đúng bài, đúng giây. Khi trình duyệt chặn tự phát, bấm bật để nghe.
+- Âm lượng mặc định 30%. Hệ điều hành chỉ nhận tên bài (Media Session); tua/chuyển bài từ phím media chỉ dành cho dev.
+- Đĩa xoay theo sự kiện phát thực tế, giảm chuyển động dùng đĩa tĩnh.
 
-1. Storage → bucket `ranking-music` → Upload file (ví dụ `chill-1.mp3`; nên đặt tên không dấu, không khoảng trắng).
-2. Table Editor → `ranking_music_tracks` → Insert row: `title` (tên hiển thị), `file_path` (đúng tên object trong bucket, ví dụ `chill-1.mp3`), `sort_order` (số nhỏ phát trước), `active = true`.
-3. Tắt một bài: đặt `active = false`. Người dùng thấy thay đổi khi tải lại trang.
+## Điều khiển (chỉ role `dev`)
 
-## Hành vi phát
+- Widget có thêm nút bài trước / bài tiếp theo và nút mở bảng điều khiển (`RankingMusicManager.jsx`).
+- Bảng điều khiển: bài đang phát với tiến độ, bài trước/sau, danh sách bài (kéo thả hoặc Alt + mũi tên để sắp xếp, đổi tên ngay trên dòng, công tắc bật/tắt khỏi radio, nút "Phát bài này cho mọi người", xóa có xác nhận) và khu kéo thả nhiều file (mp3, m4a, ogg, wav; tối đa 15 MB mỗi file).
+- Khi tải lên, trình duyệt đọc thời lượng của file và lưu cùng bài. Bài cũ chưa có thời lượng được đo tự động khi dev mở bảng điều khiển.
+- Mọi thay đổi danh sách (thêm, xóa, bật/tắt, sắp xếp) đều "neo lại" radio vào đúng bài và giây hiện tại để người nghe không bị nhảy bài.
+- Quyền chặn ở database: `20261013160000_ranking_music_dev_write.sql` và RPC `dev_ranking_radio_play` đều dùng `public.is_dev_admin()` (role `dev` trong `app_user_roles`, không gồm `admin`).
 
-- Widget chỉ hiển thị bài hiện tại, bật/tắt và nút chuyển bài khi có nhiều bài; không hiển thị danh sách.
-- Phát theo thứ tự, hết bài chuyển bài kế, hết danh sách quay về đầu. Một bài sẽ lặp.
-- Lần đầu tắt âm; nhớ lựa chọn trong localStorage. Khi trình duyệt chặn tự phát, bấm bật để phát.
-- Âm lượng mặc định 30%. Rời BXH, tab trình duyệt vào nền hoặc unmount sẽ tạm dừng; quay lại tiếp tục nếu đã bật và trình duyệt cho phép.
-- Đĩa xoay theo sự kiện phát thực tế; tạm dừng khi đang tải/tắt âm và giữ góc xoay. Giảm chuyển động dùng đĩa tĩnh.
+## Dữ liệu và migration
+
+- Bảng `public.ranking_music_tracks` (`title`, `file_path`, `sort_order`, `active`, `duration_seconds`) và bucket public `ranking-music` (`20261013150000_ranking_music_tracks.sql`).
+- Cũng có thể thêm bài trong Supabase Dashboard (upload file vào bucket, thêm dòng vào bảng). Nhớ điền `duration_seconds`, hoặc mở bảng điều khiển để app tự đo.
+- Hook `useRankingRadio.js`: tải danh sách bài đang bật, mỏ neo, đồng hồ đã hiệu chỉnh. Widget: `RankingMusicWidget.jsx`.
