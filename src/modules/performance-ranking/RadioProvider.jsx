@@ -11,6 +11,7 @@ const MUTED_KEY = 'ghn-ranking-radio-muted';
 const SYNC_MS = 4000;
 const DRIFT_SECONDS = 2;
 const SEEK_COOLDOWN_MS = 8000;
+const MAX_RETRIES = 5;
 
 // Loaded only for devs; everyone else never downloads the editor.
 const RankingMusicManager = lazy(() => import('./RankingMusicManager.jsx'));
@@ -40,6 +41,7 @@ export function RadioProvider({ started, canManage = false, children }) {
   const trackRef = useRef(null);
   const statusRef = useRef('idle');
   const lastSeekRef = useRef(0);
+  const retriesRef = useRef(0);
   const [soundEnabled, setSoundEnabled] = useState(() => !readMuted());
   const [playing, setPlaying] = useState(false);
   const [status, setStatus] = useState('idle');
@@ -63,11 +65,22 @@ export function RadioProvider({ started, canManage = false, children }) {
     setStatus('loading');
     audio.volume = 0.3;
     audio.play().catch(error => {
-      if (attempt !== playAttempt.current) return;
+      // AbortError = a newer load/pause superseded this call (track switch); the next attempt decides the status.
+      if (attempt !== playAttempt.current || error.name === 'AbortError') return;
       setPlaying(false);
       setStatus(error.name === 'NotAllowedError' ? 'blocked' : 'error');
     });
   }, []);
+
+  // A dropped connection or a stalled stream is transient: reload the file a few times before showing an error.
+  // onPlaying resets the counter.
+  const retryAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || retriesRef.current >= MAX_RETRIES) return;
+    retriesRef.current += 1;
+    audio.load();
+    startAudio();
+  }, [startAudio]);
 
   // Seek only when this listener has drifted from the shared position. A cooldown keeps a slow
   // connection from chasing the schedule with back-to-back seeks (each one re-buffers).
@@ -100,15 +113,17 @@ export function RadioProvider({ started, canManage = false, children }) {
       sync();
       // The browser can pause media on its own (resource limits, route changes); a radio keeps going.
       const audio = audioRef.current;
-      if (audio?.paused && !audio.ended && statusRef.current !== 'blocked' && statusRef.current !== 'error' && statusRef.current !== 'loading') startAudio();
+      if (statusRef.current === 'error') retryAudio();
+      else if (audio?.paused && !audio.ended && statusRef.current !== 'blocked' && statusRef.current !== 'loading') startAudio();
     }, SYNC_MS);
     return () => window.clearInterval(timer);
-  }, [canPlay, sync, startAudio]);
+  }, [canPlay, sync, startAudio, retryAudio]);
 
   useEffect(() => {
     const audio = audioRef.current;
     const invalidateAttempt = () => { ++playAttempt.current; };
     if (!audio || !shown) return undefined;
+    retriesRef.current = 0;
     if (canPlay) startAudio();
     else {
       ++playAttempt.current;
@@ -225,11 +240,17 @@ export function RadioProvider({ started, canManage = false, children }) {
       {children}
       {ready && shown && <audio ref={audioRef} src={shown.src} preload="none"
         onLoadedMetadata={() => align(true)}
-        onPlaying={() => { setPlaying(true); setStatus('playing'); align(true); }}
+        onPlaying={() => { retriesRef.current = 0; setPlaying(true); setStatus('playing'); align(true); }}
         onPause={() => setPlaying(false)}
         onWaiting={() => { setPlaying(false); setStatus('loading'); }}
         onTimeUpdate={handleTimeUpdate}
-        onError={() => { ++playAttempt.current; setPlaying(false); setStatus('error'); }}
+        onError={event => {
+          const code = event.currentTarget.error?.code;
+          // MEDIA_ERR_ABORTED is the user agent dropping a load we replaced ourselves, not a failure.
+          if (code === 1) return;
+          console.warn('[radio] audio error', { code, message: event.currentTarget.error?.message, src: event.currentTarget.currentSrc });
+          ++playAttempt.current; setPlaying(false); setStatus('error');
+        }}
         onEnded={handleEnded} />}
       {canManage && managing && <Suspense fallback={null}>
         <RankingMusicManager isOpen onClose={() => setManaging(false)} radio={radio} />
