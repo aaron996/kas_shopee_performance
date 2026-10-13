@@ -9,7 +9,8 @@ const shiftIso = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days *
 
 // Multi-select filter dialog shown before a CSV download.
 // fields: [{ key, label, options: [{ value, label }], initial?: string[] }]
-// dateRange: { min, max } (YYYY-MM-DD) or null to hide the date filter.
+// dateRange: { min, max, defaultFrom? } (YYYY-MM-DD) or null to hide the date filter.
+// defaultFrom seeds "Từ ngày" when it should start narrower than min (min = the longest range selectable).
 // countRows(filters) -> number of rows the current selection would export, or null when the rows are not
 // known until the export runs (data fetched from the DB only after the user presses "Tải CSV").
 // onConfirm(filters) may be async; the dialog stays open and shows progress until it resolves, and stays
@@ -19,7 +20,7 @@ const shiftIso = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days *
 export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về dữ liệu', fields, dateRange, countRows, onConfirm, modes = null, mode = null, onModeChange = null }) {
   const initialSelection = useMemo(() => Object.fromEntries(fields.map(f => [f.key, f.initial || f.options.map(o => o.value)])), [fields]);
   const [selection, setSelection] = useState(initialSelection);
-  const [from, setFrom] = useState(dateRange?.min || '');
+  const [from, setFrom] = useState(dateRange?.defaultFrom || dateRange?.min || '');
   const [to, setTo] = useState(dateRange?.max || '');
   const [seed, setSeed] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -31,7 +32,7 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
   if (seedChanged) {
     setSeed(seedKey);
     setSelection(initialSelection);
-    setFrom(dateRange?.min || '');
+    setFrom(dateRange?.defaultFrom || dateRange?.min || '');
     setTo(dateRange?.max || '');
   } else if (!isOpen && seed) {
     setSeed(null);

@@ -45,6 +45,22 @@ export function fetchWeeklyRows(client, dataset, weeks = WEEKLY_WEEKS) {
   return cache.get(key);
 }
 
+// Dòng hub-ngày từ bảng lịch sử cho Xuất CSV "Theo ngày" với khoảng dài hơn dữ liệu trong trang.
+// Chia khoảng thành lát 10 ngày (RPC cho tối đa 14) và tải lần lượt, không bắn song song.
+export const DAILY_EXPORT_DAYS = 90; // khớp retention của prune_kas_history
+export const DAILY_SLICE_DAYS = 10; // ~1,7 MB/lát; 31 ngày ≈ 5,4 MB dễ nghẽn tầng API
+export async function fetchDailyRows(client, dataset, from, to) {
+  const rows = [];
+  for (let start = from; start <= to; start = addDays(start, DAILY_SLICE_DAYS)) {
+    const end = addDays(start, DAILY_SLICE_DAYS - 1) < to ? addDays(start, DAILY_SLICE_DAYS - 1) : to;
+    const { data, error } = await client.rpc('get_kas_daily_compact', { dataset, from_date: start, to_date: end });
+    if (error) throw error;
+    if (!data || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_DAILY_PAYLOAD');
+    rows.push(...expandCompactRows(data.cols, data.rows));
+  }
+  return normalizeDashboardRows(rows);
+}
+
 export function clearWeeklyCache() {
   cache.clear();
 }
