@@ -4,6 +4,7 @@ import IconButton from './ui/IconButton';
 import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
 import { MIEN_REGIONS } from '../data/defaultDataset';
+import { formatRankingHubName } from '../utils/rankingHubName.js';
 
 export default function Header({
   setActiveTab, activeTab, clientFilter, setClientFilter,
@@ -15,12 +16,21 @@ export default function Header({
 }) {
   const hideRegionHubFilters = ['report3', 'report-insight', 'cod-suspicion'].includes(activeTab);
   const [popover, setPopover] = useState(null);
+  const [rankingControlsHidden, setRankingControlsHidden] = useState(false);
   const headerRef = useRef(null);
   const allRegions = useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
   const supportsExport = ['home', 'report1', 'report5'].includes(activeTab);
   const exportCsv = () => window.dispatchEvent(new CustomEvent('open-export-dialog', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
   useEffect(() => { setPopover(null); }, [activeTab]);
+  useEffect(() => {
+    const onPresentationChange = event => {
+      setRankingControlsHidden(Boolean(event.detail?.hidden));
+      setPopover(null);
+    };
+    window.addEventListener('ranking-presentation-change', onPresentationChange);
+    return () => window.removeEventListener('ranking-presentation-change', onPresentationChange);
+  }, []);
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
@@ -48,8 +58,9 @@ export default function Header({
       {currentUser?.isDevAdmin && <button className="nav-btn-sleek icon-btn" aria-label="Dev" onClick={() => setActiveTab('dev-admin')}><ShieldCheck size={18} /></button>}
       <button className="nav-btn-sleek icon-btn" aria-label="Đăng xuất" onClick={onLogout}><LogOut size={18} /></button>
     </div></div>}
-    <div className="compact-header-toolbar">
-      {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
+    <div className="compact-header-toolbar" role={activeTab === 'ranking' ? 'toolbar' : undefined} aria-label={activeTab === 'ranking' ? 'Điều khiển BXH' : undefined}>
+      {activeTab === 'ranking' && <div id="ranking-header-heading" />}
+      {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
         {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter === 'ALL' ? 'SPB + SPE' : clientFilter} badge={clientFilter === 'ALL' ? undefined : '•'}>
           <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{[['SPB', 'SPB'], ['SPE', 'SPE'], ['ALL', 'Toàn bộ · SPB + SPE']].map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
         </HeaderPopover>}
@@ -60,7 +71,7 @@ export default function Header({
           </HeaderPopover>
           <HeaderPopover {...sharedPopover} name="hub" icon="Warehouse" label="Loại Hub" summary={hubSummary} badge={selectedHubTypes.length === allHubTypes.length ? undefined : selectedHubTypes.length}>
             <label className="scope-option scope-select-all"><input type="checkbox" checked={selectedHubTypes.length === allHubTypes.length} onChange={() => setSelectedHubTypes(selectedHubTypes.length === allHubTypes.length ? [] : [...allHubTypes])} /><span>Chọn tất cả loại Hub</span></label>
-            <div className="scope-options-scroll">{allHubTypes.map(type => <label key={type} className="scope-option"><input type="checkbox" checked={selectedHubTypes.includes(type)} onChange={() => toggle(type, selectedHubTypes, setSelectedHubTypes)} /><span>{type}</span></label>)}</div>
+            <div className="scope-options-scroll">{allHubTypes.map(type => <label key={type} className="scope-option"><input type="checkbox" checked={selectedHubTypes.includes(type)} onChange={() => toggle(type, selectedHubTypes, setSelectedHubTypes)} /><span>{activeTab === 'ranking' ? formatRankingHubName(type) : type}</span></label>)}</div>
             <button className="popover-text-action" type="button" onClick={onResetFilters}>Đặt lại Vùng và Loại Hub</button>
           </HeaderPopover>
         </>}

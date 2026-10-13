@@ -8,6 +8,21 @@ import {
   selectSceneHubs
 } from './performanceRanking.js';
 
+test('BXH abbreviates Hub display names while preserving identity, rank and report drill-down values', () => {
+  const pickRows = [
+    { report_date: '2026-10-12', hub: 'Kho Giao Hàng Nặng - Tân Tạo', region: 'HCM', hub_type: 'Kho Giao Hàng Nặng', mau_pu: 200, ontime_pu_1st: 198 },
+    { report_date: '2026-10-12', hub: 'Bưu Cục Thôn Mới-Cao Dương-Thanh Oai', region: 'HNO', hub_type: 'Bưu cục', mau_pu: 100, ontime_pu_1st: 97 },
+    { report_date: '2026-10-12', hub: 'Kho Giao Hàng Nặng - Tân Tạo', region: 'LA', hub_type: 'Kho Giao Hàng Nặng', mau_pu: 100, ontime_pu_1st: 96 },
+  ];
+  const { ranked } = calculatePerformanceRanking({ pickRows, metricKey: 'p1st' });
+  assert.deepEqual(ranked.map(h => h.displayName), ['GXT - Tân Tạo (HCM · GXT)', 'BC Thôn Mới-Cao Dương-Thanh Oai', 'GXT - Tân Tạo (LA · GXT)']);
+  assert.equal(ranked[0].hub, pickRows[0].hub);
+  assert.equal(ranked[0].hubType, pickRows[0].hub_type);
+  assert.equal(ranked[0].id, getHubIdentityKey(pickRows[0]));
+  assert.equal(ranked[0].kpiD1, 99);
+  assert.deepEqual(ranked.map(h => h.rank), [1, 2, 3]);
+});
+
 test('scene preprocesses only Top 10/20/50 without modifying full audit data', () => {
   const ranked = Array.from({ length: 1200 }, (_, i) => ({ id: `hub-${i}`, rank: i + 1 }));
   for (const limit of [10, 20, 50]) {

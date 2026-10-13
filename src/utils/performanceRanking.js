@@ -1,6 +1,7 @@
 // Pure utility & ranking contracts for GHN Performance Road Ranking
 import { TARGET_KPIS } from '../data/defaultDataset.js';
 import { getComparisonDateInfo, getHubType } from './dataProcessor.js';
+import { formatRankingHubName } from './rankingHubName.js';
 
 export const SUPPORTED_KPIS = [
   { id: 'p1st', label: '1st Pickup', shortLabel: '1st Pick', isDeli: false, defaultTarget: 97.0 },
@@ -197,7 +198,7 @@ export function calculatePerformanceRanking({
   // Assign user-friendly display names with disambiguation if multiple Hubs share the same hub name
   hubMetaMap.forEach((meta) => {
     const isDuplicateName = (hubNameFrequency.get(meta.hub) || 0) > 1;
-    meta.displayName = isDuplicateName ? `${meta.hub} (${meta.region} · ${meta.hubType})` : meta.hub;
+    meta.displayName = formatRankingHubName(isDuplicateName ? `${meta.hub} (${meta.region} · ${meta.hubType})` : meta.hub);
     meta.isDisambiguated = isDuplicateName;
   });
 

@@ -19,6 +19,7 @@ import { pickSceneTheme } from '../../utils/sceneThemes.js';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
 import SceneLighting from './SceneLighting.jsx';
 import TruckRoadLighting from './TruckRoadLighting.jsx';
+import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
@@ -723,26 +724,8 @@ export default function RoadScene3D({
       </div>
 
       <div className="prr-3d-hud" ref={hudRef}>
-      <div className="prr-3d-caption" title="Xếp hạng theo KPI D-1 từ cao xuống thấp. Hai Hub bằng KPI thì Hub có số mẫu D-1 (n) lớn hơn xếp trên; vẫn bằng thì theo tên A-Z.">
-        <span>{rankView === 'worst' ? 'Worst: Hub thấp nhất ở cuối đoàn (W1, W2, W3…)' : 'Best: Hub dẫn đầu ở phía trước'} · Xếp theo KPI D-1, bằng nhau thì theo số mẫu (n)</span>
-        <button type="button" className="prr-3d-table-link" onClick={onViewTable}>Xem dạng bảng</button>
-      </div>
-      {leaderboard.length > 0 && <ol className="prr-3d-leaderboard" aria-label={rankView === 'worst' ? 'Năm Hub cuối bảng' : 'Năm Hub dẫn đầu'}>
-        {leaderboard.map((item, i) => {
-          const delta = item.hasCommonBaseline === false ? { text: 'Mới', tone: 'none' }
-            : item.deltaRank ? { text: item.deltaRank > 0 ? `+${item.deltaRank}` : String(item.deltaRank), tone: item.deltaRank > 0 ? 'up' : 'down' } : null;
-          return <li key={item.id}>
-            <button type="button" className={item.id === selectedHubId ? 'is-selected' : ''} aria-pressed={item.id === selectedHubId}
-              title={`${item.displayName || item.hub} · KPI ${item.kpiD1.toFixed(1)}% · n ${item.sampleD1 ?? '—'}`}
-              onClick={() => handleSelect(item.id)}>
-              <span className="prr-lb-rank">{rankView === 'worst' ? `W${i + 1}` : `#${item.rank}`}</span>
-              <span className="prr-lb-name">{item.displayName || item.hub}</span>
-              <span className={`prr-lb-kpi ${item.meetsTarget ? 'is-good' : 'is-below'}`}>{item.kpiD1.toFixed(1)}%</span>
-              {delta && <span className={`prr-lb-delta is-${delta.tone}`}>{delta.text}</span>}
-            </button>
-          </li>;
-        })}
-      </ol>}
+        <RankingLeaderboard items={leaderboard} rankView={rankView} selectedHubId={selectedHubId}
+          onSelect={handleSelect} onViewTable={onViewTable} d1Label={d1Label} d8Label={d8Label} />
       </div>
       <div className="prr-3d-sr" aria-live="polite">
         {replaying ? `${running ? 'Đang chạy' : 'Đã tạm dừng'} Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}
