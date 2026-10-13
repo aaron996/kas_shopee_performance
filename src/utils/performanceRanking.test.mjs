@@ -353,6 +353,27 @@ test('small sample flag is applied below threshold without excluding Hub from ra
   assert.equal(result.ranked[1].isSmallSample, false);
 });
 
+test('hubs below minSample (default 10) are excluded from ranking and adjustable', () => {
+  const pickRows = [
+    { report_date: '2026-08-05', hub: 'Hub Few', region: 'HNO', mau_pu: 5, ontime_pu_1st: 5 },
+    { report_date: '2026-08-05', hub: 'Hub Ten', region: 'HNO', mau_pu: 10, ontime_pu_1st: 10 },
+    { report_date: '2026-08-05', hub: 'Hub Big', region: 'HNO', mau_pu: 200, ontime_pu_1st: 180 },
+  ];
+  const def = calculatePerformanceRanking({ pickRows, metricKey: 'p1st' });
+  assert.deepEqual(def.ranked.map(h => h.hub), ['Hub Ten', 'Hub Big']);
+  assert.equal(def.ranked[0].rank, 1);
+  assert.equal(def.excludedCount, 1);
+  assert.equal(def.unrankedCount, 0);
+
+  const strict = calculatePerformanceRanking({ pickRows, metricKey: 'p1st', minSample: 50 });
+  assert.deepEqual(strict.ranked.map(h => h.hub), ['Hub Big']);
+  assert.equal(strict.excludedCount, 2);
+
+  const off = calculatePerformanceRanking({ pickRows, metricKey: 'p1st', minSample: 0 });
+  assert.equal(off.ranked.length, 3);
+  assert.equal(off.excludedCount, 0);
+});
+
 test('road scene slot positioning math guarantees bounds [startPercent, endPercent] without negative coordinates', () => {
   // Simulate top 10 display + 1 extra selected hub at rank 150 (totalVisible = 11)
   const totalVisible = 11;
