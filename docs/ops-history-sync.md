@@ -55,6 +55,13 @@ bảng cùng tồn tại, gộp lại là việc giai đoạn sau (khi có đủ
   nhất; chọn "tất cả" một trường thì không lọc trường đó (tuần cũ có thể có hub không nằm trong danh sách). Khi bấm
   tải, app gọi `get_kas_weekly_compact` lần lượt cho đúng những bảng mà các chỉ số đã chọn cần, rồi lọc và tạo CSV.
   Hub chỉ có ở tuần cũ vẫn xuất được nhưng không chọn riêng được trong hộp thoại.
+- **Xuất CSV "Theo ngày" khoảng dài** (migration [20261013160000](../supabase/migrations/20261013160000_kas_daily_compact_rpc.sql)):
+  dùng chung bảng lịch sử `kas_*_history` với chế độ tuần. Hộp thoại cho chọn "Từ ngày" lùi tới 90 ngày (khớp retention),
+  mặc định vẫn là 14 ngày có sẵn trong trang. Chỉ khi "Từ ngày" sớm hơn dữ liệu trong trang và người dùng bấm "Tải CSV",
+  app gọi `get_kas_daily_compact(dataset, from_date, to_date)` lần lượt từng bảng, mỗi lệnh một lát 10 ngày (RPC cho tối đa 14; khoảng dài được chia lát phía client); lúc đó không hiện số dòng (`countRows = null`). Trong phạm vi 14 ngày vẫn xuất từ dữ liệu
+  trong trang, không truy vấn. Đã đo trên DB thật (13/10): 31 ngày Deli = 65.924 dòng ≈ 5,4 MB nên bỏ; 10 ngày ≈ 20 nghìn dòng ≈ 1,7 MB,
+  thực thi ~130 ms. Không cần index mới: khoá unique `kas_*_history_key` bắt đầu bằng `report_date`, plan là Index Scan.
+  90 ngày × 3 bảng = tối đa ~27 lệnh tuần tự.
 - Bảng bật RLS, không cấp quyền cho `anon`/`authenticated`; app chỉ đọc qua RPC.
 - Retention: `prune_kas_history(keep_days default 90)`, chỉ `service_role`, tối thiểu 70 ngày (không cắt vào
   8 tuần nguyên + tuần hiện tại), tính theo giờ Việt Nam. Job pg_cron `prune_kas_history_daily` chạy lúc

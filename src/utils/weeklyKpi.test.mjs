@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWeeklyMatrix, fetchWeeklyRows, expandCompactRows, clearWeeklyCache, weekLabel, WEEKLY_METRICS } from './weeklyKpi.js';
+import { buildWeeklyMatrix, fetchWeeklyRows, fetchDailyRows, expandCompactRows, clearWeeklyCache, weekLabel, WEEKLY_METRICS } from './weeklyKpi.js';
 
 const W1 = '2026-10-05';
 const W2 = '2026-10-12';
@@ -145,4 +145,16 @@ test('expandCompactRows ghép cột với giá trị, giữ null', () => {
 test('mọi chỉ số có bảng nguồn và cột hợp lệ', () => {
   assert.deepEqual(Object.keys(WEEKLY_METRICS), ['p1st', 'popr', 'd1st', 'dodr', 'fd']);
   assert.deepEqual(Object.values(WEEKLY_METRICS).map(m => m.dataset), ['pick', 'pick', 'deli', 'deli', 'fd']);
+});
+
+test('fetchDailyRows chia khoảng dài thành lát 10 ngày, gọi lần lượt và gộp dòng', async () => {
+  const calls = [];
+  const client = { rpc: async (name, args) => { calls.push([name, args.from_date, args.to_date]); return { data: { cols: ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu'], rows: [[args.from_date, 'HCM', 'Bưu cục A', 'BC', 'SPE', 1]] }, error: null }; } };
+  const rows = await fetchDailyRows(client, 'pick', '2026-07-01', '2026-09-10');
+  assert.equal(calls.length, 8);
+  assert.deepEqual(calls[0], ['get_kas_daily_compact', '2026-07-01', '2026-07-10']);
+  assert.deepEqual(calls[7], ['get_kas_daily_compact', '2026-09-09', '2026-09-10']);
+  assert.ok(calls.every(([, f, t]) => (Date.parse(t) - Date.parse(f)) / 86400000 <= 13));
+  assert.equal(rows.length, 8);
+  await assert.rejects(fetchDailyRows({ rpc: async () => ({ data: null, error: new Error('boom') }) }, 'pick', '2026-07-01', '2026-07-02'), /boom/);
 });
