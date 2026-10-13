@@ -7,6 +7,7 @@ const db = new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role;');
 await db.exec(readFileSync('supabase/migrations/20261012100000_kas_pick_history.sql', 'utf8'));
 await db.exec(readFileSync('supabase/migrations/20261012120000_kas_history_deli_fd_read_retention.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/20261013120000_kas_weekly_rollup.sql', 'utf8'));
 
 let checks = 0;
 const check = (ok, label) => { assert.ok(ok, label); checks++; };
@@ -123,6 +124,37 @@ await rejects(db.query('select public.prune_kas_history(30)'), /at least 70/, 'k
 await rejects(db.query('select public.prune_kas_history(null)'), /at least 70/, 'keep_days null bị từ chối');
 await db.exec('set role authenticated');
 await rejects(db.query('select public.prune_kas_history(90)'), /permission denied/, 'authenticated không gọi được prune');
+await db.exec('reset role');
+
+// --- Bảng cộng sẵn theo tuần luôn khớp bảng ngày (trigger) ---
+const rollupMatches = async (weeklyTable, historyTable, keyCols, sumCols) => {
+  const keys = keyCols.join(', ');
+  const sums = sumCols.map(c => `sum(${c}) as ${c}`).join(', ');
+  const fresh = `select week_start::text w, ${keys}, ${sums}, count(distinct report_date)::int days from public.${historyTable} group by week_start, ${keys}`;
+  const stored = `select week_start::text w, ${keys}, ${sumCols.join(', ')}, days from public.${weeklyTable}`;
+  const diff = (await db.query(`(${fresh} except ${stored}) union all (${stored} except ${fresh})`)).rows;
+  return diff.length === 0;
+};
+const pickKeys = ['region', 'hub', 'hub_type', 'client_name'];
+const deliKeys = ['region', 'wh_id', 'hub', 'hub_type', 'client_name'];
+const fdKeys = ['region', 'wh_id', 'deliverywh', 'hub_type', 'client_name'];
+const rollupOk = async () => (await Promise.all([
+  rollupMatches('kas_pick_weekly', 'kas_pick_history', pickKeys, ['mau_pu', 'ontime_pu_1st', 'ontime_pu_opr']),
+  rollupMatches('kas_deli_weekly', 'kas_deli_history', deliKeys, ['mau_deli', 'ontime_deli_1st', 'ontime_deli_odr']),
+  rollupMatches('kas_fd_weekly', 'kas_fd_history', fdKeys, ['mau_fd', 'fd_hoan_thanh'])
+])).every(Boolean);
+check(await rollupOk(), 'bảng tuần khớp GROUP BY bảng ngày sau các lần upsert');
+await upsertPick([pick('2026-10-07', 'A', 77), pick('2026-10-14', 'NEW', 5)]);
+await upsertDeli([deli('2026-10-12', 'A', 31)]);
+await upsertFd([fd('2026-10-12', 'A', 41)]);
+check(await rollupOk(), 'update và tuần mới được cập nhật vào bảng tuần');
+await db.query(`select public.refresh_kas_pick_weekly(array(select distinct week_start from public.kas_pick_history))`);
+check(await rollupOk() && (await count('kas_pick_weekly')) > 0, 'refresh chạy lại là idempotent');
+await db.query(`delete from public.kas_pick_history where report_date = '2026-10-14'`);
+check(await rollupOk() && (await db.query(`select count(*) n from public.kas_pick_weekly where hub='NEW'`)).rows[0].n === 0, 'xoá hết dòng của một tuần thì tuần đó biến mất khỏi bảng tuần');
+await db.exec('set role authenticated');
+await rejects(db.query('select * from public.kas_pick_weekly'), /permission denied/, 'authenticated không đọc trực tiếp bảng tuần');
+await rejects(db.query(`select public.refresh_kas_pick_weekly('{}')`), /permission denied/, 'authenticated không gọi được refresh');
 await db.exec('reset role');
 
 // --- Apps Script ---

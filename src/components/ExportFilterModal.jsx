@@ -33,7 +33,8 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
   }
 
   const filters = { selection, from, to };
-  const count = isOpen ? countRows(filters) : 0;
+  const loading = Boolean(status?.loading);
+  const count = isOpen && !loading ? countRows(filters) : 0;
   const setField = (key, values) => setSelection(prev => ({ ...prev, [key]: values }));
   const dateInvalid = Boolean(from && to && from > to);
 
@@ -54,7 +55,7 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
         <div className="export-filter-presets" role="group" aria-label="Dữ liệu theo ngày hoặc theo tuần">
           {modes.map(m => <button key={m.value} type="button" aria-pressed={mode === m.value} className={`export-filter-preset ${mode === m.value ? 'is-active' : ''}`} onClick={() => onModeChange?.(m.value)}>{m.label}</button>)}
         </div>
-        {status?.loading && <p role="status">Đang tải dữ liệu theo tuần…</p>}
+        {status?.loading && <p role="status">Đang tải dữ liệu theo tuần, có thể mất vài chục giây…</p>}
         {status?.error && <p className="export-filter-error" role="alert">Không tải được dữ liệu theo tuần. {status.onRetry && <button type="button" className="export-filter-preset" onClick={status.onRetry}>Thử lại</button>}</p>}
       </section>}
       {dateRange &&<section className="export-filter-group" aria-labelledby="export-filter-date">
@@ -69,7 +70,7 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
         </div>
         {dateInvalid && <p className="export-filter-error" role="alert">Ngày bắt đầu phải trước ngày kết thúc.</p>}
       </section>}
-      <div className="export-filter-fields">
+      <div className="export-filter-fields" aria-busy={loading} style={loading ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
         {fields.map(field => <div key={field.key} className="export-filter-group">
           <h4>{field.label}</h4>
           <MultiSelectDropdown label={field.label} options={field.options} value={selection[field.key] || []} onChange={values => setField(field.key, values)} placeholder={`Tìm ${field.label.toLowerCase()}…`} />
@@ -77,10 +78,10 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
       </div>
     </div>
     <div className="export-filter-footer">
-      <span className={count === 0 ? 'is-empty' : ''}>{count === 0 ? 'Không có dòng nào khớp bộ lọc' : `${count.toLocaleString('vi-VN')} dòng sẽ được tải`}</span>
+      <span className={count === 0 && !loading ? 'is-empty' : ''}>{loading ? 'Đang tải dữ liệu…' : count === 0 ? 'Không có dòng nào khớp bộ lọc' : `${count.toLocaleString('vi-VN')} dòng sẽ được tải`}</span>
       <div>
         <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
-        <button type="button" className="btn-primary-sleek" disabled={count === 0 || dateInvalid} onClick={() => { onConfirm(filters); onClose(); }}><Download size={14} /> Tải CSV</button>
+        <button type="button" className="btn-primary-sleek" disabled={loading || count === 0 || dateInvalid} onClick={() => { onConfirm(filters); onClose(); }}><Download size={14} /> Tải CSV</button>
       </div>
     </div>
   </ModalDialog>;
