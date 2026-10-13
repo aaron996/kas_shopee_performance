@@ -7,7 +7,7 @@ import Header from './components/Header';
 import ExecutiveSummaryModal from './components/ExecutiveSummaryModal';
 import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal from './components/AuthModal';
-import { isAllowedEmail } from './utils/authPolicy';
+import { checkEmailAllowed } from './utils/authPolicy';
 import { getLocalPreviewUser } from './utils/localPreviewAuth';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
@@ -80,7 +80,9 @@ export default function App() {
       const saved = localStorage.getItem('ghn_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.email && isAllowedEmail(parsed.email)) {
+        // Optimistic first paint only: the allowlist lives in the database, so
+        // the authoritative check runs in applySession below.
+        if (parsed && typeof parsed.email === 'string' && parsed.email.includes('@')) {
           // isDevAdmin is intentionally NOT trusted from localStorage here —
           // localStorage is fully attacker-controlled (anyone can edit it via
           // DevTools). Force it false on this optimistic first paint; the
@@ -390,7 +392,9 @@ export default function App() {
       const request = ++sessionGeneration;
       if (session?.user?.email) {
         const email = session.user.email.toLowerCase();
-        if (isAllowedEmail(email)) {
+        const allowed = await checkEmailAllowed(email, supabase);
+        if (disposed || request !== sessionGeneration) return;
+        if (allowed) {
           const { data: roleRow, error: roleError } = await supabase
             .from('app_user_roles')
             .select('role')
@@ -406,7 +410,7 @@ export default function App() {
           localStorage.setItem('ghn_user', JSON.stringify(userObj));
           setCurrentUser(userObj);
         } else {
-          showToast(`Tài khoản "${email}" không thuộc hệ thống GHN (@ghn.vn) nên không có quyền truy cập ứng dụng này.`, { tone: 'error', title: 'Truy cập bị từ chối', duration: 9000 });
+          showToast(`Tài khoản "${email}" không thuộc email GHN (@ghn.vn) và chưa nằm trong danh sách được phép nên không có quyền truy cập ứng dụng này.`, { tone: 'error', title: 'Truy cập bị từ chối', duration: 9000 });
           supabase.auth.signOut();
           localStorage.removeItem('ghn_user');
           setCurrentUser(null);

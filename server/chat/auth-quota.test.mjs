@@ -19,6 +19,21 @@ test('authenticateRequest enforces the shared email policy', async () => {
   );
 });
 
+test('authenticateRequest admits a non-ghn email only when the allowlist RPC approves it', async () => {
+  const calls = [];
+  const createClients = allowed => () => ({
+    userClient: { auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'Khac@gmail.com' } }, error: null }) } },
+    serviceClient: { rpc: async (name, params) => { calls.push({ name, params }); return { data: allowed, error: null }; } }
+  });
+  const result = await authenticateRequest('Bearer token', {}, { createClients: createClients(true) });
+  assert.equal(result.user.id, 'u1');
+  assert.deepEqual(calls[0], { name: 'is_email_allowed', params: { p_email: 'khac@gmail.com' } });
+  await assert.rejects(
+    authenticateRequest('Bearer token', {}, { createClients: createClients(false) }),
+    error => error.code === 'CHAT_FORBIDDEN'
+  );
+});
+
 test('reserveChatRequest sends quota limits through the service client RPC', async () => {
   const calls = [];
   const serviceClient = { rpc: async (name, params) => { calls.push({ name, params }); return { data: { ok: true }, error: null }; } };

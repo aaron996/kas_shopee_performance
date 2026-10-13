@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { isAllowedEmail } from '../../src/utils/authPolicy.js';
+import { checkEmailAllowed } from '../../src/utils/authPolicy.js';
 import { ChatError } from './errors.js';
 
 export function readBearerToken(header) {
@@ -27,7 +27,7 @@ export async function authenticateRequest(authHeader, config, dependencies = {})
   if (error || !data?.user) throw new ChatError('CHAT_UNAUTHORIZED', 'Phiên đăng nhập đã hết hạn.', 401);
 
   const email = data.user.email ?? '';
-  if (!isAllowedEmail(email)) throw new ChatError('CHAT_FORBIDDEN', 'Tài khoản này không có quyền dùng chatbot.', 403);
+  if (!(await checkEmailAllowed(email, clients.serviceClient))) throw new ChatError('CHAT_FORBIDDEN', 'Tài khoản này không có quyền dùng chatbot.', 403);
 
   return { user: data.user, ...clients };
 }
