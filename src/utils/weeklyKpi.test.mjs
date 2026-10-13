@@ -146,3 +146,21 @@ test('mọi chỉ số có bảng nguồn và cột hợp lệ', () => {
   assert.deepEqual(Object.keys(WEEKLY_METRICS), ['p1st', 'popr', 'd1st', 'dodr', 'fd']);
   assert.deepEqual(Object.values(WEEKLY_METRICS).map(m => m.dataset), ['pick', 'pick', 'deli', 'deli', 'fd']);
 });
+
+test('khoảng ngày: mỗi ngày một cột, nhãn ngày và gọi RPC get_kas_daily_range_compact', async () => {
+  const { fetchDailyRows, dayLabel } = await import('./weeklyKpi.js');
+  clearWeeklyCache();
+  const calls = [];
+  const client = { rpc: async (name, args) => { calls.push([name, args]); return { data: {
+    weeks: ['2026-10-11', '2026-10-12'], cols: ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr'],
+    rows: [['2026-10-11', 'HCM', 'Hub A', 'BC', 'SPE', 100, 90, 80], ['2026-10-12', 'HCM', 'Hub A', 'BC', 'SPE', 50, 50, 40]] }, error: null }; } };
+  const data = await fetchDailyRows(client, 'pick', '2026-10-11', '2026-10-12');
+  assert.deepEqual(calls, [['get_kas_daily_range_compact', { dataset: 'pick', date_from: '2026-10-11', date_to: '2026-10-12' }]]);
+  const m = buildWeeklyMatrix({ rows: data.rows, weeks: data.weeks, metricKey: 'p1st', labelFor: dayLabel });
+  assert.equal(m.weeks.length, 2);
+  assert.equal(m.weeks[1].title, '12/10');
+  assert.equal(m.all[0].pct, 90);
+  assert.equal(m.all[1].pct, 100);
+  await fetchDailyRows(client, 'pick', '2026-10-11', '2026-10-12');
+  assert.equal(calls.length, 1);
+});
