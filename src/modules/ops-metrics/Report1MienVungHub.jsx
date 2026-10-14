@@ -53,7 +53,8 @@ export default function Report1MienVungHub({
   // metric's table, without the KPI cards, alert strip and tabs.
   snapshotMetric = null,
   overview = false,
-  onOpenOps
+  onOpenOps,
+  weatherProps
 }) {
   const showToast = useToast();
   const [expandedRegions, setExpandedRegions] = useState(() => {
@@ -1274,6 +1275,13 @@ export default function Report1MienVungHub({
     </div>
   );
 
+  // Weather has its own readiness/error state, including when the KPI source
+  // is unavailable or the user's operational filters leave no rows.
+  if (overview && !pD1 && !dD1 && !fD1) return <OperationsHome cards={[]} risks={[]} onOpenOps={onOpenOps} weatherProps={weatherProps}
+    dataNotice={<StatusNotice><strong>{emptyFilter ? (emptyFilter === 'hubTypes' ? 'Chưa chọn loại Hub nào' : 'Chưa chọn vùng nào') : 'Chưa có dữ liệu vận hành'}</strong>
+      <p>{emptyFilter ? 'Bộ lọc hiện tại không còn số liệu KPI để hiển thị.' : 'Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.'}</p>
+      <button type="button" className="nav-btn-sleek" onClick={emptyFilter ? onResetFilters : onRetryData}>{emptyFilter ? 'Chọn lại tất cả' : 'Tải lại dữ liệu'}</button></StatusNotice>} />;
+
   // An empty Loại Hub / Vùng selection filters every row out — say so instead
   // of the "no data" notice, which reads like the data source is broken.
   if (!pD1 && !dD1 && !fD1 && emptyFilter) return (
@@ -1298,7 +1306,7 @@ export default function Report1MienVungHub({
     modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode} />;
 
   if (overview) return <>
-    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} />
+    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} weatherProps={weatherProps} />
     {exportDialog}
   </>;
 

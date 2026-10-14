@@ -196,6 +196,11 @@ Partial corners are valid only when the shape expresses containment or attachmen
 
 **The Startup Sequence Rule.** Complete the intro exit before mounting client selection; cached data and loading timers must never expose the skip action early.
 
+### Overview weather
+The weather panel follows the KPI row and precedes the Hub priority/trend grid. Its location scope and forecast time remain visible and separate from KPI dates. The pilot contains two representative city points (HCM and HNO), never an implied forecast for every Hub or the whole selected region. Unmapped regions use a disclosure with their names. The desktop shows scoped location selectors and a 12/24-hour rainfall chart; below 560px one location picker and four-hour pages retain at least 44px touch targets. Selected hours have a numeric detail available by keyboard and touch. Missing rainfall stays unknown rather than becoming zero.
+
+Location permission is requested only after an explicit “Dùng vị trí của tôi” action. A nearby public point is proposed with distance/accuracy and requires the user to apply it. Manual selection wins over pending geolocation and geographic filters never change automatically. Loading, unavailable provider, missing configuration and cached forecast states remain local to weather. WeatherAPI.com attribution and request fetch time appear alongside the forecast.
+
 ### Dev Control Panel
 The panel follows Operate mode and the existing palette and type system. Its directory groups shared AI models, Chatbot, COD SMS, and accounts/access. Desktop uses a compact local navigation column; mobile uses a collapsed menu showing the selected function. The content has one heading and one task at a time. Effective model configuration remains visible; source diagnostics, overrides, audit history, and advanced registry filters use progressive disclosure. Inputs, navigation selection and surfaces inherit the shared radius tokens.
 

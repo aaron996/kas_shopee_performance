@@ -9,6 +9,7 @@ import DataSourceManagerModal from './components/DataSourceManagerModal';
 import AuthModal from './components/AuthModal';
 import { checkEmailAllowed } from './utils/authPolicy';
 import { getLocalPreviewUser } from './utils/localPreviewAuth';
+import { clearWeatherPreference } from './utils/weather.js';
 import ClientSelectModal from './components/ClientSelectModal';
 import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
@@ -145,6 +146,11 @@ export default function App() {
   );
   const [introCompletedFor, setIntroCompletedFor] = useState(null);
   const userEmail = currentUser?.email?.trim().toLowerCase();
+  const weatherIdentity = React.useRef(userEmail);
+  useEffect(() => {
+    if (weatherIdentity.current !== userEmail) clearWeatherPreference(sessionStorage);
+    weatherIdentity.current = userEmail;
+  }, [userEmail]);
   const introVisible = !!userEmail && introCompletedFor !== userEmail;
   const hasPickedClient = hostPickedClient || !userEmail ||
     clientChoiceToken === clientVisitToken(userEmail, __APP_BUILD_ID__) ||
@@ -691,6 +697,7 @@ export default function App() {
 
   const handleLogout = async () => {
     if (LOCAL_PREVIEW_USER) return;
+    clearWeatherPreference(sessionStorage);
     await clearSyncSnapshot();
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
@@ -750,7 +757,7 @@ export default function App() {
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
   // Tabs that load their own data and never read the report rows: they must not wait
   // behind (or stack a second skeleton on top of) the report sync.
-  const ownsItsData = activeTab === 'dev-admin' || activeTab === 'cod-suspicion';
+  const ownsItsData = activeTab === 'home' || activeTab === 'dev-admin' || activeTab === 'cod-suspicion';
   const runtimeByModule = {
     report1: {
       pickRows: filteredPickRows,
@@ -820,7 +827,10 @@ export default function App() {
     },
     'dev-admin': { onlineUsers, currentUser }
   };
-  runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1 };
+  runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1,
+    weatherProps: { selectedRegions, userKey: userEmail || 'anonymous',
+      active: Boolean(currentUser && !currentUser.localPreview && !introVisible && hasPickedClient),
+      localPreview: Boolean(currentUser?.localPreview) } };
   return (
     <RadioProvider started={radioStarted} canManage={Boolean(currentUser?.isDevAdmin)}>
     <div className="app-container" inert={introVisible} aria-hidden={introVisible ? true : undefined}>
