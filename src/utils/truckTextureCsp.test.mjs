@@ -20,7 +20,7 @@ test('production CSP permits embedded GLB textures through both browser image lo
   assert.deepEqual(directives.get('frame-ancestors'), ["'self'", 'https://ka-control-tower.vercel.app']);
 });
 
-test('production CSP lets the ranking radio load audio from Supabase storage only', () => {
-  // Without media-src, default-src 'self' blocks the <audio> source and the radio reports an error.
-  assert.deepEqual(directives.get('media-src'), ["'self'", 'https://iyjsihwgnzcytbojvoom.supabase.co']);
+test('production CSP permits ranking radio storage audio and local upload metadata', () => {
+  // The upload manager reads duration from a local blob URL before uploading to storage.
+  assert.deepEqual(directives.get('media-src'), ["'self'", 'blob:', 'https://iyjsihwgnzcytbojvoom.supabase.co']);
 });
