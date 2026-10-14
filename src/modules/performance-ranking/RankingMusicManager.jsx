@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GripVertical, Play, SkipBack, SkipForward, Trash2, Upload, X } from 'lucide-react';
+import { GripVertical, Play, Shuffle, SkipBack, SkipForward, Trash2, Upload, X } from 'lucide-react';
 import ModalDialog from '../../components/ui/ModalDialog.jsx';
 import { useToast } from '../../components/ui/Toast.jsx';
 import { supabase } from '../../utils/supabaseClient.js';
-import { formatClock, neighbourTrack, resolveRadio } from '../../utils/radioSchedule.js';
+import { formatClock, neighbourTrack, resolveRadio, shuffleRadioTracks } from '../../utils/radioSchedule.js';
 import { audioContentType, storagePathFor, titleFromFileName, validateAudioFile } from '../../utils/rankingMusicFiles.js';
 import { MUSIC_BUCKET, trackUrl } from './useRankingRadio.js';
 
@@ -144,7 +144,7 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
     patch(track, { title: next }, { reanchor: false });
   }
 
-  function persistOrder(reordered) {
+  function persistOrder(reordered, options) {
     setTracks(reordered);
     mutate(async () => {
       const changed = reordered.map((track, order) => ({ track, order })).filter(({ track, order }) => track.sort_order !== order);
@@ -152,7 +152,7 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
         supabase.from(TABLE).update({ sort_order: order }).eq('id', track.id)));
       const failed = results.find(result => result.error);
       if (failed) throw failed.error;
-    });
+    }, options);
   }
 
   function moveBy(index, delta) {
@@ -248,6 +248,9 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
                 <span>Mọi người đang nghe cùng bài này</span>
               </div>
               <div className="prr-mm-transport">
+                <button type="button" className="prr-mm-text" disabled={busy || loading || tracks.filter(t => t.active && t.duration_seconds > 0).length < 2}
+                  onClick={() => persistOrder(shuffleRadioTracks(tracks), { success: 'Đã xáo thứ tự bài. Bài đang nghe tiếp tục phát.' })}
+                  title="Xáo thứ tự phát cho mọi người, giữ nguyên bài đang nghe"><Shuffle size={17} aria-hidden="true" />Xáo bài</button>
                 <button type="button" className="prr-mm-icon" disabled={busy} onClick={() => step(-1)} aria-label="Bài trước"><SkipBack size={17} aria-hidden="true" /></button>
                 <button type="button" className="prr-mm-icon" disabled={busy} onClick={() => step(1)} aria-label="Bài tiếp theo"><SkipForward size={17} aria-hidden="true" /></button>
               </div>

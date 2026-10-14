@@ -14,7 +14,7 @@ Nhạc nền của tab BXH chạy như một đài radio: tại mỗi thời đi
 
 1. Vào app, chưa có gì phát: radio chỉ khởi động lần đầu người dùng mở tab BXH (không tốn request trước đó).
 2. Vào tab BXH: **mặc định bật âm**. Bấm vào tab là một thao tác của người dùng nên trình duyệt thường cho phát; nếu bị chặn thì widget hiện "Bấm để nghe radio".
-3. Widget radio nằm trong BXH (`RankingMusicWidget.jsx`). Chỉ cần tắt âm một lần, lựa chọn được nhớ trong localStorage (`ghn-ranking-radio-muted`); người chưa từng tắt luôn mặc định bật.
+3. Widget radio nằm trong BXH (`RankingMusicWidget.jsx`), mặc định chỉ hiện đĩa (52,5px desktop / 45px mobile, lớn hơn bản trước 25%). Hover hoặc focus bằng bàn phím mở thanh tên bài, âm thanh và tùy chỉnh; chạm đĩa ghim thanh mở trên thiết bị cảm ứng. Bấm ngoài thu gọn, Escape đóng tùy chỉnh. Chỉ cần tắt âm một lần, lựa chọn được nhớ trong localStorage (`ghn-ranking-radio-muted`); người chưa từng tắt luôn mặc định bật.
 4. Chuyển sang tab khác trong app (hoặc chuyển tab trình duyệt, thu nhỏ cửa sổ): nhạc **không dừng**. Một phần phát duy nhất (`RadioProvider.jsx`) nằm ở cấp App nên không bị tháo theo tab.
 5. Khi rời BXH với âm đang bật, "màn hình" BXH thu nhỏ lại thành widget nổi (`RadioFloatingLayer.jsx`): một khung tối co dần về vị trí widget rồi widget bật ra. Giảm chuyển động thì widget hiện thẳng, không co.
 6. Widget nổi kéo được bằng chuột trái (hoặc phím mũi tên khi đang focus), nhớ vị trí trong localStorage (`ghn-ranking-radio-position`), tự giữ trong khung nhìn khi đổi kích thước cửa sổ. Có nút bật/tắt âm; đĩa nhạc xoay khi đang phát. Tắt âm trên widget thì widget vẫn ở lại để bật lại; vào lại BXH thì widget nổi ẩn đi (widget trong BXH thế chỗ).
@@ -22,14 +22,16 @@ Nhạc nền của tab BXH chạy như một đài radio: tại mỗi thời đi
 
 ## Chi tiết phát
 
-- Bật/tắt âm chỉ ảnh hưởng riêng người nghe; bật lại sẽ vào đúng bài, đúng giây. Âm lượng mặc định 30%.
+- Bật/tắt âm chỉ ảnh hưởng riêng người nghe; bật lại sẽ vào đúng bài, đúng giây. Bấm icon âm thanh vừa bật/tắt vừa mở thanh điều chỉnh 0–100%; mặc định 30%, nhớ qua `ghn-ranking-radio-volume`, dùng chung với widget nổi. Kéo về 0 tắt âm; bật lại khôi phục mức nghe gần nhất (hoặc 30% khi tải lại với mức 0).
 - Nếu trình duyệt tự dừng phát (giới hạn tài nguyên...), bộ đồng bộ 4 giây sẽ phát lại. Mỗi lần tua để khớp lịch có thời gian chờ 8 giây để mạng chậm không bị tua liên tục.
 - Hệ điều hành nhận tên bài (Media Session). Phím media play/pause tương ứng bật/tắt âm của riêng người nghe; chuyển bài từ phím media chỉ dành cho dev.
-- Đĩa xoay theo sự kiện phát thực tế, giảm chuyển động dùng đĩa tĩnh.
+- Đĩa xoay theo sự kiện phát thực tế, giảm chuyển động dùng đĩa tĩnh. Hai vòng nhịp lấy năng lượng tần số thấp từ Web Audio analyser (~30fps, không cập nhật React mỗi frame). Chỉ nối audio vào graph sau khi AudioContext chạy; nếu không hỗ trợ thì vẫn phát nhạc, không giả lập nhịp. Nhịp dừng khi tắt âm, buffering, tab trình duyệt bị ẩn hoặc giảm chuyển động.
+- Người nghe chọn 4 kiểu: Vinyl (mặc định), CD, Hoa, Bánh răng; lưu riêng trên trình duyệt qua `ghn-ranking-radio-disc`. Tùy chỉnh này nằm trong widget BXH.
 
 ## Điều khiển (chỉ role `dev`)
 
-- Widget trong BXH có thêm nút bài trước / bài tiếp theo và nút mở bảng điều khiển (`RankingMusicManager.jsx`).
+- Widget BXH chỉ thêm nút mở bảng điều khiển (`RankingMusicManager.jsx`) cho dev; không còn nút trước/sau trên widget.
+- Nút **Xáo bài** trong bảng điều khiển dev dùng Fisher–Yates đổi thứ tự các bài đang bật và có thời lượng. Bài tắt/chưa đo giữ vị trí; giữ bài và giây hiện tại bằng luồng neo lại có sẵn. Thứ tự mới lưu chung cho mọi người, không phải shuffle riêng từng người nghe. Chỉ bật nút khi có ít nhất 2 bài hợp lệ; giữ nguyên bảo vệ role dev tại database.
 - Bảng điều khiển: bài đang phát với tiến độ, bài trước/sau, danh sách bài (kéo thả hoặc Alt + mũi tên để sắp xếp, đổi tên ngay trên dòng, công tắc bật/tắt khỏi radio, nút "Phát bài này cho mọi người", xóa có xác nhận) và khu kéo thả nhiều file (mp3, m4a, ogg, wav; tối đa 15 MB mỗi file).
 - Khi tải lên, trình duyệt đọc thời lượng của file và lưu cùng bài. Bài cũ chưa có thời lượng được đo tự động khi dev mở bảng điều khiển.
 - Mọi thay đổi danh sách (thêm, xóa, bật/tắt, sắp xếp) đều "neo lại" radio vào đúng bài và giây hiện tại để người nghe không bị nhảy bài.

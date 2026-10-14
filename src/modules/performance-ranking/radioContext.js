@@ -1,6 +1,10 @@
 import { createContext, useContext } from 'react';
 
 export const RadioContext = createContext(null);
+export const DISC_STYLES = [
+  { id: 'vinyl', label: 'Vinyl' }, { id: 'cd', label: 'CD' },
+  { id: 'flower', label: 'Hoa' }, { id: 'gear', label: 'Bánh răng' }
+];
 
 export function useRadio() {
   return useContext(RadioContext);
