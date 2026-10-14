@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatClock, neighbourTrack, playableTracks, resolveRadio } from './radioSchedule.js';
+import { formatClock, neighbourTrack, playableTracks, resolveRadio, shuffleRadioTracks } from './radioSchedule.js';
 
 const tracks = [
   { id: 'a', src: 'a.mp3', duration: 100 },
@@ -8,6 +8,29 @@ const tracks = [
   { id: 'c', src: 'c.mp3', duration: 30 }
 ];
 const anchor = { trackId: 'a', startedAtMs: 1_000_000 };
+
+test('shuffle preserves every row and keeps disabled or unmeasured songs in place', () => {
+  const rows = [
+    { id: 'a', active: true, duration_seconds: 20 },
+    { id: 'off', active: false, duration_seconds: 20 },
+    { id: 'b', active: true, duration_seconds: 30 },
+    { id: 'unknown', active: true, duration_seconds: null },
+    { id: 'c', active: true, duration_seconds: 40 }
+  ];
+  const original = rows.map(row => row.id);
+  const shuffled = shuffleRadioTracks(rows, () => 0);
+  assert.deepEqual(shuffled.map(row => row.id), ['b', 'off', 'c', 'unknown', 'a']);
+  assert.deepEqual(rows.map(row => row.id), original);
+  assert.deepEqual([...shuffled].map(row => row.id).sort(), [...original].sort());
+  assert.equal(shuffled[1], rows[1]);
+  assert.equal(shuffled[3], rows[3]);
+});
+
+test('shuffle handles empty and single-song playlists without losing songs', () => {
+  assert.deepEqual(shuffleRadioTracks([]), []);
+  const one = [{ id: 'a', active: true, duration_seconds: 20 }];
+  assert.deepEqual(shuffleRadioTracks(one), one);
+});
 
 test('resolveRadio starts at the anchored track and offset', () => {
   const r = resolveRadio(anchor, tracks, 1_000_000 + 40_000);

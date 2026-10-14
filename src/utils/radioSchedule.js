@@ -28,3 +28,14 @@ export function formatClock(seconds) {
   const safe = Math.max(0, Math.floor(Number(seconds) || 0));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
 }
+
+// Shuffle only scheduled songs; disabled / unmeasured rows keep their slots.
+export function shuffleRadioTracks(tracks, random = Math.random) {
+  const eligible = tracks.filter(track => track.active && Number(track.duration_seconds) > 0);
+  for (let i = eligible.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  let index = 0;
+  return tracks.map(track => track.active && Number(track.duration_seconds) > 0 ? eligible[index++] : track);
+}

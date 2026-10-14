@@ -8,6 +8,7 @@ import './rankingMusic.css';
 
 // Only an explicit mute is remembered; everyone else gets sound on by default.
 const MUTED_KEY = 'ghn-ranking-radio-muted';
+const VOLUME_KEY = 'ghn-ranking-radio-volume';
 const SYNC_MS = 4000;
 const DRIFT_SECONDS = 2;
 const SEEK_COOLDOWN_MS = 8000;
@@ -26,6 +27,14 @@ function writeMuted(muted) {
     if (muted) localStorage.setItem(MUTED_KEY, 'true');
     else localStorage.removeItem(MUTED_KEY);
   } catch { /* Storage is optional. */ }
+}
+
+function readVolume() {
+  try {
+    const saved = localStorage.getItem(VOLUME_KEY);
+    const number = Number(saved);
+    return saved !== null && Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : 0.3;
+  } catch { return 0.3; }
 }
 
 // One audio element for the whole app, so the radio keeps playing across tabs.
@@ -47,6 +56,32 @@ export function RadioProvider({ started, canManage = false, children }) {
   const [status, setStatus] = useState('idle');
   const [track, setTrack] = useState(null);
   const [managing, setManaging] = useState(false);
+  const [volume, updateVolume] = useState(readVolume);
+  const volumeRef = useRef(volume);
+  const audibleVolumeRef = useRef(volume || 0.3);
+  const analysisRef = useRef(null);
+
+  // Connect only after the context is running: a suspended graph must never silence autoplay.
+  const prepareAnalysis = useCallback(async () => {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audio = audioRef.current;
+    if (!AudioContext || !audio) return;
+    try {
+      if (!analysisRef.current) analysisRef.current = { context: new AudioContext(), analyser: null };
+      const graph = analysisRef.current;
+      if (graph.context.state === 'suspended') await graph.context.resume();
+      if (graph.context.state !== 'running' || graph.analyser || audio !== audioRef.current) return;
+      const analyser = graph.context.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = .75;
+      const source = graph.context.createMediaElementSource(audio);
+      source.connect(analyser);
+      analyser.connect(graph.context.destination);
+      graph.analyser = analyser;
+    } catch { /* Playback still works when analysis is unavailable. */ }
+  }, []);
+  const getAnalyser = useCallback(() => analysisRef.current?.analyser, []);
+  useEffect(() => () => { analysisRef.current?.context.close().catch(() => {}); analysisRef.current = null; }, []);
 
   const ready = started && radio.ready;
   const canPlay = ready && soundEnabled;
@@ -63,14 +98,15 @@ export function RadioProvider({ started, canManage = false, children }) {
     if (!audio || !trackRef.current) return;
     const attempt = ++playAttempt.current;
     setStatus('loading');
-    audio.volume = 0.3;
+    audio.volume = volumeRef.current;
+    prepareAnalysis();
     audio.play().catch(error => {
       // AbortError = a newer load/pause superseded this call (track switch); the next attempt decides the status.
       if (attempt !== playAttempt.current || error.name === 'AbortError') return;
       setPlaying(false);
       setStatus(error.name === 'NotAllowedError' ? 'blocked' : 'error');
     });
-  }, []);
+  }, [prepareAnalysis]);
 
   // A dropped connection or a stalled stream is transient: reload the file a few times before showing an error.
   // onPlaying resets the counter.
@@ -173,6 +209,11 @@ export function RadioProvider({ started, canManage = false, children }) {
 
   const setSound = useCallback(on => {
     if (on) {
+      if (volumeRef.current === 0) {
+        volumeRef.current = audibleVolumeRef.current;
+        updateVolume(volumeRef.current);
+        try { localStorage.setItem(VOLUME_KEY, String(volumeRef.current)); } catch { /* Optional preference. */ }
+      }
       setSoundEnabled(true);
       writeMuted(false);
       sync();
@@ -193,6 +234,18 @@ export function RadioProvider({ started, canManage = false, children }) {
     () => setSound(!soundEnabled || status === 'blocked' || status === 'error'),
     [setSound, soundEnabled, status]
   );
+
+  const setVolume = useCallback(next => {
+    if (!Number.isFinite(next)) return;
+    const level = Math.max(0, Math.min(1, next));
+    volumeRef.current = level;
+    if (level > 0) audibleVolumeRef.current = level;
+    updateVolume(level);
+    if (audioRef.current) audioRef.current.volume = level;
+    try { localStorage.setItem(VOLUME_KEY, String(level)); } catch { /* Optional preference. */ }
+    if (level > 0 && (!soundEnabled || status === 'blocked' || status === 'error')) setSound(true);
+    else if (level === 0) setSound(false);
+  }, [setSound, soundEnabled, status]);
 
   function handleEnded() {
     setPlaying(false);
@@ -230,15 +283,19 @@ export function RadioProvider({ started, canManage = false, children }) {
     soundOn,
     needsRetry,
     toggleSound,
+    volume,
+    setVolume,
+    getAnalyser,
+    prepareAnalysis,
     canControl: canManage,
     step,
     openManager: canManage ? () => setManaging(true) : undefined
-  }), [shown, playing, status, soundEnabled, soundOn, needsRetry, toggleSound, canManage, step]);
+  }), [shown, playing, status, soundEnabled, soundOn, needsRetry, toggleSound, volume, setVolume, getAnalyser, prepareAnalysis, canManage, step]);
 
   return (
     <RadioContext.Provider value={value}>
       {children}
-      {ready && shown && <audio ref={audioRef} src={shown.src} preload="none"
+      {ready && shown && <audio ref={audioRef} crossOrigin="anonymous" src={shown.src} preload="none"
         onLoadedMetadata={() => align(true)}
         onPlaying={() => { retriesRef.current = 0; setPlaying(true); setStatus('playing'); align(true); }}
         onPause={() => setPlaying(false)}
