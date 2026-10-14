@@ -1,0 +1,322 @@
+.weather-overview {
+  margin:0 0 24px;
+  min-width:0}
+.weather-heading {
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-start}
+.weather-heading h2 {
+  display:flex;
+  gap:9px;
+  align-items:center;
+  margin:0;
+  font-size:var(--type-section);
+  font-family:var(--font-heading)}
+.weather-heading h2 svg {
+  color:var(--action-primary)}
+.weather-heading p,.weather-geolocation p,.weather-summary p {
+  margin:6px 0 0;
+  color:var(--text-secondary);
+  font-size:var(--type-meta)}
+.weather-horizon {
+  display:flex;
+  gap:3px;
+  background:var(--surface-subtle);
+  padding:4px;
+  border-radius:var(--radius-pill)}
+.weather-horizon button {
+  border:0;
+  background:transparent;
+  padding:8px 13px;
+  border-radius:var(--radius-pill);
+  color:var(--text-primary);
+  font:inherit;
+  white-space:nowrap;
+  cursor:pointer}
+.weather-horizon button[aria-pressed=true] {
+  background:var(--action-primary);
+  color:var(--text-on-brand)}
+.weather-geolocation {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  background:var(--surface-subtle);
+  padding:14px 16px;
+  border-radius:var(--radius-control);
+  margin:18px 0}
+.weather-geolocation strong {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  font-size:var(--type-body);
+  font-weight:600}
+.weather-geolocation p {
+  max-width:70ch}
+.weather-geo-actions {
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  flex-shrink:0}
+.weather-geo-actions .nav-btn-sleek {
+  white-space:nowrap}
+.weather-primary {
+  color:var(--text-on-brand)!important;
+  background:var(--action-primary)!important}
+.weather-location-cards {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin:18px 0}
+.weather-location-item {
+  position:relative;
+  min-width:0}
+.weather-location {
+  width:100%;
+  text-align:left;
+  border:1px solid var(--border-subtle);
+  border-radius:var(--radius-control);
+  background:var(--surface-subtle);
+  color:var(--text-primary);
+  padding:13px 44px 13px 14px;
+  font:inherit;
+  cursor:pointer}
+.weather-location[aria-pressed=true] {
+  background:var(--surface-default);
+  border-color:var(--action-primary);
+  box-shadow:inset 0 0 0 1px var(--action-primary)}
+.weather-location strong,.weather-location span,.weather-location small {
+  display:block}
+.weather-location span {
+  font-size:var(--type-caption);
+  color:var(--text-secondary);
+  margin-top:4px}
+.weather-location small {
+  font-size:var(--type-meta);
+  margin-top:8px}
+.weather-pin {
+  position:absolute;
+  right:5px;
+  top:6px;
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border:0;
+  border-radius:var(--radius-control);
+  background:transparent;
+  color:var(--text-secondary);
+  cursor:pointer}
+.weather-pin[aria-pressed=true] {
+  color:var(--action-primary)}
+.weather-notice {
+  padding:12px 0;
+  color:var(--text-secondary);
+  font-size:var(--type-body)}
+.weather-notice p {
+  margin:0 0 8px}
+.weather-stale {
+  background:var(--status-warning-bg);
+  color:var(--status-warning-fg);
+  padding:10px 14px;
+  border-radius:var(--radius-control);
+  font-size:var(--type-meta)}
+.weather-summary {
+  display:flex;
+  gap:16px;
+  justify-content:space-between;
+  margin:20px 0 16px}
+.weather-summary h3 {
+  margin:0;
+  font-size:var(--type-body);
+  font-weight:600}
+.weather-current {
+  flex-shrink:0;
+  text-align:right}
+.weather-current strong {
+  display:block;
+  font:600 26px var(--font-heading)}
+.weather-current small {
+  color:var(--text-secondary);
+  font-size:var(--type-caption)}
+.weather-chart-caption {
+  color:var(--text-secondary);
+  font-size:var(--type-caption);
+  margin:12px 0}
+.weather-chart {
+  position:relative;
+  padding:18px 0 0 34px}
+.weather-y-axis {
+  position:absolute;
+  left:0;
+  top:18px;
+  bottom:25px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  font-size:var(--type-caption);
+  color:var(--text-secondary)}
+.weather-bars {
+  display:grid;
+  grid-template-columns:repeat(var(--weather-columns),minmax(0,1fr));
+  gap:4px}
+.weather-hour {
+  position:relative;
+  height:160px;
+  padding:32px 2px 25px;
+  display:flex;
+  align-items:end;
+  justify-content:center;
+  background:transparent;
+  border:0;
+  border-radius:var(--radius-control);
+  color:var(--text-primary);
+  font:inherit;
+  cursor:pointer}
+.weather-hour[aria-pressed=true] {
+  background:var(--surface-subtle)}
+.weather-bar {
+  width:70%;
+  max-width:26px;
+  min-height:2px;
+  background:var(--action-primary);
+  opacity:.5;
+  border-radius:4px 4px 0 0}
+.weather-hour[aria-pressed=true] .weather-bar {
+  opacity:1}
+.weather-bar-missing {
+  min-height:0}
+.weather-probability {
+  position:absolute;
+  top:5px;
+  font-size:var(--type-caption);
+  color:var(--text-secondary)}
+.weather-hour-label {
+  position:absolute;
+  bottom:0;
+  font-size:var(--type-caption);
+  color:var(--text-secondary)}
+.weather-hour:nth-child(2n) .weather-probability {
+  visibility:hidden}
+.weather-overview:has(.weather-horizon button:nth-child(2)[aria-pressed=true]) .weather-hour:not(:nth-child(3n+1)) .weather-hour-label {
+  visibility:hidden}
+.weather-hour-detail {
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  font-size:var(--type-meta);
+  margin-top:16px}
+.weather-hour-detail strong {
+  font-weight:600}
+.weather-metadata {
+  display:flex;
+  gap:8px 16px;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  border-top:1px solid var(--border-subtle);
+  padding-top:12px;
+  margin-top:18px;
+  color:var(--text-secondary);
+  font-size:var(--type-caption)}
+.weather-metadata a {
+  color:var(--action-primary)}
+.weather-coverage {
+  margin-top:12px;
+  font-size:var(--type-caption);
+  color:var(--text-secondary)}
+.weather-coverage summary {
+  cursor:pointer}
+.weather-coverage p {
+  overflow-wrap:anywhere}
+.weather-mobile-picker,.weather-pager {
+  display:none}
+.weather-overview button:focus-visible,.weather-overview select:focus-visible,.weather-coverage summary:focus-visible {
+  outline:2px solid var(--action-primary);
+  outline-offset:3px}
+.weather-overview button:disabled {
+  opacity:.55;
+  cursor:default}
+
+.weather-y-axis {
+  top:50px}
+.weather-location-cards {
+  grid-template-columns:repeat(2,minmax(0,1fr))}
+
+@media(max-width:1100px) {
+  .weather-geolocation {
+  align-items:flex-start;
+  flex-direction:column}
+}
+
+@media(max-width:560px) {
+  .weather-heading {
+  flex-wrap:wrap}
+.weather-horizon button,.weather-geo-actions button {
+  min-height:44px}
+.weather-geolocation {
+  padding:12px}
+.weather-location-cards {
+  display:none}
+.weather-mobile-picker {
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin:16px 0;
+  font-size:var(--type-meta)}
+.weather-mobile-picker select {
+  min-width:0;
+  flex:1;
+  border:1px solid var(--border-strong);
+  background:var(--surface-default);
+  color:var(--text-primary);
+  border-radius:var(--radius-control);
+  padding:9px;
+  font:inherit;
+  font-size:16px;
+  min-height:44px}
+.weather-chart {
+  padding-left:0}
+.weather-y-axis {
+  display:none}
+.weather-bars {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px}
+.weather-hour:not(.weather-mobile-hour) {
+  display:none}
+.weather-hour {
+  min-width:44px;
+  height:160px}
+.weather-hour .weather-probability,.weather-overview .weather-hour .weather-hour-label {
+  visibility:visible!important}
+.weather-pager {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:14px;
+  font-size:var(--type-caption);
+  color:var(--text-secondary)}
+.weather-pager button {
+  min-width:44px;
+  min-height:44px;
+  padding:8px}
+.weather-current strong {
+  font-size:22px}
+.weather-summary {
+  gap:12px}
+.weather-current {
+  max-width:92px}
+.weather-hour-detail {
+  gap:7px 12px}
+.weather-metadata {
+  flex-direction:column}
+.weather-overview {
+  padding:16px}
+.weather-geo-actions {
+  flex-shrink:1}
+.weather-geolocation strong {
+  align-items:flex-start}
+.weather-geolocation strong svg {
+  flex-shrink:0}
+}

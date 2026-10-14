@@ -8,6 +8,7 @@ import { generateSmartSuggestions } from '../server/chat/smart-suggestions.js';
 import { buildDynamicSuggestions, formatSuggestionScope, getFallbackSuggestions } from '../src/utils/chatSuggestions.js';
 import { parseScreenContext } from '../server/chat/protocol.js';
 import OpenAI from 'openai';
+import { createWeatherHandler } from '../server/weather/handler.js';
 
 function createSuggestionModel(config) {
   if (!config?.openaiApiKey || !config.suggestionModelEnabled) return null;
@@ -119,4 +120,16 @@ export function createSuggestionsHandler(dependencies = {}) {
   };
 }
 
-export default createSuggestionsHandler();
+// Keep /api/weather independent at the public URL while sharing this authenticated
+// context function's deployment slot: the project already has 12 API functions.
+export function createContextHandler({ suggestions = createSuggestionsHandler(), weather = createWeatherHandler() } = {}) {
+  return (req, res) => {
+    const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/weather' || url.searchParams.get('__weather') === '1') {
+      url.searchParams.delete('__weather');
+      return weather({ method: req.method, headers: req.headers, url: `/api/weather${url.search}` }, res);
+    }
+    return suggestions(req, res);
+  };
+}
+export default createContextHandler();
