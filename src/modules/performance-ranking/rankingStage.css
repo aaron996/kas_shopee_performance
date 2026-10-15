@@ -222,17 +222,35 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 .prr-leaderboard-heading strong { font-size: 14px; font-weight: 650; }
 .prr-leaderboard-heading > div:first-child { display: grid; gap: 3px; }
 .prr-leaderboard-actions { display: flex; align-items: center; gap: 2px; }
-.prr-leaderboard-panel.is-collapsed { width: auto; min-width: 218px; }
+.prr-leaderboard-chevron { transition: transform var(--duration-fast) var(--ease-snappy); }
+.prr-leaderboard-panel.is-collapsed .prr-leaderboard-chevron { transform: rotate(180deg); }
 .prr-leaderboard-heading button {
   display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0;
   border: 0; border-radius: var(--radius-control); background: transparent; color: #b9d9f3; font: inherit; cursor: pointer;
 }
-.prr-leaderboard-heading button:hover { background: rgb(173 187 204 / 10%); }
-.prr-leaderboard-panel > [hidden] { display: none; }
-.prr-leaderboard-panel > div[id] {
+@media (hover: hover) and (pointer: fine) {
+  .prr-leaderboard-heading button:hover { background: rgb(173 187 204 / 10%); }
+}
+.prr-leaderboard-heading button { transition: background-color var(--duration-instant) ease, transform var(--duration-instant) var(--ease-snappy); }
+.prr-leaderboard-heading button:active { transform: scale(0.97); }
+.prr-leaderboard-reveal {
+  display: grid; grid-template-rows: 1fr; opacity: 1; visibility: visible;
+  transition: grid-template-rows var(--duration-normal) var(--ease-snappy), opacity var(--duration-fast) var(--ease-snappy), visibility 0s;
+}
+.prr-leaderboard-panel.is-collapsed .prr-leaderboard-reveal {
+  grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+  transition: grid-template-rows var(--duration-normal) var(--ease-snappy), opacity var(--duration-instant) var(--ease-snappy), visibility 0s var(--duration-normal);
+}
+.prr-leaderboard-content {
+  min-height: 0;
   max-height: calc(100dvh - var(--prr-controls-height) - 156px);
   overflow-y: auto; overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: #adbbcc #131e2e;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prr-leaderboard-reveal, .prr-leaderboard-panel.is-collapsed .prr-leaderboard-reveal { transition: opacity var(--duration-instant) ease; }
+  .prr-leaderboard-chevron, .prr-leaderboard-heading button { transition: background-color var(--duration-instant) ease; }
+  .prr-leaderboard-heading button:active { transform: none; }
 }
 .prr-leaderboard-columns {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) 58px 52px; gap: 8px;
@@ -252,6 +270,7 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 }
 .performance-road-ranking-tab .prr-3d-leaderboard button.is-selected { background: rgb(125 211 252 / 14%); }
 .prr-leaderboard-panel button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.prr-leaderboard-panel .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .prr-lb-rank { display: grid; gap: 3px; color: #dce5ef; font-weight: 700; font-variant-numeric: tabular-nums; }
 .prr-lb-canonical { color: #adbbcc; font-size: 11px; font-weight: 500; }
 .prr-3d-leaderboard li:first-child .prr-lb-rank { color: #fcd36a; }

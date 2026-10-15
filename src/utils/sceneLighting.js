@@ -30,6 +30,17 @@ export function phaseForLightingMode(mode, phase) {
   return presets[mode] ?? wrapDayPhase(phase);
 }
 
+// Follow the shortest arc and retarget from the displayed phase. A manual
+// choice also settles while playback is paused; auto resumes from that phase.
+export function stepLightingPhase(phase, target, delta, reducedMotion = false) {
+  const from = wrapDayPhase(phase), to = wrapDayPhase(target);
+  if (reducedMotion) return to;
+  const distance = ((to - from + 1.5) % 1) - 0.5;
+  if (Math.abs(distance) < 0.0001) return to;
+  const step = Number.isFinite(delta) ? Math.max(0, Math.min(delta, 0.1)) : 0;
+  return wrapDayPhase(from + distance * (1 - Math.exp(-step * 14)));
+}
+
 export function formatSceneTime(phase) {
   const minutes = Math.floor(wrapDayPhase(phase) * 1440 + 1e-8) % 1440;
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;

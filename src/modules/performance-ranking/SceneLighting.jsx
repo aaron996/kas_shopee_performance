@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, sceneFogRange, wrapDayPhase } from '../../utils/sceneLighting.js';
+import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, phaseForLightingMode, sampleSceneLighting, sceneFogRange, stepLightingPhase, wrapDayPhase } from '../../utils/sceneLighting.js';
 import { shouldRefreshSceneShadow } from '../../utils/sceneShadows.js';
 import { worldRegion } from '../../utils/sceneWorld.js';
 
@@ -46,14 +46,14 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   const skyUniforms = useMemo(() => ({ topColor: { value: new THREE.Color() }, horizonColor: { value: new THREE.Color() } }), []);
   const sunGlow = useMemo(() => ({ color: { value: new THREE.Color('#ffbb69') }, opacity: { value: 0.65 } }), []);
   const moonGlow = useMemo(() => ({ color: { value: new THREE.Color('#a6caff') }, opacity: { value: 0.24 } }), []);
-  const previous = useRef({ mode: null, phase: null, dirty: true, source: null, extent: 0, focus: new THREE.Vector3(Infinity, Infinity, Infinity) });
+  const previous = useRef({ mode: null, phase: null, targetPhase: null, dirty: true, source: null, extent: 0, focus: new THREE.Vector3(Infinity, Infinity, Infinity) });
   const sampled = useRef(null);
   const tint = useMemo(() => ({ from: new THREE.Color(), to: new THREE.Color() }), []);
   useEffect(() => () => moonTexture.dispose(), [moonTexture]);
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
     const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
-    const setTime = phase => { phaseRef.current = wrapDayPhase(phase); previous.current.dirty = true; invalidate(); };
+    const setTime = phase => { phaseRef.current = wrapDayPhase(phase); previous.current.targetPhase = null; previous.current.dirty = true; invalidate(); };
     handle.setSceneTime = setTime;
     return () => { if (handle.setSceneTime === setTime) delete handle.setSceneTime; };
   }, [phaseRef, invalidate]);
@@ -62,9 +62,14 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   useFrame(({ camera, controls, gl, scene }, delta) => {
     const cache = previous.current;
     if (cache.mode !== mode) {
-      phaseRef.current = phaseForLightingMode(mode, phaseRef.current);
+      cache.targetPhase = mode === 'auto' ? null : phaseForLightingMode(mode, phaseRef.current);
       cache.mode = mode;
       cache.dirty = true;
+    }
+    if (cache.targetPhase !== null) {
+      phaseRef.current = stepLightingPhase(phaseRef.current, cache.targetPhase, delta, reducedMotion);
+      if (phaseRef.current === cache.targetPhase) cache.targetPhase = null;
+      else invalidate();
     }
     phaseRef.current = advanceDayPhase(phaseRef.current, delta, mode === 'auto' && running && !reducedMotion && clockRef.current.step > 0 && !document.hidden);
     const phaseChanged = cache.phase !== phaseRef.current;

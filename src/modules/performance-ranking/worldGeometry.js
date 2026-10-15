@@ -3,6 +3,7 @@ import * as THREE from 'three';
 // Reusable authored silhouettes. The mesa has terraces, the alpine peak has
 // an asymmetric ridge, and broad leaves have a folded midrib (not cone trees).
 export function worldGeometry(shape, backdrop = false) {
+  if (shape === 'shopGlow') { const geometry = new THREE.PlaneGeometry(1, 1); geometry.rotateX(-Math.PI / 2); return geometry; }
   if (shape === 'shopSign') return new THREE.PlaneGeometry(1, 1);
   if (shape === 'wheel') { const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 10); geometry.rotateX(Math.PI / 2); return geometry; }
   if (shape === 'awning') {
@@ -83,7 +84,7 @@ export function worldGeometry(shape, backdrop = false) {
   return new THREE.BoxGeometry(1, 1, 1);
 }
 
-export function patchWorldMaterial(shader, visibility, shape, atlas) {
+export function patchWorldMaterial(shader, visibility, shape, atlas, nightPower) {
   shader.uniforms.worldVisibility = visibility;
   shader.uniforms.surfaceAtlas = { value: atlas };
   shader.vertexShader = shader.vertexShader
@@ -146,4 +147,21 @@ export function patchWorldMaterial(shader, visibility, shape, atlas) {
     .replace('#include <uv_vertex>', `#include <uv_vertex>
       vMapUv = clamp(vMapUv, vec2(0.01), vec2(0.99)) * 0.25 + vec2(mod(instanceShop, 4.0), 3.0 - floor(instanceShop / 4.0)) * 0.25;
       vEmissiveMapUv = vMapUv;`);
+  if (['shopGlass', 'shopSign', 'sign', 'cityLamp', 'shopGlow'].includes(shape)) {
+    shader.uniforms.cityNightPower = nightPower;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 instanceNightLight; varying vec4 vNightLight;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNightLight = instanceNightLight;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float cityNightPower; varying vec4 vNightLight;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        float roomShade = ${shape === 'shopGlass' ? '0.65 + 0.35 * smoothstep(-0.5, 0.5, vWorldLocal.y)' : '1.0'};
+        totalEmissiveRadiance += vNightLight.rgb * vNightLight.a * cityNightPower * roomShade
+          ${shape === 'shopSign' || shape === 'sign' ? '* diffuseColor.rgb' : ''};`);
+    if (shape === 'shopGlow') shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float pool = pow(max(0.0, 1.0 - length(vWorldLocal.xz * 2.0)), 2.0);
+        diffuseColor.a *= pool * cityNightPower * vNightLight.a;
+        diffuseColor.rgb = vNightLight.rgb;`);
+  }
 }
