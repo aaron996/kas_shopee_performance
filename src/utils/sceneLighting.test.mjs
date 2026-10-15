@@ -36,9 +36,24 @@ test('pause freezes time and a background gap cannot skip hours', () => {
 });
 
 test('manual presets and returning to auto preserve the selected time', () => {
+  assert.equal(formatSceneTime(phaseForLightingMode('dawn', 0.5)), '06:00');
+  assert.equal(formatSceneTime(phaseForLightingMode('dusk', 0.5)), '18:00');
   assert.equal(phaseForLightingMode('day', 0.75), 0.5);
   assert.equal(phaseForLightingMode('night', 0.5), 0);
   assert.equal(phaseForLightingMode('auto', 0.75), 0.75);
+});
+
+test('dawn and dusk light opposite facades with warm grazing sunlight', () => {
+  const dawn = sampleSceneLighting(phaseForLightingMode('dawn', 0));
+  const dusk = sampleSceneLighting(phaseForLightingMode('dusk', 0));
+  for (const state of [dawn, dusk]) {
+    assert.equal(state.source, 'sun');
+    assert.ok(state.keyIntensity > 0.2);
+    assert.ok(state.keyDirection[1] > 0 && state.keyDirection[1] < 0.1);
+    assert.ok(state.shadowIntensity > 0.1);
+    assert.equal(state.keyColor, '#ff9b55');
+  }
+  assert.ok(dawn.keyDirection[0] > 0 && dusk.keyDirection[0] < 0);
 });
 
 test('sun and moon follow opposite normalized orbits and the key stays above the horizon', () => {

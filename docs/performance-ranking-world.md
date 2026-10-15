@@ -87,3 +87,14 @@ Sửa vị trí picker sau phản hồi người dùng: canvas của trang đầ
 - Full suite 670/670 pass; test về mật độ cửa hàng hai bên, khoảng hở tối đa 6 đơn vị, đồ vỉa hè không lấn làn, tường quầy gần thấp và compact giữ đủ cửa hàng. Build, oxlint phần source đổi và diff check pass.
 - IAB xác nhận desktop 1440×900 và viewport 390×844, cả hai scene ngày/đêm, đổi khi pause/reduced motion, click trực tiếp xe chọn đúng Hub, Best/Worst và ẩn/hiện HUD. Không ghi lỗi JavaScript/shader trong tab kiểm tra.
 - Ảnh runtime: `tools/city-preview.local/{hanoi-hn2,hcm-hcm4}-v2-{desktop,mobile}.jpg`; log `qa-selected-v2.json` và `final-tests.log`. Fixture là dữ liệu 10 Hub mẫu, không có đăng nhập/DB/radio. Không coi đây là bằng chứng hiệu năng điện thoại thật hay production.
+
+## Điều khiển, vật liệu và ánh sáng — 16/10/2026
+
+- BXH ẩn toàn bộ giao diện trợ lý qua `suppressed`; component giữ lịch sử hội thoại khi quay về tab khác. Camera/replay về góc dưới phải, bỏ khoảng trống dành cho mascot.
+- Đồng hồ và một nút chọn ánh sáng nằm cùng cụm; mở ra năm icon: tự động, bình minh (06:00), ban ngày (12:00), hoàng hôn (18:00), ban đêm (00:00). Chọn xong, Escape hoặc bấm ra ngoài sẽ đóng menu. Đồng hồ vẫn hiện trên mobile.
+- Bảng năm Hub có nút thu gọn/mở lại, giữ tiêu đề `Ranking`. Bỏ dòng ngày dữ liệu khỏi tiêu đề và nhãn riêng trên cảnh mobile/2D. Phần danh sách cuộn được khi viewport thấp; thao tác này không đổi kích thước canvas.
+- Kính dùng vật liệu dielectric với IOR 1.5, độ nhám thấp, clearcoat và phản xạ bầu trời. Kính cửa hàng có độ trong mờ; mặt kính tháp vẫn kín. Khung kim loại, tường vữa, gỗ, đá và mái ngói có độ nhám riêng trong cùng batch instanced. Đây là phản xạ bầu trời dùng chung, không phải phản xạ từng tòa nhà lân cận hay ray tracing.
+- Cấu hình bóng đổ được truyền từ cảnh chính xuống nhà/cây/mái che. Giảm ánh sáng nền phẳng, giữ sáng đọc được ban đêm; bình minh/hoàng hôn có ánh sáng ấm chiếu xiên từ hai phía đối nhau. Reflection probe 128px chỉ cập nhật khi đổi nửa giờ mô phỏng, hủy texture cũ và dọn GPU resource khi unmount.
+- Kiểm chứng: 676/676 test, production build, oxlint phần source thay đổi và diff check đều pass. Impeccable detector chỉ báo advisory về palette/type/radius của surface hiện hành; fallback radius mới đã chuyển về token. Build còn cảnh báo chunk lớn như trước.
+- Codex IAB dùng fixture ignored `.playwright-cli/bxh-review.html` và bản build riêng qua port 5174, chính `Header`, `PerformanceRoadRanking` và scene của app, với 36 Hub mô phỏng; radio không khởi chạy, không đăng nhập hay đọc DB. Đã kiểm tra desktop 1280×720, mobile 390×844, các mốc ánh sáng, menu icon/Escape/outside click, thu gọn/mở lại ranking và mở bảng đối soát; hit-test các cụm nút desktop đều pass, không ghi lỗi JavaScript/shader. Ảnh tại `output/playwright/bxh-ux/`.
+- Phạm vi bằng chứng: local fixture; chưa kiểm chứng production đã đăng nhập, FPS điện thoại thật hoặc phiên chạy dài.

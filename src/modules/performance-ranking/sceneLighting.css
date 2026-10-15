@@ -8,15 +8,21 @@
   padding: 4px;
   gap: 2px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-pill, 20px);
+  border-radius: var(--radius-pill);
   background: rgba(15, 23, 42, 0.9);
   color: #e2e8f0;
   font-size: 12px;
 }
 .prr-scene-time { padding: 0 8px; font-variant-numeric: tabular-nums; color: #e2e8f0; }
+.prr-lighting-options {
+  position: absolute; top: calc(100% + 8px); right: 0; display: flex; gap: 2px; padding: 4px;
+  border: 1px solid rgb(255 255 255 / 20%); border-radius: var(--radius-control);
+  background: #131e2e; box-shadow: 0 10px 24px rgb(0 0 0 / 22%);
+}
+.prr-lighting-options[hidden] { display: none; }
 .prr-lighting-controls button {
   border: 0;
-  border-radius: var(--radius-pill, 20px);
+  border-radius: var(--radius-pill);
   padding: 0;
   width: 44px;
   min-height: 44px;
@@ -31,15 +37,16 @@
 .prr-lighting-controls button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
 .prr-lighting-controls button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .prr-scene3d > .prr-world-controls {
-  position: absolute; z-index: 6; top: 12px; right: 12px; display: flex; align-items: center;
+  position: absolute; z-index: 5; top: 12px; right: 134px; display: flex; align-items: center;
   padding: 4px; gap: 2px; background: rgba(15, 23, 42, 0.92); color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.2); border-radius: var(--radius-pill);
 }
 /* The full BXH canvas extends behind the app header. Reserve that measured
    height, as the lighting controls do, so the region picker stays reachable. */
 .prr-scene-surface .prr-scene3d > .prr-world-controls {
-  top: calc(var(--prr-controls-height, 0px) + max(28px, calc(env(safe-area-inset-top) + 20px)));
+  top: calc(var(--prr-controls-height, 0px) + 16px);
 }
+.prr-scene-surface .prr-scene3d > .prr-lighting-controls { top: calc(var(--prr-controls-height, 0px) + 16px); }
 .prr-world-controls select {
   min-height: 44px; width: 112px; padding: 0 8px; color: #e2e8f0; background: #0f172a;
   border: 0; border-radius: var(--radius-control); font: inherit; font-size: 12px; cursor: pointer;
@@ -54,10 +61,10 @@
 @container (max-width: 560px) {
   .prr-scene3d > .prr-lighting-controls { top: 8px; right: 8px; font-size: 11px; }
   .prr-scene-time { padding: 0 6px; }
-  .prr-scene3d > .prr-world-controls { top: 8px; left: 8px; right: auto; }
+  .prr-scene3d > .prr-world-controls { top: 8px; left: 12px; right: auto; }
   .prr-scene-surface .prr-scene3d > .prr-world-controls {
-    top: calc(var(--prr-controls-height, 0px) + max(88px, calc(env(safe-area-inset-top) + 80px)));
+    top: calc(var(--prr-controls-height, 0px) + 48px);
   }
+  .prr-scene-surface .prr-scene3d > .prr-lighting-controls { top: calc(var(--prr-controls-height, 0px) + 48px); right: 12px; }
   .prr-world-controls select { width: 112px; }
 }
-@container (max-width: 400px) { .prr-scene-time { display: none; } }

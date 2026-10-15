@@ -1,5 +1,4 @@
 .prr-scene-surface { position: relative; display: flex; flex: 1; min-height: 0; }
-.prr-scene-surface .prr-scene3d > .prr-lighting-controls { top: calc(var(--prr-controls-height) + max(88px, calc(env(safe-area-inset-top) + 80px))); }
 .prr-music {
   position: absolute;
   bottom: max(20px, env(safe-area-inset-bottom));

@@ -64,7 +64,12 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     const geometry = worldGeometry(shape, backdrop);
     if (shape === 'shopSign') geometry.setAttribute('instanceShop', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part => part.shopIndex)), 1));
     geometry.setAttribute('instanceSurface', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part =>
-      part.color === 'wood' || part.color === 'treeTrunk' ? 1 : part.color === 'stone' || shape === 'mesa' || shape === 'peak' ? 2 : part.color === 'apron' ? 3 : 0)), 1));
+      part.color === 'wood' || part.color === 'treeTrunk' ? 1
+        : part.color === 'stone' || shape === 'mesa' || shape === 'peak' || shape === 'rock' ? 2
+          : part.color === 'apron' || part.color === 'cityPaving' ? 3
+            : part.color === 'rail' || part.color === 'cityTrim' ? 4
+              : part.color.startsWith('cityFacade') || part.color === 'cityWall' || part.color === 'cream' ? 5
+                : part.color === 'cityRoof' || shape === 'cityRoof' ? 6 : 0)), 1));
     return { geometry, matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), localRotation: new THREE.Quaternion(), axis: new THREE.Vector3(0, 1, 0), pitchAxis: new THREE.Vector3(0, 0, 1), pitch: new THREE.Quaternion(), roll: new THREE.Quaternion(), color: new THREE.Color() };
   }, [shape, backdrop, parts]);
   const visibility = useMemo(() => ({ value: 1 }), []);
@@ -106,16 +111,20 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     // Opaque scenery writes depth in its resting state. During the brief blend
     // both environments share the frame without invisible depth occluders.
     meshRef.current.visible = visibility.value > 0.001;
-    meshRef.current.material.depthWrite = visibility.value >= 0.999;
+    meshRef.current.material.depthWrite = shape !== 'shopGlass' && visibility.value >= 0.999;
     if (clockRef.current.step) write();
   });
+  const glass = ['glass', 'shopGlass', 'bitexco'].includes(shape);
+  const Material = glass ? 'meshPhysicalMaterial' : 'meshStandardMaterial';
   return <instancedMesh name={`prr-${backdrop ? 'backdrop' : 'scenery'}-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
-    castShadow={castShadow && ['cone', 'round', 'box', 'pole', 'glass', 'bitexco', 'cityRoof', 'arch'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
-    <meshStandardMaterial color="#ffffff" map={shape === 'shopSign' ? shopTexture : shape === 'sign' ? texture : null} transparent
+    castShadow={castShadow && !backdrop && ['cone', 'round', 'box', 'pole', 'glass', 'bitexco', 'cityRoof', 'arch', 'awning', 'leaf', 'rock'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
+    <Material color="#ffffff" map={shape === 'shopSign' ? shopTexture : shape === 'sign' ? texture : null} transparent
       emissive={shape === 'shopSign' ? '#ffffff' : '#000000'} emissiveMap={shape === 'shopSign' ? shopTexture : null} emissiveIntensity={shape === 'shopSign' ? 0.12 : 0}
-      roughness={shape === 'water' || shape === 'glass' || shape === 'shopGlass' || shape === 'bitexco' ? 0.28 : shape === 'box' ? 0.72 : 0.88} metalness={shape === 'water' ? 0.15 : shape === 'glass' || shape === 'shopGlass' || shape === 'bitexco' ? 0.25 : 0}
+      roughness={glass ? 0.075 : shape === 'water' ? 0.14 : 0.86} metalness={0}
+      {...(glass ? { ior: 1.5, clearcoat: 1, clearcoatRoughness: 0.06, specularIntensity: 1, envMapIntensity: 1.45 } : {})}
+      opacity={shape === 'shopGlass' ? 0.82 : 1} depthWrite={shape !== 'shopGlass'}
       side={shape === 'leaf' || shape === 'water' ? THREE.DoubleSide : THREE.FrontSide}
-      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v3-${shape}`} />
+      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v4-${shape}`} />
   </instancedMesh>;
 }
 

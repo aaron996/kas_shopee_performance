@@ -101,7 +101,7 @@ export function patchWorldMaterial(shader, visibility, shape, atlas) {
       float speckle = grain(floor(vWorldGrain * 22.0));
       float strata = sin(vWorldGrain.y * ${shape === 'mesa' ? '4.5' : '24.0'} + sin(vWorldGrain.x * 0.6) * 0.6);
       diffuseColor.rgb *= 0.92 + speckle * 0.1 + strata * ${shape === 'mesa' ? '0.10' : shape === 'pole' ? '0.06' : '0.025'};
-      if (vSurface > 0.5) {
+      if (vSurface > 0.5 && vSurface < 3.5) {
         vec2 tile = vSurface < 1.5 ? vec2(0.666667, 0.0) : vSurface < 2.5 ? vec2(0.0, 0.5) : vec2(0.0, 0.0);
         vec2 uv = vWorldGrain.xy * ${shape === 'mesa' || shape === 'peak' ? '0.15' : '0.65'};
         vec2 dx = dFdx(uv) * vec2(0.333333, 0.5), dy = dFdy(uv) * vec2(0.333333, 0.5);
@@ -111,9 +111,32 @@ export function patchWorldMaterial(shader, visibility, shape, atlas) {
       }
       ${shape === 'peak' ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.83, 0.89, 0.9), smoothstep(0.57, 0.73, vWorldLocal.y + sin(vWorldLocal.x * 18.0) * 0.035));' : ''}
       ${shape === 'water' ? 'diffuseColor.rgb *= 0.88 + 0.12 * sin(vWorldGrain.x * 3.0 + vWorldGrain.z * 4.0);' : ''}`}`);
-  if (shape === 'glass' || shape === 'bitexco') shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-    float floorLine = step(0.91, fract(vWorldLocal.y * 24.0));
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.65, 0.78, 0.79), floorLine * 0.45);`);
+  const glass = ['glass', 'bitexco', 'shopGlass'].includes(shape);
+  if (glass) {
+    // Dielectric panes reflect at grazing angles via PhysicalMaterial's Fresnel.
+    // Keep the frame rough, rather than painting every floor as another pane.
+    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+      ${shape === 'shopGlass' ? 'float frame = 0.0;' : `
+      float floorUv = vWorldLocal.y * 24.0;
+      float frame = smoothstep(0.90 - fwidth(floorUv), 0.90 + fwidth(floorUv), fract(floorUv));`}
+      diffuseColor.rgb = mix(diffuseColor.rgb * 0.72, vec3(0.21, 0.26, 0.28), frame);
+      roughnessFactor = mix(0.075, 0.48, frame);`);
+  } else if (!['sign', 'shopSign', 'water'].includes(shape)) {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        // Rail metal, wood, plaster and tile retain distinct light responses
+        // inside the same instanced batch.
+        roughnessFactor = vSurface > 5.5 ? 0.78 : vSurface > 4.5 ? 0.94 : vSurface > 3.5 ? 0.34 : vSurface > 0.5 && vSurface < 1.5 ? 0.82 : roughnessFactor;`)
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+        metalnessFactor = vSurface > 3.5 && vSurface < 4.5 ? 0.72 : 0.0;`)
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+        // World-space micro relief; derivatives keep it stable at a distance.
+        float relief = (sin(vWorldGrain.x * 36.0) * sin(vWorldGrain.y * 41.0) + sin(vWorldGrain.z * 31.0)) * (vSurface > 3.5 && vSurface < 4.5 ? 0.0005 : 0.002);
+        vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
+        vec3 cx = cross(sy, normal), cy = cross(normal, sx);
+        float det = dot(sx, cx);
+        normal = normalize(abs(det) * normal - sign(det) * (dFdx(relief) * cx + dFdy(relief) * cy));`);
+  }
   if (shape === 'awning') shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
     float stripeUv = vWorldLocal.x * 12.0;
     float canvasStripe = smoothstep(0.5 - fwidth(stripeUv), 0.5 + fwidth(stripeUv), abs(fract(stripeUv) - 0.5) * 2.0);
