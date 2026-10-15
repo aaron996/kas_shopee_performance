@@ -1,6 +1,173 @@
 .weather-overview {
   margin:0 0 24px;
   min-width:0}
+.weather-overview.weather-atmospheric {
+  --text-primary:#fff;
+  --text-secondary:#dceaf5;
+  --text-main:var(--text-primary);
+  --surface-hover:var(--surface-subtle);
+  --surface-subtle:#00000014;
+  --surface-default:#0000001c;
+  --border-subtle:#ffffff30;
+  --border-strong:#a9c9e0;
+  --action-primary:#c8edff;
+  --action-primary-hover:#e4f7ff;
+  --text-on-brand:#123d59;
+  background:linear-gradient(115deg,#204e7a,#3b688e 65%,#3f6b8d);
+  color:var(--text-primary);
+  padding:18px 22px;
+  border:0}
+.weather-compact {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:28px}
+.weather-compact-current {
+  display:flex;
+  align-items:center;
+  gap:15px;
+  min-width:0}
+.weather-compact-icon {
+  flex-shrink:0;
+  color:#e6f4ff}
+.weather-city-label {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  color:var(--text-secondary);
+  font-size:var(--type-caption)}
+.weather-city-label select {
+  min-width:100px;
+  max-width:150px;
+  border:0;
+  border-bottom:1px solid #a9c9e080;
+  border-radius:0;
+  padding:4px 2px;
+  font:inherit;
+  color:var(--text-primary);
+  background:transparent;
+  cursor:pointer}
+.weather-atmospheric select option {
+  background:#fff;
+  color:#16364b}
+.weather-compact-temperature {
+  display:block;
+  font:400 38px/1.1 var(--font-heading);
+  letter-spacing:-.03em;
+  margin-top:2px}
+.weather-compact-temperature small {
+  font-size:20px;
+  vertical-align:top;
+  line-height:1.6}
+.weather-compact-fallback {
+  display:block;
+  font-size:var(--type-section);
+  margin-top:6px}
+.weather-compact-summary h3 {
+  font-size:var(--type-section);
+  font-weight:600;
+  margin:0}
+.weather-compact-summary p {
+  font-size:var(--type-meta);
+  color:var(--text-secondary);
+  line-height:1.5;
+  margin:5px 0 0}
+.weather-expand {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  min-height:40px;
+  padding:9px 13px;
+  color:var(--text-primary);
+  border:1px solid #c8e1f266;
+  border-radius:var(--radius-control);
+  background:#00000012;
+  font:inherit;
+  font-size:var(--type-meta);
+  white-space:nowrap;
+  cursor:pointer}
+.weather-expand:hover {
+  background:#00000025}
+.weather-compact-metadata {
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:5px 18px;
+  color:var(--text-secondary);
+  font-size:var(--type-caption);
+  line-height:1.5;
+  margin-top:12px}
+.weather-compact-metadata a {
+  color:inherit;
+  text-underline-offset:3px}
+.weather-expanded:not([hidden]) {
+  margin-top:18px;
+  padding-top:18px;
+  border-top:1px solid var(--border-subtle)}
+.weather-location-settings {
+  margin-top:14px;
+  color:var(--text-secondary);
+  font-size:var(--type-meta)}
+.weather-location-settings > summary {
+  cursor:pointer;
+  min-height:32px;
+  padding:5px 0}
+.weather-atmospheric :is(button,select,summary):focus-visible {
+  outline:2px solid #fff;
+  outline-offset:3px;
+  box-shadow:none}
+.weather-atmospheric .weather-stale {
+  margin-top:12px}
+.weather-atmospheric .weather-notice:last-child {
+  padding-bottom:0}
+@media(max-width:800px) {
+  .weather-compact {
+    gap:14px;
+    grid-template-columns:1fr auto}
+  .weather-compact-summary {
+    grid-column:1/-1;
+    grid-row:2}
+  .weather-expand {
+    grid-column:2;
+    grid-row:1}
+}
+@media(max-width:560px) {
+  .weather-overview.weather-atmospheric {
+    padding:16px}
+  .weather-compact-current {
+    gap:10px}
+  .weather-compact-icon {
+    width:34px;
+    height:34px}
+  .weather-city-label {
+    display:block}
+  .weather-city-label > span {
+    display:none}
+  .weather-city-label select {
+    min-height:44px;
+    min-width:94px;
+    max-width:120px;
+    font-size:16px}
+  .weather-compact-temperature {
+    font-size:32px}
+  .weather-expand {
+    min-height:44px;
+    gap:5px;
+    padding:8px 10px}
+  .weather-compact-metadata {
+    justify-content:flex-start;
+    gap:3px 12px;
+    margin-top:10px}
+  .weather-compact-summary p {
+    font-size:var(--type-caption)}
+  .weather-location-settings > summary {
+    min-height:44px}
+}
+@media(max-width:380px) {
+  .weather-compact-icon {
+    display:none}
+}
 .weather-heading {
   display:flex;
   justify-content:space-between;
