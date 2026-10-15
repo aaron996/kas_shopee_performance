@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { calculatePerformanceRanking, selectSceneHubs } from './performanceRanking.js';
-import { computeSceneLayout, computeReplayFrames, getRoadLength } from './rankingSceneLayout.js';
+import { computeSceneLayout, computeReplayFrames, computeTransitionFrames, snapshotSceneFleet, getRoadLength } from './rankingSceneLayout.js';
+import { sampleDrivePose } from './sceneDriving.js';
 import { tvCameraGoal } from './sceneCamera.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
-import { createTourConvoy, tourProgress, tourShot, viewOffset, VIEW_TOUR_LENGTH } from './rankingViewTour.js';
+import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH } from './rankingViewTour.js';
 
 test('Worst selects the actual tail of 1,000 ranked Hubs without mutating rank or identity', () => {
   const ranked = Array.from({ length: 1000 }, (_, i) => ({ id: `hub-${i}`, rank: i + 1 }));
@@ -86,7 +87,7 @@ test('Worst replay moves improving Hubs forward, retaining original delta semant
 
 test('TV camera frames the emphasized endpoint in both views on desktop and narrow screens', () => {
   for (const n of [1, 2, 10, 20, 50]) for (const view of ['best', 'worst']) {
-    const localLength = getRoadLength(n), roadLength = localLength * 2 + VIEW_TOUR_LENGTH + 12;
+    const localLength = getRoadLength(n), roadLength = RANKING_ROAD_LENGTH;
     const offsetX = viewOffset(view, localLength);
     const [first] = computeSceneLayout(Array.from({ length: n }, (_, i) => ({ id: i })), { roadLength: localLength, view, offsetX, leaderGap: 6, laneWidth: 2.6 });
     const frame = sampleRoadFrame(first.x, first.z, roadLength);
@@ -97,6 +98,51 @@ test('TV camera frames the emphasized endpoint in both views on desktop and narr
       const p = new THREE.Vector3(frame.x, frame.y + 1, frame.z).project(camera);
       assert.ok(Math.abs(p.x) < 0.9, `${n}/${view}/${aspect}: ${p.x}`);
       assert.ok(p.y > -0.8 && p.y < 0.85);
+    }
+  }
+});
+
+test('10/20/50 changes preserve world poses at the first frame and retain departing trucks', () => {
+  const rows = Array.from({ length: 50 }, (_, i) => ({ id: `hub-${i}` }));
+  for (const view of ['best', 'worst']) {
+    const layout = n => computeSceneLayout(rows.slice(0, n), {
+      roadLength: getRoadLength(n), offsetX: viewOffset(view, getRoadLength(n)),
+      view, leaderGap: 6, laneWidth: 2.6
+    });
+    for (const [from, to] of [[50, 20], [20, 10], [10, 50], [20, 50], [50, 10], [10, 20]]) {
+      const previous = layout(from), next = layout(to);
+      const { items, changed } = computeTransitionFrames(previous, next, { maxCount: 50 });
+      assert.ok(changed);
+      assert.equal(items.length, Math.max(from, to));
+      for (const truck of previous) {
+        const frame = items.find(item => item.id === truck.id);
+        const start = sampleDrivePose(frame, 0);
+        assert.deepEqual(sampleRoadFrame(start.x, start.z, RANKING_ROAD_LENGTH),
+          sampleRoadFrame(truck.x, truck.z, RANKING_ROAD_LENGTH));
+        assert.equal(start.alpha, 1);
+        if (!next.some(item => item.id === truck.id)) {
+          assert.equal(frame.phase, 'exit');
+          assert.ok(frame.to.x < frame.from.x);
+          assert.equal(sampleDrivePose(frame, 1).alpha, 0);
+        }
+      }
+      for (const truck of next) {
+        const frame = items.find(item => item.id === truck.id);
+        const end = sampleDrivePose(frame, 1);
+        assert.ok(Math.abs(end.x - truck.x) < 1e-9);
+        assert.ok(Math.abs(end.z - truck.z) < 1e-9);
+        assert.equal(end.alpha, 1);
+      }
+      // Reverse a count change mid-flight: all visible poses and opacity survive.
+      const poses = new Map(items.map(item => {
+        const pose = sampleDrivePose(item, 0.4);
+        return [item.id, { roadX: pose.x, roadZ: pose.z, alpha: pose.alpha }];
+      }));
+      const reversed = computeTransitionFrames(snapshotSceneFleet(items, poses), previous, { maxCount: 50 });
+      for (const item of reversed.items) {
+        const pose = poses.get(item.id);
+        assert.deepEqual(sampleDrivePose(item, 0), { x: pose.roadX, z: pose.roadZ, alpha: pose.alpha });
+      }
     }
   }
 });

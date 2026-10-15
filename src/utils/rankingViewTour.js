@@ -1,6 +1,11 @@
+import { getRoadLength } from './rankingSceneLayout.js';
+
 // A bounded, unlabelled convoy bridges the two ends of the ranking road.
 // These are scenery trucks, never synthetic Hub/KPI records or pick targets.
 export const VIEW_TOUR_LENGTH = 112;
+// Reserve both cohorts at the full 50-truck capacity. Changing the visible
+// count must never reshape the road surface or rebuild the roadside world.
+export const RANKING_ROAD_LENGTH = getRoadLength(50) * 2 + VIEW_TOUR_LENGTH + 12;
 export const VIEW_TOUR_DURATION_MS = 3000;
 export const VIEW_TOUR_REVEAL = 0.78;
 export const viewOffset = (view, localLength) => (view === 'worst' ? -1 : 1) * (VIEW_TOUR_LENGTH + localLength) / 2;

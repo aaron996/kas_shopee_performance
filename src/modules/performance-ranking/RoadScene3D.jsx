@@ -9,6 +9,7 @@ import {
   computeReplayFrames,
   computeSceneLayout,
   computeTransitionFrames,
+  easeInOutCubic,
   snapshotSceneFleet,
   getRegionRoadLength,
   getRoadLength
@@ -25,7 +26,7 @@ import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
-import { createTourConvoy, tourProgress, tourShot, viewOffset, VIEW_TOUR_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
+import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
   Road,
@@ -168,7 +169,7 @@ function CanvasSetup({ label }) {
  * or flies to a followed truck. Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, tour, onTourReveal, onTourEnd }) {
+function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -178,6 +179,8 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
   const followedRef = useRef(null);
   const tourRef = useRef(null);
   const cameraViewRef = useRef(rankView);
+  const localLengthRef = useRef(localLength);
+  const cameraGoalRef = useRef(null);
 
   useEffect(() => {
     const resetTime = () => { if (tourRef.current) tourRef.current.lastTime = performance.now(); };
@@ -233,8 +236,21 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
   }, [hasFocus, focusX, focusZ, fitDistance, visibleSpan, roadLength, localLength, roadWidth, centerX, offsetX, rankView, mode, aspectRatio]);
 
   const tourKey = tour?.key;
+  const motionKey = motion?.key;
 
   useLayoutEffect(() => {
+    const sameGoal = cameraGoalRef.current === goal;
+    cameraGoalRef.current = goal;
+    // Finishing fleet motion must not restart a flight cancelled by an orbit.
+    if (sameGoal && !motionKey && !tourKey && !reducedMotion) {
+      if (flightRef.current?.motionKey) {
+        camera.position.copy(goal.position);
+        controlsRef.current.target.copy(goal.target);
+        controlsRef.current.update();
+        flightRef.current = null;
+      }
+      return;
+    }
     camera.near = 0.5;
     camera.far = Math.max(fitDistance * 6 + 100, roadLength * 2);
     if (!tourKey || reducedMotion) camera.fov = goal.fov;
@@ -242,6 +258,8 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
     const controls = controlsRef.current;
     const instantSwitch = !animateViewChange && cameraViewRef.current !== rankView;
     cameraViewRef.current = rankView;
+    const resizing = localLengthRef.current !== localLength || Boolean(flightRef.current?.motionKey);
+    localLengthRef.current = localLength;
     if (!placedRef.current || reducedMotion || instantSwitch) {
       camera.position.copy(goal.position);
       camera.lookAt(goal.target);
@@ -262,11 +280,19 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       flightRef.current = null;
     } else {
       tourRef.current = null;
-      flightRef.current = goal;
+      const clock = clockRef.current;
+      // A count change moves the cohort along the road. Keep its camera on
+      // the fleet's simulation clock instead of flying ahead to an empty slot.
+      // Retarget from the displayed shot when another count interrupts it.
+      flightRef.current = resizing && motion?.kind === 'transition' && !hasFocus ? {
+        ...goal, motionKey, durationMs: motion.durationMs,
+        startProgress: easeInOutCubic(clock.motionElapsed / motion.durationMs),
+        startPosition: camera.position.clone(), startTarget: controls.target.clone()
+      } : goal;
     }
     placedRef.current = true;
     invalidate();
-  }, [camera, goal, fitDistance, reducedMotion, animateViewChange, rankView, invalidate, roadLength, tourKey]);
+  }, [camera, goal, fitDistance, reducedMotion, animateViewChange, rankView, invalidate, roadLength, localLength, tourKey, motionKey, motion?.kind, motion?.durationMs, hasFocus, clockRef]);
 
   useFrame((_, delta) => {
     const flight = flightRef.current;
@@ -342,6 +368,16 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       followedRef.current = null;
     }
     if (!flight) return;
+    if (flight.motionKey) {
+      const t = Math.min(1, clockRef.current.motionElapsed / flight.durationMs);
+      const p = flight.startProgress < 1 ? Math.max(0, (easeInOutCubic(t) - flight.startProgress) / (1 - flight.startProgress)) : 1;
+      camera.position.lerpVectors(flight.startPosition, flight.position, p);
+      controls.target.lerpVectors(flight.startTarget, flight.target, p);
+      controls.update();
+      if (t >= 1) flightRef.current = null;
+      else if (running) invalidate();
+      return;
+    }
     const k = 1 - Math.exp(-Math.min(delta, 0.1) * FLIGHT_SPEED);
     camera.position.lerp(flight.position, k);
     controls.target.lerp(flight.target, k);
@@ -436,7 +472,7 @@ export default function RoadScene3D({
   const regionLanes = useMemo(() => (regionMode ? assignRegionLanes(sceneTrucks) : null), [regionMode, sceneTrucks]);
   const laneCount = regionLanes ? Math.max(1, regionLanes.lanes.length) : STAGGER_LANE_COUNT;
   const localLength = regionMode ? getRegionRoadLength(sceneTrucks) + LEADER_GAP / 0.83 : getRoadLength(count);
-  const roadLength = localLength * 2 + VIEW_TOUR_LENGTH + 12;
+  const roadLength = RANKING_ROAD_LENGTH;
   const roadWidth = laneCount * LANE_WIDTH + 0.6;
   const compact = useCompactDevice();
   // Adaptive quality: a motion that ran under QUALITY_MIN_FPS drops to the low tier for good.
@@ -706,7 +742,7 @@ export default function RoadScene3D({
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} running={running} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
-          tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour} />
+          motion={scene.motion} clockRef={clockRef} tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour} />
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />

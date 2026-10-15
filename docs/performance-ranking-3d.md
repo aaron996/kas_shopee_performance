@@ -1210,3 +1210,23 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
   20 Hub ở 1440px (không commit). `vite build` không chạy được trong môi trường này do
   thiếu `@react-three/fiber` ở repo chính, bản chưa sửa cũng lỗi giống vậy. Chưa kiểm
   tra mobile, mascot thật và dữ liệu production.
+
+## Chuyển số Hub 10/20/50 liền mạch (15/10/2026)
+
+- Giữ `RANKING_ROAD_LENGTH` cố định theo sức chứa 50 xe cho cả hai cohort.
+  Chỉ đội hình và góc camera thay đổi theo số Hub đang xem. Trước đây 10/20 dùng
+  đường dài 196, còn 50 dùng 284: đổi số Hub làm đổi độ cong mặt đường và dựng
+  lại cảnh vật ngay trước khi xe kịp chuyển động.
+- Camera khi đổi chiều dài đội hình dùng cùng đồng hồ và easing với fleet,
+  giữ vị trí khi pause, tiếp tục từ góc đang hiển thị khi đổi số Hub giữa chừng.
+  Kết thúc chuyển động không kéo camera về nếu người dùng đã orbit để hủy chuyến.
+- Giữ hành vi ra/vào hiện có: 50 → 20 vẫn vẽ 30 xe rời đội hình cho tới cuối
+  transition; 10 → 50 cho 40 xe nhập đoàn từ phía sau; 20 → 10 giữ concept cũ.
+- Kiểm tra: 69 test layout/tour/driving/camera, lint file sửa và build đạt.
+  Fixture cục bộ trong tab Codex IAB đối chiếu component trước/sau sửa:
+  50 → 20 trước sửa nhảy tối đa khoảng 9,63 đơn vị thế giới ở điểm bắt đầu,
+  sau sửa sai lệch bằng 0; 10 → 50 và 20 → 10 cũng bằng 0. Sai lệch camera
+  với tiến độ fleet dưới 1e-12 trong các lượt 50 → 20 và 10 → 50.
+  Đã kiểm tra đổi liên tiếp, pause/tiếp tục và giảm chuyển động. Fixture ở
+  `extracted/count-transition-preview/` (ignored), dùng 50 Hub giả;
+  chưa xác nhận production đăng nhập hoặc FPS thiết bị thật.
