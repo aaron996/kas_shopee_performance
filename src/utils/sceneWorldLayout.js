@@ -1,8 +1,10 @@
 import { computeRoadsideLayout, computeBackdropLayout } from './sceneRoadside.js';
 import { hash01 } from './sceneThemes.js';
+import { createCityLayout, isCityWorld } from './sceneCityLayout.js';
 
 export function createWorldLayout(roadLength, roadWidth, world, compact = false, backdrop = false) {
   const source = backdrop ? computeBackdropLayout(roadLength, roadWidth) : computeRoadsideLayout(roadLength, roadWidth);
+  if (isCityWorld(world)) return createCityLayout(source, roadWidth, world, compact, backdrop);
   const batches = {};
   const add = (shape, part) => (batches[shape] ||= []).push(part);
   for (const [shape, parts] of Object.entries(source.batches)) for (const original of parts) {

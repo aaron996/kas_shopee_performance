@@ -3,6 +3,38 @@ import * as THREE from 'three';
 // Reusable authored silhouettes. The mesa has terraces, the alpine peak has
 // an asymmetric ridge, and broad leaves have a folded midrib (not cone trees).
 export function worldGeometry(shape, backdrop = false) {
+  if (shape === 'shopSign') return new THREE.PlaneGeometry(1, 1);
+  if (shape === 'wheel') { const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 10); geometry.rotateX(Math.PI / 2); return geometry; }
+  if (shape === 'awning') {
+    const geometry = new THREE.BoxGeometry(1, 1, 1), p = geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) - p.getZ(i) * 0.15);
+    geometry.computeVertexNormals(); return geometry;
+  }
+  if (shape === 'cityRoof') {
+    // A long hip ridge and lifted eave corners, shared by tiled city roofs.
+    const a = [-0.5, 0.18, 0.5], b = [0, 0, 0.5], c = [0.5, 0.18, 0.5];
+    const d = [0.5, 0, 0], e = [0.5, 0.18, -0.5], f = [0, 0, -0.5];
+    const g = [-0.5, 0.18, -0.5], h = [-0.5, 0, 0], l = [-0.28, 1, 0], r = [0.28, 1, 0];
+    const faces = [[a, b, l], [b, r, l], [b, c, r], [c, d, r], [d, e, r], [e, f, r], [f, l, r], [f, g, l], [g, h, l], [h, a, l]];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(faces.flat(2), 3));
+    geometry.computeVertexNormals(); return geometry;
+  }
+  if (shape === 'arch') {
+    const outline = new THREE.Shape();
+    outline.moveTo(-0.5, 0); outline.lineTo(-0.5, 1); outline.lineTo(0.5, 1); outline.lineTo(0.5, 0);
+    outline.lineTo(0.29, 0); outline.lineTo(0.29, 0.48);
+    outline.quadraticCurveTo(0.29, 0.78, 0, 0.78); outline.quadraticCurveTo(-0.29, 0.78, -0.29, 0.48);
+    outline.lineTo(-0.29, 0); outline.closePath();
+    const geometry = new THREE.ExtrudeGeometry(outline, { depth: 1, bevelEnabled: false, curveSegments: 6 });
+    geometry.translate(0, 0, -0.5); return geometry;
+  }
+  if (shape === 'bitexco') return new THREE.LatheGeometry([
+    new THREE.Vector2(0.37, 0), new THREE.Vector2(0.48, 0.15), new THREE.Vector2(0.5, 0.6),
+    new THREE.Vector2(0.4, 0.84), new THREE.Vector2(0.2, 1), new THREE.Vector2(0, 1)
+  ], 16);
+  if (shape === 'disc') { const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 20); geometry.rotateX(Math.PI / 2); return geometry; }
+  if (shape === 'ring') return new THREE.TorusGeometry(0.42, 0.08, 5, 20);
   if (shape === 'mesa') {
     const geometry = new THREE.CylinderGeometry(0.62, 1, 1, 9, 8);
     const p = geometry.attributes.position;
@@ -65,7 +97,7 @@ export function patchWorldMaterial(shader, visibility, shape, atlas) {
     float grain(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }`)
     .replace('#include <color_fragment>', `#include <color_fragment>
       diffuseColor.a *= worldVisibility;
-      ${shape === 'sign' ? '' : `
+      ${['sign', 'shopSign', 'shopGlass', 'glass', 'bitexco'].includes(shape) ? '' : `
       float speckle = grain(floor(vWorldGrain * 22.0));
       float strata = sin(vWorldGrain.y * ${shape === 'mesa' ? '4.5' : '24.0'} + sin(vWorldGrain.x * 0.6) * 0.6);
       diffuseColor.rgb *= 0.92 + speckle * 0.1 + strata * ${shape === 'mesa' ? '0.10' : shape === 'pole' ? '0.06' : '0.025'};
@@ -79,4 +111,16 @@ export function patchWorldMaterial(shader, visibility, shape, atlas) {
       }
       ${shape === 'peak' ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.83, 0.89, 0.9), smoothstep(0.57, 0.73, vWorldLocal.y + sin(vWorldLocal.x * 18.0) * 0.035));' : ''}
       ${shape === 'water' ? 'diffuseColor.rgb *= 0.88 + 0.12 * sin(vWorldGrain.x * 3.0 + vWorldGrain.z * 4.0);' : ''}`}`);
+  if (shape === 'glass' || shape === 'bitexco') shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+    float floorLine = step(0.91, fract(vWorldLocal.y * 24.0));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.65, 0.78, 0.79), floorLine * 0.45);`);
+  if (shape === 'awning') shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+    float stripeUv = vWorldLocal.x * 12.0;
+    float canvasStripe = smoothstep(0.5 - fwidth(stripeUv), 0.5 + fwidth(stripeUv), abs(fract(stripeUv) - 0.5) * 2.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.82, 0.67), canvasStripe * 0.8);`);
+  if (shape === 'shopSign') shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float instanceShop;')
+    .replace('#include <uv_vertex>', `#include <uv_vertex>
+      vMapUv = clamp(vMapUv, vec2(0.01), vec2(0.99)) * 0.25 + vec2(mod(instanceShop, 4.0), 3.0 - floor(instanceShop / 4.0)) * 0.25;
+      vEmissiveMapUv = vMapUv;`);
 }

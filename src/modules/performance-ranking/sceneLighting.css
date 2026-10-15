@@ -58,6 +58,6 @@
   .prr-scene-surface .prr-scene3d > .prr-world-controls {
     top: calc(var(--prr-controls-height, 0px) + max(88px, calc(env(safe-area-inset-top) + 80px)));
   }
-  .prr-world-controls select { width: 98px; }
+  .prr-world-controls select { width: 112px; }
 }
 @container (max-width: 400px) { .prr-scene-time { display: none; } }

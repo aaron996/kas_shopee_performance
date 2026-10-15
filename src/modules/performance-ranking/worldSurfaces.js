@@ -15,7 +15,7 @@ export function useWorldAtlas() {
   return atlas;
 }
 export function atlasTile(id) {
-  return id === 'rainforest' ? [1 / 3, 0.5] : id === 'alpine' ? [2 / 3, 0.5] : id === 'harbor' ? [0, 0] : [0, 0.5];
+  return id === 'rainforest' ? [1 / 3, 0.5] : id === 'alpine' ? [2 / 3, 0.5] : ['harbor', 'hcm', 'hanoi'].includes(id) ? [0, 0] : [0, 0.5];
 }
 export function patchRoadAtlas(shader, uniforms) {
   Object.assign(shader.uniforms, uniforms);
