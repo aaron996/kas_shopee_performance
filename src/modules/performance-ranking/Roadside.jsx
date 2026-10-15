@@ -7,6 +7,8 @@ import { worldGeometry, patchWorldMaterial } from './worldGeometry.js';
 import { useWorldAtlas } from './worldSurfaces.js';
 import { getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import RoadsideLights from './RoadsideLights.jsx';
+import { createCityShopTexture } from './cityShopTexture.js';
+import { isCityWorld } from '../../utils/sceneCityLayout.js';
 
 function SceneryTravel({ fleet, span, roadLength, clockRef }) {
   const view = useMemo(() => ({ matrix: new THREE.Matrix4(), frustum: new THREE.Frustum(), sphere: new THREE.Sphere() }), []);
@@ -54,12 +56,13 @@ function paletteColor(theme, token) {
   return theme[key] || theme.props[key];
 }
 
-function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, castShadow, backdrop = false, world, journeyRef }) {
+function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, shopTexture, castShadow, backdrop = false, world, journeyRef }) {
   const meshRef = useRef(null);
   const atlas = useWorldAtlas();
   const invalidate = useThree(state => state.invalidate);
   const resources = useMemo(() => {
     const geometry = worldGeometry(shape, backdrop);
+    if (shape === 'shopSign') geometry.setAttribute('instanceShop', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part => part.shopIndex)), 1));
     geometry.setAttribute('instanceSurface', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part =>
       part.color === 'wood' || part.color === 'treeTrunk' ? 1 : part.color === 'stone' || shape === 'mesa' || shape === 'peak' ? 2 : part.color === 'apron' ? 3 : 0)), 1));
     return { geometry, matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), localRotation: new THREE.Quaternion(), axis: new THREE.Vector3(0, 1, 0), pitchAxis: new THREE.Vector3(0, 0, 1), pitch: new THREE.Quaternion(), roll: new THREE.Quaternion(), color: new THREE.Color() };
@@ -107,11 +110,12 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     if (clockRef.current.step) write();
   });
   return <instancedMesh name={`prr-${backdrop ? 'backdrop' : 'scenery'}-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
-    castShadow={castShadow && ['cone', 'round', 'box', 'pole'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
-    <meshStandardMaterial color="#ffffff" map={shape === 'sign' ? texture : null} transparent
-      roughness={shape === 'water' ? 0.28 : shape === 'box' ? 0.72 : 0.88} metalness={shape === 'water' ? 0.15 : 0}
+    castShadow={castShadow && ['cone', 'round', 'box', 'pole', 'glass', 'bitexco', 'cityRoof', 'arch'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
+    <meshStandardMaterial color="#ffffff" map={shape === 'shopSign' ? shopTexture : shape === 'sign' ? texture : null} transparent
+      emissive={shape === 'shopSign' ? '#ffffff' : '#000000'} emissiveMap={shape === 'shopSign' ? shopTexture : null} emissiveIntensity={shape === 'shopSign' ? 0.12 : 0}
+      roughness={shape === 'water' || shape === 'glass' || shape === 'shopGlass' || shape === 'bitexco' ? 0.28 : shape === 'box' ? 0.72 : 0.88} metalness={shape === 'water' ? 0.15 : shape === 'glass' || shape === 'shopGlass' || shape === 'bitexco' ? 0.25 : 0}
       side={shape === 'leaf' || shape === 'water' ? THREE.DoubleSide : THREE.FrontSide}
-      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v2-${shape}`} />
+      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v3-${shape}`} />
   </instancedMesh>;
 }
 
@@ -129,11 +133,13 @@ export default function Roadside({ roadLength, roadWidth, theme, clockRef, castS
   const layout = useMemo(() => createWorldLayout(roadLength, roadWidth, world, compact), [roadLength, roadWidth, world, compact]);
   const fleet = useMemo(() => createRoadsideFleet(layout, clockRef.current.distance), [layout, clockRef]);
   const texture = useMemo(brandTexture, []);
+  const shopTexture = useMemo(() => isCityWorld(world) ? createCityShopTexture() : null, [world]);
   useEffect(() => () => texture.dispose(), [texture]);
+  useEffect(() => () => shopTexture?.dispose(), [shopTexture]);
   return <group name="prr-logistics-roadside">
     <Backdrop roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} world={world} compact={compact} journeyRef={journeyRef} />
     <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
-    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} castShadow={castShadow} world={world} journeyRef={journeyRef} />)}
+    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} shopTexture={shopTexture} castShadow={castShadow} world={world} journeyRef={journeyRef} />)}
     <RoadsideLights lamps={layout.streetlights} fleet={fleet} roadLength={roadLength} clockRef={clockRef} lightingRef={lightingRef} sourceCount={streetlightCount} />
   </group>;
 }
