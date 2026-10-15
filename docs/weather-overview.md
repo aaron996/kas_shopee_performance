@@ -28,6 +28,14 @@ Gọi `forecast.json?days=2&aqi=no&alerts=no&lang=vi` cho từng điểm, tuần
 
 Mọi timestamp DTO là ISO UTC; UI format `Asia/Ho_Chi_Minh`, không phụ thuộc timezone thiết bị. Hiện 12 hoặc 24 giờ còn hiệu lực; mobile xem từng đoạn 4 giờ có hit target ít nhất 44px. Bộ lọc KPI và ngày KPI không thay thời gian forecast.
 
+## Giao diện thu gọn và mở rộng
+
+Card mặc định thu gọn: địa điểm đang chọn, nhiệt độ hiện tại khi có dữ liệu và tóm tắt mưa. Nguồn WeatherAPI.com, thời điểm lấy dữ liệu, thời điểm cập nhật nhiệt độ và nhãn điểm đại diện thành phố vẫn hiện khi thu gọn. Nút “Xem dự báo” mở nội dung ngay trong card; “Thu gọn” đóng lại. Nút dùng `aria-expanded` và `aria-controls` trỏ tới ID do `useId` tạo; vùng chi tiết dùng `hidden`. Mở/đóng chỉ đổi trạng thái giao diện, không tự làm mới dự báo.
+
+Phần mở rộng chứa biểu đồ lượng mưa 12/24 giờ, chi tiết giờ được chọn và phân trang 4 giờ trên mobile. Gợi ý vị trí, chọn điểm và ghim nằm trong mục lồng “Địa điểm và gợi ý vị trí”. Thông báo tải/lỗi/cấu hình, dự báo đã lưu hoặc hết hạn và danh sách vùng chưa có điểm nằm ngoài vùng bị ẩn, nên vẫn truy cập được khi thu gọn. Nếu có giờ thiếu lượng mưa và các giờ còn lại đều là 0, tóm tắt báo chưa đủ dữ liệu; không suy ra toàn kỳ không mưa.
+
+Card dùng nền xanh atmospheric riêng trong cả light/dark; các phần tử con kế thừa màu chữ và bề mặt cục bộ. Đây là thay đổi trình bày, không đổi provider, backend, phạm vi địa lý hay contract dữ liệu.
+
 ## Điểm pilot và phạm vi
 
 Registry `src/data/weatherLocations.js` chứa điểm đại diện TP.HCM và Hà Nội, nguồn GeoNames kiểm tra ngày 14/10/2026. HCM/HNO và các nhánh KA/CK tương ứng dùng chung điểm thành phố; nhãn luôn nói “điểm đại diện”, chưa phải tọa độ từng Hub hoặc toàn tỉnh mới sau sáp nhập. Các vùng khác, bao gồm GXT theo miền, hiển thị chưa có điểm. Chưa thêm Đà Nẵng: mock ban đầu dùng NTB nhưng source hiện tại đặt Đà Nẵng trong TTB, cần mapping vận hành hiện hành được chốt trước khi mở rộng.
