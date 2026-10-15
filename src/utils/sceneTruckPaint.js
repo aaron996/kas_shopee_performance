@@ -19,7 +19,7 @@ export const TRUCK_ROOF = { minX: -1.5, maxX: 0.65, minY: 1.49, bandX: 0.263 };
 export function truckPaintMask(x, y, normalY = 1) {
   return x <= TRUCK_ROOF.maxX && y >= TRUCK_ROOF.minY && normalY > 0.5 && x >= TRUCK_ROOF.bandX ? 1 : 0;
 }
-export function patchTruckPaint(shader, glyphTexture) {
+export function patchTruckPaint(shader, glyphTexture, roof = TRUCK_ROOF) {
   shader.uniforms.roofGlyphs = { value: glyphTexture };
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>
@@ -43,14 +43,14 @@ export function patchTruckPaint(shader, glyphTexture) {
       varying float vRoofNormal;`)
     .replace('#include <map_fragment>', `#include <map_fragment>
       // Replace only upward cargo roof, including its upside-down source decal.
-      if (vPaintPosition.x <= ${TRUCK_ROOF.maxX} && vPaintPosition.y >= ${TRUCK_ROOF.minY} && vRoofNormal > 0.5) {
+      if (vPaintPosition.x <= ${roof.maxX} && vPaintPosition.y >= ${roof.minY} && vRoofNormal > 0.5) {
         vec3 roofColor = vec3(0.91, 0.90, 0.86);
         float bandEdge = max(fwidth(vPaintPosition.x), 0.002);
-        float band = smoothstep(${TRUCK_ROOF.bandX} - bandEdge, ${TRUCK_ROOF.bandX} + bandEdge, vPaintPosition.x);
+        float band = smoothstep(${roof.bandX} - bandEdge, ${roof.bandX} + bandEdge, vPaintPosition.x);
         vec3 bandColor = vInstancePaint.r >= 0.0 ? vInstancePaint : vec3(0.88, 0.19, 0.025);
         roofColor = mix(roofColor, bandColor, band);
         // Text reads across the truck, top towards the cab.
-        vec2 codeUV = vec2((vPaintPosition.z + 0.44) / 0.88, (vPaintPosition.x + 0.84) / 0.48);
+        vec2 codeUV = vec2((vPaintPosition.z + ${roof.codeZ ?? 0.44}) / ${roof.codeWidth ?? 0.88}, (vPaintPosition.x + ${roof.codeX ?? 0.84}) / ${roof.codeLength ?? 0.48});
         if (codeUV.x >= 0.0 && codeUV.x < 1.0 && codeUV.y >= 0.0 && codeUV.y <= 1.0) {
           float cell = floor(codeUV.x * 4.0);
           float glyph = cell < 1.0 ? vRoofCode.x : cell < 2.0 ? vRoofCode.y : cell < 3.0 ? vRoofCode.z : vRoofCode.w;

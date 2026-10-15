@@ -25,6 +25,16 @@ Tham chiếu nhận diện kiến trúc: [Vietnam Tourism – TP.HCM](https://vi
 
 ## Vật liệu
 
+### Rider cho hub BC — 15/10/2026
+
+`public/models/ghn-bc-rider-wheels-v1.glb` là bản dẫn xuất từ Meshy v2 đã chọn, gồm tài xế ngồi lái, xe máy số và thùng hàng. Hub có loại `BC` hoặc `Bưu cục` dùng rider; các loại khác và loại chưa biết dùng xe tải hiện có. Quyết định dựa trên trường `hubType`, không suy từ tên Hub.
+
+Bản rider giữ nguyên 10.024 tam giác và texture 2K của nguồn, tách thành thân + bánh trước + bánh sau; hai bánh quay theo quãng đường/radius và dừng theo pause/reduced motion. Dùng chung vị trí thứ hạng, replay, chuyển KPI, Best/Worst, picking và camera bám; có bóng, đèn, vùng chọn và dấu nhận diện trên nóc thùng riêng. Tài xế giữ tư thế ngồi cố định, chưa có skeleton/clip chuyển động cơ thể. Camera bám màn hình hẹp nhìn gần xe hơn để giữ rider trong khung; desktop giữ khoảng nhìn trước cũ.
+
+Tái tạo bằng `node tools/prepare-ghn-rider.mjs`; verifier `node tools/verify-ghn-rider.mjs` kiểm toàn bộ tam giác, winding, UV, normal, texture và hai pivot. Nguồn/ảnh/prompt/manifest ở `output/imagegen/bc-rider-v1/`; source Meshy v2 bất biến. Lượt multi-view đầu có lỗi thiếu bánh được lưu để đối chiếu và không dùng runtime.
+
+Kiểm tra local: 673/673 test pass, build, oxlint scoped, diff check; Blender 5.2.1 silhouette/matcap bốn góc. IAB dùng chính `RoadScene3D` với 10/50 Hub mẫu, xem ngày/đêm, chọn trực tiếp rider, bám camera, đổi thứ hạng, replay pause/resume, Best/Worst và reduced motion; số instance đúng 7/3 và 33/17 rider/xe tải, shader link thành công. Viewport 390×844 xác nhận camera bám chứa đủ rider sau sửa. Ảnh ở `output/playwright/bc-rider/`. Đây chưa phải production đăng nhập hoặc FPS điện thoại thật; build vẫn có cảnh báo chunk 3D lớn và IAB ghi một cảnh báo Three.Clock deprecated.
+
 `public/textures/world-surfaces-v1.png` là atlas albedo 1536×1024 được tạo bằng Imagegen ngày 13/10/2026: sáu ô đất khô, đất rừng, cỏ, bê tông, nhựa đường, gỗ. Các vật thể chia sẻ một texture; không phát sinh ảnh theo Hub. Shader dùng gradient cho sampling ô atlas và một lượng bump nhỏ trên đường; màu/texture nền blend cùng vùng. Đá/gỗ/bê tông lấy chi tiết từ atlas và giữ palette riêng.
 
 Nguồn atlas: `C:\Users\admin\.codex\generated_images\01a13546-dbe3-7cd2-bf12-a1e4ae856e80\exec-9deecf3e-5dde-4870-b42e-f639165c4b63.png`. File được copy vào repository; ứng dụng không phụ thuộc đường dẫn ngoài workspace. PNG hiện khoảng 4,43 MB và dùng chung qua cache loader.
@@ -39,7 +49,7 @@ GLB xe và texture nhúng không bị sửa. Shader nâng phản ứng kính/sơ
 - Xe/camera/Hub đang chọn không remount theo vùng. Đổi KPI, Best/Worst hoặc Top N không reset vùng.
 - Khi pause hoặc reduced motion, lựa chọn vùng chủ động áp dụng ngay. Pause giữa blend đóng băng tiến trình; resume tiếp tục. Hidden document không tiến hành trình.
 - Desktop tự chuyển sau 55 giây đang xem nếu bật. Thời gian chờ không nhân theo playback rate, được reset khi đang tour/chọn Hub/hover xe/giữ pointer. Ghim vùng hoặc chuyển sang mobile tắt hành trình tự động.
-- `ghn-ranking-world-pin` trong localStorage giữ vùng yêu thích. Nếu không ghim, sessionStorage `ghn-ranking-world-next` lưu vùng tiếp theo cho lần mount mới. Các thao tác trong scene giữ nguyên vùng.
+- Mỗi lần vào scene, mặc định bắt đầu ở Hồ Chí Minh (HCM4). `ghn-ranking-world-pin` trong localStorage giữ vùng yêu thích và được ưu tiên nếu hợp lệ; không dùng vùng tiếp theo từ session cũ để chọn cảnh mở đầu. Các thao tác trong scene giữ nguyên vùng.
 - Cụm cảnh tái sử dụng ngoài camera; phạm vi sphere tính thêm biên độ chuyển động. Vật gần che chiều sâu bình thường khi nghỉ; hai lớp alpha chỉ cùng tồn tại trong blend.
 - Texture atlas cached được dispose khi world environment unmount và reupload khi mount lại. Các mesh/material/texture cục bộ có cleanup theo vòng đời hiện có.
 - Scene-only ẩn cả cụm chọn vùng cùng các điều khiển khác. Mức compact giảm số lá, bóng/đèn theo hệ chất lượng hiện có và vệt leader từ 32 xuống 12 hạt.

@@ -14,6 +14,8 @@ export const WORLD_REGIONS = [
 ];
 export const WORLD_CHANGE_SECONDS = 1.6;
 export const WORLD_VISIT_SECONDS = 55;
+// Each unpinned visit starts in HCM; only an explicit favourite overrides it.
+export function initialWorld(pinnedId) { return WORLD_REGIONS.find(region => region.id === pinnedId)?.id || 'hcm'; }
 export function worldRegion(id) { return WORLD_REGIONS.find(region => region.id === id) || WORLD_REGIONS[0]; }
 export function nextWorld(id) { return WORLD_REGIONS[(WORLD_REGIONS.findIndex(region => region.id === id) + 1) % WORLD_REGIONS.length].id; }
 export function worldTheme(id) {

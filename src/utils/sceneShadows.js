@@ -19,3 +19,16 @@ export function shouldRefreshSceneShadow({ enabled, moving, changed }) {
   // Demand rendering still permits a paused, unchanged scene to reuse its map.
   return Boolean(enabled && (moving || changed));
 }
+
+export function createRiderShadowGeometry() {
+  const parts = [
+    new THREE.BoxGeometry(0.65, 0.5, 0.48).translate(-0.72, 1.06, 0),
+    new THREE.BoxGeometry(0.5, 0.7, 0.42).translate(0.03, 1.16, 0),
+    new THREE.BoxGeometry(1.5, 0.3, 0.35).translate(0, 0.6, 0),
+    new THREE.SphereGeometry(0.19, 8, 6).translate(-0.01, 1.55, 0),
+    ...[-0.62, 0.75].map(x => new THREE.CylinderGeometry(0.31, 0.31, 0.1, 12).rotateX(Math.PI / 2).translate(x, 0.31, 0))
+  ];
+  const geometry = mergeGeometries(parts);
+  parts.forEach(part => part.dispose());
+  return geometry;
+}

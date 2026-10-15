@@ -34,5 +34,7 @@ export function followCameraGoal(frame, aspect = 1.8) {
     frame.y + sp * along + cp * up,
     frame.z - sy * (cp * along - sp * up) + cy * across
   ];
-  return { target: point(2.6, 0.85, 0), position: point(-3.8, 4.2, 8.5), fov: aspect < 1.1 ? 60 : 58 };
+  // Portrait has little horizontal field of view: keep the followed vehicle
+  // inside the frame instead of spending its width on the road ahead.
+  return { target: point(aspect < 1.1 ? 0.35 : 2.6, 0.85, 0), position: point(-3.8, 4.2, 8.5), fov: aspect < 1.1 ? 60 : 58 };
 }

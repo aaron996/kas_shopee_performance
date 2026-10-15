@@ -69,8 +69,23 @@ test('follow shot keeps the selected truck visible from both road ends and follo
       const heading = new THREE.Vector3(Math.cos(frame.heading) * Math.cos(frame.pitch), Math.sin(frame.pitch), -Math.sin(frame.heading) * Math.cos(frame.pitch));
       const up = new THREE.Vector3(-Math.cos(frame.heading) * Math.sin(frame.pitch), Math.cos(frame.pitch), Math.sin(frame.heading) * Math.sin(frame.pitch));
       const targetFromAnchor = new THREE.Vector3(...goal.target).sub(new THREE.Vector3(frame.x, frame.y, frame.z));
-      assert.ok(Math.abs(targetFromAnchor.dot(heading) - 2.6) < 1e-8);
+      assert.ok(Math.abs(targetFromAnchor.dot(heading) - (aspect < 1.1 ? 0.35 : 2.6)) < 1e-8);
       assert.ok(Math.abs(targetFromAnchor.dot(up) - 0.85) < 1e-8);
+    }
+  }
+});
+
+test('portrait follow contains the entire BC rider silhouette at both road ends', () => {
+  for (const roadX of [-130, 0, 130]) for (const lane of [-3.9, 3.9]) {
+    const frame = sampleRoadFrame(roadX, lane, 284);
+    const aspect = 390 / 844, goal = followCameraGoal(frame, aspect);
+    const camera = new THREE.PerspectiveCamera(goal.fov, aspect, 0.5, 1000);
+    camera.position.fromArray(goal.position); camera.lookAt(...goal.target); camera.updateMatrixWorld();
+    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), frame.heading)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), frame.pitch));
+    for (const x of [-1.12, 1.12]) for (const y of [0, 1.8]) for (const z of [-0.5, 0.5]) {
+      const p = new THREE.Vector3(x, y, z).applyQuaternion(rotation).add(new THREE.Vector3(frame.x, frame.y, frame.z)).project(camera);
+      assert.ok(Math.abs(p.x) < 0.9 && Math.abs(p.y) < 0.85, `${roadX}/${lane}: ${p.x}, ${p.y}`);
     }
   }
 });
