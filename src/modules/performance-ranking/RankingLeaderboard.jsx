@@ -1,13 +1,23 @@
-import { ArrowUp, ArrowDown, ArrowUpRight, Minus } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ArrowUp, ArrowDown, ArrowUpRight, Minus, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatVol } from '../../utils/dataProcessor.js';
 
-export default function RankingLeaderboard({ items, rankView, selectedHubId, onSelect, onViewTable, d1Label, d8Label }) {
+export default function RankingLeaderboard({ items, rankView, selectedHubId, onSelect, onViewTable, d8Label }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const listId = useId();
   if (!items.length) return null;
-  return <div className="prr-leaderboard-panel">
+  return <div className={`prr-leaderboard-panel${collapsed ? ' is-collapsed' : ''}`}>
     <div className="prr-leaderboard-heading">
-      <div><strong>{rankView === 'worst' ? 'Cuối bảng' : 'Dẫn đầu'}</strong><span className="prr-leaderboard-date">Dữ liệu {d1Label}</span></div>
-      <button type="button" onClick={onViewTable} title="Mở bảng số liệu đầy đủ">Bảng số liệu <ArrowUpRight size={14} aria-hidden="true" /></button>
+      <div><strong>Ranking</strong></div>
+      <div className="prr-leaderboard-actions">
+        <button type="button" onClick={onViewTable} title="Mở bảng số liệu đầy đủ" aria-label="Mở bảng số liệu đầy đủ"><ArrowUpRight size={17} aria-hidden="true" /></button>
+        <button type="button" aria-label={collapsed ? 'Mở danh sách ranking' : 'Thu gọn danh sách ranking'} title={collapsed ? 'Mở danh sách ranking' : 'Thu gọn danh sách ranking'}
+          aria-expanded={!collapsed} aria-controls={listId} onClick={() => setCollapsed(value => !value)}>
+          {collapsed ? <ChevronDown size={17} aria-hidden="true" /> : <ChevronUp size={17} aria-hidden="true" />}
+        </button>
+      </div>
     </div>
+    <div id={listId} hidden={collapsed}>
     <div className="prr-leaderboard-columns" aria-hidden="true"><span>Hạng</span><span>Hub / Số mẫu</span><span>KPI</span><span title={d8Label ? `So với ${d8Label} trong nhóm đối soát chung` : 'Chưa có ngày so sánh'}>Δ hạng</span></div>
     <ol className="prr-3d-leaderboard" aria-label={rankView === 'worst' ? 'Năm Hub cuối bảng' : 'Năm Hub dẫn đầu'}>
       {items.map((item, index) => {
@@ -29,5 +39,6 @@ export default function RankingLeaderboard({ items, rankView, selectedHubId, onS
         </li>;
       })}
     </ol>
+    </div>
   </div>;
 }

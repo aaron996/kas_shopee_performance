@@ -82,7 +82,7 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
     const journey = journeyRef.current;
     tint.from.set(worldRegion(journey.from).far).lerp(tint.to.set(worldRegion(journey.to).far), journey.mix);
     skyUniforms.horizonColor.value.lerp(tint.from, state.sunOpacity * 0.3);
-    scene.environmentIntensity = 0.10 + state.sunOpacity * 0.28;
+    scene.environmentIntensity = 0.12 + state.day * 0.4 + state.twilight * 0.12;
     fogRef.current.color.copy(skyUniforms.horizonColor.value);
     ambientRef.current.color.set(state.ambientSky);
     ambientRef.current.groundColor.set(state.ambientGround);

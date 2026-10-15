@@ -211,20 +211,28 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 /* Compact comparison sheet: names and samples lead; numeric columns stay aligned. */
 .performance-road-ranking-tab .prr-3d-hud {
   position: absolute; top: calc(var(--prr-controls-height) + 16px); left: 20px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start;
-  width: min(400px, calc(100% - 280px)); pointer-events: none;
+  width: min(400px, calc(100% - 388px)); pointer-events: none;
 }
 .performance-road-ranking-tab .prr-3d-hud > * { pointer-events: auto; }
 .prr-leaderboard-panel {
   width: 100%; overflow: hidden; border-radius: var(--radius-surface);
   background: rgb(19 30 46 / 94%); color: #f1f5f9; font-size: 12px;
 }
-.prr-leaderboard-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px 4px; }
+.prr-leaderboard-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; }
 .prr-leaderboard-heading strong { font-size: 14px; font-weight: 650; }
-.prr-leaderboard-heading > div { display: grid; gap: 3px; }
-.prr-leaderboard-date { color: #adbbcc; font-size: 11px; font-variant-numeric: tabular-nums; }
+.prr-leaderboard-heading > div:first-child { display: grid; gap: 3px; }
+.prr-leaderboard-actions { display: flex; align-items: center; gap: 2px; }
+.prr-leaderboard-panel.is-collapsed { width: auto; min-width: 218px; }
 .prr-leaderboard-heading button {
-  display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 0 4px 8px;
-  border: 0; background: transparent; color: #b9d9f3; font: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0;
+  border: 0; border-radius: var(--radius-control); background: transparent; color: #b9d9f3; font: inherit; cursor: pointer;
+}
+.prr-leaderboard-heading button:hover { background: rgb(173 187 204 / 10%); }
+.prr-leaderboard-panel > [hidden] { display: none; }
+.prr-leaderboard-panel > div[id] {
+  max-height: calc(100dvh - var(--prr-controls-height) - 156px);
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: #adbbcc #131e2e;
 }
 .prr-leaderboard-columns {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) 58px 52px; gap: 8px;
@@ -256,10 +264,6 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 .prr-lb-delta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; color: #adbbcc; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .prr-lb-delta.is-up { color: #6ee7b7; }
 .prr-lb-delta.is-down { color: #fda4af; }
-/* The assistant mascot / "Hiện trợ lý" button is fixed to the bottom-right of the window; keep the scene controls beside it, not under it. */
-@media (min-width: 801px) {
-  body:has(.chat-mascot-launcher, .chat-mascot-reveal) .performance-road-ranking-tab .prr-3d-controls { right: 172px; }
-}
 .performance-road-ranking-tab .prr-insight-panel,
 .performance-road-ranking-tab .prr-table-card {
   position: absolute; z-index: 30; background: var(--surface-default);

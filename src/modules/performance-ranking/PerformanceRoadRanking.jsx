@@ -392,7 +392,6 @@ export default function PerformanceRoadRanking({
         {createPortal(toolbarControls, headerTarget)}
       </> : <div className="prr-stage-header" role="toolbar" aria-label="Điều khiển BXH">{headingControls}{toolbarControls}</div>}
       <div className="prr-scene-surface">
-      {d1Date && <div className={`prr-scene-date ${sceneMode === '2d' ? 'is-2d' : ''}`} aria-label={`Ngày dữ liệu ${d1Formatted}`}>Dữ liệu {d1Formatted}</div>}
       <RankingMusicWidget />
       <section ref={sceneHostRef} className="prr-scene-card" inert={sceneOnly || undefined} role="tabpanel"
         id={`${kpiGroupId}-panel`} aria-labelledby={`${kpiGroupId}-${metricKey}`}>

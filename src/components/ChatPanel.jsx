@@ -126,7 +126,7 @@ function formatSuggestionDate(dateStr) {
   return match ? `${match[3]}/${match[2]}` : dateStr;
 }
 
-export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null }) {
+export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null, suppressed = false }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
@@ -457,6 +457,9 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       ))}
     </div>
   );
+
+  // Preserve the conversation when visiting a surface without the assistant.
+  if (suppressed) return null;
 
   return (
     <>

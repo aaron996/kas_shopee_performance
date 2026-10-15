@@ -14,13 +14,14 @@ import {
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
-import { RotateCcw, SunMoon, Sun, Moon, Video, Scan, Focus, Pin, Route } from 'lucide-react';
+import { RotateCcw, Video, Scan, Focus, Pin, Route } from 'lucide-react';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { WORLD_REGIONS, worldTheme, initialWorld, createWorldJourney } from '../../utils/sceneWorld.js';
 import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
 import LeaderTrail from './LeaderTrail.jsx';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
 import SceneLighting from './SceneLighting.jsx';
+import SceneTimeControl from './SceneTimeControl.jsx';
 import TruckRoadLighting from './TruckRoadLighting.jsx';
 import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
@@ -698,9 +699,9 @@ export default function RoadScene3D({
         }}
       >
         <DriveClock clockRef={clockRef} items={fleetItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate} />
-        <TruckEnvironment />
+        <TruckEnvironment lightingRef={lightingRef} />
         <WorldEnvironment world={world} journeyRef={journeyRef} roadLength={roadLength} roadWidth={roadWidth} clockRef={clockRef}
-          lightingRef={lightingRef} streetlightCount={streetlightCount} compact={compact || lowQuality} running={running}
+          lightingRef={lightingRef} streetlightCount={streetlightCount} castShadow={shadowsOn} compact={compact || lowQuality} running={running}
           reducedMotion={reducedMotion} automatic={automaticWorld && !pinnedWorld && !compact}
           blocked={Boolean(scene.tour || selectedHubId || hoveredId)} interactionRef={worldInteractionRef} onAutomatic={setWorld} />
         <SceneLighting mode={lightingMode} phaseRef={phaseRef} lightingRef={lightingRef} clockRef={clockRef} running={running} reducedMotion={reducedMotion}
@@ -753,13 +754,7 @@ export default function RoadScene3D({
         {!compact && <button type="button" aria-label="Tự động đổi vùng" aria-pressed={automaticWorld} disabled={reducedMotion || pinnedWorld}
           title={pinnedWorld ? 'Bỏ ghim vùng để bật hành trình tự động' : 'Tự động đổi vùng sau 55 giây đang xem'} onClick={() => setAutomaticWorld(value => !value)}><Route size={16} aria-hidden="true" /></button>}
       </div>
-      <div className="prr-lighting-controls" role="group" aria-label="Thời gian trong cảnh">
-        <span className="prr-scene-time" ref={timeRef} title="Giờ mô phỏng · Một vòng ngày đêm trong 6 phút khi đang chạy">09:00</span>
-        {[['auto', 'Tự động', SunMoon], ['day', 'Ban ngày', Sun], ['night', 'Ban đêm', Moon]].map(([mode, label, Icon]) => <button key={mode} type="button"
-          aria-label={label}
-          aria-pressed={lightingMode === mode} onClick={() => setLightingMode(mode)}
-          title={mode === 'auto' ? `${label} · ${reducedMotion ? 'Chu kỳ đứng yên khi bật giảm chuyển động' : 'Một vòng ngày đêm trong 6 phút · dừng theo nút tạm dừng'}` : label}><Icon size={16} aria-hidden="true" /></button>)}
-      </div>
+      <SceneTimeControl mode={lightingMode} onChange={setLightingMode} timeRef={timeRef} />
       {scene.tour && <div className="prr-tour-status" role="status">{rankView === 'worst' ? 'Lùi về cuối đoàn · Worst' : 'Tiến về đầu đoàn · Best'}</div>}
 
       <div className="prr-3d-controls">
@@ -802,7 +797,7 @@ export default function RoadScene3D({
 
       <div className="prr-3d-hud" ref={hudRef}>
         <RankingLeaderboard items={leaderboard} rankView={rankView} selectedHubId={selectedHubId}
-          onSelect={handleSelect} onViewTable={onViewTable} d1Label={d1Label} d8Label={d8Label} />
+          onSelect={handleSelect} onViewTable={onViewTable} d8Label={d8Label} />
       </div>
       <div className="prr-3d-sr" aria-live="polite">
         {replaying ? `${running ? 'Đang chạy' : 'Đã tạm dừng'} Replay D-8 ${d8Label} sang D-1 ${d1Label}.` : selectedItem ? `Đã chọn Hub ${selectedItem.displayName || selectedItem.hub}, hạng ${selectedItem.rank}, KPI ${selectedItem.kpiD1.toFixed(1)}%.` : ''}

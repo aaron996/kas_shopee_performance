@@ -964,7 +964,8 @@ export default function App() {
           )}
           {currentUser && !currentUser.localPreview && (
             <ChatPanel
-              isOpen={isChatOpen}
+              suppressed={activeTab === 'ranking'}
+              isOpen={isChatOpen && activeTab !== 'ranking'}
               onOpen={() => setIsChatOpen(true)}
               onClose={() => setIsChatOpen(false)}
               screenContext={{

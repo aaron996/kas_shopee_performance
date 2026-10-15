@@ -1,7 +1,7 @@
 // One stylised solar day takes six active minutes, independent of truck speed.
 export const DAY_CYCLE_SECONDS = 360;
 export const INITIAL_DAY_PHASE = 9 / 24;
-export const LIGHTING_MODES = ['auto', 'day', 'night'];
+export const LIGHTING_MODES = ['auto', 'dawn', 'day', 'dusk', 'night'];
 
 // Match the viewed stretch, not the full road (which includes the tour bridge).
 // The main fleet stays clear; distant scenery merges gradually into the sky.
@@ -26,7 +26,8 @@ export function advanceDayPhase(phase, delta, running = true, cycleSeconds = DAY
 }
 
 export function phaseForLightingMode(mode, phase) {
-  return mode === 'day' ? 12 / 24 : mode === 'night' ? 0 : wrapDayPhase(phase);
+  const presets = { dawn: 6 / 24, day: 12 / 24, dusk: 18 / 24, night: 0 };
+  return presets[mode] ?? wrapDayPhase(phase);
 }
 
 export function formatSceneTime(phase) {
@@ -50,23 +51,29 @@ export function sampleSceneLighting(phase) {
   const moonDirection = sunDirection.map(value => -value);
   const day = smooth(-0.12, 0.3, altitude);
   const twilight = smooth(-0.23, -0.02, altitude) * (1 - smooth(0.08, 0.48, altitude));
-  const sunIntensity = smooth(0, 0.22, altitude) * (1.4 + 0.8 * Math.max(0, altitude));
-  const moonIntensity = 0.5 * smooth(0, 0.22, -altitude);
-  const source = altitude >= 0 ? 'sun' : 'moon';
+  // The apparent solar disc still lights facades at sunrise/sunset. Fade to
+  // moonlight below civil twilight, with both sources dark at the hand-off.
+  const source = altitude >= -0.08 ? 'sun' : 'moon';
+  const sunIntensity = smooth(-0.08, 0.22, altitude) * (1.4 + 0.8 * Math.max(0, altitude));
+  const moonIntensity = 0.5 * smooth(0.08, 0.3, -altitude);
+  const direction = source === 'sun' ? sunDirection : moonDirection;
+  const keyY = Math.max(0.045, direction[1]);
+  const keyNorm = Math.hypot(direction[0], keyY, direction[2]);
   const sunColor = mixColor('#ff9b55', '#fff2d5', smooth(0.03, 0.6, altitude));
   return {
     phase: time, day, twilight, sunDirection, moonDirection, source,
     streetlightPower: 1 - smooth(-0.04, 0.18, altitude),
-    keyDirection: source === 'sun' ? sunDirection : moonDirection,
+    keyDirection: [direction[0] / keyNorm, keyY / keyNorm, direction[2] / keyNorm],
     keyIntensity: source === 'sun' ? sunIntensity : moonIntensity,
     keyColor: source === 'sun' ? sunColor : '#b4ccff',
-    shadowIntensity: smooth(0.02, 0.24, Math.abs(altitude)) * (source === 'sun' ? 0.85 : 0.45),
+    shadowIntensity: (source === 'sun' ? smooth(-0.08, 0.24, altitude) * 0.85 : smooth(0.08, 0.3, -altitude) * 0.45),
     sunColor,
     sunOpacity: smooth(-0.06, 0.02, altitude),
     moonOpacity: smooth(-0.06, 0.02, -altitude),
-    ambientIntensity: 0.68 + 0.75 * day + 0.12 * twilight,
+    // Keep night readable, but leave daylight contrast to the directional sun.
+    ambientIntensity: 0.68 + 0.38 * day + 0.08 * twilight,
     ambientSky: mixColor('#7e9bcc', '#e6f0ff', day),
-    ambientGround: mixColor('#556270', '#82986e', day),
+    ambientGround: mixColor('#394858', '#716c5e', day),
     skyTop: mixColor(mixColor('#071225', '#5e9bd4', day), '#656b9e', twilight * 0.45),
     horizon: mixColor(mixColor('#182a48', '#d8e9ed', day), '#f6b27b', twilight * 0.82)
   };
