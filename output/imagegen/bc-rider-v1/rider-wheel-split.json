@@ -1,0 +1,39 @@
+{
+  "input": "output/imagegen/bc-rider-v1/meshy-v2/model.glb",
+  "output": "public/models/ghn-bc-rider-wheels-v1.glb",
+  "triangles": 10024,
+  "materialCount": 1,
+  "textureCount": 1,
+  "parts": [
+    {
+      "name": "rider-body",
+      "triangles": 8774,
+      "pivot": [
+        0,
+        0,
+        0
+      ],
+      "radius": null
+    },
+    {
+      "name": "rider-wheel-front",
+      "triangles": 725,
+      "pivot": [
+        0.7487304000000001,
+        0.3018553942890168,
+        0.004297700000000001
+      ],
+      "radius": 0.31328
+    },
+    {
+      "name": "rider-wheel-rear",
+      "triangles": 525,
+      "pivot": [
+        -0.6182132,
+        0.3093738942890167,
+        0.004297700000000001
+      ],
+      "radius": 0.31372000000000005
+    }
+  ]
+}

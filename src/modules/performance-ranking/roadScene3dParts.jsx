@@ -6,7 +6,8 @@ import { drawLabel, drawReplayChip, layoutLabel } from './labelOverlay.js';
 import { sampleRoadFrame, getRoadCurveRadius, toRoadLocalVector } from '../../utils/sceneRoadCurve.js';
 import { getRoadsideSpan, sampleSceneryFrame } from '../../utils/sceneRoadside.js';
 import { hubPaintColor, hubRoofCode, patchTruckPaint } from '../../utils/sceneTruckPaint.js';
-import { createTruckShadowGeometry } from '../../utils/sceneShadows.js';
+import { createTruckShadowGeometry, createRiderShadowGeometry } from '../../utils/sceneShadows.js';
+import { sceneVehicleKind, vehiclePickBounds, RIDER_ROOF } from '../../utils/sceneVehicles.js';
 import { patchTruckSurface, patchTruckWheelSurface } from '../../utils/sceneTruckSurface.js';
 import { worldTheme } from '../../utils/sceneWorld.js';
 import { atlasTile, patchRoadAtlas, useWorldAtlas } from './worldSurfaces.js';
@@ -24,6 +25,7 @@ export const SHADOW_MAX_TRUCKS = 60; // shadows off above this
 const ARROW_UP = '#34d399';
 const ARROW_DOWN = '#f87171';
 const TRUCK_MODEL_URL = '/models/ghn-truck-wheels-v1.glb';
+const RIDER_MODEL_URL = '/models/ghn-bc-rider-wheels-v1.glb';
 const SKID_SMOKE_PUFFS = 24;
 
 const HOVER_LIFT = 0.025;
@@ -69,6 +71,7 @@ function roadQuaternion(heading, pitch) {
   return _quat.setFromAxisAngle(_upAxis, heading).multiply(_pitchQuat.setFromAxisAngle(_pitchAxis, pitch));
 }
 const paintCacheKey = () => 'instanceAlpha-truckRoof-surface-v4';
+const riderPaintCacheKey = () => 'instanceAlpha-riderRoof-v1';
 const wheelCacheKey = () => 'instanceAlpha-rubber-v2';
 
 const noRaycast = () => {};
@@ -135,7 +138,7 @@ function pickedId(e, items) {
 
 /** One InstancedMesh for a truck part. Registers itself (mesh + material) with the fleet. */
 function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyphTexture, register, castShadow }) {
-  const painted = part.key === 'body';
+  const painted = part.key === 'body' || part.key === 'rider-body';
   const geometry = useMemo(() => {
     // Fleet-owned geometry carries its alpha attribute; the cached GLTF stays unchanged.
     const g = part.sourceGeometry ? part.sourceGeometry.clone() : new THREE.BoxGeometry(...part.args);
@@ -155,10 +158,13 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
     transparent: true,
     onBeforeCompile: (shader) => {
       patchInstanceAlpha(shader);
-      if (painted) { patchTruckPaint(shader, glyphTexture); patchTruckSurface(shader); }
+      if (painted) {
+        patchTruckPaint(shader, glyphTexture, part.vehicle === 'rider' ? RIDER_ROOF : undefined);
+        if (part.vehicle !== 'rider') patchTruckSurface(shader);
+      }
       else if (part.wheel) patchTruckWheelSurface(shader);
     },
-    customProgramCacheKey: painted ? paintCacheKey : part.wheel ? wheelCacheKey : alphaCacheKey
+    customProgramCacheKey: painted ? part.vehicle === 'rider' ? riderPaintCacheKey : paintCacheKey : part.wheel ? wheelCacheKey : alphaCacheKey
   };
   const color = part.color === 'status' ? '#ffffff' : part.color;
 
@@ -173,7 +179,7 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
     >
       {part.basic
         ? <meshStandardMaterial {...materialProps} color={color} roughness={0.36} metalness={0.08} />
-        : <meshStandardMaterial {...materialProps} color={color} map={part.map} roughness={part.wheel ? 0.94 : 0.78} metalness={0} />}
+        : <meshStandardMaterial {...materialProps} color={color} map={part.map} side={part.vehicle === 'rider' ? THREE.DoubleSide : THREE.FrontSide} roughness={part.wheel ? 0.94 : 0.78} metalness={0} />}
     </instancedMesh>
   );
 }
@@ -184,9 +190,6 @@ function FleetPart({ part, index, count, alphaArray, paintArray, codeArray, glyp
 // invisible mesh owns all pointer handlers and does a single ray-vs-box slab test per
 // truck, using the animated positions the fleet writes each frame.
 const WARMUP_FRAMES = 6; // ignored when judging frame rate
-const PICK_HALF_X = 1.55;
-const PICK_HALF_Z = 1.0; // includes the corner swept by the small steering angle
-const PICK_HEIGHT = 1.7;
 const PICK_MIN_ALPHA = 0.3; // fading-in/out trucks are not pickable
 
 function createPickRaycast(itemsRef, alphaRef, positionsRef) {
@@ -197,22 +200,23 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.ghost || alpha[i] < PICK_MIN_ALPHA) continue;
+      const [halfX, halfZ, height] = vehiclePickBounds(item);
       const anchor = positionsRef.current.get(item.id);
       if (!anchor) continue;
       const p = anchor.visual || anchor;
       const o = toRoadLocalVector(origin.x - p.x, origin.y - p.lift, origin.z - p.z, p.heading, p.pitch);
       const d = toRoadLocalVector(direction.x, direction.y, direction.z, p.heading, p.pitch);
       const inv = { x: 1 / d.x, y: 1 / d.y, z: 1 / d.z };
-      let t1 = (-PICK_HALF_X - o.x) * inv.x;
-      let t2 = (PICK_HALF_X - o.x) * inv.x;
+      let t1 = (-halfX - o.x) * inv.x;
+      let t2 = (halfX - o.x) * inv.x;
       let tmin = Math.min(t1, t2);
       let tmax = Math.max(t1, t2);
       t1 = -o.y * inv.y;
-      t2 = (PICK_HEIGHT - o.y) * inv.y;
+      t2 = (height - o.y) * inv.y;
       tmin = Math.max(tmin, Math.min(t1, t2));
       tmax = Math.min(tmax, Math.max(t1, t2));
-      t1 = (-PICK_HALF_Z - o.z) * inv.z;
-      t2 = (PICK_HALF_Z - o.z) * inv.z;
+      t1 = (-halfZ - o.z) * inv.z;
+      t2 = (halfZ - o.z) * inv.z;
       tmin = Math.max(tmin, Math.min(t1, t2));
       tmax = Math.min(tmax, Math.max(t1, t2));
       if (tmax < Math.max(tmin, 0)) continue;
@@ -245,19 +249,22 @@ export function TruckFleet({
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const count = items.length;
-  const model = useLoader(GLTFLoader, TRUCK_MODEL_URL);
+  const vehicleKinds = useMemo(() => items.map(sceneVehicleKind), [items]);
+  const models = useLoader(GLTFLoader, [TRUCK_MODEL_URL, RIDER_MODEL_URL]);
   const truckParts = useMemo(() => {
     const parts = [];
-    model.scene.traverse(node => {
+    models.forEach((model, index) => model.scene.traverse(node => {
       if (!node.isMesh) return;
       parts.push({ key: node.name, sourceGeometry: node.geometry, map: node.material.map,
+        vehicle: index ? 'rider' : 'truck',
         position: node.position.toArray(), color: '#ffffff', wheel: Boolean(node.userData.wheel),
         spin: Boolean(node.userData.wheel), radius: node.userData.radius });
-    });
+    }));
     // Preserve the existing KPI colour cue without tinting GHN's brand texture.
-    parts.push({ key: 'beacon', args: [0.45, 0.045, 0.8], position: [0.95, 1.30, 0], color: 'status', basic: true });
+    parts.push({ key: 'beacon', vehicle: 'truck', args: [0.45, 0.045, 0.8], position: [0.95, 1.30, 0], color: 'status', basic: true });
+    parts.push({ key: 'rider-beacon', vehicle: 'rider', args: [0.28, 0.035, 0.36], position: [-0.72, 1.37, 0], color: 'status', basic: true });
     return parts;
-  }, [model]);
+  }, [models]);
   const hoverEnabled = useMemo(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches, []);
   const buffers = useMemo(() => ({
     xs: new Float32Array(count), ys: new Float32Array(count), zs: new Float32Array(count),
@@ -311,8 +318,11 @@ export function TruckFleet({
 
   const meshes = useRef([]);
   const shadowMesh = useRef(null);
+  const riderShadowMesh = useRef(null);
   const shadowGeometry = useMemo(createTruckShadowGeometry, []);
   useEffect(() => () => shadowGeometry.dispose(), [shadowGeometry]);
+  const riderShadowGeometry = useMemo(createRiderShadowGeometry, []);
+  useEffect(() => () => riderShadowGeometry.dispose(), [riderShadowGeometry]);
   const itemsRef = useRef(items);
   const alphaRef = useRef(alphaArray);
   const frameDeltas = useRef([]);
@@ -416,6 +426,11 @@ export function TruckFleet({
       _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
       const tinted = part.color === 'status';
       for (let i = 0; i < count; i++) {
+        if (part.vehicle !== vehicleKinds[i]) {
+          _matrix.makeScale(0, 0, 0);
+          mesh.setMatrixAt(i, _matrix);
+          continue;
+        }
         roadQuaternion(headings[i], pitches[i] + (part.wheel ? 0 : ridePitches[i]));
         if (!part.wheel) _quat.multiply(_rollQuat.setFromAxisAngle(_rollAxis, rolls[i]));
         _truckMatrix.compose(_pos.set(xs[i], ys[i] + (part.wheel ? 0 : bobs[i]), zs[i]), _quat, _scale);
@@ -438,14 +453,18 @@ export function TruckFleet({
 
     // One inexpensive silhouette per truck follows the exact body pose, also
     // during skids, suspension, hover and replay. Fully faded trucks cast none.
-    if (shadowMesh.current && castShadow) {
+    if (shadowMesh.current && riderShadowMesh.current && castShadow) {
       for (let i = 0; i < count; i++) {
         roadQuaternion(headings[i], pitches[i] + ridePitches[i]);
         _quat.multiply(_rollQuat.setFromAxisAngle(_rollAxis, rolls[i]));
         _truckMatrix.compose(_pos.set(xs[i], ys[i] + bobs[i], zs[i]), _quat, flameScale.setScalar(alphaArray[i] > 0.1 ? 1 : 0));
         shadowMesh.current.setMatrixAt(i, _truckMatrix);
+        const isRider = vehicleKinds[i] === 'rider';
+        riderShadowMesh.current.setMatrixAt(i, isRider ? _truckMatrix : _matrix.makeScale(0, 0, 0));
+        if (isRider) shadowMesh.current.setMatrixAt(i, _matrix.makeScale(0, 0, 0));
       }
       shadowMesh.current.instanceMatrix.needsUpdate = true;
+      riderShadowMesh.current.instanceMatrix.needsUpdate = true;
     }
 
     // One fixed billboard batch for W1. Staggered births, soft density and
@@ -463,7 +482,8 @@ export function TruckFleet({
           const f = sampleRoadFrame(anchor.roadX - clock.speed * age * 0.65, z, roadLength);
           _truckMatrix.compose(_pos.set(f.x, f.y, f.z), roadQuaternion(f.heading + past.yaw, f.pitch), _scale);
           const spread = Math.sin(i * 2.399 + age * 2) * age * 0.18;
-          _pos.set(-0.85, 0.13 + age * 0.35, (i % 2 ? 0.68 : -0.68) + spread).applyMatrix4(_truckMatrix);
+          const rider = vehicleKinds[worst] === 'rider';
+          _pos.set(rider ? -0.62 : -0.85, 0.13 + age * 0.35, (i % 2 ? 1 : -1) * (rider ? 0.08 : 0.68) + spread).applyMatrix4(_truckMatrix);
           const size = 0.4 + age * 1.35;
           _quat.copy(camera.quaternion).multiply(_rollQuat.setFromAxisAngle(_pitchAxis, i * 2.399 + age * 0.25));
           _matrix.compose(_pos, _quat, flameScale.set(size * 1.2, size, 1));
@@ -506,7 +526,8 @@ export function TruckFleet({
     [nitroOuter.current, nitroInner.current].forEach((mesh, layer) => {
       if (!mesh) return;
       const visible = !reducedMotion && leader >= 0 && alphaArray[leader] > 0.3 && motion && leaderSurge(items[leader], t) > 0.05;
-      mesh.count = visible ? 2 : 0;
+      const rider = leader >= 0 && vehicleKinds[leader] === 'rider';
+      mesh.count = visible ? rider ? 1 : 2 : 0;
       if (!visible) return;
       const item = items[leader];
       const surge = motion ? leaderSurge(item, t) : 0;
@@ -516,8 +537,8 @@ export function TruckFleet({
       mesh.material.color.set(surge > 0 ? (layer ? '#fff5c2' : '#ffbd35') : (layer ? '#d9fbff' : '#16bfff'));
       _truckMatrix.compose(_pos.set(xs[leader], ys[leader], zs[leader]), roadQuaternion(headings[leader], pitches[leader]), _scale);
       _quat.setFromAxisAngle(_pitchAxis, Math.PI / 2); // cone tip trails towards -x
-      for (let jet = 0; jet < 2; jet++) {
-        _partMatrix.compose(_pos.set(-1.43 - length / 2, 0.42, jet ? 0.32 : -0.32), _quat, flameScale.set(width, length, width));
+      for (let jet = 0; jet < mesh.count; jet++) {
+        _partMatrix.compose(_pos.set((rider ? -0.6 : -1.43) - length / 2, rider ? 0.32 : 0.42, rider ? 0.16 : jet ? 0.32 : -0.32), _quat, flameScale.set(width, length, width));
         mesh.setMatrixAt(jet, _matrix.copy(_truckMatrix).multiply(_partMatrix));
       }
       mesh.material.opacity = (layer ? 0.95 : 0.6) * alphaArray[leader];
@@ -557,6 +578,7 @@ export function TruckFleet({
     endedKeyRef.current = null;
     frameDeltas.current = [];
     shadowMesh.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    riderShadowMesh.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     write(true);
     invalidate();
     // write() closes over the props listed here; it is intentionally not a dependency itself
@@ -590,6 +612,10 @@ export function TruckFleet({
   return (
     <group>
       <instancedMesh name="prr-truck-shadows" ref={shadowMesh} args={[shadowGeometry, undefined, count]} castShadow={castShadow}
+        visible={castShadow} frustumCulled={false} raycast={noRaycast}>
+        <meshBasicMaterial colorWrite={false} depthWrite={false} />
+      </instancedMesh>
+      <instancedMesh name="prr-rider-shadows" ref={riderShadowMesh} args={[riderShadowGeometry, undefined, count]} castShadow={castShadow}
         visible={castShadow} frustumCulled={false} raycast={noRaycast}>
         <meshBasicMaterial colorWrite={false} depthWrite={false} />
       </instancedMesh>

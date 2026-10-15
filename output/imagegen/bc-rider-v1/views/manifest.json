@@ -1,0 +1,51 @@
+{
+  "source": "ghn-bc-rider-turnaround-v1.png",
+  "source_sha256": "e090982d4f880a5b5a7679dba5a4ff58941f2da65a9a6ecd5adb4ef156138767",
+  "method": "Pixel crops, direction text removed only in blank margin, same pixel scale, padded 700x560",
+  "views": [
+    {
+      "view": "front",
+      "file": "front.png",
+      "source_crop": [
+        225,
+        5,
+        555,
+        506
+      ],
+      "sha256": "71778650196a8ee07d276b19b9e0d5d491afa2999ea0da3e9db4eb39bae3554a"
+    },
+    {
+      "view": "left",
+      "file": "left.png",
+      "source_crop": [
+        795,
+        5,
+        1425,
+        506
+      ],
+      "sha256": "dbbec589f9ce2975df4139ec9d4d577589bc1707975698574980587b68c6cfe8"
+    },
+    {
+      "view": "back",
+      "file": "back.png",
+      "source_crop": [
+        225,
+        517,
+        555,
+        1018
+      ],
+      "sha256": "a44974b5cf7cf7f0458d8271e0fc0a49f2edfe35c4480c6e2953206485744a53"
+    },
+    {
+      "view": "right",
+      "file": "right.png",
+      "source_crop": [
+        800,
+        517,
+        1430,
+        1018
+      ],
+      "sha256": "174749c452959ca4c4300adf706827129fa56bfc03cf17d52c5c6bb682ef8e0c"
+    }
+  ]
+}

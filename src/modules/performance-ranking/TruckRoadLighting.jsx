@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { sampleRoadFrame } from '../../utils/sceneRoadCurve.js';
 import { TRUCK_LIGHTS } from '../../utils/sceneTruckSurface.js';
+import { sceneVehicleKind, RIDER_LIGHTS } from '../../utils/sceneVehicles.js';
 
 function softTexture(beam = false) {
   const width = 64, height = 128, pixels = new Uint8Array(width * height * 4);
@@ -49,11 +50,13 @@ export default function TruckRoadLighting({ items, positionsRef, roadLength, lig
     for (const item of items) {
       const pose = positionsRef.current.get(item.id);
       if (!pose || pose.alpha < 0.08) continue;
+      const rider = sceneVehicleKind(item) === 'rider';
+      const lamps = rider ? RIDER_LIGHTS : TRUCK_LIGHTS;
       const body = pose.body || { ...pose.visual, y: pose.visual.lift, roll: 0 };
       r.rotation.setFromAxisAngle(r.y, body.heading).multiply(r.pitch.setFromAxisAngle(r.z, body.pitch)).multiply(r.roll.setFromAxisAngle(r.x, body.roll));
       r.body.compose(r.position.set(body.x, body.y, body.z), r.rotation, r.scale.setScalar(1));
-      for (const side of [-1, 1]) {
-        for (const [ref, lamp] of [[heads, TRUCK_LIGHTS.head], [tails, TRUCK_LIGHTS.tail]]) {
+      for (const side of rider ? [1] : [-1, 1]) {
+        for (const [ref, lamp] of [[heads, lamps.head], [tails, lamps.tail]]) {
           r.position.set(lamp.x, lamp.y, lamp.z * side).applyMatrix4(r.body);
           r.matrix.compose(r.position, r.rotation, r.scale.set(pose.alpha, pose.alpha, pose.alpha));
           ref.current.setMatrixAt(lights, r.matrix);
@@ -62,11 +65,11 @@ export default function TruckRoadLighting({ items, positionsRef, roadLength, lig
       }
       const footprint = sampleRoadFrame(pose.roadX, pose.visual.roadZ, roadLength);
       r.rotation.setFromAxisAngle(r.y, footprint.heading).multiply(r.pitch.setFromAxisAngle(r.z, footprint.pitch)).multiply(r.flat);
-      r.matrix.compose(r.position.set(footprint.x, footprint.y + 0.014, footprint.z), r.rotation, r.scale.set(3.0 * pose.alpha, 1.65 * pose.alpha, 1));
+      r.matrix.compose(r.position.set(footprint.x, footprint.y + 0.014, footprint.z), r.rotation, r.scale.set((rider ? 2.1 : 3.0) * pose.alpha, (rider ? 0.65 : 1.65) * pose.alpha, 1));
       contacts.current.setMatrixAt(ground, r.matrix);
       // A short tapered light pool follows the steering angle but is placed
       // from the road frame so suspension cannot lift it off the asphalt.
-      const distance = TRUCK_LIGHTS.beamLength / 2 + TRUCK_LIGHTS.head.x;
+      const distance = lamps.beamLength / 2 + lamps.head.x;
       const steering = body.heading - footprint.heading;
       const beamFrame = sampleRoadFrame(pose.roadX + Math.cos(steering) * distance,
         pose.visual.roadZ - Math.sin(steering) * distance, roadLength);
@@ -74,7 +77,7 @@ export default function TruckRoadLighting({ items, positionsRef, roadLength, lig
         .multiply(r.pitch.setFromAxisAngle(r.z, beamFrame.pitch)).multiply(r.flat)
         .multiply(r.roll.setFromAxisAngle(r.z, -Math.PI / 2));
       r.matrix.compose(r.position.set(beamFrame.x, beamFrame.y + 0.018, beamFrame.z), r.rotation,
-        r.scale.set(TRUCK_LIGHTS.beamWidth * pose.alpha, TRUCK_LIGHTS.beamLength * pose.alpha, 1));
+        r.scale.set(lamps.beamWidth * pose.alpha, lamps.beamLength * pose.alpha, 1));
       beams.current.setMatrixAt(ground, r.matrix);
       ground++;
     }

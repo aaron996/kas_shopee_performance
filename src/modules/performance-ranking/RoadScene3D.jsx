@@ -16,7 +16,7 @@ import {
 } from '../../utils/rankingSceneLayout.js';
 import { RotateCcw, SunMoon, Sun, Moon, Video, Scan, Focus, Pin, Route } from 'lucide-react';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
-import { WORLD_REGIONS, worldRegion, worldTheme, nextWorld, createWorldJourney } from '../../utils/sceneWorld.js';
+import { WORLD_REGIONS, worldTheme, initialWorld, createWorldJourney } from '../../utils/sceneWorld.js';
 import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
 import LeaderTrail from './LeaderTrail.jsx';
 import { INITIAL_DAY_PHASE } from '../../utils/sceneLighting.js';
@@ -427,8 +427,8 @@ export default function RoadScene3D({
   const colors = useThemeColors();
   // UI theme changes label/status colours; the world follows its own solar time.
   const [world, setWorld] = useState(() => {
-    try { return worldRegion(localStorage.getItem('ghn-ranking-world-pin') || sessionStorage.getItem('ghn-ranking-world-next')).id; }
-    catch { return 'canyon'; }
+    try { return initialWorld(localStorage.getItem('ghn-ranking-world-pin')); }
+    catch { return initialWorld(); }
   });
   const [pinnedWorld, setPinnedWorld] = useState(() => { try { return Boolean(localStorage.getItem('ghn-ranking-world-pin')); } catch { return false; } });
   const [automaticWorld, setAutomaticWorld] = useState(false);
@@ -437,7 +437,6 @@ export default function RoadScene3D({
   const theme = useMemo(() => worldTheme(world), [world]);
   useEffect(() => {
     try {
-      sessionStorage.setItem('ghn-ranking-world-next', nextWorld(world));
       if (pinnedWorld) localStorage.setItem('ghn-ranking-world-pin', world);
       else localStorage.removeItem('ghn-ranking-world-pin');
     } catch { /* Storage can be disabled; the current scene remains usable. */ }

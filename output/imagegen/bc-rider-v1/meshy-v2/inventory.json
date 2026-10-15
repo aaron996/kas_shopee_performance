@@ -1,0 +1,17 @@
+{
+  "file": "C:\\Users\\admin\\.codex\\worktrees\\949c\\GHN\\output\\imagegen\\bc-rider-v1\\meshy-v2\\model.glb",
+  "sha256": "b7a5bfccadc529d2debdd437d3a4f1930bada6293cc62e064ee87fae8972da61",
+  "bytes": 3196820,
+  "meshes": 1,
+  "primitives": 1,
+  "triangleModeTriangles": 10024,
+  "otherPrimitiveModes": [],
+  "skinJointCounts": [],
+  "materials": [
+    ""
+  ],
+  "imageCount": 1,
+  "clips": [],
+  "visualApproval": false,
+  "skinMotionValidation": false
+}
