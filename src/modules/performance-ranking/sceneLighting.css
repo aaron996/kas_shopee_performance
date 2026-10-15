@@ -15,11 +15,18 @@
 }
 .prr-scene-time { padding: 0 8px; font-variant-numeric: tabular-nums; color: #e2e8f0; }
 .prr-lighting-options {
-  position: absolute; top: calc(100% + 8px); right: 0; display: flex; gap: 2px; padding: 4px;
+  position: absolute; top: calc(100% + 8px); right: 0; display: grid; gap: 2px; padding: 5px;
+  width: 188px; max-width: calc(100vw - 24px); max-height: calc(100dvh - var(--prr-controls-height, 52px) - 132px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #adbbcc #131e2e;
   border: 1px solid rgb(255 255 255 / 20%); border-radius: var(--radius-control);
   background: #131e2e; box-shadow: 0 10px 24px rgb(0 0 0 / 22%);
+  transform-origin: top right; opacity: 0; transform: translateY(-4px) scale(0.97); visibility: hidden; pointer-events: none;
+  transition: opacity var(--duration-instant) var(--ease-snappy), transform var(--duration-fast) var(--ease-snappy), visibility 0s var(--duration-fast);
 }
-.prr-lighting-options[hidden] { display: none; }
+.prr-lighting-controls.is-open .prr-lighting-options {
+  opacity: 1; transform: translateY(0) scale(1); visibility: visible; pointer-events: auto;
+  transition: opacity var(--duration-fast) var(--ease-snappy), transform var(--duration-fast) var(--ease-snappy), visibility 0s;
+}
 .prr-lighting-controls button {
   border: 0;
   border-radius: var(--radius-pill);
@@ -33,9 +40,32 @@
   background: transparent;
   font: inherit;
   cursor: pointer;
+  transition: background-color var(--duration-instant) ease, color var(--duration-instant) ease, transform var(--duration-instant) var(--ease-snappy);
+}
+.prr-lighting-controls .prr-lighting-trigger { width: 52px; gap: 4px; }
+.prr-lighting-trigger:active { transform: scale(0.97); }
+.prr-lighting-controls.is-open .prr-lighting-trigger { background: rgb(173 187 204 / 16%); }
+.prr-lighting-icon { display: grid; place-items: center; width: 18px; height: 18px; }
+.prr-lighting-icon svg { grid-area: 1 / 1; opacity: 0; transform: rotate(-15deg) scale(0.9); transition: opacity var(--duration-fast) var(--ease-snappy), transform var(--duration-fast) var(--ease-snappy); }
+.prr-lighting-icon svg.is-current { opacity: 1; transform: rotate(0) scale(1); }
+.prr-lighting-chevron { transition: transform var(--duration-fast) var(--ease-snappy); }
+.is-open .prr-lighting-chevron { transform: rotate(180deg); }
+.prr-lighting-options button { display: grid; grid-template-columns: 18px 1fr 15px; gap: 10px; width: 100%; padding: 0 10px; text-align: left; border-radius: var(--radius-control); }
+.prr-lighting-check { opacity: 0; }
+.prr-lighting-options button[aria-pressed="true"] .prr-lighting-check { opacity: 1; }
+.performance-road-ranking-tab.prr-scene-only .prr-lighting-options { visibility: hidden; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) {
+  .prr-lighting-controls button:hover { background: rgb(173 187 204 / 16%); }
 }
 .prr-lighting-controls button[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; }
 .prr-lighting-controls button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .prr-lighting-options, .prr-lighting-controls.is-open .prr-lighting-options { transform: none; transition: opacity var(--duration-instant) ease, visibility 0s var(--duration-instant); }
+  .prr-lighting-controls.is-open .prr-lighting-options { transition-delay: 0s; }
+  .prr-lighting-icon svg, .prr-lighting-icon svg.is-current, .prr-lighting-trigger:active { transform: none; }
+  .prr-lighting-icon svg { transition: opacity var(--duration-instant) ease; }
+  .prr-lighting-chevron { transition: none; }
+}
 .prr-scene3d > .prr-world-controls {
   position: absolute; z-index: 5; top: 12px; right: 134px; display: flex; align-items: center;
   padding: 4px; gap: 2px; background: rgba(15, 23, 42, 0.92); color: #e2e8f0;

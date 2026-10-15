@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpRight, Minus, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpRight, Minus, ChevronUp } from 'lucide-react';
 import { formatVol } from '../../utils/dataProcessor.js';
 
 export default function RankingLeaderboard({ items, rankView, selectedHubId, onSelect, onViewTable, d8Label }) {
@@ -13,11 +13,12 @@ export default function RankingLeaderboard({ items, rankView, selectedHubId, onS
         <button type="button" onClick={onViewTable} title="Mở bảng số liệu đầy đủ" aria-label="Mở bảng số liệu đầy đủ"><ArrowUpRight size={17} aria-hidden="true" /></button>
         <button type="button" aria-label={collapsed ? 'Mở danh sách ranking' : 'Thu gọn danh sách ranking'} title={collapsed ? 'Mở danh sách ranking' : 'Thu gọn danh sách ranking'}
           aria-expanded={!collapsed} aria-controls={listId} onClick={() => setCollapsed(value => !value)}>
-          {collapsed ? <ChevronDown size={17} aria-hidden="true" /> : <ChevronUp size={17} aria-hidden="true" />}
+          <ChevronUp className="prr-leaderboard-chevron" size={17} aria-hidden="true" />
         </button>
       </div>
     </div>
-    <div id={listId} hidden={collapsed}>
+    <div id={listId} className="prr-leaderboard-reveal" inert={collapsed} aria-hidden={collapsed}>
+    <div className="prr-leaderboard-content">
     <div className="prr-leaderboard-columns" aria-hidden="true"><span>Hạng</span><span>Hub / Số mẫu</span><span>KPI</span><span title={d8Label ? `So với ${d8Label} trong nhóm đối soát chung` : 'Chưa có ngày so sánh'}>Δ hạng</span></div>
     <ol className="prr-3d-leaderboard" aria-label={rankView === 'worst' ? 'Năm Hub cuối bảng' : 'Năm Hub dẫn đầu'}>
       {items.map((item, index) => {
@@ -39,6 +40,7 @@ export default function RankingLeaderboard({ items, rankView, selectedHubId, onS
         </li>;
       })}
     </ol>
+    </div>
     </div>
   </div>;
 }

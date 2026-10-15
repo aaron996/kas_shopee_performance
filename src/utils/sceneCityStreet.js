@@ -1,3 +1,5 @@
+import { cityLightProfile, cityRoomLight } from './sceneCityLighting.js';
+
 export const CITY_SHOP_SPACING = 6;
 // One 4x4 texture atlas supplies every shop, rather than a texture per building.
 export const CITY_SHOP_SIGNS = [
@@ -38,19 +40,33 @@ export function appendCityStreet(add, span, roadWidth, city, compact) {
       const floors = near || lakeside ? 1 : city === 'hcm' ? 2 + index % 3 : 2;
       const height = near ? index % 3 === 0 ? 1.65 : 2.05 : floors === 1 ? 2.4 : 2.7 + (floors - 1) * 1.75;
       const depth = near ? 2.9 : 4.2, front = depth / 2;
+      const shopIndex = city === 'hanoi' ? [13, 1, 12, 4, 0, 5, 8, 7][index % 8] : [14, 3, 2, 7, 6, 11, 9, 1][index % 8];
+      const light = cityLightProfile(index, side, shopIndex);
       const wall = `cityFacade:${index % 5}`;
       part('box', 0, height / 2 + 0.2, 0, [5.78, height, depth], wall, { storefront: true, floors });
       part('box', 0, 1.15, front + 0.04, [4.7, 1.9, 0.1], 'door');
       // Recessed shop windows and doors have a physical frame and sill.
-      part('shopGlass', -0.8, 1.15, front + 0.11, [2.7, 1.75, 0.06], 'cityGlass');
+      part('shopGlass', -0.8, 1.15, front + 0.11, [2.7, 1.75, 0.06], 'cityGlass', { nightLight: { color: light.color, strength: light.strength * 0.65 } });
       part('box', 0.8, 1.15, front + 0.16, [0.07, 1.8, 0.08], 'cityTrim');
       if (!compact) part('box', 0.05, 1.15, front + 0.16, [0.06, 1.8, 0.08], 'cityTrim');
-      const shopIndex = city === 'hanoi' ? [13, 1, 12, 4, 0, 5, 8, 7][index % 8] : [14, 3, 2, 7, 6, 11, 9, 1][index % 8];
       const brand = index % 12 === 2;
-      part(brand ? 'sign' : 'shopSign', 0, near ? height - 0.22 : 2.28, front + 0.2, [5.2, near ? 0.46 : 0.65, 1], 'white', { shopIndex });
+      part(brand ? 'sign' : 'shopSign', 0, near ? height - 0.22 : 2.28, front + 0.2, [5.2, near ? 0.46 : 0.65, 1], 'white', { shopIndex, nightLight: { color: light.color, strength: light.strength * 0.45 } });
       const awningY = near ? height - 0.43 : 1.94;
       part('awning', 0, awningY, front + 0.74, [5.65, 0.1, 1.22], index % 3 ? 'cityAwning' : 'cityRed');
       part('box', 0, awningY - 0.17, front + 1.31, [5.65, 0.24, 0.08], index % 3 ? 'cityAwning' : 'cityRed');
+      if (light.open) {
+        const count = light.type === 'tube' || light.type === 'neon' ? 1 : light.fixtures;
+        for (let bulb = 0; bulb < count; bulb++) {
+          const x = count === 1 ? 0 : -1.6 + bulb * 3.2 / (count - 1);
+          const pendant = light.type === 'pendant' || light.type === 'lantern';
+          if (pendant) part('pole', x, awningY - 0.16, front + 0.7, [0.035, 0.25, 0.035], 'rail');
+          part('cityLamp', x, awningY - (pendant ? 0.34 : 0.12), front + 0.72,
+            pendant ? [0.24, light.type === 'lantern' ? 0.32 : 0.14, 0.24] : [light.type === 'neon' ? 4.4 : 2.6, 0.065, 0.09],
+            'white', { nightLight: { color: light.color, strength: light.strength * 2.4 }, fixtureType: light.type });
+        }
+        part('shopGlow', -0.5, 0.215, front + 0.75, [4.5, 1, 2.5], 'white',
+          { nightLight: { color: light.color, strength: light.strength * 0.22 } });
+      }
       // Foreground roofs do not rise above 2.4m or obscure the ranking lanes.
       if (near) {
         part('box', 0, height + 0.27, 0, [6, 0.14, 3.2], index % 3 ? 'cityAwning' : 'cityRoof');
@@ -66,7 +82,8 @@ export function appendCityStreet(add, span, roadWidth, city, compact) {
       }
       for (let floor = 1; floor < floors; floor++) {
         const y = 1.8 + floor * 1.75;
-        part('shopGlass', 0, y, front + 0.06, [3.9, 1.3, 0.08], 'cityGlass');
+        for (const pane of [-1, 1]) part('shopGlass', pane, y, front + 0.06, [1.9, 1.3, 0.08], 'cityGlass',
+          { nightLight: cityRoomLight(light, floor, pane) });
         part('box', 0, y, front + 0.14, [0.09, 1.35, 0.09], 'cityTrim');
         for (const x of [-2.15, 2.15]) part('box', x, y, front + 0.12, [0.48, 1.4, 0.1], city === 'hanoi' ? 'cityAwning' : 'cream');
         part('box', 0, y - 0.76, front + 0.23, [5.4, 0.16, 0.52], 'cityTrim');

@@ -56,12 +56,19 @@ function paletteColor(theme, token) {
   return theme[key] || theme.props[key];
 }
 
-function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, shopTexture, castShadow, backdrop = false, world, journeyRef }) {
+function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, texture, shopTexture, castShadow, backdrop = false, world, journeyRef, lightingRef }) {
   const meshRef = useRef(null);
   const atlas = useWorldAtlas();
   const invalidate = useThree(state => state.invalidate);
   const resources = useMemo(() => {
     const geometry = worldGeometry(shape, backdrop);
+    if (['shopGlass', 'shopSign', 'sign', 'cityLamp', 'shopGlow'].includes(shape)) {
+      const tint = new THREE.Color();
+      geometry.setAttribute('instanceNightLight', new THREE.InstancedBufferAttribute(Float32Array.from(parts.flatMap(part => {
+        tint.set(part.nightLight?.color || '#ffffff');
+        return [tint.r, tint.g, tint.b, part.nightLight?.strength || 0];
+      })), 4));
+    }
     if (shape === 'shopSign') geometry.setAttribute('instanceShop', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part => part.shopIndex)), 1));
     geometry.setAttribute('instanceSurface', new THREE.InstancedBufferAttribute(Float32Array.from(parts.map(part =>
       part.color === 'wood' || part.color === 'treeTrunk' ? 1
@@ -73,6 +80,7 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
     return { geometry, matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), localRotation: new THREE.Quaternion(), axis: new THREE.Vector3(0, 1, 0), pitchAxis: new THREE.Vector3(0, 0, 1), pitch: new THREE.Quaternion(), roll: new THREE.Quaternion(), color: new THREE.Color() };
   }, [shape, backdrop, parts]);
   const visibility = useMemo(() => ({ value: 1 }), []);
+  const nightPower = useMemo(() => ({ value: 0 }), []);
   useEffect(() => () => resources.geometry.dispose(), [resources]);
   const write = (colors = false) => {
     const mesh = meshRef.current;
@@ -108,10 +116,11 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
   useFrame(() => {
     const journey = journeyRef.current;
     visibility.value = world === journey.to ? journey.mix : world === journey.from ? 1 - journey.mix : 0;
+    nightPower.value = lightingRef?.current?.streetlightPower || 0;
     // Opaque scenery writes depth in its resting state. During the brief blend
     // both environments share the frame without invisible depth occluders.
     meshRef.current.visible = visibility.value > 0.001;
-    meshRef.current.material.depthWrite = shape !== 'shopGlass' && visibility.value >= 0.999;
+    meshRef.current.material.depthWrite = !['shopGlass', 'shopGlow'].includes(shape) && visibility.value >= 0.999;
     if (clockRef.current.step) write();
   });
   const glass = ['glass', 'shopGlass', 'bitexco'].includes(shape);
@@ -119,12 +128,12 @@ function SceneryBatch({ shape, parts, fleet, roadLength, theme, clockRef, textur
   return <instancedMesh name={`prr-${backdrop ? 'backdrop' : 'scenery'}-${shape}`} ref={meshRef} args={[resources.geometry, undefined, parts.length]} frustumCulled={false} raycast={() => {}}
     castShadow={castShadow && !backdrop && ['cone', 'round', 'box', 'pole', 'glass', 'bitexco', 'cityRoof', 'arch', 'awning', 'leaf', 'rock'].includes(shape)} receiveShadow={!backdrop && shape !== 'hill'}>
     <Material color="#ffffff" map={shape === 'shopSign' ? shopTexture : shape === 'sign' ? texture : null} transparent
-      emissive={shape === 'shopSign' ? '#ffffff' : '#000000'} emissiveMap={shape === 'shopSign' ? shopTexture : null} emissiveIntensity={shape === 'shopSign' ? 0.12 : 0}
+      emissive="#000000" emissiveMap={shape === 'shopSign' ? shopTexture : null} emissiveIntensity={0}
       roughness={glass ? 0.075 : shape === 'water' ? 0.14 : 0.86} metalness={0}
       {...(glass ? { ior: 1.5, clearcoat: 1, clearcoatRoughness: 0.06, specularIntensity: 1, envMapIntensity: 1.45 } : {})}
-      opacity={shape === 'shopGlass' ? 0.82 : 1} depthWrite={shape !== 'shopGlass'}
+      opacity={shape === 'shopGlass' ? 0.82 : 1} depthWrite={!['shopGlass', 'shopGlow'].includes(shape)}
       side={shape === 'leaf' || shape === 'water' ? THREE.DoubleSide : THREE.FrontSide}
-      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas)} customProgramCacheKey={() => `world-surface-v4-${shape}`} />
+      onBeforeCompile={shader => patchWorldMaterial(shader, visibility, shape, atlas, nightPower)} customProgramCacheKey={() => `world-surface-v5-${shape}`} />
   </instancedMesh>;
 }
 
@@ -148,7 +157,7 @@ export default function Roadside({ roadLength, roadWidth, theme, clockRef, castS
   return <group name="prr-logistics-roadside">
     <Backdrop roadLength={roadLength} roadWidth={roadWidth} theme={theme} clockRef={clockRef} world={world} compact={compact} journeyRef={journeyRef} />
     <SceneryTravel fleet={fleet} span={layout.span} roadLength={roadLength} clockRef={clockRef} />
-    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} shopTexture={shopTexture} castShadow={castShadow} world={world} journeyRef={journeyRef} />)}
+    {Object.entries(layout.batches).map(([shape, parts]) => <SceneryBatch key={`${shape}-${parts.length}`} shape={shape} parts={parts} fleet={fleet} roadLength={roadLength} theme={theme} clockRef={clockRef} texture={texture} shopTexture={shopTexture} castShadow={castShadow} world={world} journeyRef={journeyRef} lightingRef={lightingRef} />)}
     <RoadsideLights lamps={layout.streetlights} fleet={fleet} roadLength={roadLength} clockRef={clockRef} lightingRef={lightingRef} sourceCount={streetlightCount} />
   </group>;
 }

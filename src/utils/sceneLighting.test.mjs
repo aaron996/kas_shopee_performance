@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, INITIAL_DAY_PHASE, phaseForLightingMode, sampleSceneLighting, sceneFogRange, wrapDayPhase } from './sceneLighting.js';
+import { advanceDayPhase, DAY_CYCLE_SECONDS, formatSceneTime, INITIAL_DAY_PHASE, phaseForLightingMode, sampleSceneLighting, sceneFogRange, stepLightingPhase, wrapDayPhase } from './sceneLighting.js';
+
+test('manual lighting eases across midnight and retargets without jumping; reduced motion is immediate', () => {
+  const phase = stepLightingPhase(23 / 24, 1 / 24, 1 / 60);
+  assert.ok(phase > 23 / 24 && phase < 1);
+  const reversed = stepLightingPhase(phase, 20 / 24, 1 / 60);
+  assert.ok(reversed < phase && reversed > 20 / 24);
+  for (const fps of [20, 60]) {
+    let value = 0.5;
+    for (let frame = 0; frame < fps; frame++) value = stepLightingPhase(value, 0, 1 / fps);
+    assert.equal(value, 0);
+  }
+  assert.equal(stepLightingPhase(0.5, 0, 0), 0.5);
+  assert.equal(stepLightingPhase(0.5, 0, 0.01, true), 0);
+});
 
 test('solar time loops after six active minutes at different frame rates', () => {
   for (const fps of [20, 30, 60]) {
