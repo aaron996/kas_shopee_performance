@@ -525,7 +525,7 @@ export default function RoadScene3D({
       // A filter/lane change can interrupt replay. Start at the visible pose,
       // rather than teleporting back to the previous committed rank slots.
       const previous = snapshotSceneFleet(scene.motion?.items || scene.trucks, positionsRef.current);
-      const transition = computeTransitionFrames(previous, trucks, { maxCount: 50 });
+      const transition = computeTransitionFrames(previous, trucks, { maxCount: 50, view: rankView });
       if (transition.changed) {
         motion = { key: ++motionCounter.current, kind: 'transition', durationMs: TRANSITION_DURATION_MS, items: transition.items };
       } else motion = null;

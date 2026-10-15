@@ -111,7 +111,7 @@ test('10/20/50 changes preserve world poses at the first frame and retain depart
     });
     for (const [from, to] of [[50, 20], [20, 10], [10, 50], [20, 50], [50, 10], [10, 20]]) {
       const previous = layout(from), next = layout(to);
-      const { items, changed } = computeTransitionFrames(previous, next, { maxCount: 50 });
+      const { items, changed } = computeTransitionFrames(previous, next, { maxCount: 50, view });
       assert.ok(changed);
       assert.equal(items.length, Math.max(from, to));
       for (const truck of previous) {
@@ -122,7 +122,7 @@ test('10/20/50 changes preserve world poses at the first frame and retain depart
         assert.equal(start.alpha, 1);
         if (!next.some(item => item.id === truck.id)) {
           assert.equal(frame.phase, 'exit');
-          assert.ok(frame.to.x < frame.from.x);
+          assert.ok(view === 'worst' ? frame.to.x > frame.from.x : frame.to.x < frame.from.x);
           assert.equal(sampleDrivePose(frame, 1).alpha, 0);
         }
       }
@@ -138,11 +138,37 @@ test('10/20/50 changes preserve world poses at the first frame and retain depart
         const pose = sampleDrivePose(item, 0.4);
         return [item.id, { roadX: pose.x, roadZ: pose.z, alpha: pose.alpha }];
       }));
-      const reversed = computeTransitionFrames(snapshotSceneFleet(items, poses), previous, { maxCount: 50 });
+      const reversed = computeTransitionFrames(snapshotSceneFleet(items, poses), previous, { maxCount: 50, view });
       for (const item of reversed.items) {
         const pose = poses.get(item.id);
         assert.deepEqual(sampleDrivePose(item, 0), { x: pose.roadX, z: pose.roadZ, alpha: pose.alpha });
       }
+    }
+  }
+});
+
+test('Worst count changes use the free end of the pack, opposite to Best', () => {
+  const rows = Array.from({ length: 50 }, (_, i) => ({ id: `hub-${i}` }));
+  for (const view of ['best', 'worst']) {
+    const layout = n => computeSceneLayout(rows.slice(0, n), {
+      roadLength: getRoadLength(n), offsetX: viewOffset(view, getRoadLength(n)),
+      view, leaderGap: 6, laneWidth: 2.6
+    });
+    const sign = view === 'worst' ? 1 : -1; // free end: ahead for Worst, behind for Best
+    const shrink = computeTransitionFrames(layout(50), layout(20), { maxCount: 50, view }).items;
+    const edge = Math.max(...layout(50).map(t => t.x * sign)) ;
+    for (const item of shrink.filter(i => i.ghost)) {
+      assert.equal(item.phase, 'exit');
+      assert.ok((item.to.x - item.from.x) * sign > 0, `${view} leavers exit through the free end`);
+      assert.ok(item.to.x * sign > edge, `${view} leavers finish beyond the pack`);
+    }
+    assert.equal(shrink.filter(i => i.ghost).length, 30);
+    const grow = computeTransitionFrames(layout(20), layout(50), { maxCount: 50, view }).items;
+    const entering = grow.filter(i => i.phase === 'enter');
+    assert.equal(entering.length, 30);
+    for (const item of entering) {
+      assert.ok(item.from.x * sign > Math.max(...layout(20).map(t => t.x * sign)), `${view} entrants start beyond the pack's free end`);
+      assert.ok((item.to.x - item.from.x) * sign < 0, `${view} entrants travel into the pack`);
     }
   }
 });

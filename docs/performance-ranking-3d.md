@@ -1230,3 +1230,17 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
   Đã kiểm tra đổi liên tiếp, pause/tiếp tục và giảm chuyển động. Fixture ở
   `extracted/count-transition-preview/` (ignored), dùng 50 Hub giả;
   chưa xác nhận production đăng nhập hoặc FPS thiết bị thật.
+
+## Đổi số Hub 10/20/50 ở Worst đi ngược Best (15/10/2026)
+
+- Audit: `computeTransitionFrames` luôn cho xe ra/vào ở phía sau đoàn (Best đúng).
+  Ở Worst, #1 (tệ nhất) neo ở cuối đoàn còn các Hub "đỡ tệ hơn" nằm phía trước, nên
+  50 → 20 khiến 30 xe phía trước chạy lùi xuyên qua 20 xe còn lại, và 20 → 50 khiến
+  30 xe nhập đoàn từ phía sau rồi phóng vượt lên.
+- Thêm tuỳ chọn `view`. Worst dùng đầu đoàn làm điểm ra/vào: xe bị loại chạy tiến lên
+  phía trước rồi mờ dần; xe mới xuất hiện phía trước và tụt về đúng vị trí. Điểm neo
+  (#1) không đổi chỗ. Hàng đợi và thứ tự cắt khi quá `maxCount` cũng đảo theo.
+- Kiểm tra: test mới trong `rankingViewTour.test.mjs` (hướng ra/vào theo từng view,
+  10/20/50 mọi cặp); 401 test `src/utils` đạt, riêng 4 file cần `three` không chạy được
+  vì môi trường thiếu gói này (test camera/ranking tour chạy riêng với `three` giả,
+  chỉ phần dùng camera thật bị bỏ). Chưa xem trực quan trong trình duyệt.

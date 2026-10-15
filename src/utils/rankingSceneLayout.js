@@ -223,11 +223,17 @@ export function computeReplayFrames(sceneTrucks, opts = {}) {
  * @param nextTrucks Array<{id, x, z, meetsTarget}> new trucks
  * @returns {{changed: boolean, items: Array<{id, x, z, meetsTarget, ghost: boolean, from, to, alphaFrom, alphaTo, dir}>}}
  */
-export function computeTransitionFrames(prevTrucks, nextTrucks, { maxCount = Infinity } = {}) {
+export function computeTransitionFrames(prevTrucks, nextTrucks, { maxCount = Infinity, view = 'best' } = {}) {
   const prev = new Map((prevTrucks || []).map((t) => [t.id, t]));
   const next = Array.isArray(nextTrucks) ? nextTrucks : [];
   const nextIds = new Set(next.map((t) => t.id));
-  const rearX = Math.min(...next.map(t => t.x), ...[...prev.values()].filter(t => !t.ghost).map(t => t.to?.x ?? t.x), 0) - 6;
+  // The cohort tail (Best: ranks past the cut, Worst: Hubs less bad than the cut)
+  // lives at the free end of the pack, so entries and exits use that end:
+  // Best at the rear, Worst ahead of the pack. Worst's anchored end (#1) never moves.
+  const ahead = view === 'worst';
+  const standing = [...next.map(t => t.x), ...[...prev.values()].filter(t => !t.ghost).map(t => t.to?.x ?? t.x)];
+  const edgeX = ahead ? Math.max(...standing, 0) + 6 : Math.min(...standing, 0) - 6;
+  const away = ahead ? 1 : -1; // direction a queue extends beyond the edge
   const incomingByLane = new Map();
   const outgoingByLane = new Map();
   let changed = false;
@@ -239,14 +245,14 @@ export function computeTransitionFrames(prevTrucks, nextTrucks, { maxCount = Inf
       changed = true;
       const queued = incomingByLane.get(to.z) || 0;
       incomingByLane.set(to.z, queued + 1);
-      return { ...t, ghost: false, phase: 'enter', from: { x: rearX - queued * MIN_TRUCK_GAP, z: to.z }, to, alphaFrom: 0, alphaTo: 1, dir: 1 };
+      return { ...t, ghost: false, phase: 'enter', from: { x: edgeX + away * queued * MIN_TRUCK_GAP, z: to.z }, to, alphaFrom: 0, alphaTo: 1, dir: -away };
     }
     const alphaFrom = before.alpha ?? 1;
     if (before.x !== t.x || before.z !== t.z || alphaFrom !== 1) changed = true;
     return { ...t, ghost: false, phase: alphaFrom < 1 ? 'enter' : 'move', from: { x: before.x, z: before.z }, to, alphaFrom, alphaTo: 1, dir: Math.sign(to.x - before.x) };
   });
 
-  for (const before of [...prev.values()].sort((a, b) => b.x - a.x)) {
+  for (const before of [...prev.values()].sort((a, b) => (a.x - b.x) * away)) {
     if (items.length >= maxCount) break;
     if (nextIds.has(before.id)) continue;
     changed = true;
@@ -256,8 +262,8 @@ export function computeTransitionFrames(prevTrucks, nextTrucks, { maxCount = Inf
     // another six units backwards on each rapid KPI change.
     const queued = outgoingByLane.get(before.z) || 0;
     outgoingByLane.set(before.z, queued + 1);
-    const to = { x: before.ghost && before.to ? before.to.x : rearX - queued * MIN_TRUCK_GAP, z: before.z };
-    items.push({ ...before, ghost: true, phase: 'exit', from, to, alphaFrom: before.alpha ?? 1, alphaTo: 0, dir: -1 });
+    const to = { x: before.ghost && before.to ? before.to.x : edgeX + away * queued * MIN_TRUCK_GAP, z: before.z };
+    items.push({ ...before, ghost: true, phase: 'exit', from, to, alphaFrom: before.alpha ?? 1, alphaTo: 0, dir: away });
   }
   return { changed, items };
 }
