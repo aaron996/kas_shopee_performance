@@ -37,7 +37,7 @@ import {
   DriveClock
 } from './roadScene3dParts.jsx';
 
-// Loaded via React.lazy so three stays out of the 2D path.
+// Loaded via React.lazy to keep three out of the initial dashboard bundle.
 const STAGGER_LANE_COUNT = 4;
 const LANE_WIDTH = 2.6; // breathing room for the taller GHN truck model
 const LEADER_GAP = 6; // two truck lengths; visual rank emphasis, not a KPI distance
@@ -56,7 +56,7 @@ const QUALITY_STRIKES = 2; // slow motions in a row before dropping to the low t
 const QUALITY_MIN_FRAMES = 12;
 const FLIGHT_SPEED = 6; // exponential smoothing rate of the camera flight
 
-// Auto-play the replay once per page load (not on every 2D/3D switch).
+// Auto-play the replay once per page load (not on every scene remount).
 let autoReplayDone = false;
 
 const FALLBACK_COLORS = { good: '#0f6e56', bad: '#a13b2a', isDark: false };
