@@ -94,22 +94,22 @@ for (const view of ['best', 'worst']) for (const count of [10, 20, 50]) {
   test(`${view} ${count}: separate lanes, safe overtaking, delivery stops, ambient arrivals and exact recovery`, () => {
     const slots = fleet(count, view), original = structuredClone(slots);
     const state = createIdleTraffic(slots), random = seeded(42);
-    const leader = state.cars.get(state.leaderId);
+
     const phases = new Set();
     let parkedFrames = 0, extraVisible = false;
     for (let frame = 0; frame < 21600; frame++) {
       const previous = new Map([...state.cars.values()].map(car => [car.id, { x: car.x, phase: car.phase }]));
       advanceIdleTraffic(state, 1 / 60, true, random);
-      assert.equal(leader.x, leader.home);
+
       const visible = [...state.cars.values()].filter(car => car.alpha > 0.1);
       for (const car of visible) {
         assert.ok(Number.isFinite(car.x) && Number.isFinite(car.z));
-        assert.ok(car.x <= leader.x);
+        assert.ok(car.x <= state.front + 1);
         assert.ok(car.alpha <= 1 && car.alpha >= 0);
         phases.add(car.phase);
         if (car.ambient) extraVisible = true;
         if (state.mode === 'traffic') {
-          if (previous.get(car.id).phase !== 'absent') assert.ok(car.x - previous.get(car.id).x + CRUISE_SPEED / 60 >= -1e-7, `${car.id} never reverses: dx=${car.x - previous.get(car.id).x}, frame=${frame}, near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
+          if (previous.get(car.id).phase !== 'absent' && car.direction !== -1 && car.phase !== 'turning') assert.ok(car.x - previous.get(car.id).x + CRUISE_SPEED / 60 >= -1e-7, `${car.id} never reverses: dx=${car.x - previous.get(car.id).x}, frame=${frame}, near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
           if (car.kind === 'rider') assert.ok(car.z > 0, 'motorcycles stay in their own road band');
           if (car.kind === 'truck') assert.ok(car.z < 0, 'trucks stay in their own road band');
           if (previous.get(car.id).phase === 'unloading' && car.phase === 'unloading') {
@@ -128,6 +128,9 @@ for (const view of ['best', 'worst']) for (const count of [10, 20, 50]) {
     assert.ok(state.stats.merges > 0);
     assert.ok(state.stats.arrivals > 0 && extraVisible);
     assert.ok(state.stats.departures > 0);
+    assert.ok(state.stats.frontExits > 0, 'vehicles drive out through the front instead of piling up');
+    assert.ok(state.stats.turns > 0, 'some motorcycles complete a real U-turn');
+    assert.ok(phases.has('reverse'), 'turned motorcycles travel towards the rear');
     assert.ok(phases.has('passing') && phases.has('unloading') && phases.has('merging'));
     assert.deepEqual(slots, original, 'rank destinations never mutate');
     const frozen = structuredClone(state);
@@ -139,6 +142,8 @@ for (const view of ['best', 'worst']) for (const count of [10, 20, 50]) {
     for (const car of state.cars.values()) {
       if (car.ambient) assert.equal(car.alpha, 0);
       else { assert.equal(car.x, car.home); assert.equal(car.z, car.homeZ); assert.equal(car.alpha, 1); }
+      assert.equal(car.yaw, 0);
+      assert.equal(car.direction, 1);
     }
   });
 }
@@ -181,5 +186,55 @@ test('different random seeds preserve physical clearance during lane changes and
   }
 });
 
+test('a U-turn follows an arc, rotates the rider, then travels backwards and restores its ranking pose', () => {
+  const state = createIdleTraffic(fleet(10)), random = seeded(19);
+  state.mode = 'traffic'; state.active = true;
+  for (const car of state.cars.values()) { car.phase = 'absent'; car.alpha = 0; }
+  const bike = state.cars.get('hub-0');
+  Object.assign(bike, { phase: 'turning', alpha: 1, x: 0, z: state.lanes.rider, turnX: 0,
+    turnZ: state.lanes.rider, turnRadius: (state.lanes.reverse-state.lanes.rider)/2,
+    turnStart: 0, turnDuration: Math.PI*(state.lanes.reverse-state.lanes.rider)/2 });
+  state.nextArrival = Infinity;
+  for (let i=0;i<100;i++) advanceIdleTraffic(state,1/60,true,random);
+  assert.ok(bike.yaw < 0 && bike.yaw > -Math.PI);
+  const angle = -bike.yaw;
+  assert.ok(Math.abs(bike.x + state.time*CRUISE_SPEED - bike.turnRadius*Math.sin(angle)) < 1e-8);
+  for(let i=0;i<150;i++) advanceIdleTraffic(state,1/60,true,random);
+  assert.equal(bike.direction,-1); assert.equal(bike.yaw,-Math.PI);
+  assert.equal(bike.z,state.lanes.reverse);
+  const x=bike.x;
+  advanceIdleTraffic(state,1/60,true,random);
+  assert.ok(bike.x < x-CRUISE_SPEED/60, 'travels against road direction, not just slower than traffic');
+  for(let i=0;i<1000;i++) advanceIdleTraffic(state,1/60,false,random);
+  assert.equal(bike.x,bike.home); assert.equal(bike.z,bike.homeZ);
+  assert.equal(bike.yaw,0); assert.equal(bike.direction,1);
+});
 
+test('the original Top 1 has no speed or position privilege and can exit ahead', () => {
+  const state = createIdleTraffic(fleet(10)), random = seeded(55);
+  for (let i = 0; i < 400; i++) advanceIdleTraffic(state, 1 / 60, true, random);
+  for (const car of state.cars.values()) { car.phase = 'absent'; car.alpha = 0; car.respawnAt = Infinity; }
+  const top = state.cars.get('hub-0');
+  Object.assign(top, { phase: 'cruise', alpha: 1, preferredSpeed: 4, speed: 4, nextAction: Infinity });
+  state.nextArrival = Infinity;
+  for (let i = 0; i < 1800 && top.phase !== 'absent'; i++) advanceIdleTraffic(state, 1 / 60, true, random);
+  assert.ok(top.x > state.front);
+  assert.equal(top.phase, 'absent');
+  assert.equal(top.alpha, 0);
+  assert.ok(state.stats.frontExits > 0);
+});
 
+test('traffic remains separated at low frame rates and the maximum playback step', () => {
+  for (const dt of [0.1, 0.2]) {
+    const state = createIdleTraffic(fleet(20)), random = seeded(72);
+    for (let frame = 0; frame < 180 / dt; frame++) {
+      advanceIdleTraffic(state, dt, true, random);
+      if (state.mode !== 'traffic') continue;
+      const visible = [...state.cars.values()].filter(car => car.alpha > 0.1);
+      for (let a = 0; a < visible.length; a++) for (let b = a + 1; b < visible.length; b++) {
+        assert.equal(collision(visible[a], visible[b]), false, `dt=${dt}, frame=${frame}, ${visible[a].id}/${visible[b].id}`);
+      }
+    }
+    assert.ok(state.stats.frontExits > 0 && state.stats.turns > 0);
+  }
+});
