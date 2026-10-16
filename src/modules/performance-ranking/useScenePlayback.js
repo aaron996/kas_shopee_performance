@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 
-// One playback preference survives 2D/3D switches. Visibility pauses time rather
+// The ranking scene shares one playback preference. Visibility pauses time rather
 // than skipping ahead when the reader returns from the table or another tab.
 export default function useScenePlayback(hostRef) {
   const [paused, setPaused] = useState(false);

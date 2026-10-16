@@ -29,51 +29,26 @@ import {
   SCENE_TOP_LIMITS
 } from '../../utils/performanceRanking.js';
 import { formatPct, formatVol, formatDiff, formatDateLabel } from '../../utils/dataProcessor.js';
-import {
-  SCENE_MODE_STORAGE_KEY,
-  detectWebGL2,
-  isSceneMode,
-  pickDefaultSceneMode
-} from '../../utils/sceneCapability.js';
+import { detectWebGL2 } from '../../utils/sceneCapability.js';
 import './rankingStage.css';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
-import RoadScene2D from './RoadScene2D.jsx';
 import SceneErrorBoundary from './SceneErrorBoundary.jsx';
 import useScenePlayback from './useScenePlayback.js';
 import { MIN_DRIVE_RATE, MAX_DRIVE_RATE } from '../../utils/sceneDriving.js';
-import { useToast } from '../../components/ui/Toast.jsx';
 import useRankingPresentation from './useRankingPresentation.js';
 import RankingMusicWidget from './RankingMusicWidget.jsx';
 import RankingHudToggle from './RankingHudToggle.jsx';
 import { formatRankingHubName } from '../../utils/rankingHubName.js';
 import { rankingEmptyState, rankingKpiNavigationIndex } from '../../utils/rankingUi.js';
 
-// three.js lives in this lazy chunk; the 2D path never loads it.
+// Keep three.js out of the initial dashboard bundle.
 const RoadScene3D = lazy(() => import('./RoadScene3D.jsx'));
 
 const WEBGL2_UNAVAILABLE_HINT = 'Trình duyệt hoặc thiết bị này không hỗ trợ WebGL2 nên không xem được dạng 3D.';
 const EMPTY_ROWS = [];
 
-function readSavedSceneMode() {
-  try {
-    const v = window.localStorage.getItem(SCENE_MODE_STORAGE_KEY);
-    return isSceneMode(v) ? v : null;
-  } catch {
-    return null;
-  }
-}
-
 function detectWebGL2InBrowser() {
   return detectWebGL2(() => document.createElement('canvas'));
-}
-
-function getInitialSceneMode(webgl2) {
-  return pickDefaultSceneMode({
-    webgl2,
-    cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined,
-    reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    saved: readSavedSceneMode()
-  });
 }
 
 
@@ -97,8 +72,7 @@ export default function PerformanceRoadRanking({
   const [minSample, setMinSample] = useState(DEFAULT_MIN_SAMPLE);
   const minSampleId = useId();
   const [webgl2] = useState(detectWebGL2InBrowser);
-  const [sceneMode, setSceneMode] = useState(() => getInitialSceneMode(webgl2));
-  const showToast = useToast();
+  const [sceneFailed, setSceneFailed] = useState(false);
 
   const tableRowRefs = useRef(new Map());
   const insightPanelRef = useRef(null);
@@ -189,17 +163,9 @@ export default function PerformanceRoadRanking({
     setSelectedHubId(prev => (prev === hubId ? null : hubId));
   }, [sceneOnly]);
 
-  // 3D failed (chunk did not load, render error, WebGL context lost): show 2D for this visit only.
-  // The saved preference is left alone so a transient failure does not pin the user to 2D.
-  const handleSceneFailure = useCallback((reason) => {
-    setSceneMode('2d');
-    showToast(
-      reason === 'context-lost'
-        ? 'Trình duyệt đã dừng đồ hoạ 3D nên cảnh được chuyển sang 2D. Chọn 3D để thử lại.'
-        : 'Không hiển thị được cảnh 3D nên cảnh được chuyển sang 2D. Tải lại trang để thử 3D lần nữa.',
-      { tone: 'warning', duration: 7000 }
-    );
-  }, [showToast]);
+  const handleSceneFailure = useCallback(() => {
+    setSceneFailed(true);
+  }, []);
 
   const handleViewTable = useCallback(() => {
     if (sceneOnly) return;
@@ -219,16 +185,6 @@ export default function PerformanceRoadRanking({
     panel.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
     panel.focus({ preventScroll: true });
   }, []);
-
-  const handleSceneModeChange = useCallback((mode) => {
-    if (mode === '3d' && !webgl2) return;
-    setSceneMode(mode);
-    try {
-      window.localStorage.setItem(SCENE_MODE_STORAGE_KEY, mode);
-    } catch {
-      // storage blocked: choice just isn't remembered
-    }
-  }, [webgl2]);
 
   // Keyboard navigation: Escape key deselects
   useEffect(() => {
@@ -339,7 +295,7 @@ export default function PerformanceRoadRanking({
               {playback.paused || playback.reducedMotion ? <Play size={15} /> : <Pause size={15} />}
             </button>
             <details ref={settingsRef} className="prr-stage-settings">
-              <summary className="prr-icon-action" aria-label="Tùy chỉnh" title="Tốc độ và chế độ 2D/3D"><SlidersHorizontal size={16} aria-hidden="true" /></summary>
+              <summary className="prr-icon-action" aria-label="Tùy chỉnh" title="Tốc độ và bộ lọc BXH"><SlidersHorizontal size={16} aria-hidden="true" /></summary>
               <div className="prr-stage-settings-panel">
                 <div className="prr-mobile-controls">
                   <span>Số Hub trên đường</span>
@@ -356,11 +312,6 @@ export default function PerformanceRoadRanking({
                     aria-label="Tốc độ chạy xe" aria-valuetext={`${playback.rate.toLocaleString('vi-VN')} lần`}
                     disabled={playback.reducedMotion || sceneTrucks.length === 0} onChange={event => playback.setRate(Number(event.target.value))} />
                   <output htmlFor={speedControlId}>{speedLabel}</output>
-                </div>
-                <div className="prr-segmented-limit" role="group" aria-label="Chế độ hiển thị cảnh">
-                  <button type="button" className={`seg-btn ${sceneMode === '2d' ? 'active' : ''}`} aria-pressed={sceneMode === '2d'} onClick={() => handleSceneModeChange('2d')}>2D</button>
-                  <button type="button" className={`seg-btn ${sceneMode === '3d' ? 'active' : ''}`} aria-pressed={sceneMode === '3d'} disabled={!webgl2}
-                    title={webgl2 ? undefined : WEBGL2_UNAVAILABLE_HINT} onClick={() => handleSceneModeChange('3d')}>3D</button>
                 </div>
                 <div className="prr-speed-control">
                   <label htmlFor={minSampleId}>Loại Hub dưới</label>
@@ -404,9 +355,16 @@ export default function PerformanceRoadRanking({
             {emptyState.action === 'sample' && <button type="button" className="prr-replay-btn" onClick={() => setMinSample(0)}>Xem Hub có dữ liệu · Ngưỡng 0 đơn</button>}
             {emptyState.action === 'table' && <button type="button" className="prr-replay-btn" onClick={handleViewTable}>Mở bảng đối soát</button>}
           </div>
+        ) : !webgl2 || sceneFailed ? (
+          <div className="prr-scene-empty" role="status">
+            <AlertTriangle size={42} className="text-muted mb-2" aria-hidden="true" />
+            <h3>{webgl2 ? 'Không hiển thị được cảnh 3D' : 'Thiết bị không hỗ trợ cảnh 3D'}</h3>
+            <p className="text-muted">{webgl2 ? 'Cảnh 3D đã dừng hoặc không tải được. Bạn vẫn có thể xem số liệu trong bảng xếp hạng.' : WEBGL2_UNAVAILABLE_HINT}</p>
+            <button type="button" className="prr-replay-btn" onClick={handleViewTable}>Mở bảng xếp hạng</button>
+            {sceneFailed && <button type="button" className="prr-replay-btn" onClick={() => window.location.reload()}>Tải lại trang để thử 3D</button>}
+          </div>
         ) : (
-          sceneMode === '3d' ? (
-            <SceneErrorBoundary onError={() => handleSceneFailure('load')}>
+          <SceneErrorBoundary onError={handleSceneFailure}>
             <Suspense fallback={<LoadingScreen variant="block" />}>
               <RoadScene3D
                 rankView={rankView}
@@ -416,7 +374,7 @@ export default function PerformanceRoadRanking({
                 onSelectHub={handleSelectHub}
                 onOpenDetail={handleOpenDetail}
                 onViewTable={handleViewTable}
-                onContextLost={() => handleSceneFailure('context-lost')}
+                onContextLost={handleSceneFailure}
                 metricLabel={metricLabel}
                 target={target}
                 d1Label={d1Formatted}
@@ -426,18 +384,7 @@ export default function PerformanceRoadRanking({
                 reducedMotion={playback.reducedMotion}
               />
             </Suspense>
-            </SceneErrorBoundary>
-          ) : (
-            <RoadScene2D
-              rankView={rankView}
-              sceneTrucks={sceneTrucks}
-              selectedHubId={selectedHubId}
-              onSelectHub={handleSelectHub}
-              running={playback.running}
-              reducedMotion={playback.reducedMotion}
-              playbackRate={playback.rate}
-            />
-          )
+          </SceneErrorBoundary>
         )}
       </section>
       </div>

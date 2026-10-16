@@ -1,7 +1,7 @@
 // Pure layout for the ranking road scene. No React / three imports so
 // `node --test` can run it.
 //
-// Mirrors the 2D scene (RoadScene2D): trucks arrive sorted by rank, slot `idx`
+// Trucks arrive sorted by rank; slot `idx`
 // gets progress = 1 - idx/(n-1) (0.5 when n === 1), mapped into the
 // [START_FRACTION, END_FRACTION] stretch of the road, and lanes alternate
 // 0,2,1,3 so neighbours never share a lane. An optional 'region' lane mode

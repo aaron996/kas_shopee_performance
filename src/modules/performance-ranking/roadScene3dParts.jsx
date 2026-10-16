@@ -657,7 +657,7 @@ export function TruckFleet({
   );
 }
 
-/** Flat highlight ring on the asphalt under the selected truck (same cyan as the 2D spotlight). */
+/** Flat cyan highlight ring on the asphalt under the selected truck. */
 export function SelectionRing({ id, x, z, positionsRef, roadLength }) {
   const ref = useRef(null);
   const initial = sampleRoadFrame(x, z, roadLength);

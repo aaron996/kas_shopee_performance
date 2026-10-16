@@ -37,7 +37,7 @@ body:has(.prr-scene-only:not(.prr-landscape)) .app-layout-ranking .app-header {
   background: transparent; border-color: transparent; box-shadow: none; pointer-events: none;
 }
 .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
-.performance-road-ranking-tab :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag) {
+.performance-road-ranking-tab :is(.prr-hud-control, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels) {
   transition: opacity 200ms var(--ease-snappy), visibility 0s;
 }
 .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
@@ -45,7 +45,7 @@ body:has(.prr-scene-only:not(.prr-landscape)) .app-layout-ranking .app-header {
   transition: opacity 200ms var(--ease-snappy), transform 200ms var(--ease-snappy), visibility 0s;
 }
 body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
-.performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag) {
+.performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels) {
   opacity: 0; visibility: hidden; pointer-events: none;
   transition: opacity 160ms var(--ease-snappy), transform 160ms var(--ease-snappy), visibility 0s 160ms;
 }
@@ -69,8 +69,8 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
   .app-layout-ranking .app-header,
   .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
   body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
-  .performance-road-ranking-tab :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag),
-  .performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-scene-date, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels, .prr-truck-tag),
+  .performance-road-ranking-tab :is(.prr-hud-control, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels),
+  .performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-lighting-controls, .prr-world-controls, .prr-tour-status, .prr-3d-controls, .prr-3d-hud, .prr-3d-labels),
   .prr-hud-toggle svg { transition: none; }
   body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-cluster, .prr-hud-control),
   .performance-road-ranking-tab.prr-scene-only :is(.prr-hud-control, .prr-lighting-controls, .prr-world-controls, .prr-3d-controls, .prr-3d-hud),
@@ -92,12 +92,6 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
   padding: 10px 20px;
 }
 .prr-scene-only > .prr-stage-header { background: transparent; border-color: transparent; pointer-events: none; }
-.prr-scene-date {
-  display: none; position: absolute; top: calc(var(--prr-controls-height) + 12px); left: 20px; z-index: 5;
-  padding: 6px 10px; border-radius: var(--radius-control); background: rgb(19 30 46 / 94%);
-  color: #dce5ef; font-size: 11px; pointer-events: none; font-variant-numeric: tabular-nums;
-}
-.prr-scene-date.is-2d { display: block; }
 #ranking-header-controls .prr-table-action, .prr-stage-header .prr-table-action { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; min-height: 44px; }
 .prr-stage-heading, .prr-stage-toolbar, .prr-stage-actions { display: flex; align-items: center; gap: 12px; }
 .prr-stage-heading { flex: none; }
@@ -129,42 +123,6 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
   width: 36px; height: 36px; padding: 0; min-height: 36px;
 }
 .prr-count-selector .seg-btn { width: 32px; padding: 4px 0; font-variant-numeric: tabular-nums; }
-.prr-vehicle { display: block; position: relative; width: 78px; height: 46px; }
-.prr-skidding { animation: prr-w1-skid 2.4s linear infinite paused; }
-.prr-skidding .truck-svg { position: relative; overflow: visible; }
-.prr-skidding .prr-wheel { animation-duration: 0.6s; }
-.prr-tyre-smoke i {
-  position: absolute; left: 6px; bottom: 5px; width: 24px; height: 18px;
-  background: radial-gradient(ellipse, rgba(225, 229, 233, 0.65) 0%, rgba(225, 229, 233, 0.28) 35%, rgba(225, 229, 233, 0) 72%);
-  pointer-events: none;
-  animation: prr-tyre-smoke 1.1s linear infinite paused;
-}
-.prr-driving .prr-skidding, .prr-driving .prr-tyre-smoke i { animation-play-state: running; }
-@keyframes prr-w1-skid {
-  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
-  25% { transform: translate(-3px, 9px) rotate(11deg); }
-  50% { transform: translate(2px, 1px) rotate(8deg); }
-  75% { transform: translate(-2px, -9px) rotate(-12deg); }
-}
-@keyframes prr-tyre-smoke {
-  0% { transform: translate(0, 0) scale(0.9); opacity: 0; }
-  16% { opacity: 0.4; }
-  100% { transform: translate(-28px, -9px) scale(1.9); opacity: 0; }
-}
-.prr-worst .prr-truck-body {
-  transform-box: fill-box; transform-origin: center;
-  animation-name: prr-worst-ride; animation-duration: 1.2s;
-  animation-timing-function: linear; animation-delay: var(--ride-phase, 0s);
-}
-@keyframes prr-worst-ride {
-  0%, 100% { transform: translateY(0) rotate(calc(var(--ride-roll) * -0.25)); }
-  18% { transform: translateY(calc(var(--ride-bounce) * -0.3)) rotate(var(--ride-roll)); }
-  28% { transform: translateY(calc(var(--ride-bounce) * -1)) rotate(calc(var(--ride-roll) * 0.4)); }
-  36% { transform: translateY(0) rotate(calc(var(--ride-roll) * -0.6)); }
-  58% { transform: translateY(calc(var(--ride-bounce) * -0.5)) rotate(calc(var(--ride-roll) * -1)); }
-  74% { transform: translateY(0) rotate(calc(var(--ride-roll) * 0.7)); }
-  86% { transform: translateY(calc(var(--ride-bounce) * -0.7)) rotate(calc(var(--ride-roll) * -0.2)); }
-}
 .prr-tour-status {
   position: absolute; top: 20px; left: 20px; pointer-events: none;
   padding: 8px 12px; border-radius: var(--radius-pill);
@@ -172,9 +130,6 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 }
 @media (prefers-reduced-motion: reduce) {
   .prr-rank-switch-indicator { transition: none; }
-  .prr-worst .prr-truck-body { animation: none; }
-  .prr-skidding { animation: none; }
-  .prr-tyre-smoke { display: none; }
 }
 #ranking-header-controls .prr-kpi-tab, .prr-stage-header .prr-kpi-tab { flex-direction: row; gap: 8px; min-height: 32px; padding: 5px 12px; }
 .prr-stage-header .prr-replay-btn, .prr-stage-header .seg-btn { min-height: 32px; }
@@ -194,14 +149,10 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 .performance-road-ranking-tab .prr-scene-card {
   flex: 1; min-height: 0; display: flex; padding: 0; border: 0; border-radius: 0; box-shadow: none;
 }
-.performance-road-ranking-tab .prr-scene3d,
-.performance-road-ranking-tab .prr-road-viewport { flex: 1; height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.performance-road-ranking-tab .prr-scene3d { flex: 1; height: 100%; min-height: 0; border: 0; border-radius: 0; }
 .performance-road-ranking-tab .prr-scene-empty { flex: 1; align-self: center; padding: calc(var(--prr-controls-height) + 20px) 20px 20px; }
 .performance-road-ranking-tab .prr-scene-empty p { max-width: 54ch; }
 .performance-road-ranking-tab .prr-scene-empty .prr-replay-btn { margin-top: 12px; min-height: 44px; }
-.performance-road-ranking-tab .prr-road-canvas { height: 100%; min-height: 320px; }
-.performance-road-ranking-tab .prr-lanes-container { top: 50%; transform: translateY(-50%); }
-.performance-road-ranking-tab .prr-truck-node { margin-top: max(0px, calc((100dvh - var(--app-header-height, 52px) - 420px) / 2)); }
 .performance-road-ranking-tab .prr-3d-controls { bottom: 20px; right: 20px; gap: 8px; }
 .performance-road-ranking-tab .prr-3d-controls .prr-camera-icon,
 .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn {
@@ -333,12 +284,9 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
   .performance-road-ranking-tab .prr-3d-controls .seg-btn,
   .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 44px; font-size: 11px; padding: 4px 8px; }
   .performance-road-ranking-tab .prr-3d-hud { display: none; }
-  .performance-road-ranking-tab .prr-scene-date { display: block; left: 12px; }
   .performance-road-ranking-tab .prr-table-card { inset: 112px 8px 8px; padding: 12px; }
   .performance-road-ranking-tab .prr-table-card { inset: calc(var(--prr-controls-height) + 8px) 8px 8px; }
   .performance-road-ranking-tab .prr-insight-panel { right: 8px; bottom: 68px; width: calc(100% - 16px); max-height: calc(100% - 190px); }
-  .performance-road-ranking-tab .prr-truck-node { margin-top: 56px; }
-  .performance-road-ranking-tab .prr-lanes-container { top: 56px; transform: none; }
 }
 /* A rotated phone keeps its controls in a single compact rail. */
 .prr-landscape { --prr-controls-height: 64px; }
