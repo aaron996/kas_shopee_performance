@@ -154,6 +154,11 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 .performance-road-ranking-tab .prr-scene-empty p { max-width: 54ch; }
 .performance-road-ranking-tab .prr-scene-empty .prr-replay-btn { margin-top: 12px; min-height: 44px; }
 .performance-road-ranking-tab .prr-3d-controls { bottom: 20px; right: 20px; gap: 8px; }
+.performance-road-ranking-tab .prr-idle-toggle[aria-pressed="true"] {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #e2e8f0;
+}
 .performance-road-ranking-tab .prr-3d-controls .prr-camera-icon,
 .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn {
   display: inline-flex; align-items: center; justify-content: center;

@@ -10,6 +10,7 @@ import { createTruckShadowGeometry, createRiderShadowGeometry } from '../../util
 import { sceneVehicleKind, vehiclePickBounds, RIDER_ROOF } from '../../utils/sceneVehicles.js';
 import { patchTruckSurface, patchTruckWheelSurface } from '../../utils/sceneTruckSurface.js';
 import { worldTheme } from '../../utils/sceneWorld.js';
+import { createIdleTraffic, advanceIdleTraffic } from '../../utils/sceneIdle.js';
 import { atlasTile, patchRoadAtlas, useWorldAtlas } from './worldSurfaces.js';
 import {
   REPLAY_ARROWS_MS,
@@ -102,12 +103,16 @@ function createTyreSmokeTexture() {
 }
 
 /** Shared simulation time. Runs before geometry/labels and freezes offscreen. */
-export function DriveClock({ clockRef, items, motion, running, playbackRate }) {
+export function DriveClock({ clockRef, items, motion, running, playbackRate, trafficRef, idleActive, roadWidth, reducedMotion }) {
   const invalidate = useThree(s => s.invalidate);
   const motionKey = motion?.key;
   useLayoutEffect(() => {
     clockRef.current.motionElapsed = 0;
   }, [clockRef, motionKey]);
+  useLayoutEffect(() => {
+    if (trafficRef) trafficRef.current = createIdleTraffic(items, roadWidth);
+    invalidate();
+  }, [trafficRef, items, motionKey, roadWidth, reducedMotion, invalidate]);
   useLayoutEffect(() => {
     clockRef.current.step = 0;
     invalidate();
@@ -120,6 +125,17 @@ export function DriveClock({ clockRef, items, motion, running, playbackRate }) {
   useFrame((_, delta) => {
     const active = running && !document.hidden;
     advanceDriveClock(clockRef.current, items, motion, delta, active, playbackRate);
+    const traffic = trafficRef?.current;
+    if (traffic && !motion && !reducedMotion && clockRef.current.step) {
+      const clock = clockRef.current;
+      advanceIdleTraffic(traffic, clock.step, idleActive, Math.random, clock.speed);
+      // Keep tyres moving forwards during formation/recovery; this happens
+      // before scenery, vehicle matrices and labels read the shared clock.
+      if (traffic.backwards > 0) {
+        clock.distance += traffic.backwards;
+        clock.speed += traffic.backwards / clock.step;
+      }
+    }
     // Request the next display frame, rather than an interval that quantizes
     // cruise to 30 Hz. Paused/hidden scenes stop requesting frames altogether.
     if (active) invalidate();
@@ -199,7 +215,7 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
     const { origin, direction } = raycaster.ray;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.ghost || alpha[i] < PICK_MIN_ALPHA) continue;
+      if (item.ghost || item.ambient || alpha[i] < PICK_MIN_ALPHA) continue;
       const [halfX, halfZ, height] = vehiclePickBounds(item);
       const anchor = positionsRef.current.get(item.id);
       if (!anchor) continue;
@@ -242,7 +258,7 @@ function createPickRaycast(itemsRef, alphaRef, positionsRef) {
  *   avgFps is the fps implied by the median frame time)
  */
 export function TruckFleet({
-  items, motion, goodColor, badColor, castShadow, hoveredId, selectedId,
+  items, motion, trafficRef, goodColor, badColor, castShadow, hoveredId, selectedId,
   onHover, onSelect, positionsRef, replayRef, onMotionEnd, onMotionStats, clockRef, reducedMotion, roadLength, roadWidth, paintMode
 }) {
   const gl = useThree((s) => s.gl);
@@ -377,39 +393,45 @@ export function TruckFleet({
     }
     const rideDelta = Math.max(0, clock.time - lastRideTime.current);
     lastRideTime.current = clock.time;
+    const traffic = trafficRef?.current;
+    const trafficMoving = !animated && !reducedMotion && traffic && traffic.mode !== 'rank';
 
     const { xs, ys, zs, travelXs, pitches, headings, bobs, ridePitches, rolls } = buffers;
     for (let i = 0; i < count; i++) {
       const item = items[i];
       let x = item.x;
       let z = item.z;
-      let a = 1;
+      let a = item.ambient ? 0 : 1;
       if (animated && item.from) {
         const f = sampleDrivePose(item, t);
         x = f.x; z = f.z; a = f.alpha;
       }
+      const trafficCar = trafficMoving ? traffic.cars.get(item.id) : null;
+      if (trafficCar) { x = trafficCar.x; z = trafficCar.z; a = trafficCar.alpha; }
       const lift = item.ghost ? 0 : liftFor(item.id, hoveredId, selectedId);
       const frame = sampleRoadFrame(x, z, roadLength);
       const surge = animated && !reducedMotion ? leaderSurge(item, t) : 0;
-      const ride = sampleWorstRide(clock.time, rides[i].strength, rides[i].phase, reducedMotion);
-      const steering = animated ? driveHeading(item, t, motion.durationMs, clock.speed) : 0;
+      const ride = sampleWorstRide(clock.time, rides[i].strength, rides[i].phase, reducedMotion || trafficMoving);
+      const steering = animated ? driveHeading(item, t, motion.durationMs, clock.speed) : trafficCar?.steering ?? 0;
       let suspension = suspensionRef.current.get(item.id);
       if (!suspension) { suspension = createTruckSuspension(); suspension.speed = clock.speed; suspension.roadX = x; suspensionRef.current.set(item.id, suspension); }
       const truckSpeed = rideDelta > 0 ? Math.max(0, clock.speed + (x - suspension.roadX) / rideDelta) : suspension.speed;
       advanceTruckSuspension(suspension, truckSpeed, steering, rideDelta, reducedMotion || item.ghost);
       suspension.roadX = x;
-      const skid = sampleWorstSkid(clock.time, item.ghost ? null : item.worstOrder, rides[i].phase, reducedMotion);
-      const skidding = !item.ghost && item.worstOrder === 1 && !reducedMotion;
+      const skid = sampleWorstSkid(clock.time, item.ghost ? null : item.worstOrder, rides[i].phase, reducedMotion || trafficMoving);
+      const skidding = !trafficMoving && !item.ghost && item.worstOrder === 1 && !reducedMotion;
       const visualRoadZ = skidding ? skidRoadZ(z, skid.lateral, roadWidth) : z;
       const visualFrame = sampleRoadFrame(x, visualRoadZ, roadLength);
       xs[i] = visualFrame.x; ys[i] = visualFrame.y + lift; zs[i] = visualFrame.z; travelXs[i] = x + skid.spinExtra; pitches[i] = visualFrame.pitch + surge * 0.045;
       headings[i] = visualFrame.heading + ride.yaw + skid.yaw + steering;
-      bobs[i] = reducedMotion || item.ghost || count > SHADOW_MAX_TRUCKS ? 0 : ride.bounce + Math.sin(clock.time * 8 + i * 2.399) * 0.012;
+      bobs[i] = reducedMotion || item.ghost || trafficCar?.speed === 0 || count > SHADOW_MAX_TRUCKS ? 0 : ride.bounce + Math.sin(clock.time * 8 + i * 2.399) * 0.012;
       ridePitches[i] = ride.pitch + suspension.pitch; rolls[i] = ride.roll + suspension.roll;
       alphaArray[i] = a;
       positions.set(item.id, {
         x: frame.x, z: frame.z, lift: frame.y + lift, heading: frame.heading, pitch: frame.pitch,
         roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost), ride, skid,
+        ambient: Boolean(item.ambient), vehicleKind: vehicleKinds[i], trafficPhase: trafficCar?.phase,
+        speed: trafficCar?.speed, unloadProgress: trafficCar?.unloadProgress ?? 0,
         visual: { x: visualFrame.x, z: visualFrame.z, lift: visualFrame.y + lift, heading: headings[i], pitch: visualFrame.pitch, roadZ: visualRoadZ },
         body: { x: xs[i], y: ys[i] + bobs[i], z: zs[i], heading: headings[i], pitch: pitches[i] + ridePitches[i], roll: rolls[i] }
       });
@@ -420,7 +442,7 @@ export function TruckFleet({
       if (!mesh) return;
       // A large fleet keeps suspension at rest: only the four wheel meshes
       // need matrix uploads during cruise, rather than all body meshes.
-      if (count > SHADOW_MAX_TRUCKS && !animated && !updateColors && !part.spin) return;
+      if (count > SHADOW_MAX_TRUCKS && !animated && !trafficMoving && !updateColors && !part.spin) return;
       _euler.set(...(part.rotation || [0, 0, 0]));
       _quat.setFromEuler(_euler);
       _partMatrix.compose(_pos.set(...part.position), _quat, _scale);
@@ -472,7 +494,7 @@ export function TruckFleet({
     const smoke = skidSmoke.current;
     const worst = items.findIndex(item => !item.ghost && item.worstOrder === 1);
     if (smoke) {
-      smoke.count = !reducedMotion && worst >= 0 && alphaArray[worst] > 0.3 ? SKID_SMOKE_PUFFS : 0;
+      smoke.count = !reducedMotion && !trafficMoving && worst >= 0 && alphaArray[worst] > 0.3 ? SKID_SMOKE_PUFFS : 0;
       if (smoke.count) {
         const anchor = positions.get(items[worst].id);
         for (let i = 0; i < SKID_SMOKE_PUFFS; i++) {
@@ -563,11 +585,11 @@ export function TruckFleet({
 
     if (import.meta.env.DEV) {
       const handle = (window.__ranking3d = window.__ranking3d || { glList: [] });
-      handle.fleet = { items, positions, motion, t };
+      handle.fleet = { items, positions, motion, t, idle: traffic?.active, returning: traffic?.returning, traffic };
     }
 
     // Initial/data/selection changes can also invalidate a paused shadow map.
-    if (animated || updateColors) gl.shadowMap.needsUpdate = true;
+    if (animated || trafficMoving || updateColors) gl.shadowMap.needsUpdate = true;
 
     return { t, active: animated && t < 1 };
   };
@@ -690,7 +712,7 @@ function curvedStrip(length, width, centreZ, height, roadLength, across = 1) {
 }
 
 /** Asphalt, shoulders and dashed lane markings (dashes merged into one InstancedMesh). */
-export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journeyRef }) {
+export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journeyRef, trafficRef }) {
   const roadWidth = laneCount * laneWidth + 0.6;
   const pavedLength = getRoadsideSpan(roadLength);
   const edgeZ = roadWidth / 2 + 0.25;
@@ -703,6 +725,8 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journe
     surfaces.ground.dispose(); surfaces.asphalt.dispose(); surfaces.shoulders.forEach(g => g.dispose());
   }, [surfaces]);
   const dashRef = useRef(null);
+  const dashScale = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+  const previousTrafficMode = useRef(null);
   const groundRef = useRef(null), shoulderRefs = useRef([]);
   const surfaceColors = useMemo(() => ({ from: new THREE.Color(), to: new THREE.Color() }), []);
   const atlas = useWorldAtlas();
@@ -730,9 +754,11 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journe
     const distance = clockRef.current.distance;
     const minX = -pavedLength / 2;
     const span = Math.floor(pavedLength / 4) * 4;
+    const trafficLanes = trafficRef?.current && ['forming', 'traffic'].includes(trafficRef.current.mode);
     dashes.forEach(([x, z], i) => {
       const f = sampleSceneryFrame(wrapRoadTravel(x, distance, minX, span), z, roadLength);
-      _matrix.compose(_pos.set(f.x, f.y + 0.012, f.z), roadQuaternion(f.heading, f.pitch), _scale);
+      dashScale.setScalar(trafficLanes && z !== 0 ? 0 : 1);
+      _matrix.compose(_pos.set(f.x, f.y + 0.012, f.z), roadQuaternion(f.heading, f.pitch), dashScale);
       mesh.setMatrixAt(i, _matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -745,7 +771,11 @@ export function Road({ roadLength, laneCount, laneWidth, theme, clockRef, journe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashes, asphaltUniforms, invalidate]);
   useFrame(() => {
-    if (clockRef.current.step) writeRoad();
+    const trafficMode = trafficRef?.current?.mode;
+    if (clockRef.current.step || previousTrafficMode.current !== trafficMode) {
+      writeRoad();
+      previousTrafficMode.current = trafficMode;
+    }
     const journey = journeyRef.current;
     const from = worldTheme(journey.from), to = worldTheme(journey.to);
     groundRef.current.color.copy(surfaceColors.from.set(from.ground).lerp(surfaceColors.to.set(to.ground), journey.mix)).lerp(surfaceColors.to.set('#ffffff'), 0.82);
