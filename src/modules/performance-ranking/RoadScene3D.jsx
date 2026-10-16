@@ -745,7 +745,7 @@ export default function RoadScene3D({
         <TrafficUnloading positionsRef={positionsRef} roadLength={roadLength} />
         <LeaderTrail items={fleetItems} positionsRef={positionsRef} clockRef={clockRef} roadLength={roadLength}
           journeyRef={journeyRef} compact={compact || lowQuality} reducedMotion={reducedMotion} motion={scene.motion} />
-        <TruckRoadLighting key={`lighting-${fleetItems.length}`} items={fleetItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
+        <TruckRoadLighting key={`lighting-${drawItems.length}`} items={drawItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
         {selectedTruck && !scene.tour && (
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
         )}

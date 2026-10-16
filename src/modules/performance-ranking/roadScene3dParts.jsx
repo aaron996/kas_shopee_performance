@@ -418,12 +418,15 @@ export function TruckFleet({
       const truckSpeed = rideDelta > 0 ? Math.max(0, clock.speed + (x - suspension.roadX) / rideDelta) : suspension.speed;
       advanceTruckSuspension(suspension, truckSpeed, steering, rideDelta, reducedMotion || item.ghost);
       suspension.roadX = x;
+      suspension.wheelTravel ??= clock.distance + x;
+      if (trafficCar) suspension.wheelTravel += (traffic.mode === 'traffic' ? trafficCar.speed ?? 0 : truckSpeed) * rideDelta;
+      else suspension.wheelTravel = clock.distance + x;
       const skid = sampleWorstSkid(clock.time, item.ghost ? null : item.worstOrder, rides[i].phase, reducedMotion || trafficMoving);
       const skidding = !trafficMoving && !item.ghost && item.worstOrder === 1 && !reducedMotion;
       const visualRoadZ = skidding ? skidRoadZ(z, skid.lateral, roadWidth) : z;
       const visualFrame = sampleRoadFrame(x, visualRoadZ, roadLength);
-      xs[i] = visualFrame.x; ys[i] = visualFrame.y + lift; zs[i] = visualFrame.z; travelXs[i] = x + skid.spinExtra; pitches[i] = visualFrame.pitch + surge * 0.045;
-      headings[i] = visualFrame.heading + ride.yaw + skid.yaw + steering;
+      xs[i] = visualFrame.x; ys[i] = visualFrame.y + lift; zs[i] = visualFrame.z; travelXs[i] = trafficCar ? suspension.wheelTravel : clock.distance + x + skid.spinExtra; pitches[i] = visualFrame.pitch * Math.cos(trafficCar?.yaw ?? 0) + surge * 0.045;
+      headings[i] = visualFrame.heading + (trafficCar?.yaw ?? 0) + ride.yaw + skid.yaw + steering;
       bobs[i] = reducedMotion || item.ghost || trafficCar?.speed === 0 || count > SHADOW_MAX_TRUCKS ? 0 : ride.bounce + Math.sin(clock.time * 8 + i * 2.399) * 0.012;
       ridePitches[i] = ride.pitch + suspension.pitch; rolls[i] = ride.roll + suspension.roll;
       alphaArray[i] = a;
@@ -432,6 +435,7 @@ export function TruckFleet({
         roadX: x, roadZ: z, alpha: a, ghost: Boolean(item.ghost), ride, skid,
         ambient: Boolean(item.ambient), vehicleKind: vehicleKinds[i], trafficPhase: trafficCar?.phase,
         speed: trafficCar?.speed, unloadProgress: trafficCar?.unloadProgress ?? 0,
+        direction: trafficCar?.direction ?? 1, yaw: trafficCar?.yaw ?? 0,
         visual: { x: visualFrame.x, z: visualFrame.z, lift: visualFrame.y + lift, heading: headings[i], pitch: visualFrame.pitch, roadZ: visualRoadZ },
         body: { x: xs[i], y: ys[i] + bobs[i], z: zs[i], heading: headings[i], pitch: pitches[i] + ridePitches[i], roll: rolls[i] }
       });
@@ -457,7 +461,7 @@ export function TruckFleet({
         if (!part.wheel) _quat.multiply(_rollQuat.setFromAxisAngle(_rollAxis, rolls[i]));
         _truckMatrix.compose(_pos.set(xs[i], ys[i] + (part.wheel ? 0 : bobs[i]), zs[i]), _quat, _scale);
         if (part.spin) {
-          _euler.set(0, 0, -(clock.distance + travelXs[i]) / (part.radius || WHEEL_RADIUS));
+          _euler.set(0, 0, -travelXs[i] / (part.radius || WHEEL_RADIUS));
           _quat.setFromEuler(_euler);
           _wheelMatrix.compose(_pos.set(...part.position), _quat, _scale);
           _matrix.copy(_truckMatrix).multiply(_wheelMatrix);

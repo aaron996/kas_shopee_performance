@@ -1265,14 +1265,28 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
 - Pool sáu xe giao thông bổ sung ra/vào theo lịch ngẫu nhiên và khoảng trống.
   Không có nhãn hạng, không chọn được để mở Hub; số xe trong khung hình có thể
   khác Top đang chọn. Hub ra ngoài khung hình vẫn giữ ID và đích xếp hạng gốc.
-- Xe đầu đoàn vật lý giữ nguyên vị trí dẫn đầu (Best: #1; Worst: đầu đoàn vật lý,
-  trong khi W1 vốn nằm cuối đoàn). Khi quay lại, xe phụ rời cảnh và các Hub về
-  đúng x/z gốc. Giãn đội hình/trở về bù quãng mặt đường trên đồng hồ dùng chung
-  để bánh xe không quay lùi. Đổi KPI/Top vẫn snapshot vị trí thật của các Hub.
+- Trong idle không có xe được giữ ở đầu đoàn. Xe nhanh được vượt cả Top 1 và
+  rời cảnh ở phía trước; xe dừng hoặc quay đầu có thể ra phía sau. Chỉ fade ở
+  hai đầu mô phỏng, không dùng tuổi thọ cố định để làm xe biến mất giữa đường.
+  Khoảng cách, vị trí nhập và thời điểm tái nhập khác nhau; xe máy có hai vị trí
+  ngang trong phần đường riêng để tránh dồn thành một hàng sau một xe dẫn đầu.
+- Một số xe máy giảm tốc, kiểm tra khoảng trống rồi quay theo nửa đường tròn,
+  xoay thân từ 0 tới 180 độ và chạy ngược về sau trong khoảng sát mép phần đường
+  xe máy. Bánh quay theo quãng đường xe đi theo hướng thân; đèn, hit-test và
+  shadow dùng cùng hướng xe, kể cả lúc quay đầu. Xe phụ cũng có đèn ban đêm.
+- Khi quay lại, xe phụ rời cảnh, các Hub về đúng x/z gốc và hướng ban đầu.
+  Giãn đội hình/trở về bù quãng mặt đường trên đồng hồ dùng chung để bánh xe
+  không quay lùi. Đổi KPI/Top vẫn snapshot vị trí thật của các Hub.
 - Pause/offscreen/tab ẩn đóng băng đồng hồ, không chạy bù thời gian bị ẩn. Giảm
   chuyển động bỏ idle và đưa xe về vị trí hạng; lựa chọn bật/tắt vẫn được giữ.
 - Kiểm tra mô phỏng dài: Top 10/20/50 Best/Worst, bốn seed bổ sung, clearance,
   vượt thật, dừng theo mặt đường, nhập làn, xe phụ ra/vào, pause và đích trở về.
-  Preview IAB dữ liệu mẫu đã xem snapshot dỡ hàng trước sửa cuối; lần kết nối
-  lại IAB sau sửa quy tắc xe fade-in bị URL policy từ chối. Chưa duyệt hình ảnh
-  sau sửa cuối; không coi snapshot mô phỏng là FPS thật hoặc production proof.
+  Thêm assertion có xe thoát phía trước, quay đầu hoàn tất, đi ngược theo hướng
+  thân, quỹ đạo vòng cung đúng và Top 1 được rời cảnh như xe khác.
+  Bản sửa bỏ neo Top 1: 701 test toàn repo đạt; test bổ sung bước thời gian
+  0,1/0,2 giây đạt. Lượt 20 xe, seed 42, sáu phút mô phỏng ghi nhận 33 lượt
+  thoát trước, 19 thoát sau, 5 quay đầu; sai lệch x/z/yaw khi về bằng 0.
+  Preview local dùng dữ liệu mẫu đã được mở lại trong tab IAB riêng và xác nhận
+  scene hiển thị, console không có lỗi JavaScript. Đã thêm trạng thái tải/lỗi
+  cho trang preview tạm. Chưa xác nhận trực quan mọi hành vi quay đầu ở runtime;
+  các kiểm tra quỹ đạo/clearance là mô phỏng thuần, không phải production/FPS proof.
