@@ -1244,3 +1244,35 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
   10/20/50 mọi cặp); 401 test `src/utils` đạt, riêng 4 file cần `three` không chạy được
   vì môi trường thiếu gói này (test camera/ranking tour chạy riêng với `three` giả,
   chỉ phần dùng camera thật bị bỏ). Chưa xem trực quan trong trình duyệt.
+
+## Idle giao thông ngẫu nhiên (16/10/2026)
+
+- Nút Shuffle cạnh replay/camera bật mặc định; Morphicon đổi sang mũi tên khi tắt.
+  Lưu lựa chọn trong `ghn-ranking-idle-enabled`.
+- Con trỏ rời trang hoặc cửa sổ mất focus từ 10 giây mới vào idle. Đứng yên chuột
+  trong trang không kích hoạt. Pointer quay lại, click, chạm, bàn phím hoặc lấy
+  lại focus đưa xe về đội hình xếp hạng hiện tại.
+- `sceneIdle.js` dùng mô hình hành vi có quy tắc. Random chọn thời điểm, vận tốc
+  mong muốn, lần ghé lề, thời gian dừng và xe giao thông bổ sung; quyết định vượt
+  hoặc nhập làn vẫn phải qua kiểm tra khoảng trống, kể cả xe đang fade-in/out.
+- Đội hình giãn dọc trước rồi nhập hai phần đường riêng: xe tải phía z âm, xe
+  máy phía z dương. Idle chỉ giữ vạch phân cách giữa hai phần đường; xe máy có
+  khoảng vượt trong phần đường của mình rồi trở về khi đã vượt và đủ khoảng.
+- Xe tải có các trạng thái chạy, giảm tốc ghé lề, đứng dỡ ba kiện hàng, chờ và
+  nhập làn. Tối đa hai điểm dỡ hàng đồng thời. `TrafficUnloading.jsx` vẽ người và
+  kiện hàng; tiến độ cùng đồng hồ với fleet, nên pause đóng băng cả người/hàng.
+  Xe đã dừng có vận tốc bằng 0 so với mặt đường, bánh cũng ngừng quay.
+- Pool sáu xe giao thông bổ sung ra/vào theo lịch ngẫu nhiên và khoảng trống.
+  Không có nhãn hạng, không chọn được để mở Hub; số xe trong khung hình có thể
+  khác Top đang chọn. Hub ra ngoài khung hình vẫn giữ ID và đích xếp hạng gốc.
+- Xe đầu đoàn vật lý giữ nguyên vị trí dẫn đầu (Best: #1; Worst: đầu đoàn vật lý,
+  trong khi W1 vốn nằm cuối đoàn). Khi quay lại, xe phụ rời cảnh và các Hub về
+  đúng x/z gốc. Giãn đội hình/trở về bù quãng mặt đường trên đồng hồ dùng chung
+  để bánh xe không quay lùi. Đổi KPI/Top vẫn snapshot vị trí thật của các Hub.
+- Pause/offscreen/tab ẩn đóng băng đồng hồ, không chạy bù thời gian bị ẩn. Giảm
+  chuyển động bỏ idle và đưa xe về vị trí hạng; lựa chọn bật/tắt vẫn được giữ.
+- Kiểm tra mô phỏng dài: Top 10/20/50 Best/Worst, bốn seed bổ sung, clearance,
+  vượt thật, dừng theo mặt đường, nhập làn, xe phụ ra/vào, pause và đích trở về.
+  Preview IAB dữ liệu mẫu đã xem snapshot dỡ hàng trước sửa cuối; lần kết nối
+  lại IAB sau sửa quy tắc xe fade-in bị URL policy từ chối. Chưa duyệt hình ảnh
+  sau sửa cuối; không coi snapshot mô phỏng là FPS thật hoặc production proof.

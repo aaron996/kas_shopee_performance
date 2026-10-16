@@ -1,0 +1,185 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { computeSceneLayout, getRoadLength } from './rankingSceneLayout.js';
+import { createIdleTraffic, createTrafficExtras, advanceIdleTraffic, observeSceneAbsence, SCENE_IDLE_DELAY_MS } from './sceneIdle.js';
+import { CRUISE_SPEED } from './sceneDriving.js';
+
+function seeded(seed) {
+  return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+}
+
+function presence() {
+  const win = new EventTarget();
+  const doc = new EventTarget();
+  doc.documentElement = new EventTarget();
+  doc.hidden = false;
+  doc.hasFocus = () => true;
+  let time = 0, sequence = 0;
+  const timers = new Map(), states = [];
+  const dispose = observeSceneAbsence({ win, doc, onChange: value => states.push(value), now: () => time,
+    schedule: (fn, ms) => { const id = ++sequence; timers.set(id, { fn, at: time + ms }); return id; },
+    cancel: id => timers.delete(id) });
+  return { win, doc, timers, states, dispose,
+    advance(ms) {
+      time += ms;
+      for (const [id, timer] of [...timers]) if (timer.at <= time) { timers.delete(id); timer.fn(); }
+    } };
+}
+const fire = (target, name) => target.dispatchEvent(new Event(name));
+
+test('absence starts at departure, requires 10 seconds, and cancels on return', () => {
+  const p = presence();
+  p.advance(60_000);
+  assert.deepEqual(p.states, []); // stationary pointer is not absence
+  fire(p.doc.documentElement, 'pointerleave');
+  p.advance(SCENE_IDLE_DELAY_MS - 1);
+  assert.deepEqual(p.states, []);
+  p.advance(1);
+  assert.deepEqual(p.states, [true]);
+  fire(p.doc, 'pointermove');
+  assert.equal(p.states.at(-1), false);
+  fire(p.win, 'blur');
+  p.advance(9000);
+  fire(p.win, 'focus');
+  p.advance(2000);
+  assert.equal(p.states.at(-1), false);
+  assert.equal(p.timers.size, 0);
+  p.dispose();
+});
+
+test('blur plus hidden shares the first departure deadline; listeners and timers clean up', () => {
+  const p = presence();
+  fire(p.win, 'blur');
+  p.advance(5000);
+  p.doc.hidden = true;
+  fire(p.doc, 'visibilitychange');
+  p.advance(5000);
+  assert.equal(p.states.at(-1), true);
+  p.doc.hidden = false;
+  fire(p.doc, 'pointerdown');
+  assert.equal(p.states.at(-1), false);
+  fire(p.win, 'blur');
+  p.dispose();
+  assert.equal(p.timers.size, 0);
+  const count = p.states.length;
+  fire(p.doc, 'pointermove');
+  p.advance(20_000);
+  assert.equal(p.states.length, count);
+});
+
+test('touch leaving the document does not start a departure', () => {
+  const p = presence();
+  const event = new Event('pointerleave');
+  event.pointerType = 'touch';
+  p.doc.documentElement.dispatchEvent(event);
+  p.advance(20_000);
+  assert.deepEqual(p.states, []);
+  p.dispose();
+});
+
+function fleet(count, view = 'best', kind = 'mixed') {
+  const hubs = Array.from({ length: count }, (_, i) => ({ id: `hub-${i}`, hubType: kind === 'bikes' || (kind === 'mixed' && i % 3 === 0) ? 'BC' : 'GXT' }));
+  const slots = computeSceneLayout(hubs, { roadLength: getRoadLength(count), laneWidth: 2.6, leaderGap: 6, view })
+    .map((slot, i) => ({ ...slot, item: hubs[i] }));
+  return [...slots, ...createTrafficExtras(slots)];
+}
+
+function collision(a, b) {
+  const length = (a.kind === 'truck' ? 1.55 : 1.12) + (b.kind === 'truck' ? 1.55 : 1.12);
+  const width = (a.kind === 'truck' ? 1 : 0.5) + (b.kind === 'truck' ? 1 : 0.5);
+  return Math.abs(a.x - b.x) < length && Math.abs(a.z - b.z) < width;
+}
+
+for (const view of ['best', 'worst']) for (const count of [10, 20, 50]) {
+  test(`${view} ${count}: separate lanes, safe overtaking, delivery stops, ambient arrivals and exact recovery`, () => {
+    const slots = fleet(count, view), original = structuredClone(slots);
+    const state = createIdleTraffic(slots), random = seeded(42);
+    const leader = state.cars.get(state.leaderId);
+    const phases = new Set();
+    let parkedFrames = 0, extraVisible = false;
+    for (let frame = 0; frame < 21600; frame++) {
+      const previous = new Map([...state.cars.values()].map(car => [car.id, { x: car.x, phase: car.phase }]));
+      advanceIdleTraffic(state, 1 / 60, true, random);
+      assert.equal(leader.x, leader.home);
+      const visible = [...state.cars.values()].filter(car => car.alpha > 0.1);
+      for (const car of visible) {
+        assert.ok(Number.isFinite(car.x) && Number.isFinite(car.z));
+        assert.ok(car.x <= leader.x);
+        assert.ok(car.alpha <= 1 && car.alpha >= 0);
+        phases.add(car.phase);
+        if (car.ambient) extraVisible = true;
+        if (state.mode === 'traffic') {
+          if (previous.get(car.id).phase !== 'absent') assert.ok(car.x - previous.get(car.id).x + CRUISE_SPEED / 60 >= -1e-7, `${car.id} never reverses: dx=${car.x - previous.get(car.id).x}, frame=${frame}, near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
+          if (car.kind === 'rider') assert.ok(car.z > 0, 'motorcycles stay in their own road band');
+          if (car.kind === 'truck') assert.ok(car.z < 0, 'trucks stay in their own road band');
+          if (previous.get(car.id).phase === 'unloading' && car.phase === 'unloading') {
+            assert.ok(Math.abs(car.x - previous.get(car.id).x + CRUISE_SPEED / 60) < 1e-7, `stopped truck ${car.id} fixed to road: dx=${car.x - previous.get(car.id).x} at ${frame}; near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
+            assert.equal(car.speed, 0);
+            parkedFrames++;
+          }
+        }
+      }
+      if (state.mode === 'traffic') for (let a = 0; a < visible.length; a++) for (let b = a + 1; b < visible.length; b++) {
+        assert.equal(collision(visible[a], visible[b]), false, `collision ${visible[a].id}/${visible[a].phase} with ${visible[b].id}/${visible[b].phase} at frame ${frame}`);
+      }
+    }
+    assert.ok(state.stats.overtakes > 0);
+    assert.ok(state.stats.unloads > 0 && parkedFrames > 0);
+    assert.ok(state.stats.merges > 0);
+    assert.ok(state.stats.arrivals > 0 && extraVisible);
+    assert.ok(state.stats.departures > 0);
+    assert.ok(phases.has('passing') && phases.has('unloading') && phases.has('merging'));
+    assert.deepEqual(slots, original, 'rank destinations never mutate');
+    const frozen = structuredClone(state);
+    advanceIdleTraffic(state, 0, true, random);
+    assert.deepEqual(state, frozen, 'pause freezes actions and parcel progress');
+    for (let frame = 0; frame < 1000; frame++) advanceIdleTraffic(state, 1 / 60, false, random);
+    assert.equal(state.mode, 'rank');
+    assert.equal(state.returning, false);
+    for (const car of state.cars.values()) {
+      if (car.ambient) assert.equal(car.alpha, 0);
+      else { assert.equal(car.x, car.home); assert.equal(car.z, car.homeZ); assert.equal(car.alpha, 1); }
+    }
+  });
+}
+
+test('entry spreads before merging lanes; interruptions start at the visible pose', () => {
+  const state = createIdleTraffic(fleet(50)), random = seeded(6);
+  for (let frame = 0; frame < 150; frame++) advanceIdleTraffic(state, 1 / 60, true, random);
+  for (const car of state.cars.values()) if (!car.ambient) assert.equal(car.z, car.homeZ);
+  for (let frame = 0; frame < 400; frame++) advanceIdleTraffic(state, 1 / 60, true, random);
+  for (let frame = 0; frame < 20; frame++) advanceIdleTraffic(state, 1 / 60, false, random);
+  const before = new Map([...state.cars.values()].map(car => [car.id, { x: car.x, z: car.z }]));
+  advanceIdleTraffic(state, 1 / 60, true, random);
+  for (const car of state.cars.values()) if (!car.ambient) {
+    assert.ok(Math.abs(car.x - before.get(car.id).x) < 0.01);
+    assert.equal(car.z, before.get(car.id).z);
+  }
+});
+
+test('empty, single-vehicle, all-bike and all-truck cohorts remain finite and recover', () => {
+  for (const items of [[], fleet(1), fleet(20, 'best', 'bikes'), fleet(20, 'best', 'trucks')]) {
+    const state = createIdleTraffic(items), random = seeded(91);
+    for (let i = 0; i < 3000; i++) advanceIdleTraffic(state, 0.1, true, random);
+    for (let i = 0; i < 150; i++) advanceIdleTraffic(state, 0.1, false, random);
+    for (const car of state.cars.values()) assert.ok(Number.isFinite(car.x) && Number.isFinite(car.z));
+    assert.equal(state.mode, 'rank');
+  }
+});
+
+test('different random seeds preserve physical clearance during lane changes and arrivals', () => {
+  for (const seed of [1, 7, 123, 90210]) {
+    const state = createIdleTraffic(fleet(20)), random = seeded(seed);
+    for (let i = 0; i < 9000; i++) {
+      advanceIdleTraffic(state, 1 / 60, true, random);
+      if (state.mode !== 'traffic') continue;
+      const visible = [...state.cars.values()].filter(car => car.alpha > 0.1);
+      for (let a = 0; a < visible.length; a++) for (let b = a + 1; b < visible.length; b++) {
+        assert.equal(collision(visible[a], visible[b]), false, `seed ${seed}, frame ${i}, ${visible[a].id}/${visible[b].id}`);
+      }
+    }
+  }
+});
+
+
+

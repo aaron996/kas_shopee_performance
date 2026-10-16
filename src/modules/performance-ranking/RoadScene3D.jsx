@@ -15,6 +15,11 @@ import {
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
 import { RotateCcw, Video, Scan, Focus, Pin, Route } from 'lucide-react';
+import { Shuffle, MoveRight } from 'lucide';
+import MorphIcon from '../../components/ui/MorphIcon.jsx';
+import useSceneIdle from './useSceneIdle.js';
+import { createTrafficExtras } from '../../utils/sceneIdle.js';
+import TrafficUnloading from './TrafficUnloading.jsx';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { WORLD_REGIONS, worldTheme, initialWorld, createWorldJourney } from '../../utils/sceneWorld.js';
 import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
@@ -426,6 +431,7 @@ export default function RoadScene3D({
   rankView = 'best', animateViewChange = true
 }) {
   const colors = useThemeColors();
+  const idle = useSceneIdle(reducedMotion);
   // UI theme changes label/status colours; the world follows its own solar time.
   const [world, setWorld] = useState(() => {
     try { return initialWorld(localStorage.getItem('ghn-ranking-world-pin')); }
@@ -443,6 +449,7 @@ export default function RoadScene3D({
     } catch { /* Storage can be disabled; the current scene remains usable. */ }
   }, [world, pinnedWorld]);
   const clockRef = useRef(createDriveClock());
+  const trafficRef = useRef(null);
   const [lightingMode, setLightingMode] = useState('auto');
   const phaseRef = useRef(INITIAL_DAY_PHASE);
   const lightingRef = useRef(null);
@@ -558,6 +565,7 @@ export default function RoadScene3D({
   const replayRef = useRef({ active: false, t: 0 });
   const replayLabels = useMemo(() => ({ from: `D-8 ${d8Label}`, to: `D-1 ${d1Label}` }), [d8Label, d1Label]);
   const fleetItems = scene.tour && !scene.tour.revealed ? scene.tour.items : scene.motion ? scene.motion.items : scene.trucks;
+  const drawItems = useMemo(() => [...fleetItems, ...createTrafficExtras(fleetItems)], [fleetItems]);
   const revealTour = useCallback(key => {
     setScene(current => current.tour?.key === key ? { ...current, trucks: current.desired, tour: { ...current.tour, revealed: true } } : current);
   }, []);
@@ -669,6 +677,8 @@ export default function RoadScene3D({
       data-rank-view={rankView}
       data-world={world}
       data-view-tour={scene.tour ? 'travelling' : 'idle'}
+      data-idle-enabled={idle.enabled}
+      data-idle-active={idle.active && !scene.motion && !scene.tour}
       role="group"
       tabIndex={0}
       aria-label={ariaLabel}
@@ -698,7 +708,8 @@ export default function RoadScene3D({
           }
         }}
       >
-        <DriveClock clockRef={clockRef} items={fleetItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate} />
+        <DriveClock clockRef={clockRef} items={drawItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate}
+          trafficRef={trafficRef} idleActive={idle.active && !scene.motion && !scene.tour} roadWidth={roadWidth} reducedMotion={reducedMotion} />
         <TruckEnvironment lightingRef={lightingRef} />
         <WorldEnvironment world={world} journeyRef={journeyRef} roadLength={roadLength} roadWidth={roadWidth} clockRef={clockRef}
           lightingRef={lightingRef} streetlightCount={streetlightCount} castShadow={shadowsOn} compact={compact || lowQuality} running={running}
@@ -707,12 +718,13 @@ export default function RoadScene3D({
         <SceneLighting mode={lightingMode} phaseRef={phaseRef} lightingRef={lightingRef} clockRef={clockRef} running={running} reducedMotion={reducedMotion}
           roadLength={roadLength} shadowsOn={shadowsOn} compact={compact} timeRef={timeRef} journeyRef={journeyRef} />
 
-        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} journeyRef={journeyRef} />
+        <Road roadLength={roadLength} laneCount={laneCount} laneWidth={LANE_WIDTH} theme={theme} clockRef={clockRef} journeyRef={journeyRef} trafficRef={trafficRef} />
         <TruckFleet
           // an InstancedMesh cannot be resized: remount when the number of drawn trucks changes
-          key={fleetItems.length}
-          items={fleetItems}
+          key={drawItems.length}
+          items={drawItems}
           motion={scene.motion}
+          trafficRef={trafficRef}
           goodColor={colors.good}
           badColor={colors.bad}
           castShadow={shadowsOn}
@@ -730,6 +742,7 @@ export default function RoadScene3D({
           roadWidth={roadWidth}
           paintMode={paintMode}
         />
+        <TrafficUnloading positionsRef={positionsRef} roadLength={roadLength} />
         <LeaderTrail items={fleetItems} positionsRef={positionsRef} clockRef={clockRef} roadLength={roadLength}
           journeyRef={journeyRef} compact={compact || lowQuality} reducedMotion={reducedMotion} motion={scene.motion} />
         <TruckRoadLighting key={`lighting-${fleetItems.length}`} items={fleetItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
@@ -758,6 +771,13 @@ export default function RoadScene3D({
       {scene.tour && <div className="prr-tour-status" role="status">{rankView === 'worst' ? 'Lùi về cuối đoàn · Worst' : 'Tiến về đầu đoàn · Best'}</div>}
 
       <div className="prr-3d-controls">
+        <button type="button" className="prr-replay-btn prr-idle-toggle"
+          aria-label="Mô phỏng giao thông khi rời trình duyệt" aria-pressed={idle.enabled}
+          disabled={reducedMotion}
+          title={reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : idle.enabled ? 'Idle đang bật · Rời trình duyệt 10 giây để mô phỏng giao thông' : 'Idle đang tắt · Bật mô phỏng giao thông khi rời trình duyệt'}
+          onClick={() => idle.setEnabled(value => !value)}>
+          <MorphIcon icon={idle.enabled ? Shuffle : MoveRight} size={16} />
+        </button>
         <button
           type="button"
           className="prr-replay-btn"
