@@ -71,6 +71,62 @@
   --leading-normal: 1.5;
   --leading-relaxed: 1.6;
 
+  /* Shared sizing and typography primitives. */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --size-control-compact: 32px;
+  --size-touch-target: 44px;
+  --stroke-thin: 1px;
+  --stroke-medium: 2px;
+  --stroke-selection: 3px;
+  --focus-offset: 3px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-heading: 1.4;
+  --tracking-metric: -.03em;
+  --tracking-summary: -.02em;
+
+  /* Overview roles: layout, metric scale and chart geometry. */
+  --overview-gap: var(--space-5);
+  --overview-gap-mobile: var(--space-4);
+  --overview-type-metric: clamp(24px, 2.2vw, 32px);
+  --overview-type-metric-mobile: 26px;
+  --overview-type-summary: 28px;
+  --overview-metric-columns: repeat(5, minmax(0, 1fr));
+  --overview-metric-columns-mobile: repeat(2, minmax(0, 1fr));
+  --overview-analysis-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  --overview-analysis-columns-compact: minmax(0, 1.4fr) minmax(280px, 1fr);
+  --overview-analysis-columns-stacked: minmax(0, 1fr);
+  --overview-hub-columns: repeat(2, minmax(0, 1fr));
+  --overview-chart-height: 228px;
+  --overview-chart-height-mobile: 208px;
+  --overview-chart-axis-width: 44;
+  --overview-chart-tick-gap: 32;
+  --overview-chart-tick-margin: 12;
+  --overview-chart-inset-top: 24;
+  --overview-chart-inset-right: 12;
+  --overview-chart-line-width: 2;
+  --overview-chart-dot-radius: 2.5;
+  --overview-chart-active-radius: 4;
+  --overview-chart-label-size: 12;
+  --overview-chart-dot-stroke: 0;
+  --overview-chart-target-dash: 4 4;
+  --overview-chart-cursor-dash: 3 3;
+  --overview-icon-size: 16px;
+  --overview-icon-small: 15px;
+  --overview-icon-delta: 14px;
+  --overview-icon-empty: 24px;
+
   /* Legacy aliases retained during incremental migration. */
   --ghn-orange: var(--color-orange-500);
   --ghn-orange-dark: var(--color-orange-700);
@@ -145,4 +201,9 @@ body.dark-mode {
   --card-border: var(--border-subtle);
   --input-bg: var(--surface-default);
   --input-text: var(--text-primary);
+}
+
+/* Resolve against the local theme, including dark-mode overrides. */
+.overview-workspace {
+  --overview-surface-selected: color-mix(in srgb, var(--action-primary) 8%, var(--surface-default));
 }

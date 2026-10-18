@@ -1,30 +1,68 @@
 import { useState } from 'react';
-import AnimatedIcon from '../../components/ui/AnimatedIcon';
+import { ArrowUpRight, CalendarDays, CheckCheck } from 'lucide-react';
 import IconButton from '../../components/ui/IconButton';
 import OverviewTrend from './OverviewTrend';
 import OverviewKpiCards from './OverviewKpiCards';
 import WeatherOverview from './WeatherOverview';
-import { formatVol, formatDateLabel } from '../../utils/dataProcessor';
+import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor';
+import './overview.css';
+
+const dateLabel = date => date ? formatDateLabel(date).replace('\n', ' ') : 'Chưa có dữ liệu';
+const percentage = value => formatPct(value).replace('.', ',');
 
 export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, dataNotice }) {
   const [metric, setMetric] = useState('p1st');
   const card = cards.find(item => item.id === metric) || cards[0];
-  const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1);
-  return <div className="operations-home">
-    <div className="workspace-heading"><div><h1>Tổng quan</h1><p>Hiệu suất và những Hub cần ưu tiên trong phạm vi đang chọn.</p></div><button className="nav-btn-sleek" onClick={() => onOpenOps()}><span>Chi tiết Vùng/Hub</span><AnimatedIcon name="ArrowRight" /></button></div>
-    {cards.length > 0 && <><OverviewKpiCards cards={cards} selectedMetric={metric} onSelect={setMetric} commonDate={commonDate} />
-    <div className="home-kpi-context"><span>{commonDate ? formatDateLabel(commonDate).replace('\n', ' ') : 'Chưa có dữ liệu'} · Δ tuần trước</span><IconButton icon="Info" label="Cách đọc KPI" detail="Δ là chênh lệch theo điểm phần trăm so với cùng thứ tuần trước. Hover từng KPI để xem kỳ so sánh cụ thể; — là chưa có kỳ so sánh." /></div></>}
-    {dataNotice}
+  const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1) || cards.find(item => item.historyDates.length)?.historyDates.at(-1);
+  const selectedDate = card?.historyDates.at(-1);
+  const hasData = card?.d1?.tot > 0 && Number.isFinite(card?.d1?.pct);
+  const selectedStatus = !hasData || card.target == null ? 'neutral' : card.d1.pct >= card.target ? 'good' : 'bad';
+
+  return <div className="operations-home overview-workspace">
     {import.meta.env.VITE_WEATHER_ENABLED !== 'false' && weatherProps && <WeatherOverview key={weatherProps.userKey} {...weatherProps} />}
-    {card && <div className="home-work-grid">
-      <section className="home-panel"><div className="home-panel-heading"><div><h2>Hub cần ưu tiên</h2><p>Tối đa 4 cảnh báo có lượng trễ cao nhất · 1st Pickup / 1st Deli</p></div><AnimatedIcon name="ShieldAlert" /></div>
-        {risks.length ? <div className="home-risk-list">{risks.map((risk, index) => <button key={`${risk.hub}-${risk.sectionId}-${index}`} onClick={() => onOpenOps({ hub: risk.hub, region: risk.region, metricKey: risk.sectionId })}>
-          <span className="risk-order">{String(index + 1).padStart(2, '0')}</span><span className="home-risk-name"><strong>{risk.hub}</strong><small>{risk.region} · {risk.metric}</small></span><span className="home-risk-value"><strong>{risk.pct.toFixed(1)}%</strong><small>{formatVol(risk.late)} đơn trễ · target {risk.target}%</small></span><AnimatedIcon name="ArrowUpRight" />
-        </button>)}</div> : <p className="home-empty">Không có Hub dưới target phát sinh đơn trễ trong phạm vi đang chọn.</p>}
-      </section>
-      <section className="home-panel home-trend"><div className="home-panel-heading"><div><h2>Xu hướng {card.title}</h2><p>{card.historyDates.length} ngày có dữ liệu gần nhất</p></div><button className="nav-btn-sleek icon-btn" aria-label={`Mở bảng ${card.title}`} data-tooltip={`Mở bảng ${card.title}`} onClick={() => onOpenOps({ metricKey: card.id })}><AnimatedIcon name="ArrowUpRight" /></button></div>
+
+    {cards.length > 0 && <section className="overview-performance" aria-label="KPI vận hành">
+      <div className="overview-performance-heading">
+        <span className="overview-data-date"><CalendarDays aria-hidden="true" />{dateLabel(commonDate)}</span>
+        <span className="overview-comparison-note">So với cùng thứ tuần trước
+          <IconButton icon="Info" label="Cách đọc KPI" detail="Chênh lệch tính theo điểm phần trăm so với cùng thứ tuần trước. Chọn một KPI để xem xu hướng. Mỗi chỉ số hiển thị ngày riêng nếu khác ngày dữ liệu chung; — là chưa đủ dữ liệu." />
+        </span>
+      </div>
+      <OverviewKpiCards cards={cards} selectedMetric={card?.id} onSelect={setMetric} commonDate={commonDate} />
+    </section>}
+
+    {dataNotice}
+
+    {card && <div className="overview-analysis">
+      <section id="overview-trend" className="overview-trend-panel" aria-labelledby="overview-trend-title">
+        <div className="overview-section-heading">
+          <div><h2 id="overview-trend-title">Xu hướng {card.title}</h2><p>{card.historyDates.length} ngày có dữ liệu gần nhất</p></div>
+          <button type="button" className="overview-table-link" onClick={() => onOpenOps({ metricKey: card.id })} aria-label={`Mở bảng ${card.title}`}>
+            Xem bảng <ArrowUpRight aria-hidden="true" />
+          </button>
+        </div>
+        <div className="overview-trend-summary">
+          <strong className={`is-${selectedStatus}`}>{hasData ? percentage(card.d1.pct) : '—'}</strong>
+          <span>{dateLabel(selectedDate)}<small>{card.target != null ? `Target ≥${card.target}%` : 'Không áp dụng target'}</small></span>
+        </div>
         <OverviewTrend key={card.id} card={card} />
+        <div className={`overview-chart-caption ${selectedStatus === 'bad' ? 'has-bad-trend' : ''}`}><span><i aria-hidden="true" />{card.title}</span>{card.target != null && <span><i className="is-target" aria-hidden="true" />Target {card.target}%</span>}</div>
+      </section>
+
+      <section className="overview-hubs-panel" aria-labelledby="overview-hubs-title">
+        <div className="overview-section-heading">
+          <div><h2 id="overview-hubs-title">Hub cần theo dõi</h2><p>1st Pickup / 1st Deli · lượng trễ cao nhất</p></div>
+          <span className="overview-hub-count" aria-label={`${risks.length} cảnh báo Hub`}>{risks.length}</span>
+        </div>
+        {risks.length ? <ol className="overview-hub-list">{risks.map((risk, index) => <li key={`${risk.hub}-${risk.sectionId}-${index}`}>
+          <button type="button" onClick={() => onOpenOps({ hub: risk.hub, region: risk.region, metricKey: risk.sectionId })}>
+            <span className="overview-hub-top"><strong>{risk.hub}</strong><ArrowUpRight aria-hidden="true" /></span>
+            <span className="overview-hub-meta">{risk.region} · {risk.metric}</span>
+            <span className="overview-hub-bottom"><span><strong>{formatVol(risk.late)}</strong> đơn trễ</span><span className="overview-hub-rate">{percentage(risk.pct)} <small>/ {risk.target}%</small></span></span>
+          </button>
+        </li>)}</ol> : <div className="overview-hubs-empty"><CheckCheck aria-hidden="true" /><p>Không có Hub dưới target phát sinh đơn trễ trong phạm vi đang chọn.</p></div>}
       </section>
     </div>}
+
   </div>;
 }
