@@ -126,6 +126,14 @@
   --overview-icon-small: 15px;
   --overview-icon-delta: 14px;
   --overview-icon-empty: 24px;
+  --weather-icon-size: 72px;
+  --weather-icon-size-mobile: 52px;
+  --weather-sprite-size: 300%;
+  --weather-sprite-first: 0%;
+  --weather-sprite-middle: -100%;
+  --weather-sprite-last: -200%;
+  --weather-icon-enter-opacity: .65;
+  --weather-icon-enter-offset: 2%;
 
   /* Legacy aliases retained during incremental migration. */
   --ghn-orange: var(--color-orange-500);

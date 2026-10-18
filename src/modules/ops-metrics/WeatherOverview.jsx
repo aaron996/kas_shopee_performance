@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useId } from 'react';
-import { Cloud, CloudRain, MapPin, LocateFixed, Pin, PinOff, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, LocateFixed, Pin, PinOff, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import WeatherPaperIcon from './WeatherPaperIcon';
 import { weatherLocationsInScope, unmappedWeatherRegions, WEATHER_LOCATIONS } from '../../data/weatherLocations.js';
 import { readWeatherPreference, writeWeatherPreference, suggestWeatherPoint, weatherHours, weatherLabel, weatherNumber } from '../../utils/weather.js';
 import { requestWeatherPosition, observeWeatherPermission } from '../../utils/weatherClient.js';
@@ -34,7 +35,6 @@ export default function WeatherOverview({ selectedRegions = [], active = false, 
   const hasForecast = hours.length > 0;
   const hasRain = peak?.precipitationMm > 0;
   const missingRain = hours.some(h => h.precipitationMm == null);
-  const WeatherIcon = hasRain ? CloudRain : Cloud;
   const ceiling = Math.max(1, ...hours.map(h => h.precipitationMm || 0));
   const suggestion = WEATHER_LOCATIONS.find(l => l.id === geo.locationId);
   const suggestionInScope = locations.some(l => l.id === geo.locationId);
@@ -84,7 +84,7 @@ export default function WeatherOverview({ selectedRegions = [], active = false, 
   return <section className="home-panel weather-overview weather-atmospheric" aria-label="Dự báo mưa">
     <div className="weather-compact">
       <div className="weather-compact-current">
-        <WeatherIcon className="weather-compact-icon" size={50} strokeWidth={1.4} aria-hidden="true" />
+        <WeatherPaperIcon hour={hours[0]} />
         <div>
           <label className="weather-city-label"><span>Thời tiết</span>{location && <select aria-label="Địa điểm dự báo" value={selectedId} onChange={event => choose(event.target.value)}>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select>}</label>
           {hasForecast && forecast.current?.temperatureC != null && forecast.current.at
