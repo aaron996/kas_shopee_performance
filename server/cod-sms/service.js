@@ -27,6 +27,7 @@ const ASSESSMENT_COLUMNS = [
   'model_called',
   'source_fingerprint',
   'scored_at',
+  'scoring_run_id',
   'error_code',
   'error_message',
   'attempt_count',
@@ -185,6 +186,7 @@ export function createCodSmsRepository(serviceClient) {
         explanation: values.explanation,
         model_called: values.modelCalled,
         scored_at: values.scoredAt,
+        scoring_run_id: values.scoringRunId ?? null,
         error_code: values.errorCode,
         error_message: values.errorMessage,
         run_token: null,
@@ -249,12 +251,9 @@ export function createCodSmsRepository(serviceClient) {
         .from('cod_suspicion_sms_runs')
         .update({
           status,
-          found: totals.found ?? 0,
-          claimed: totals.claimed ?? 0,
-          scored: totals.scored ?? 0,
-          no_evidence: totals.noEvidence ?? 0,
-          failed: totals.failed ?? 0,
-          skipped_unchanged: totals.skippedUnchanged ?? 0,
+          ...(totals.found !== undefined ? { found: totals.found } : {}),
+          // Item inserts maintain counters transactionally, including when
+          // work throws before returning its in-memory summary.
           error_code: errorCode ? String(errorCode).slice(0, 100) : null,
           error_message: errorMessage ? String(errorMessage).slice(0, 500) : null,
           finished_at: new Date().toISOString()
@@ -269,7 +268,7 @@ export function createCodSmsRepository(serviceClient) {
       if (!items.length) return;
       const { error } = await serviceClient
         .from('cod_suspicion_sms_run_items')
-        .insert(items.map(({ assessment, outcome }) => ({
+        .upsert(items.map(({ assessment, outcome }) => ({
           run_id: runId,
           suspicion_type: assessment.suspicion_type,
           driver_id: assessment.driver_id,
@@ -279,7 +278,7 @@ export function createCodSmsRepository(serviceClient) {
           model_called: outcome !== 'skipped_unchanged' && assessment.model_called === true,
           error_code: outcome === 'failed' ? assessment.error_code : null,
           error_message: outcome === 'failed' ? assessment.error_message : null
-        })));
+        })), { onConflict: 'run_id,suspicion_type,driver_id,order_code', ignoreDuplicates: true });
       if (error) {
         throw databaseError('COD_SMS_RUN_ITEM_FAILED', 'Không thể ghi log đơn trong batch SMS.', error);
       }
@@ -455,7 +454,7 @@ export async function withLoggedRun(repository, meta, work) {
   try {
     const result = await work(runId);
     const totals = result?.summary ?? result;
-    await finish({ status: totals?.aborted ? 'aborted' : 'completed', totals });
+    await finish({ status: totals?.aborted ? 'aborted' : totals?.failed > 0 ? 'partial' : 'completed', totals });
     return { runId, result };
   } catch (error) {
     await finish({
@@ -477,14 +476,19 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     force = false,
     runId = null,
     signal,
-    onProgress
+    onProgress,
+    shouldStop,
+    durable = false
   } = params;
+  const stopAt = Date.now() + Math.max(1000, 210000 - (config.modelTimeoutMs ?? 30000));
   const score = dependencies.scoreSource ?? scoreSmsSource;
+  const complete = (id, token, values) => repository.complete(id, token, { ...values, scoringRunId: runId });
   const logItems = async items => {
     if (!runId || typeof repository.recordRunItems !== 'function' || !items.length) return;
     try {
       await repository.recordRunItems(runId, items);
     } catch (error) {
+      if (durable) throw error;
       console.error('[cod-sms] could not record run items', {
         runId,
         count: items.length,
@@ -504,7 +508,8 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     noEvidence: 0,
     failed: 0,
     skippedUnchanged: 0,
-    aborted: false
+    aborted: false,
+    deferred: 0
   };
   const emitProgress = () => {
     onProgress?.({ processed: rows.length, total: sources.length, summary: { ...summary } });
@@ -523,18 +528,29 @@ export async function runAssessmentBatch(params, dependencies = {}) {
   for (const source of sources) {
     const options = claimOptions(source);
     const existing = existingByCase.get(caseKey(source));
-    if (needsClaim(existing, options, now)) pending.push({ source, options });
+    const recoverResult = durable && runId && existing?.scoring_run_id === runId
+      && existing.source_fingerprint === options.fingerprint
+      && existing.rubric_version === options.rubricVersion && existing.model === options.model
+      && ['scored', 'no_evidence', 'failed'].includes(existing.status);
+    if (!recoverResult && needsClaim(existing, options, now)) pending.push({ source, options });
+    else if (durable && existing.status === 'pending') summary.deferred += 1;
     else skipped.push(existing);
   }
   if (skipped.length) {
     summary.skippedUnchanged += skipped.length;
     rows.push(...skipped);
-    await logItems(skipped.map(assessment => ({ assessment, outcome: 'skipped_unchanged' })));
+    await logItems(skipped.map(assessment => ({
+      assessment,
+      // Recover a crash between committing an assessment and its run item.
+      outcome: durable && runId && assessment.scoring_run_id === runId
+        && ['scored', 'no_evidence', 'failed'].includes(assessment.status)
+        ? assessment.status : 'skipped_unchanged'
+    })));
     emitProgress();
   }
 
   for (const { source, options } of pending) {
-    if (signal?.aborted) {
+    if (signal?.aborted || shouldStop?.() || Date.now() >= stopAt) {
       // A per-order write (claim/complete) is committed individually, so
       // stopping here loses nothing already scored — it just stops claiming
       // new rows. The response still completes normally (no throw) with
@@ -544,6 +560,10 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     }
     const claim = await repository.claim(source, options);
     if (!claim.claimed) {
+      if (durable && claim.assessment.status === 'pending') {
+        summary.deferred += 1;
+        continue;
+      }
       summary.skippedUnchanged += 1;
       rows.push(claim.assessment);
       await logItem(claim.assessment, 'skipped_unchanged');
@@ -555,7 +575,7 @@ export async function runAssessmentBatch(params, dependencies = {}) {
     const scoredAt = new Date().toISOString();
     const hasMessages = source.messages.length > 0;
     if (!hasMessages || !hasBankEvidenceCandidate(source)) {
-      const completed = await repository.complete(claim.assessment.id, claim.run_token, completionValues({
+      const completed = await complete(claim.assessment.id, claim.run_token, completionValues({
         smsScore: 0,
         confidence: 'khong_co_bang_chung',
         detectedPatterns: [],
@@ -571,20 +591,12 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       continue;
     }
 
+    let result;
     try {
-      const result = await score(source, config, { signal });
-      const status = result.smsScore === 0 ? 'no_evidence' : 'scored';
-      const completed = await repository.complete(
-        claim.assessment.id,
-        claim.run_token,
-        completionValues(result, status, true, scoredAt)
-      );
-      summary[status === 'scored' ? 'scored' : 'noEvidence'] += 1;
-      rows.push(completed);
-      await logItem(completed, status);
+      result = await score(source, config, { signal });
     } catch (error) {
       const failure = technicalFailure(error);
-      const completed = await repository.complete(claim.assessment.id, claim.run_token, {
+      const completed = await complete(claim.assessment.id, claim.run_token, {
         status: 'failed',
         smsScore: null,
         confidence: null,
@@ -598,7 +610,15 @@ export async function runAssessmentBatch(params, dependencies = {}) {
       summary.failed += 1;
       rows.push(completed);
       await logItem(completed, 'failed');
+      emitProgress();
+      continue;
     }
+    const status = result.smsScore === 0 ? 'no_evidence' : 'scored';
+    const completed = await complete(claim.assessment.id, claim.run_token,
+      completionValues(result, status, true, scoredAt));
+    summary[status === 'scored' ? 'scored' : 'noEvidence'] += 1;
+    rows.push(completed);
+    await logItem(completed, status);
     emitProgress();
   }
 

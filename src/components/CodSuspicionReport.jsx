@@ -2245,6 +2245,9 @@ export default function CodSuspicionReport({
 
               {!manualRunState.isRunning && manualRunState.result && (
                 <div className="cod-sms-modal__audit-meta" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem' }}>
+                  {manualRunState.result.aborted && (
+                    <span>Đã dừng an toàn trước giới hạn thời gian. Các kết quả đã lưu được giữ nguyên; chạy tiếp để xử lý phần còn lại.</span>
+                  )}
                   <span>Đã chấm mới: <strong>{manualRunState.result.scored ?? 0}</strong></span>
                   <span>Không có bằng chứng: <strong>{manualRunState.result.noEvidence ?? 0}</strong></span>
                   <span>Lỗi chấm điểm: <strong>{manualRunState.result.failed ?? 0}</strong></span>
