@@ -54,13 +54,14 @@ Raw_Pick AS (
     SELECT
         A.ordercode,
         B.`Fromregion_new` AS fromregion_new,
-        CASE
+        -- TRIM: có hub chỉ khác nhau dấu cách cuối tên, Sheets cắt dấu cách nên hai dòng thành trùng khoá khi nạp.
+        TRIM(CASE
             WHEN A.actualpicktype = 'DropAtStation'
              AND m.bc_first_id <> m.bc_dropoff_id
              AND w.warehouse_name IS NOT NULL
             THEN w.warehouse_name
             ELSE A.pickwh
-        END AS hub,
+        END) AS hub,
         A.currentstatus,
         A.canceltime,
         A.endpicktime,
