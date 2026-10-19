@@ -15,6 +15,8 @@ const REVERSE_BACKFILL_TAB = 'reverse_backfill_tmp';
 const REVERSE_BACKFILL_START = '2026-06-21';
 const REVERSE_DAILY_DAYS = 14;
 const REVERSE_BUDGET_MS = 4.5 * 60 * 1000;
+// BI đổ tab reverse khoảng 08:15 và syncAllTabs của OPS chạy sau 08:30, nên trigger Reverse đặt vào khoảng 09:00.
+const REVERSE_TRIGGER_HOUR = 9;
 const REVERSE_COLUMNS = [
   {name:'report_date',type:'date'},{name:'region',type:'text'},{name:'hub',type:'text'},
   {name:'hub_type',type:'text'},{name:'client_name',type:'text'},
@@ -92,4 +94,19 @@ function backfillReverseHistory() {
     Logger.log(JSON.stringify({tab:REVERSE_BACKFILL_TAB,week_start:monday,window:[from,to],result:result}));
   }
   Logger.log(JSON.stringify({tab:REVERSE_BACKFILL_TAB,partial:false,weeks:done.length,rows:rows.length}));
+}
+
+/** Chạy một lần: đặt trigger hằng ngày cho syncReverseHistory (xoá trigger cũ của hàm này, không đụng trigger khác). */
+function createReverseDailyTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'syncReverseHistory')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('syncReverseHistory')
+    .timeBased()
+    .atHour(REVERSE_TRIGGER_HOUR)
+    .nearMinute(0)
+    .everyDays(1)
+    .inTimezone(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
+    .create();
+  Logger.log('Đã đặt trigger syncReverseHistory hằng ngày khoảng '+REVERSE_TRIGGER_HOUR+':00');
 }

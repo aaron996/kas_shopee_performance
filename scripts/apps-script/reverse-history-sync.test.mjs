@@ -62,12 +62,18 @@ const ss = {
   getSpreadsheetTimeZone: () => 'Asia/Ho_Chi_Minh',
   getSheetByName: n => (tabs[n] ? { getName: () => n, getDataRange: () => ({ getValues: () => tabs[n] }) } : null)
 };
+const triggers = [{ getHandlerFunction: () => 'syncReverseHistory' }, { getHandlerFunction: () => 'syncAllTabs' }];
+const deleted = [];
+const built = [];
+const builder = { timeBased: () => builder, atHour: h => { built.push(['atHour', h]); return builder; }, nearMinute: m => { built.push(['nearMinute', m]); return builder; }, everyDays: n => { built.push(['everyDays', n]); return builder; }, inTimezone: z => { built.push(['tz', z]); return builder; }, create: () => { built.push(['create']); } };
+const scriptApp = { getProjectTriggers: () => triggers, deleteTrigger: t => deleted.push(t.getHandlerFunction()), newTrigger: fn => { built.push(['fn', fn]); return builder; } };
 const ctx = vm.createContext({
   console, Date, Set, Number, JSON, Math, Object, String,
   Utilities: { formatDate: () => '2026-10-19' },
   Logger: { log: v => logs.push(v) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] }) },
   SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+  ScriptApp: scriptApp,
   SUPABASE_URL: 'https://example.invalid'
 });
 vm.runInContext(readFileSync('scripts/apps-script/ops-incremental-sync.gs', 'utf8'), ctx);
@@ -124,5 +130,10 @@ assert.throws(() => ctx.syncReverseHistory(), /Không thấy tab reverse/); chec
 delete props.SUPABASE_SERVICE_ROLE_KEY;
 setTab('reverse', fill('2026-10-18', 1));
 assert.throws(() => ctx.syncReverseHistory(), /SUPABASE_SERVICE_ROLE_KEY/); checks++;
+
+// Trigger hằng ngày: chỉ xoá trigger cũ của syncReverseHistory, đặt lại lúc 09:00.
+ctx.createReverseDailyTrigger();
+check(deleted.length === 1 && deleted[0] === 'syncReverseHistory', 'chỉ xoá trigger cũ của syncReverseHistory');
+check(JSON.stringify(built) === JSON.stringify([['fn', 'syncReverseHistory'], ['atHour', 9], ['nearMinute', 0], ['everyDays', 1], ['tz', 'Asia/Ho_Chi_Minh'], ['create']]), 'trigger 09:00 hằng ngày theo múi giờ của Sheet');
 
 console.log(`reverse-history-sync: ${checks} checks passed`);
