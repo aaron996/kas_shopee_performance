@@ -16,7 +16,7 @@ import { ToastProvider } from './components/ui/Toast.jsx'
 // <iframe> element. See docs/control-tower-embed.md for the host-side setup.
 import 'iframe-resizer/js/iframeResizer.contentWindow.min.js'
 
-// No client-side router in this app — this is the one exception. The
+// These standalone pages bypass the dashboard's module navigation. The
 // popup opened for Google sign-in while embedded (see AuthModal.jsx) is
 // redirected here by Supabase as a real top-level navigation, so it needs
 // its own minimal render path instead of the full dashboard shell.
