@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Database, Eye, EyeOff, LoaderCircle, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { emitUsageAction } from '../utils/appUsageTracker.js';
 import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
@@ -372,6 +373,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         throw new Error(toChatError(payload, `Chatbot chưa phản hồi được (${response.status}).`));
       }
 
+      emitUsageAction('chat_questions', context?.activeTab);
       let completed = false;
       let answer = '';
       let sources = [];

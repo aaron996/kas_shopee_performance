@@ -3,6 +3,7 @@ import { Download, X } from 'lucide-react';
 import ModalDialog from './ui/ModalDialog';
 import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import DateField from './ui/DateField';
+import { emitUsageAction } from '../utils/appUsageTracker.js';
 
 const DAY_MS = 86400000;
 const shiftIso = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
@@ -47,7 +48,10 @@ export default function ExportFilterModal({ isOpen, onClose, title = 'Tải về
   const confirm = async () => {
     setBusy(true);
     try {
-      if ((await onConfirm(filters)) !== false) onClose();
+      if ((await onConfirm(filters)) !== false) {
+        emitUsageAction('exports');
+        onClose();
+      }
     } finally {
       setBusy(false);
     }

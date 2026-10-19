@@ -29,7 +29,7 @@ const GROUPS = [
   { label: 'Tài khoản & truy cập', items: [
     { id: 'roles', label: 'Phân quyền', icon: ShieldCheck, description: 'Quản lý quyền User, Admin và Dev cho tài khoản đã đăng nhập.' },
     { id: 'allowlist', label: 'Email ngoài GHN', icon: Users, description: 'Thêm hoặc xóa email ngoài @ghn.vn được phép đăng nhập vào app.' },
-    { id: 'access', label: 'Lịch sử truy cập', icon: Activity, description: 'Theo dõi phiên online, lượt truy cập và xuất lịch sử.' }
+    { id: 'access', label: 'Lịch sử truy cập', icon: Activity, description: 'Theo dõi người dùng, phiên, thời gian hoạt động và các tab đã xem.' }
   ] }
 ];
 const SECTIONS = GROUPS.flatMap(group => group.items.map(item => ({ ...item, group: group.label })));

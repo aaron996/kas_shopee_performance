@@ -3,6 +3,7 @@ import { Download, RefreshCw } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { formatAccessTime, summarizeAccess } from '../utils/devAccessActivity';
 import { peekDevResource, readDevResource } from '../utils/devDataClient.js';
+import AppUsageActivity from './AppUsageActivity.jsx';
 
 const PAGE_SIZE = 1000;
 const DISPLAY_SIZE = 50;
@@ -15,6 +16,11 @@ function downloadCsv(filename, headers, rows) {
 }
 
 export default function DevAccessActivity({ onlineUsers, currentUser }) {
+  const [section, setSection] = useState('usage');
+  return <><div className="dev-access-views app-usage-sections" aria-label="Loại lịch sử truy cập">{[['usage', 'Sử dụng app'], ['legacy', 'Lịch sử cũ & online']].map(([id, title]) => <button type="button" key={id} aria-pressed={section === id} onClick={() => setSection(id)}>{title}</button>)}</div>{section === 'usage' ? <AppUsageActivity currentUser={currentUser} onlineUsers={onlineUsers} /> : <LegacyAccessActivity onlineUsers={onlineUsers} currentUser={currentUser} />}</>;
+}
+
+function LegacyAccessActivity({ onlineUsers, currentUser }) {
   const cached = peekDevResource(currentUser, 'access-logs');
   const [logs, setLogs] = useState(cached?.rows || []);
   const [loading, setLoading] = useState(!cached);

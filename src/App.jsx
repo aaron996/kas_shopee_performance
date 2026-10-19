@@ -20,6 +20,7 @@ import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, normalizeDashboardRows, filterRowsByScope, collectHubTypes } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
+import useAppUsage from './hooks/useAppUsage.js';
 import useModuleNavigation from './hooks/useModuleNavigation.js';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
@@ -156,6 +157,7 @@ export default function App() {
   const hasPickedClient = hostPickedClient || !userEmail ||
     clientChoiceToken === clientVisitToken(userEmail, __APP_BUILD_ID__) ||
     !needsClientChoice(localStorage, userEmail, __APP_BUILD_ID__);
+  useAppUsage(currentUser, activeTab, !introVisible && hasPickedClient);
   // Read once per user at mount: marking on completion must not retroactively change this visit.
   const introSeenToday = useMemo(
     () => !!userEmail && hasSeenIntroToday(localStorage, userEmail),
