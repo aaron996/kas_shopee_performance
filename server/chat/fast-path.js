@@ -1,3 +1,4 @@
+import { CHAT_CLIENT_CODES } from '../../src/utils/chatClients.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { toPublicSource } from './context.js';
 import { ChatError } from './errors.js';
@@ -20,11 +21,12 @@ export const METRIC_NAMES = Object.freeze({
 export const CLIENT_NAMES = Object.freeze({
   SPB: 'SPB',
   SPE: 'SPE',
+  'SPE Reverse': 'SPE Reverse',
   ALL: 'Toàn bộ'
 });
 
 const VALID_METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
-const VALID_CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+const VALID_CLIENTS = new Set(CHAT_CLIENT_CODES);
 const VALID_DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCOPE_GRAIN_OVERRIDE_RE = /\b(vùng|miền|hub|kho|tỉnh|lane|tuyến|huyện|quận|xã|ca\s*1|ca1|leadtime|pre-pickup|first\s*mile|middle\s*mile|last\s*mile)\b/i;
@@ -137,6 +139,8 @@ export function formatDeterministicKpiResponse({
     `- **Thời gian**: ${timeRange}`,
     `- **Kết quả**: ${resultText}`
   );
+
+  if (client === 'SPE Reverse') lines.push('- Shopee Reverse chưa có target KPI được định nghĩa.');
 
   if (dataAsOf) {
     lines.push(`- **Dữ liệu tính đến (dataAsOf)**: ${formatDateVi(dataAsOf)}`);

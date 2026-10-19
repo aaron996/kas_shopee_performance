@@ -1,4 +1,5 @@
-const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+import { CHAT_CLIENT_CODES, normalizeChatClient } from '../../src/utils/chatClients.js';
+const CLIENTS = new Set(CHAT_CLIENT_CODES);
 const REGION_PATTERNS = [
   { re: /\b(hcm\s*-\s*ka)\b/i, region: 'HCM - KA' },
   { re: /\b(hno\s*-\s*ka|hn\s*-\s*ka)\b/i, region: 'HNO - KA' },
@@ -12,6 +13,9 @@ const REGION_PATTERNS = [
 
 export function detectExplicitClient(question) {
   if (typeof question !== 'string') return null;
+  if (/\b(reverse|224845)\b/i.test(question)) return 'SPE Reverse';
+  if (/\b3892833\b/.test(question)) return 'SPB';
+  if (/\b18692\b/.test(question)) return 'SPE';
   if (/\b(spb|shopee\s*bulky)\b/i.test(question)) return 'SPB';
   if (/\b(spe|shopee\s*express)\b/i.test(question)) return 'SPE';
   if (/\b(toàn bộ|toan bo|tất cả|tat ca|toàn bộ khách hàng)\b/i.test(question)) return 'ALL';
@@ -50,6 +54,8 @@ export function detectExplicitHubTypes(question) {
  * Preserves intentionally empty filters (e.g. hubTypes: []).
  */
 export function resolveEffectiveScope({ question = '', query = null, screenContext = null }) {
+  query = query ? { ...query, client: normalizeChatClient(query.client) } : query;
+  screenContext = screenContext ? { ...screenContext, client: normalizeChatClient(screenContext.client) } : screenContext;
   // --- Client Resolution ---
   let client = null;
   let clientSource = 'default';
@@ -113,7 +119,8 @@ export function resolveEffectiveScope({ question = '', query = null, screenConte
  * 3. Preserves intentional empty filter semantics (maps empty arrays from screenContext to ['__NO_MATCH__']).
  */
 export function normalizeToolScope(toolName, rawArgs = {}, effectiveScope = {}) {
-  const args = { ...rawArgs };
+  const args = { ...rawArgs, client: normalizeChatClient(rawArgs.client) };
+  effectiveScope = { ...effectiveScope, client: normalizeChatClient(effectiveScope.client) };
   const {
     client: scopeClient = null,
     clientSource = 'default',

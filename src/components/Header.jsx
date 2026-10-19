@@ -5,7 +5,7 @@ import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 import { formatRankingHubName } from '../utils/rankingHubName.js';
-import { CLIENT_ORDER, ALL_CLIENTS_LABEL } from '../utils/clientLabels';
+import { CLIENT_ORDER } from '../utils/clientLabels';
 
 export default function Header({
   setActiveTab, activeTab, clientFilter, setClientFilter,
@@ -62,8 +62,8 @@ export default function Header({
     <div className="compact-header-toolbar" role={activeTab === 'ranking' ? 'toolbar' : undefined} aria-label={activeTab === 'ranking' ? 'Điều khiển BXH' : undefined}>
       {activeTab === 'ranking' && <div id="ranking-header-heading" />}
       {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
-        {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter === 'ALL' ? ALL_CLIENTS_LABEL : clientFilter} badge={clientFilter === 'ALL' ? undefined : '•'}>
-          <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{[...CLIENT_ORDER.map(c => [c, c]), ['ALL', `Toàn bộ · ${ALL_CLIENTS_LABEL}`]].map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
+        {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter} badge="•">
+          <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{CLIENT_ORDER.map(c => [c, c]).map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
         </HeaderPopover>}
         {!hideRegionHubFilters && <>
           <HeaderPopover {...sharedPopover} name="region" icon="MapPin" label="Vùng" summary={regionSummary} badge={selectedRegions.length === allRegions.length ? undefined : selectedRegions.length}>

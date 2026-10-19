@@ -1,5 +1,5 @@
 import { MODULE_IDS } from '../modules/moduleIds.js';
-import { CLIENT_FILTER_VALUES, normalizeClientFilter } from './clientLabels.js';
+import { CLIENT_ORDER, normalizeClientFilter } from './clientLabels.js';
 
 export const VIEW_KEY = 'ghn_dashboard_view_v1';
 // Dev Admin is intentionally excluded: it is an authenticated workspace, not
@@ -24,7 +24,7 @@ export function readDashboardView(storage, search = '') {
   let saved = {};
   try { saved = JSON.parse(storage.getItem(VIEW_KEY)) || {}; } catch { /* private mode / invalid JSON */ }
   const queryClient = normalizeClientFilter(new URLSearchParams(search).get('scope'));
-  const validClient = value => CLIENT_FILTER_VALUES.includes(value);
+  const validClient = value => CLIENT_ORDER.includes(value);
   return {
     client: validClient(queryClient) ? queryClient : validClient(saved.client) ? saved.client : 'SPB',
     hasPickedClient: validClient(queryClient) || validClient(saved.client),

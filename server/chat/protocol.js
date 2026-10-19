@@ -1,3 +1,4 @@
+import { CHAT_CLIENT_CODES, normalizeChatClient } from '../../src/utils/chatClients.js';
 import { createHash } from 'node:crypto';
 import { ChatError } from './errors.js';
 import { MODULE_IDS } from '../../src/modules/moduleIds.js';
@@ -16,7 +17,7 @@ const ALLOWED_BODY_KEYS = new Set(['question', 'history', 'requestId', 'model', 
 const QUERY_KEYS = new Set(['metric', 'client', 'dateMode', 'dateFrom', 'dateTo']);
 const SCREEN_CONTEXT_KEYS = new Set(['activeTab', 'client', 'regions', 'hubTypes', 'section']);
 const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
-const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+const CLIENTS = new Set(CHAT_CLIENT_CODES);
 const DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Chat is available on every dashboard module. Share the navigation contract so
@@ -32,7 +33,8 @@ function parseQuery(rawQuery) {
   if (typeof rawQuery !== 'object' || Array.isArray(rawQuery)) badRequest('query không hợp lệ.');
   if (Object.keys(rawQuery).some(key => !QUERY_KEYS.has(key))) badRequest('query có field không được hỗ trợ.');
 
-  const { metric, client, dateMode, dateFrom = null, dateTo = null } = rawQuery;
+  const { metric, dateMode, dateFrom = null, dateTo = null } = rawQuery;
+  const client = normalizeChatClient(rawQuery.client);
   if (!METRICS.has(metric)) badRequest('query.metric không được hỗ trợ.');
   if (!CLIENTS.has(client)) badRequest('query.client không được hỗ trợ.');
   if (!DATE_MODES.has(dateMode)) badRequest('query.dateMode không được hỗ trợ.');
@@ -57,7 +59,9 @@ export function parseScreenContext(rawContext) {
     if (!SCREEN_CONTEXT_KEYS.has(key)) badRequest(`screenContext có field không được hỗ trợ: ${key}.`);
   }
 
-  const { activeTab = null, client = null, regions = null, hubTypes = null, section = null } = rawContext;
+  const { activeTab = null, regions = null, hubTypes = null, section = null } = rawContext;
+  const client = rawContext.client == null ? null : normalizeChatClient(rawContext.client);
+  if (rawContext.client != null && !client) badRequest('screenContext.client không được hỗ trợ.');
 
   if (activeTab !== null) {
     if (typeof activeTab !== 'string' || !ALLOWED_TABS.has(activeTab)) {

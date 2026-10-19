@@ -160,3 +160,16 @@ test('Ca 1 and leadtime offer diverse lane and stage questions with exact dates'
     assert.ok(result.items.some(item => /lane|tuyến|chặng/.test(item.question)));
   }
 });
+
+test('Reverse signals preserve the dataset and do not inherit SPE targets', async () => {
+  const calls = [];
+  const userClient = { async rpc(name, params) {
+    calls.push({ name, params });
+    return { data: { cols: ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr'],
+      rows: [[name === 'get_kas_weekly_compact' ? '2026-09-28' : AS_OF, 'HCM', 'Hub A', 'BC', 'SPE Reverse', 1000, 970, 900]] }, error: null };
+  } };
+  const signals = await collectSuggestionSignals(userClient, { ...context, client: 'SPE Reverse' });
+  assert.ok(calls.every(call => call.params.dataset === 'reverse'));
+  assert.ok(signals.kpis.length > 0);
+  assert.ok(signals.kpis.every(kpi => ['opr', 'p1st'].includes(kpi.metric) && kpi.target === null && kpi.gapToTarget === null));
+});

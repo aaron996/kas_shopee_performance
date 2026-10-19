@@ -42,3 +42,17 @@ test('home is the new entry while saved OPS views remain restorable', () => {
   assert.equal(readDashboardView(storage('{"tab":"home","client":"SPB"}')).tab, 'home');
   assert.equal(readDashboardView(storage('{"tab":"report1","regions":[]}')).tab, 'report1');
 });
+
+test('removed ALL client is not restored from storage or embed scope', () => {
+  const view = readDashboardView(storage('{"client":"ALL"}'), '?scope=ALL');
+  assert.equal(view.client, 'SPB');
+  assert.equal(view.hasPickedClient, false);
+  assert.equal(readDashboardView(storage('{"client":"SPE"}'), '?scope=ALL').client, 'SPE');
+});
+
+test('Reverse dashboard scope remains available after removing ALL', () => {
+  const view = readDashboardView(storage('{"client":"SPE Reverse"}'));
+  assert.equal(view.client, 'SPE Reverse');
+  assert.equal(view.hasPickedClient, true);
+  assert.equal(readDashboardView(storage(null), '?scope=SPE%20Reverse').client, 'SPE Reverse');
+});
