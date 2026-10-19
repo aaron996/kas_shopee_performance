@@ -1,3 +1,4 @@
+import { normalizeChatClient } from '../../src/utils/chatClients.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { normalizeToolScope } from './scope.js';
 import { getMetricDefinition } from '../../src/data/metricGlossary.js';
@@ -141,7 +142,7 @@ async function collectKpiSignals(userClient, screenScope) {
     const baselineRow = firstRowValue(results[index * 2 + 1]);
     const baseline = (baselineRow?.volume ?? 0) >= MIN_KPI_VOLUME ? baselineRow : null;
     if (!latest || (latest.volume ?? 0) < MIN_KPI_VOLUME) return null;
-    const target = getMetricDefinition(metric)?.target ?? null;
+    const target = args.client === 'SPE Reverse' ? null : getMetricDefinition(metric)?.target ?? null;
     return {
       metric,
       label: METRIC_LABEL[metric],
@@ -293,7 +294,7 @@ export async function collectSuggestionSignals(userClient, { activeTab, client, 
   if (!userClient || typeof userClient.rpc !== 'function') return null;
   const tab = activeTab === 'report5' ? 'ca1' : activeTab === 'report3' ? 'leadtime' : 'kpi';
   const screenScope = {
-    client: ['SPB', 'SPE', 'ALL'].includes(client) ? client : 'SPB',
+    client: normalizeChatClient(client) || 'SPB',
     regions: Array.isArray(regions) ? regions : null,
     hubTypes: Array.isArray(hubTypes) ? hubTypes : null
   };

@@ -1,3 +1,4 @@
+import { normalizeChatClient, REVERSE_CLIENT } from './chatClients.js';
 export const PLAN_PERIODS = Object.freeze(['latest', 'last7', 'last14', 'last30', 'month']);
 export const PLAN_INTENTS = Object.freeze(['ranking', 'improvement', 'comparison', 'volume_priority', 'metric_gap', 'target', 'stages', 'distribution']);
 const KPI = ['odr', 'd1st', 'opr', 'p1st'];
@@ -7,10 +8,12 @@ const daysBefore = (end, days) => new Date(Date.parse(`${end}T00:00:00Z`) - days
 export function suggestionCapabilities(context = {}, signals = null) {
   const kind = context.activeTab === 'report5' || signals?.kind === 'ca1' ? 'ca1'
     : context.activeTab === 'report3' || signals?.kind === 'leadtime' ? 'leadtime' : 'kpi';
+  const hasTarget = normalizeChatClient(context.client || signals?.client) !== REVERSE_CLIENT;
   return {
     kind,
-    metrics: kind === 'kpi' ? signals?.kpis?.map(kpi => kpi.metric) || KPI : [kind],
-    intents: kind === 'kpi' ? ['ranking', 'improvement', 'comparison', 'volume_priority', 'metric_gap', 'target']
+    hasTarget,
+    metrics: kind === 'kpi' ? signals?.kpis?.map(kpi => kpi.metric) || (hasTarget ? KPI : ['opr', 'p1st']) : [kind],
+    intents: kind === 'kpi' ? ['ranking', 'improvement', 'comparison', 'volume_priority', 'metric_gap', ...(hasTarget ? ['target'] : [])]
       : kind === 'ca1' ? ['ranking', 'improvement', 'comparison', 'distribution'] : ['ranking', 'comparison', 'stages'],
     grains: kind === 'kpi' ? ['region', 'hub', 'nationwide'] : kind === 'ca1' ? ['lane', 'region', 'nationwide'] : ['route', 'nationwide'],
     periods: PLAN_PERIODS,
@@ -84,7 +87,7 @@ export function compileSuggestionPlan(plan, context = {}, signals = null, score 
       break;
     case 'volume_priority':
       label = `${time.label}, ${unit} nào vừa nhiều đơn vừa có ${title} thấp?`;
-      question = `Truy vấn ${subject} ${time.text} theo ${unit}, giới hạn tối đa 15 ${unit} có sản lượng lớn nhất. So sánh cả tỷ lệ, sản lượng và target; chỉ ra ${unit} có tỷ lệ thấp trong nhóm sản lượng lớn, không khẳng định nguyên nhân.`;
+      question = `Truy vấn ${subject} ${time.text} theo ${unit}, giới hạn tối đa 15 ${unit} có sản lượng lớn nhất. So sánh cả tỷ lệ, sản lượng${cap.hasTarget ? ' và target' : ''}; chỉ ra ${unit} có tỷ lệ thấp trong nhóm sản lượng lớn, không khẳng định nguyên nhân.`;
       break;
     case 'metric_gap':
       label = `${title} và ${secondMetric.toUpperCase()} lệch nhau ở ${unit} nào trong ${time.label}?`;

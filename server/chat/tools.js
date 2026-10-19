@@ -1,3 +1,4 @@
+import { CHAT_CLIENT_CODES } from '../../src/utils/chatClients.js';
 import { DASHBOARD_HELP, getDashboardHelp } from '../../src/data/dashboardHelp.js';
 import { getMetricDefinition } from '../../src/data/metricGlossary.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
@@ -8,7 +9,7 @@ import { MAX_SCOPE_ITEMS } from './protocol.js';
 import { PUBLIC_SEARCH_TOOL } from './public-search.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+const CLIENTS = new Set(CHAT_CLIENT_CODES);
 const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
 const GRAINS = new Set(['nationwide', 'region', 'hub']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);

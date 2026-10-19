@@ -1,9 +1,10 @@
+import { CHAT_CLIENT_CODES, normalizeChatClient } from '../../src/utils/chatClients.js';
 import { ChatError } from './errors.js';
 
 export const REQUEST_METRIC_QUERY_TOOL_NAME = 'request_metric_query';
 
 const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
-const CLIENTS = new Set(['SPB', 'SPE', 'ALL']);
+const CLIENTS = new Set(CHAT_CLIENT_CODES);
 const DATE_MODES = new Set(['latest', 'trailing_7d', 'custom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -68,9 +69,10 @@ export function createMetricQueryInteraction(call) {
   if (call?.name !== REQUEST_METRIC_QUERY_TOOL_NAME) invalid('Loại interaction không được hỗ trợ.');
 
   const args = parseArguments(call.arguments);
+  if (args.client !== null && !normalizeChatClient(args.client)) invalid('client không được hỗ trợ.');
   const query = {
     metric: optionalEnum(args.metric, METRICS, 'metric'),
-    client: optionalEnum(args.client, CLIENTS, 'client'),
+    client: optionalEnum(args.client === null ? null : normalizeChatClient(args.client), CLIENTS, 'client'),
     dateMode: optionalEnum(args.date_mode, DATE_MODES, 'date_mode'),
     dateFrom: optionalDate(args.date_from, 'date_from'),
     dateTo: optionalDate(args.date_to, 'date_to')
@@ -96,7 +98,7 @@ export function createMetricQueryInteraction(call) {
   if (!query.client) {
     fields.push({
       id: 'client', label: 'Phạm vi', type: 'single_select',
-      options: [option('SPB', 'SPB'), option('SPE', 'SPE'), option('ALL', 'Toàn bộ')]
+      options: [option('SPB', 'SPB'), option('SPE', 'SPE'), option('SPE Reverse', 'SPE Reverse'), option('ALL', 'Toàn bộ')]
     });
   }
   if (!query.dateMode) {
