@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, RefreshCw, Clock, User, Cpu } from 'lucide-react';
 import { fetchCodSmsRunItems, fetchCodSmsRuns } from '../utils/codSuspicionClient';
 import { formatDateTimeVN } from '../utils/codSuspicionProcessor';
@@ -15,6 +15,7 @@ const RUN_LABELS = {
 const RUN_STATUS = {
   running: { text: 'Đang chạy', level: 'pending' },
   completed: { text: 'Hoàn tất', level: 'no_evidence' },
+  partial: { text: 'Hoàn tất, có lỗi', level: 'medium' },
   aborted: { text: 'Đã dừng', level: 'medium' },
   failed: { text: 'Lỗi', level: 'failed' }
 };
@@ -201,6 +202,7 @@ export default function CodSmsRunHistoryPanel({ driverNameById, refreshKey = 0 }
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [itemsByRun, setItemsByRun] = useState(() => new Map());
+  const refreshInFlight = useRef(false);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -216,7 +218,7 @@ export default function CodSmsRunHistoryPanel({ driverNameById, refreshKey = 0 }
   }, [offset]);
 
   const loadItems = useCallback(async runId => {
-    setItemsByRun(prev => new Map(prev).set(runId, { loading: true, items: [], error: '' }));
+    setItemsByRun(prev => prev.has(runId) ? prev : new Map(prev).set(runId, { loading: true, items: [], error: '' }));
     const result = await fetchCodSmsRunItems(runId);
     setItemsByRun(prev => new Map(prev).set(runId, result.success
       ? { loading: false, items: result.items, error: '' }
@@ -234,6 +236,22 @@ export default function CodSmsRunHistoryPanel({ driverNameById, refreshKey = 0 }
     loadRuns();
     // refreshKey bumps after a manual run finishes so the new batch shows up.
   }, [loadRuns, refreshKey]);
+
+  useEffect(() => {
+    if (!runs.some(run => run.status === 'running')) return undefined;
+    const timer = setInterval(async () => {
+      if (document.hidden || refreshInFlight.current) return;
+      refreshInFlight.current = true;
+      try {
+        const refreshItems = expandedId && runs.some(run => run.id === expandedId && run.status === 'running');
+        await loadRuns();
+        if (refreshItems) await loadItems(expandedId);
+      } finally {
+        refreshInFlight.current = false;
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [runs, expandedId, loadRuns, loadItems]);
 
   const toggleRun = useCallback(runId => {
     const next = expandedId === runId ? null : runId;

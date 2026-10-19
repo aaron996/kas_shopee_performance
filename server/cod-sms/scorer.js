@@ -240,23 +240,44 @@ export async function scoreSmsSource(source, config, options = {}) {
   });
 
   let response;
+  // One wall-clock budget covers both attempts; a token-limit retry must not
+  // double the time reserved by the batch worker for one order.
+  const timeoutSignal = AbortSignal.timeout(config.modelTimeoutMs);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
+  let outputBudget = config.maxOutputTokens;
   try {
-    response = await openai.responses.create({
-      model: config.model,
-      instructions: SMS_SCORING_INSTRUCTIONS,
-      input: [{ role: 'user', content: JSON.stringify(buildScoringInput(source)) }],
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'cod_sms_assessment',
-          strict: true,
-          schema: SMS_ASSESSMENT_JSON_SCHEMA
-        }
-      },
-      ...(config.reasoningEffort ? { reasoning: { effort: config.reasoningEffort } } : {}),
-      max_output_tokens: config.maxOutputTokens,
-      store: false
-    }, { signal: options.signal });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      response = await openai.responses.create({
+        model: config.model,
+        instructions: SMS_SCORING_INSTRUCTIONS,
+        input: [{ role: 'user', content: JSON.stringify(buildScoringInput(source)) }],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'cod_sms_assessment',
+            strict: true,
+            schema: SMS_ASSESSMENT_JSON_SCHEMA
+          }
+        },
+        ...(config.reasoningEffort ? { reasoning: { effort: config.reasoningEffort } } : {}),
+        max_output_tokens: outputBudget,
+        store: false
+      }, { signal });
+      if (response?.status === 'completed' || !response?.status) break;
+      const reason = response.incomplete_details?.reason;
+      // Only fixed API metadata is logged, never model text or SMS contents.
+      console.warn('[cod-sms] model response unfinished', {
+        orderCode: source?.orderCode, model: config.model, attempt: attempt + 1,
+        status: response.status,
+        reason: ['max_output_tokens', 'content_filter'].includes(reason) ? reason : 'unknown',
+        outputTokens: response.usage?.output_tokens,
+        reasoningTokens: response.usage?.output_tokens_details?.reasoning_tokens,
+        maxOutputTokens: outputBudget
+      });
+      if (response.status !== 'incomplete' || reason !== 'max_output_tokens'
+        || outputBudget >= 16384 || signal.aborted) break;
+      outputBudget = Math.min(16384, outputBudget * 2);
+    }
   } catch (error) {
     // The public-facing ChatError intentionally hides this from the UI/API
     // response (badge just shows "Lỗi chấm điểm"), so this is the only place
@@ -272,19 +293,24 @@ export async function scoreSmsSource(source, config, options = {}) {
       message: error?.message
     });
     throw new CodSmsScoringError(
-      options.signal?.aborted ? 'COD_SMS_MODEL_TIMEOUT' : 'COD_SMS_MODEL_UNAVAILABLE',
-      options.signal?.aborted
+      signal.aborted ? 'COD_SMS_MODEL_TIMEOUT' : 'COD_SMS_MODEL_UNAVAILABLE',
+      signal.aborted
         ? 'Model chấm điểm SMS xử lý quá thời gian.'
         : 'Không thể kết nối model chấm điểm SMS.',
-      options.signal?.aborted ? 504 : 502,
+      signal.aborted ? 504 : 502,
       { cause: error }
     );
   }
 
   if (response?.status && response.status !== 'completed') {
+    const reason = response.incomplete_details?.reason;
     throw new CodSmsScoringError(
       'COD_SMS_MODEL_INCOMPLETE',
-      'Model chưa hoàn tất kết quả chấm điểm SMS.',
+      reason === 'max_output_tokens'
+        ? `Model hết ngân sách ${outputBudget} token trước khi hoàn tất kết quả SMS.`
+        : reason === 'content_filter'
+          ? 'Model chưa hoàn tất do bộ lọc nội dung của dịch vụ AI.'
+          : 'Model chưa hoàn tất kết quả chấm điểm SMS (dịch vụ không cung cấp lý do cụ thể).',
       502
     );
   }

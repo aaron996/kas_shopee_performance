@@ -56,8 +56,10 @@ export function readCodSmsConfig(env = process.env, options = {}) {
     rubricVersion: env.COD_SMS_AI_RUBRIC_VERSION?.trim() || DEFAULT_RUBRIC_VERSION,
     defaultBatchLimit,
     maxBatchLimit,
-    maxOutputTokens: readInt(env, 'COD_SMS_AI_MAX_OUTPUT_TOKENS', 1200, 256, 4096),
-    modelTimeoutMs: readInt(env, 'COD_SMS_AI_MODEL_TIMEOUT_MS', 30000, 1000, 120000),
+    // Reasoning and visible JSON share this budget. 1200 was frequently
+    // exhausted by reasoning before the model could finish the assessment.
+    maxOutputTokens: readInt(env, 'COD_SMS_AI_MAX_OUTPUT_TOKENS', 8192, 256, 16384),
+    modelTimeoutMs: readInt(env, 'COD_SMS_AI_MODEL_TIMEOUT_MS', 60000, 1000, 120000),
     pendingStaleSeconds: readInt(env, 'COD_SMS_AI_PENDING_STALE_SECONDS', 900, 60, 86400)
   };
 }

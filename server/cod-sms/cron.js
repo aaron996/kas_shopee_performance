@@ -37,6 +37,8 @@ function createServiceOnlyClient(config) {
  * identically.
  */
 export async function sweepCodSmsSources({ repository, config, force = false, runBatch = runAssessmentBatch, maxPages = MAX_PAGES_PER_RUN, runId = null, signal, onProgress }) {
+  // Reserve enough time to finish the current model request and persist it.
+  const stopAt = Date.now() + Math.max(1000, 210000 - (config.modelTimeoutMs ?? 30000));
   const totals = {
     pages: 0,
     requested: 0,
@@ -66,6 +68,7 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
       force,
       runId,
       signal,
+      shouldStop: () => Date.now() >= stopAt,
       onProgress: onProgress
         ? update => onProgress({ ...update, page: totals.pages + 1, pages: totals.pages, totals: { ...totals } })
         : undefined
@@ -88,6 +91,40 @@ export async function sweepCodSmsSources({ repository, config, force = false, ru
   }
 
   return totals;
+}
+
+/** One leased slice of the frozen daily case list. Progress is committed by
+ * the run-item trigger, so the next HTTP invocation only sees unfinished keys. */
+export async function runCodSmsDispatchChunk(dependencies = {}) {
+  const now = dependencies.now ?? Date.now;
+  const startedAt = now();
+  const env = dependencies.env ?? process.env;
+  let config = (dependencies.readConfig ?? readCodSmsConfig)(env, { requireScoring: true });
+  const client = (dependencies.createServiceClient ?? createServiceOnlyClient)(config);
+  const repository = (dependencies.createRepository ?? createCodSmsRepository)(client);
+  config = { ...config, ...await (dependencies.resolveModelConfig ?? resolveCodSmsModelConfig)(client, env) };
+  const { dispatchRepository, dispatchId, leaseToken, signal } = dependencies;
+  const prepared = await dispatchRepository.prepare(dispatchId, leaseToken, config);
+  config = { ...config, ...prepared.config };
+  const shouldStop = () => signal?.aborted || now() - startedAt >= 210000 - config.modelTimeoutMs;
+  while (!shouldStop()) {
+    const cases = await dispatchRepository.nextCases(dispatchId, leaseToken);
+    if (!cases.length) break;
+    const result = await (dependencies.runBatch ?? runAssessmentBatch)({
+      repository, config, cases, limit: cases.length, force: false,
+      runId: prepared.runId, signal, shouldStop, durable: true
+    });
+    // A snapshot sync can remove a frozen key from the current eligible scope.
+    // Acknowledge that key without calling AI or touching source/assessment data.
+    const found = new Set(result.rows.map(row => `${row.suspicion_type}\0${row.driver_id}\0${row.order_code}`));
+    if (!result.summary.aborted && !result.summary.deferred && result.summary.found < cases.length) {
+      await repository.recordRunItems(prepared.runId, cases.filter(item => !found.has(`${item.suspicionType}\0${item.driverId}\0${item.orderCode}`))
+        .map(item => ({ outcome: 'skipped_unchanged', assessment: {
+          suspicion_type: item.suspicionType, driver_id: item.driverId, order_code: item.orderCode
+        } })));
+    }
+    if (result.summary.aborted || result.summary.deferred) break;
+  }
 }
 
 export async function runDailyCodSmsBatch(dependencies = {}) {
@@ -124,7 +161,7 @@ export async function runDailyCodSmsBatch(dependencies = {}) {
 export function createCodSmsCronHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const cronSecret = dependencies.cronSecret ?? env.COD_SMS_SCHEDULER_SECRET ?? env.CRON_SECRET;
-  const runDailyBatch = dependencies.runDailyBatch ?? runDailyCodSmsBatch;
+  const runDailyBatch = dependencies.runDailyBatch ?? runCodSmsDispatchChunk;
   const makeDispatchRepository = dependencies.createDispatchRepository ?? createDispatchRepository;
 
   return async function handler(req, res) {
@@ -138,13 +175,13 @@ export function createCodSmsCronHandler(dependencies = {}) {
 
     let dispatchId;
     let dispatchRepository;
-    let claimed = false;
+    let leaseToken = null;
     try {
       verifyCronSecret(req.headers.authorization, cronSecret);
       dispatchId = readDispatchId(req.body);
       dispatchRepository = makeDispatchRepository(dependencies.env ?? process.env);
-      claimed = await dispatchRepository.claim(dispatchId);
-      if (!claimed) {
+      leaseToken = await dispatchRepository.claim(dispatchId);
+      if (!leaseToken) {
         sendJson(res, 200, { contractVersion: '1', cron: true, skipped: 'dispatch_already_claimed_or_expired' });
         return;
       }
@@ -154,7 +191,10 @@ export function createCodSmsCronHandler(dependencies = {}) {
         if (!res.writableEnded) controller.abort(new Error('Client disconnected'));
       });
 
-      const totals = await runDailyBatch({
+      await runDailyBatch({
+        dispatchId,
+        leaseToken,
+        dispatchRepository,
         signal: controller.signal,
         env: dependencies.env,
         readConfig: dependencies.readConfig,
@@ -164,12 +204,12 @@ export function createCodSmsCronHandler(dependencies = {}) {
         runBatch: dependencies.runBatch,
         maxPages: dependencies.maxPages
       });
-      await dispatchRepository.finish(dispatchId, totals.failed > 0 || totals.aborted ? 'partial' : 'completed', totals);
-      sendJson(res, 200, { contractVersion: '1', cron: true, totals });
+      const result = await dispatchRepository.finish(dispatchId, leaseToken);
+      sendJson(res, 200, { contractVersion: '1', cron: true, ...result });
     } catch (error) {
       const failure = toPublicError(error);
-      if (claimed) {
-        try { await dispatchRepository.finish(dispatchId, 'failed', null, failure.code); }
+      if (leaseToken) {
+        try { await dispatchRepository.finish(dispatchId, leaseToken, failure.code); }
         catch { console.error('COD_SMS_DISPATCH_LOG_FAILED', dispatchId); }
       }
       sendJson(res, failure.status, { error: { code: failure.code, message: failure.message } });

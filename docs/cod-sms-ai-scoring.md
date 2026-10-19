@@ -52,14 +52,20 @@ COD_SMS_AI_REASONING_EFFORT=low
 COD_SMS_AI_RUBRIC_VERSION=sms-rubric-2026-09-19-v1
 COD_SMS_AI_BATCH_LIMIT=25
 COD_SMS_AI_MAX_BATCH_LIMIT=200
-COD_SMS_AI_MAX_OUTPUT_TOKENS=1200
-COD_SMS_AI_MODEL_TIMEOUT_MS=30000
+COD_SMS_AI_MAX_OUTPUT_TOKENS=8192
+COD_SMS_AI_MODEL_TIMEOUT_MS=60000
 COD_SMS_AI_PENDING_STALE_SECONDS=900
 ```
 
 The function reuses server-only `OPENAI_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Never use a `VITE_`
 prefix for these values.
+
+Reasoning and visible JSON share the output-token budget. A confirmed
+`max_output_tokens` incomplete response gets at most one larger retry (cap
+16,384), within the same per-order timeout. See
+[batch recovery](cod-sms-batch-recovery.md) for scheduler continuation,
+transactional progress counters and the required migration-before-API rollout.
 
 ## Manual one-time batch
 

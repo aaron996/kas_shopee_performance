@@ -69,6 +69,7 @@ function makeMemoryRepository(source) {
         explanation: values.explanation,
         model_called: values.modelCalled,
         scored_at: values.scoredAt,
+        scoring_run_id: values.scoringRunId,
         error_code: values.errorCode,
         error_message: values.errorMessage,
         run_token: null,
@@ -316,7 +317,7 @@ test('withLoggedRun records one item per order and closes the run with totals', 
   assert.equal(result.summary.failed, 1);
   assert.deepEqual(items.map(item => [item.runId, item.orderCode, item.outcome]), [['run-a', 'ORDER-1', 'failed']]);
   assert.match(items[0].error, /\(x\)/);
-  assert.equal(runs[0].finished.status, 'completed');
+  assert.equal(runs[0].finished.status, 'partial');
   assert.equal(runs[0].finished.totals.failed, 1);
 });
 
@@ -346,4 +347,49 @@ test('withLoggedRun marks the run failed and rethrows when the work throws', asy
   await assert.rejects(withLoggedRun(repository, {}, async () => { throw boom; }), boom);
   assert.equal(finished.status, 'failed');
   assert.equal(finished.errorCode, 'COD_SMS_SOURCE_READ_FAILED');
+});
+
+test('deadline stops before a new claim and preserves committed no-evidence rows',async()=>{
+  const sources=['A','B'].map(orderCode=>({...makeSource([]),orderCode}));
+  const repository=makeMultiSourceRepository(sources);
+  const result=await runAssessmentBatch({repository,config,limit:2,shouldStop:()=>repository.claimedOrders.length>=1});
+  assert.equal(result.summary.aborted,true);assert.equal(result.summary.noEvidence,1);
+  assert.deepEqual(repository.claimedOrders,['A']);
+});
+
+test('durable log failure propagates after assessment commit, then recovery logs result without another model call',async()=>{
+  const source=makeSource([{smsTime:'2026-08-14T03:28:17',recipientType:'NN',content:'VP bank 249997803 Nguyễn Văn A'}]);
+  const repository=makeMemoryRepository(source);
+  let modelCalls=0;
+  const scoreSource=async()=>{modelCalls++;throw Object.assign(new Error('incomplete'),{code:'COD_SMS_MODEL_INCOMPLETE'});};
+  repository.recordRunItems=async()=>{throw new Error('log unavailable');};
+  const params={repository,config,limit:1,runId:'r',durable:true};
+  await assert.rejects(runAssessmentBatch(params,{scoreSource}),/log unavailable/);
+  const logged=[];repository.recordRunItems=async(_id,items)=>logged.push(...items);
+  await runAssessmentBatch(params,{scoreSource});
+  assert.equal(modelCalls,1);assert.equal(logged[0].outcome,'failed');
+});
+
+test('durable batches leave a fresh pending assessment unfinished for later recovery',async()=>{
+  const source=makeSource([]);
+  const row={suspicion_type:source.suspicionType,driver_id:source.driverId,order_code:source.orderCode,
+    status:'pending',source_fingerprint:computeSourceFingerprint(source),model:config.model,rubric_version:config.rubricVersion,
+    updated_at:new Date().toISOString()};
+  const repository=makeMultiSourceRepository([source],[row]);
+  const result=await runAssessmentBatch({repository,config,limit:1,durable:true});
+  assert.equal(result.summary.deferred,1);assert.equal(result.rows.length,0);assert.deepEqual(repository.claimedOrders,[]);
+});
+
+test('recovery uses explicit run identity rather than the completion timestamp',async()=>{
+  for(const runId of ['current','another-run']){
+    const source=makeSource([]);
+    const existing={suspicion_type:source.suspicionType,driver_id:source.driverId,order_code:source.orderCode,
+      status:'failed',scoring_run_id:runId,source_fingerprint:computeSourceFingerprint(source),
+      model:config.model,rubric_version:config.rubricVersion,attempt_count:1,scored_at:'2099-01-01T00:00:00Z'};
+    const repository=makeMultiSourceRepository([source],[existing]);
+    const logged=[];repository.recordRunItems=async(_id,items)=>logged.push(...items);
+    await runAssessmentBatch({repository,config,runId:'current',durable:true,limit:1});
+    assert.deepEqual(repository.claimedOrders,runId==='current'?[]:[source.orderCode]);
+    assert.equal(logged[0].outcome,runId==='current'?'failed':'no_evidence');
+  }
 });

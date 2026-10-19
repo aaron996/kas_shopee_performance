@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyCronSecret, sweepCodSmsSources, runDailyCodSmsBatch, createCodSmsCronHandler } from './cron.js';
+import { verifyCronSecret, sweepCodSmsSources, runDailyCodSmsBatch, runCodSmsDispatchChunk, createCodSmsCronHandler } from './cron.js';
 
 function makeRes() {
   const res = {
@@ -101,7 +101,9 @@ test('createCodSmsCronHandler runs the batch and returns totals for an authorize
   const finished = [];
   const handler = createCodSmsCronHandler({
     cronSecret: 'correct-secret',
-    createDispatchRepository: () => ({ claim: async () => true, finish: async (...args) => finished.push(args) }),
+    createDispatchRepository: () => ({ claim: async () => 'lease', finish: async (...args) => {
+      finished.push(args); return { status: 'completed', totals: { scored: 4 }, continuing: false };
+    } }),
     runDailyBatch: async () => ({ pages: 1, scored: 4, noEvidence: 1, failed: 0 })
   });
 
@@ -113,7 +115,8 @@ test('createCodSmsCronHandler runs the batch and returns totals for an authorize
   const body = JSON.parse(res.body);
   assert.equal(body.cron, true);
   assert.equal(body.totals.scored, 4);
-  assert.equal(finished[0][1], 'completed');
+  assert.equal(finished[0][1], 'lease');
+  assert.equal(body.status, 'completed');
 });
 
 test('duplicate scheduler delivery and old Vercel cron cannot invoke scoring', async () => {
@@ -141,10 +144,13 @@ test('scheduler persists batch failures and partial completion without leaking s
   for (const fail of [true, false]) {
     const finished = [];
     const handler = createCodSmsCronHandler({ cronSecret: 's',
-      createDispatchRepository: () => ({ claim: async () => true, finish: async (...args) => finished.push(args) }),
+      createDispatchRepository: () => ({ claim: async () => 'lease', finish: async (...args) => {
+        finished.push(args); return { status: 'partial', totals: { failed: 1, scored: 3 } };
+      } }),
       runDailyBatch: async () => { if (fail) throw new Error('private-secret'); return { failed: 1, scored: 3 }; } });
     const res = makeRes(); await handler({ method: 'POST', headers: { authorization: 'Bearer s' }, body: { dispatchId: '00000000-0000-0000-0000-000000000001' } }, res);
-    assert.equal(finished[0][1], fail ? 'failed' : 'partial'); assert.ok(!res.body.includes('private-secret'));
+    assert.equal(finished[0][1], 'lease');
+    assert.equal(Boolean(finished[0][2]), fail); assert.ok(!res.body.includes('private-secret'));
   }
 });
 
@@ -183,4 +189,35 @@ test('createCodSmsCronHandler only allows GET and POST', async () => {
 
   assert.equal(res.statusCode, 405);
   assert.equal(res.headers.Allow, 'GET, POST');
+});
+
+test('durable worker checkpoints before its deadline and resumes the same run without forcing',async()=>{
+  let clock=0;
+  const calls=[];
+  const cases=[{suspicionType:'Gối đầu COD',driverId:'1',orderCode:'A'}];
+  const options={
+    now:()=>clock,dispatchId:'dispatch',leaseToken:'lease',
+    readConfig:()=>({modelTimeoutMs:60000,maxBatchLimit:200}),createServiceClient:()=>({}),createRepository:()=>({}),
+    resolveModelConfig:async()=>({model:'gpt-6-luna',reasoningEffort:'max'}),
+    dispatchRepository:{prepare:async()=>({runId:'same-run',startedAt:'2026-10-19T00:00:00Z',config:{model:'frozen-model',modelTimeoutMs:60000}}),nextCases:async()=>cases},
+    runBatch:async params=>{calls.push(params);clock+=160000;return {summary:{found:1,aborted:true},rows:[]};}
+  };
+  await runCodSmsDispatchChunk(options);
+  clock=0; await runCodSmsDispatchChunk(options);
+  assert.equal(calls.length,2);
+  for(const params of calls){assert.equal(params.runId,'same-run');assert.equal(params.force,false);assert.equal(params.durable,true);assert.equal(params.config.model,'frozen-model');}
+});
+
+test('durable worker acknowledges removed source keys and defers live pending claims',async()=>{
+  for(const deferred of [0,1]){
+    const logged=[];let reads=0;
+    await runCodSmsDispatchChunk({
+      readConfig:()=>({modelTimeoutMs:60000}),createServiceClient:()=>({}),createRepository:()=>({recordRunItems:async(...args)=>logged.push(args)}),
+      resolveModelConfig:async()=>({}),dispatchId:'d',leaseToken:'l',
+      dispatchRepository:{prepare:async()=>({runId:'r',config:{}}),nextCases:async()=>++reads===1?[{suspicionType:'Gối đầu COD',driverId:'1',orderCode:'gone'}]:[]},
+      runBatch:async()=>({summary:{found:0,deferred},rows:[]})
+    });
+    assert.equal(logged.length,deferred?0:1);
+    if(!deferred)assert.equal(logged[0][1][0].assessment.order_code,'gone');
+  }
 });
