@@ -166,3 +166,33 @@ cùng `buildWeeklyMatrix` với `labelFor = dayLabel`. Khoảng tối đa 92 ng�
 (17/08 → 12/10) chạy ~9 giây, trần `statement_timeout` là 30 giây. Ngày chọn được: từ ngày mới nhất
 của bảng đang xem lùi 90 ngày (retention). Lưu ý: hàm `get_kas_daily_compact` (giới hạn 14 ngày) là
 của luồng khác, không dùng chung.
+
+## SPE Reverse (KAS-291, test)
+
+Channel SPE Reverse (client 224845) có luồng riêng, không đi qua `kas_pick_data`/`kas_pick_history` vì có thêm cột `pud` và rule
+riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây là bản test dữ liệu.
+
+- **Rule**: ngày hẹn lấy = ngày lớn hơn giữa `OrderDate` và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1). Rule giờ tạo để
+  tránh đơn tạo sau 16h mà `OrderDate` vẫn hẹn cùng ngày. 1st OPR = `first_valid_pickup_time` (đã loại lần đi lấy "Nhân viên gặp sự
+  cố"), fallback `endpicktime`; OTS (`ontime_pu_opr`) = `endpicktime` <= ngày hẹn; `pud` = đã lấy thành công, không xét ngày hẹn.
+  DropAtStation: khách ra BC khác BC được gán đầu tiên thì tính cho BC được gán đầu tiên (`warehouse_log` của `end_pick_time`).
+  Lọc `shopee_business_type` = 1 hoặc NULL; không có mốc cutover 01/08 vì `created_date` có trường này từ trước.
+- **Query** (StarRocks, `sr_ghn_reporting`): [pick_reverse_14d.sql](sql/pick_reverse_14d.sql) (D-14..D-1, dùng hằng ngày) và
+  [pick_reverse_backfill_20260621.sql](sql/pick_reverse_backfill_20260621.sql) (cùng thân, `win_start` = 21/06/2026). Cột:
+  `report_date, region, hub, hub_type, mau_pu, ontime_pu_1st, ontime_pu_opr, pud, client_name` (`client_name` = `SPE Reverse`).
+  Cửa sổ quét nguồn nới thêm so với range: partition 7 ngày, `LoadDate` 10, biz 2, `end_pick_time` 7.
+- **Bảng** `kas_reverse_history` (migration [20261019090000](../supabase/migrations/20261019090000_kas_reverse_history.sql)): cùng khoá
+  với `kas_pick_history` cộng `pud`. RPC `replace_kas_reverse_history(date_from, date_to, rows)` (chỉ `service_role`) xoá rồi chèn trong
+  một giao dịch: dòng không còn trong nguồn (hub đổi vì DropAtStation, đơn bị loại) biến mất, khác upsert của Pick. Từ chối `rows`
+  rỗng, dòng ngoài cửa sổ, khoá trùng, quá 20.000 dòng; lệnh lỗi không xoá gì. **Không** nằm trong `prune_kas_history` (backfill
+  dài hơn 90 ngày).
+- **Apps Script** [reverse-history-sync.gs](../scripts/apps-script/reverse-history-sync.gs) (dùng lại hàm của hai file ops-*):
+  `backfillReverseHistory()` đọc tab `reverse_backfill_tmp`, chỉ nhận 21/06 → hôm qua, replace từng tuần (tuần đầu cắt ở 21/06);
+  `syncReverseHistory()` đọc tab `reverse`, replace D-14..D-1, bắt buộc có đủ ngày hôm qua và không có ngày ngoài cửa sổ. Hằng ngày
+  cần đặt trigger cho `syncReverseHistory()` và BI ghi query 14 ngày vào tab `reverse`.
+- **Số đo trên Superset (19/10)**: backfill 21/06 → 18/10 là 120 ngày, 126.541 dòng ở mức (ngày, region, hub), mẫu 669.909, PUD
+  452.902, chạy khoảng 4 phút. Query 14 ngày khớp từng ngày (số dòng, mẫu, 1st, OTS, PUD) với backfill ở cả 14 ngày chung.
+- **Backfill đã chạy 19/10**: nạp tab `reverse_backfill_tmp` rồi `backfillReverseHistory()` (18 tuần, khoảng 2 phút). Bảng `kas_reverse_history` khớp Superset: 126.535 dòng, mẫu 669.909, 1st 417.513, OTS 229.243, PUD 452.902, 120 ngày 21/06 → 18/10; 2.428 dòng không có `region` (`Fromregion_new` rỗng ở nguồn). Lần chạy đầu bị RPC chặn ở tuần 29/06 (`Duplicate key in batch`) vì có hub chỉ khác nhau dấu cách cuối tên (Sheets cắt dấu cách), nên query dùng `TRIM(hub)`; 6 dòng gộp lại, tổng không đổi. Dán 8 MB TSV vào Sheet qua clipboard chỉ chạy khi cửa sổ Chrome đang được người dùng thao tác (clipboard hệ thống bị rỗng khi lệnh đến từ extension), nên bước dán nên do người dùng làm. **Hằng ngày (19/10)**: tab `reverse` được đổ bằng hàm tạm đọc 14 ngày cuối của `reverse_backfill_tmp` (14.474 dòng từ 05/10; hàm đã xoá khỏi project), `syncReverseHistory()` replace D-14..D-1 (xoá 14.474, chèn 14.474, tổng bảng không đổi) và `createReverseDailyTrigger()` đã đặt trigger khoảng 09:00 hằng ngày (sau 08:15 BI đổ dữ liệu và 08:30 `syncAllTabs`). Việc đổ tab `reverse` hằng ngày bằng query 14 ngày ([pick_reverse_14d.sql](sql/pick_reverse_14d.sql)) vẫn là việc của BI; nếu tab chưa có đủ ngày hôm qua thì hàm báo lỗi và không ghi gì.
+- **Kiểm thử**: `node scripts/apps-script/reverse-history-sync.test.mjs` (PGlite, 41 kiểm tra): replace xoá đúng cửa sổ, NULL region,
+  lỗi không đổi dữ liệu, quyền, backfill chia tuần và từ chối ngoài cửa sổ, daily đúng D-14..D-1. Chưa chạy trên Supabase hay Apps
+  Script thật.
