@@ -1,4 +1,4 @@
--- KAS-291: SPE Reverse (client_id 224845) - 1st OPR / OTS / PUD theo BC-ngày. Nguồn: query tham khảo của Thịnh,
+-- KAS-291: SPE Reverse (client_id 224845) - output cùng cấu trúc pick_weekly_60d_test.sql (hub-ngày) + cột pud.
 -- chạy StarRocks (sr_ghn_reporting). Khác bản Trino của Thịnh: bỏ CAST(.. AS VARCHAR) và dùng parse_json(warehouse_log)
 -- trong UNNEST. Dtm_KA_Shopee không nhân dòng theo LoadDate với đơn Reverse (đã kiểm: COUNT = COUNT DISTINCT).
 -- Ngày hẹn lấy (loaddate_final): tạo đơn trước 16h = D0, từ 16h = D+1, không sớm hơn LoadDate.
@@ -60,25 +60,25 @@ b4 AS (
     LEFT JOIN default_catalog.sr_dim.dim_warehouse w ON w.warehouse_id = m.bc_first_id
 )
 SELECT
-    fromprovince_new,
-    fromward_new,
-    pickwh_final AS pickwh,
+    loaddate_final AS report_date,
     CASE
-        WHEN pickwh_final LIKE '%Ahamove%'               THEN 'AHM'
-        WHEN pickwh_final LIKE '%Kho Giao Hàng Nặng%'    THEN 'GXT'
-        WHEN pickwh_final LIKE '%Key Account Warehouse%' THEN 'KHL'
-        WHEN pickwh_final LIKE '%KD%'                    THEN 'BC KD'
+        WHEN fromregion_new = 'HCM' AND pickwh_final LIKE '%Giao Hàng Nặng%' THEN 'HCM - GXT'
+        ELSE fromregion_new
+    END AS region,
+    pickwh_final AS hub,
+    CASE
+        WHEN pickwh_final LIKE '%Ahamove%' THEN 'Ahamove'
+        WHEN pickwh_final LIKE '%Key Account%' THEN 'KA'
+        WHEN pickwh_final LIKE '%Giao Hàng Nặng%' THEN 'GXT'
         ELSE 'BC'
-    END AS partner,
-    date_format(loaddate_final, '%Y-%v')    AS isoweek,
-    date_format(loaddate_final, '%Y-%m-%d') AS loaddate,
-    CASE WHEN fromregion_new = 'ĐCL' THEN 'DCL' ELSE fromregion_new END AS fromregion,
-    SUM(CASE WHEN DATE(COALESCE(first_valid_pickup_time, endpicktime)) <= loaddate_final THEN 1 ELSE 0 END) AS first_pick_ontime,
-    SUM(CASE WHEN DATE(endpicktime) <= loaddate_final THEN 1 ELSE 0 END) AS pickup_ontime,
-    SUM(CASE WHEN endpicktime IS NOT NULL THEN 1 ELSE 0 END) AS PUD,
-    COUNT(*) AS total_vol
+    END AS hub_type,
+    COUNT(*) AS mau_pu,
+    SUM(CASE WHEN DATE(COALESCE(first_valid_pickup_time, endpicktime)) <= loaddate_final THEN 1 ELSE 0 END) AS ontime_pu_1st,
+    SUM(CASE WHEN DATE(endpicktime) <= loaddate_final THEN 1 ELSE 0 END) AS ontime_pu_opr,
+    SUM(CASE WHEN endpicktime IS NOT NULL THEN 1 ELSE 0 END) AS pud,
+    'SPE Reverse' AS client_name
 FROM b4
 WHERE loaddate_final BETWEEN DATE '2026-10-01' AND DATE '2026-10-14'
   AND NOT (currentstatus = 'cancel' AND DATE(canceltime) <= loaddate_final)
-GROUP BY 1, 2, 3, 4, 5, 6, 7
-ORDER BY 5, 6, 7, 4
+GROUP BY 1, 2, 3, 4
+ORDER BY report_date DESC, region, hub
