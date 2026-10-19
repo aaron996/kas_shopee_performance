@@ -721,7 +721,8 @@ export default function App() {
   useEffect(() => {
     if (!isReverse || reverseRows || !currentUser) return undefined;
     let cancelled = false;
-    const to = getVietnamBusinessDay();
+    // Match the Pick/Deli snapshot window: D-14 through D-1 in Vietnam.
+    const to = addDays(getVietnamBusinessDay(), -1);
     fetchDailyRangeRows(supabase, 'reverse', addDays(to, -13), to)
       .then(({ rows }) => { if (!cancelled) setReverseRows(rows); })
       .catch(() => {
