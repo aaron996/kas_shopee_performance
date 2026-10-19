@@ -6,12 +6,14 @@ import OverviewKpiCards from './OverviewKpiCards';
 import WeatherOverview from './WeatherOverview';
 import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor';
 import './overview.css';
+import useOverviewMtd from './useOverviewMtd';
 
 const dateLabel = date => date ? formatDateLabel(date).replace('\n', ' ') : 'Chưa có dữ liệu';
 const percentage = value => formatPct(value).replace('.', ',');
 
-export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, dataNotice }) {
+export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, dataNotice, mtdFilters }) {
   const [metric, setMetric] = useState('p1st');
+  const { cards: mtdCards, retry } = useOverviewMtd(cards, mtdFilters);
   const card = cards.find(item => item.id === metric) || cards[0];
   const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1) || cards.find(item => item.historyDates.length)?.historyDates.at(-1);
   const selectedDate = card?.historyDates.at(-1);
@@ -23,12 +25,13 @@ export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, 
 
     {cards.length > 0 && <section className="overview-performance" aria-label="KPI vận hành">
       <div className="overview-performance-heading">
-        <span className="overview-data-date"><CalendarDays aria-hidden="true" />{dateLabel(commonDate)}</span>
-        <span className="overview-comparison-note">So với cùng thứ tuần trước
-          <IconButton icon="Info" label="Cách đọc KPI" detail="Chênh lệch tính theo điểm phần trăm so với cùng thứ tuần trước. Chọn một KPI để xem xu hướng. Mỗi chỉ số hiển thị ngày riêng nếu khác ngày dữ liệu chung; — là chưa đủ dữ liệu." />
+        <span className="overview-data-date"><CalendarDays aria-hidden="true" />MTD · {commonDate ? `${dateLabel(`${commonDate.slice(0, 7)}-01`)} – ${dateLabel(commonDate)}` : 'Chưa có dữ liệu'}</span>
+        <span className="overview-comparison-note">Lũy kế từ đầu tháng
+          <IconButton icon="Info" label="Cách đọc KPI" detail="MTD tính từ đầu tháng đến ngày dữ liệu mới nhất của từng KPI, theo bộ lọc đang chọn. Tỷ lệ bằng tổng tử chia tổng mẫu. Chọn KPI để xem xu hướng từng ngày; — là chưa có số liệu MTD." />
         </span>
       </div>
-      <OverviewKpiCards cards={cards} selectedMetric={card?.id} onSelect={setMetric} commonDate={commonDate} />
+      <OverviewKpiCards cards={mtdCards} selectedMetric={card?.id} onSelect={setMetric} />
+      {mtdCards.some(item => item.mtdStatus === 'error') && <div role="alert">Không tải được số liệu MTD. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
     </section>}
 
     {dataNotice}
