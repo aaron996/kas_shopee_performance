@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   AlertCircle,
@@ -780,7 +781,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
       {activeSubtab === 'overview' && (
         <div>
           {isOverviewLoading && !overviewData ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải số liệu tổng quan chi phí AI...</div>
+            <LoadingScreen variant="page" />
           ) : overviewError ? (
             <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-danger-fg)', borderRadius: 'var(--radius-control)' }}>
               <AlertCircle size={16} /> {overviewError}
@@ -972,7 +973,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                 </thead>
                 <tbody>
                   {isQuotasLoading && quotasData.overrides.length === 0 ? (
-                    <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải danh sách...</td></tr>
+                    <tr><td colSpan={7}><LoadingScreen /></td></tr>
                   ) : quotasData.overrides.length === 0 ? (
                     <tr><td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{quotasError ? 'Chưa tải được hạn mức. Bấm Làm mới để thử lại.' : `Chưa có hạn mức riêng. Hạn mức mặc định: ${quotasData.defaultTurnLimit ?? 'chưa tải'} lượt/ngày.`}</td></tr>
                   ) : quotasData.overrides.map(u => (
@@ -1098,21 +1099,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
           )}
 
           {isModelConfigLoading && !modelConfigData ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4rem 2rem',
-              gap: '1rem',
-              color: 'var(--text-muted)',
-              background: 'var(--card-bg)',
-              borderRadius: 'var(--radius-surface)',
-              border: '1px solid var(--border)'
-            }}>
-              <RefreshCw size={28} className="spin" />
-              <span style={{ fontSize: '0.9rem' }}>Đang tải cấu hình AI Model & Phân cấp...</span>
-            </div>
+            <LoadingScreen />
           ) : modelConfigError && !modelConfigData ? (
             <div style={{
               display: 'flex',
@@ -1309,7 +1296,6 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                           onKeyDown={handleUserSearchKeyDown}
                           style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'var(--text-main)', fontSize: '0.85rem' }}
                         />
-                        {isSearchingUsers && <RefreshCw size={14} className="spin" />}
                       </div>
 
                       {userSearchError && (
@@ -1339,10 +1325,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                           }}
                         >
                           {isSearchingUsers ? (
-                            <div style={{ padding: '0.8rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                              <RefreshCw size={14} className="spin" />
-                              <span>Đang tìm kiếm người dùng...</span>
-                            </div>
+                            <LoadingScreen />
                           ) : userSearchResults.length === 0 ? (
                             <div style={{ padding: '0.8rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>
                               Không tìm thấy người dùng nào phù hợp
@@ -1615,7 +1598,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                     <div style={{ padding: '0.75rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-control)' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Model đang phục vụ</div>
                       <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)', marginTop: '0.2rem' }}>
-                        {modelConfigData?.effectiveConfig?.model || 'Đang tải...'}
+                        {modelConfigData?.effectiveConfig?.model || '—'}
                       </div>
                     </div>
 
@@ -1922,7 +1905,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                 </thead>
                 <tbody>
                   {isResearchLoading && researchLogs.length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải nhật ký câu hỏi...</td></tr>
+                    <tr><td colSpan={8}><LoadingScreen /></td></tr>
                   ) : researchError ? (
                     <tr><td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-danger-fg)' }}>{researchError}</td></tr>
                   ) : researchLogs.length === 0 ? (

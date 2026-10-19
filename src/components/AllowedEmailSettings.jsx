@@ -75,7 +75,7 @@ export default function AllowedEmailSettings() {
     </form>
     {error && <p role="alert" className="role-settings-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
-    {loading ? <LoadingScreen variant="contained" /> : <>
+    {loading ? <LoadingScreen variant="block" /> : <>
       <div className="role-settings-table"><table><thead><tr><th>Email</th><th>Ghi chú</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
         {items.map(item => <tr key={item.email}>
           <td>{item.email}</td><td>{item.note || '—'}</td><td>{item.signed_in ? 'Đã có tài khoản' : 'Chưa đăng nhập lần nào'}</td>

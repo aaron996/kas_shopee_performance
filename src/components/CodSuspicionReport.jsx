@@ -1164,7 +1164,7 @@ export default function CodSuspicionReport({
             </span>
           </div>
           {isSmsLoading ? (
-            <span className="cod-sms-overview__note">Đang tải kết quả chấm...</span>
+            <LoadingScreen />
           ) : smsAssessmentsFailed ? (
             <span className="cod-sms-overview__note cod-sms-overview__note--error">Không tải được kết quả chấm SMS, chưa thể tổng hợp.</span>
           ) : (
@@ -1292,25 +1292,7 @@ export default function CodSuspicionReport({
       )}
 
       {isSmsLoading && !isLoading && (
-        <div
-          role="status"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            marginBottom: '0.85rem',
-            padding: '0.35rem 0.75rem',
-            borderRadius: 'var(--radius-pill, 999px)',
-            background: 'var(--surface-subtle, #f2f7fd)',
-            border: '1px solid var(--border, #dce9f7)',
-            color: 'var(--action-primary, #0ea5c4)',
-            fontSize: '0.78rem',
-            fontWeight: 600
-          }}
-        >
-          <LoaderCircle size={14} className="is-spinning" />
-          <span>Đang tải mức độ nghi ngờ...</span>
-        </div>
+        <LoadingScreen />
       )}
 
 

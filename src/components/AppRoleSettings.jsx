@@ -75,7 +75,7 @@ export default function AppRoleSettings({ currentUser }) {
     </div>
     {error && <p role="alert" className="role-settings-error">{error}</p>}
     {notice && <p role="status">{notice}</p>}
-    {loading ? <LoadingScreen variant="contained" /> : <>
+    {loading ? <LoadingScreen variant="block" /> : <>
       <div className="role-settings-table"><table><thead><tr><th>Email</th><th>Role hiện tại</th><th>Đổi role</th><th>Thao tác</th></tr></thead><tbody>
         {data.users.map(user => {
           const self = user.email === currentUser?.email?.toLowerCase();

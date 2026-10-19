@@ -1,8 +1,8 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CornerDownLeft,
   Filter,
-  LoaderCircle,
   MapPin,
   PackageSearch,
   Search,
@@ -249,7 +249,7 @@ export default function CommandPalette({
           })}
 
           <div className="cmdk-status" aria-live="polite">
-            {isCodLoading && <><LoaderCircle size={14} className="is-spinning" /> Đang tìm trong dữ liệu COD được cấp quyền...</>}
+            {isCodLoading && <LoadingScreen variant="inline" />}
             {shouldSearchCod && codSearchStatus === 'error' && 'Không tải được dữ liệu COD. Điều hướng trong hệ thống vẫn hoạt động.'}
             {!canSearchCod && cleanQuery.length >= MIN_DATA_QUERY_LENGTH && 'Local preview không truy vấn dữ liệu COD live.'}
           </div>

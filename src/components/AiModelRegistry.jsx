@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Plus, Pencil, CheckCircle2 } from 'lucide-react';
 import './AiModelRegistry.css';
@@ -142,7 +143,7 @@ export default function AiModelRegistry({ fetchWithAuth, peekData, onChanged }) 
     </div>
     </details>
     <div className="model-registry-view-summary"><span>Hiển thị {filtered.length} / {models.length} model</span><button type="button" className="btn-secondary" onClick={() => { setSearch(''); setShowAll(false); setStatusFilter('all'); setPriceFilter('all'); setAvailabilityFilter('all'); setSort('name-asc'); }}>Đặt lại bộ lọc</button></div>
-    {loading ? <p role="status">Đang tải danh sách model…</p> : registry && <>
+    {loading ? <LoadingScreen /> : registry && <>
       <div className="model-registry-table-wrap"><table><caption className="model-registry-sr">Danh sách model và trạng thái sử dụng</caption><thead><tr><th>Model</th><th>Trạng thái</th><th>Giá / triệu token</th><th>Thao tác</th></tr></thead>
         <tbody>{filtered.map(row => {
           const ready = isModelTested(row);

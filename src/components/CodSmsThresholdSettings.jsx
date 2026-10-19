@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchCodSmsThreshold, saveCodSmsThreshold } from '../utils/codSmsThresholdClient.js';
 import { clearDevDataCache, peekDevResource, readDevResource } from '../utils/devDataClient.js';
@@ -57,7 +58,7 @@ export default function CodSmsThresholdSettings({ currentUser }) {
     <section className="cod-threshold-settings" aria-labelledby="cod-threshold-title">
       <h2 id="cod-threshold-title">Mốc điểm SMS để nâng mức nghi ngờ</h2>
       <p>Tài xế có ít nhất 1 đơn đạt mốc được nâng 1 bậc so với mức theo SQL (Thấp → Vừa, Vừa → Cao). Mốc này cũng áp dụng cho sheet nghi_ngo_COD. Đổi mốc không chấm SMS lại hoặc thay điểm đã lưu.</p>
-      {status === 'loading' && <p role="status">Đang tải mốc đang áp dụng…</p>}
+      {status === 'loading' && <LoadingScreen />}
       {status === 'error' && <p role="alert">{message} <button type="button" onClick={() => load({ forceRefresh: true })}>Thử lại</button></p>}
       {current && status !== 'error' && status !== 'loading' && (
         <>

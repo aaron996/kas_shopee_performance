@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import { Check } from 'lucide-react';
 import AnimatedNumber from '../../components/ui/AnimatedNumber';
 import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor';
@@ -19,14 +20,14 @@ export default function OverviewKpiCards({ cards, selectedMetric, onSelect }) {
           <Check className="overview-metric-check" aria-hidden="true" />
         </span>
         <span className={`overview-metric-value is-${status}`}>
-          {hasData ? <AnimatedNumber value={card.mtd.pct} format={percentage} /> : '—'}
+          {card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : hasData ? <AnimatedNumber value={card.mtd.pct} format={percentage} /> : '—'}
         </span>
         <span className="overview-metric-comparison">
-          <span>{card.mtdStatus === 'loading' ? 'Đang tải MTD…' : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : hasData ? 'MTD' : 'Chưa có dữ liệu MTD'}</span>
+          <span>{card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : hasData ? 'MTD' : 'Chưa có dữ liệu MTD'}</span>
           {hasTarget && <span>Target ≥{card.target}%</span>}
         </span>
         <span className="overview-metric-volume">
-          {hasData ? <><span>{formatVol(card.mtd.tot)} đơn</span><span>{formatVol(card.subStatLabel ? card.mtd.ont : card.mtd.tot - card.mtd.ont)} {card.subStatLabel || 'trễ'}</span></> : <span>— đơn</span>}
+          {card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : hasData ? <><span>{formatVol(card.mtd.tot)} đơn</span><span>{formatVol(card.subStatLabel ? card.mtd.ont : card.mtd.tot - card.mtd.ont)} {card.subStatLabel || 'trễ'}</span></> : <span>— đơn</span>}
         </span>
         {card.mtd?.to && <span className="overview-metric-date">{formatDateLabel(card.mtd.from).replace('\n', ' ')} – {formatDateLabel(card.mtd.to).replace('\n', ' ')}</span>}
       </button>;
