@@ -20,6 +20,7 @@ import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
 import { groupDatesByWeek, normalizeDashboardRows, filterRowsByScope, collectHubTypes } from './utils/dataProcessor';
 import { supabase } from './utils/supabaseClient';
+import useModuleNavigation from './hooks/useModuleNavigation.js';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
 import { preloadDashboardModules } from './modules/moduleRegistry.jsx';
@@ -105,7 +106,7 @@ export default function App() {
   });
 
   const [initialView] = useState(() => readDashboardView(sessionStorage, window.location.search));
-  const [activeTab, setActiveTab] = useState(initialView.tab);
+  const [activeTab, setActiveTab] = useModuleNavigation(initialView.tab);
   const [codSuspicionFilters, setCodSuspicionFilters] = useState({ suspicionType: 'ALL', warehouse: 'ALL', region: 'ALL', province: 'ALL', searchQuery: '' });
   const [codSuspicionWarehouses, setCodSuspicionWarehouses] = useState([]);
   const [codSuspicionRegions, setCodSuspicionRegions] = useState([]);
@@ -250,7 +251,7 @@ export default function App() {
     requestAnimationFrame(() => {
       window.dispatchEvent(new CustomEvent('jump-to-region', { detail: { region } }));
     });
-  }, []);
+  }, [setActiveTab]);
 
   const handleSelectCodSearchResult = useCallback((target) => {
     if (!target) return;
@@ -262,7 +263,7 @@ export default function App() {
     });
     setCodSearchFocus({ ...target, requestId: Date.now() });
     setActiveTab('cod-suspicion');
-  }, []);
+  }, [setActiveTab]);
 
   const clearCodSearch = useCallback(() => {
     setCodSuspicionFilters(previous => ({ ...previous, searchQuery: '' }));
@@ -356,7 +357,7 @@ export default function App() {
       metricKey,
       requestId: Date.now()
     });
-  }, []);
+  }, [setActiveTab]);
 
   const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
   // Gates the single unified loading animation over the report area. Only the
