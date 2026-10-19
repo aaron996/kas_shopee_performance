@@ -1,5 +1,6 @@
 -- KAS-291 TEST: 1st Pickup / OPR / PUD của SPE Reverse (client 224845) theo hub-ngày, cùng khung với pick_weekly_60d_test.sql.
--- Khác pick: ngày hẹn lấy theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1); lọc shopee_business_type = 1 hoặc NULL;
+-- Khác pick: ngày hẹn lấy = ngày lớn hơn giữa OrderDate và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1; rule giờ tạo
+-- để tránh đơn tạo sau 16h mà OrderDate vẫn hẹn cùng ngày); lọc shopee_business_type = 1 hoặc NULL;
 -- không loại IsExpectedDropOff mà xử lý DropAtStation (khách ra BC khác BC được gán đầu tiên thì tính cho BC được gán đầu tiên);
 -- thêm cột pud (đơn đã lấy thành công, không xét ngày hẹn).
 -- Range: report_date từ thứ Hai cách 8 tuần trước tuần hiện tại đến today-1. Cửa sổ quét nguồn nới thêm so với range:
@@ -36,7 +37,8 @@ Raw_Order AS (
         MAX(A.`ActualPickType`)  AS actualpicktype,
         MAX(A.`PickWH`)          AS pickwh,
         MAX(A.`EndPickTime`)     AS endpicktime,
-        MIN(A.`CreatedDate`)     AS createddate
+        MIN(A.`CreatedDate`)     AS createddate,
+        MAX(A.`OrderDate`)       AS orderdate
     FROM sr_ghn_reporting.ka.`Dtm_KA_V3_CreatedDate` A
     WHERE A.`ClientID` = 224845
       AND A.`CreatedDate_Partition` >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '7' DAY
@@ -73,10 +75,13 @@ Raw_Pick AS (
         A.endpicktime,
         B.first_valid_pickup_time,
         C.shopee_business_type,
-        CASE
-            WHEN HOUR(A.createddate) < 16 THEN DATE(A.createddate)
-            ELSE DATE(A.createddate) + INTERVAL '1' DAY
-        END AS pickup_order_date
+        GREATEST(
+            DATE(A.orderdate),
+            CASE
+                WHEN HOUR(A.createddate) < 16 THEN DATE(A.createddate)
+                ELSE DATE(A.createddate) + INTERVAL '1' DAY
+            END
+        ) AS pickup_order_date
     FROM Raw_Order A
     LEFT JOIN sr_ghn_reporting.ka.`Dtm_KA_Shopee` B
         ON A.ordercode = B.`OrderCode`
