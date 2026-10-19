@@ -1,5 +1,5 @@
 const METRIC_LABELS = Object.freeze({ p1st: 'P1ST', opr: 'OPR', d1st: 'D1ST', odr: 'ODR' });
-const CLIENT_LABELS = Object.freeze({ SPB: 'SPB', SPE: 'SPE', 'Shopee Reverse': 'Shopee Reverse', ALL: 'Toàn bộ' });
+const CLIENT_LABELS = Object.freeze({ SPB: 'SPB', SPE: 'SPE', 'SPE Reverse': 'Shopee Reverse', ALL: 'Toàn bộ' });
 
 function formatDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return value || '';

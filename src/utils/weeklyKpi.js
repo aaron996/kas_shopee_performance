@@ -5,6 +5,7 @@
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset.js';
 import { normalizeDashboardRows, getHubType, getWeekNumber, formatShortDate, formatDateLabel } from './dataProcessor.js';
 import { getHubIdentityKey } from './performanceRanking.js';
+import { REVERSE_CLIENT } from './clientLabels.js';
 
 export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trước đó
 
@@ -16,6 +17,11 @@ export const WEEKLY_METRICS = {
   dodr: { dataset: 'deli', title: 'ODR', total: 'mau_deli', ontime: 'ontime_deli_odr', target: 90 },
   fd: { dataset: 'fd', title: 'FD', total: 'mau_fd', ontime: 'fd_hoan_thanh', target: null, isFd: true }
 };
+
+// Reverse có bảng lịch sử riêng, chỉ có Pick: chỉ số Pick của client này đọc dataset 'reverse'.
+export function datasetFor(metric, clientFilter) {
+  return metric.dataset === 'pick' && clientFilter === REVERSE_CLIENT ? 'reverse' : metric.dataset;
+}
 
 const cache = new Map(); // dataset -> Promise<{ weeks, rows }>
 

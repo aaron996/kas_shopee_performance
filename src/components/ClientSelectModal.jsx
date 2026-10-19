@@ -18,7 +18,7 @@ const OPTIONS = [
     tag: 'SPB'
   },
   {
-    key: 'Shopee Reverse',
+    key: 'SPE Reverse',
     icon: Undo2,
     title: 'Shopee Reverse',
     tag: 'Reverse'

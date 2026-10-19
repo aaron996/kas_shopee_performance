@@ -196,3 +196,15 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
 - **Kiểm thử**: `node scripts/apps-script/reverse-history-sync.test.mjs` (PGlite, 41 kiểm tra): replace xoá đúng cửa sổ, NULL region,
   lỗi không đổi dữ liệu, quyền, backfill chia tuần và từ chối ngoài cửa sổ, daily đúng D-14..D-1. Chưa chạy trên Supabase hay Apps
   Script thật.
+
+## Hiển thị Shopee Reverse trong app
+
+- Client `SPE Reverse` (nhãn "Shopee Reverse") chỉ có Pick (1st Pickup, OPR); Deli/FD không áp dụng nên tab giao hàng và FD bị ẩn.
+- `kas_reverse_history` chỉ `service_role` đọc được; app đọc qua ba RPC có thêm dataset `reverse`
+  (`get_kas_weekly_compact`, `get_kas_daily_compact`, `get_kas_daily_range_compact`) trong
+  `supabase/migrations/20261019120000_kas_reverse_rpc_datasets.sql`. Tuần được cộng trực tiếp từ bảng ngày
+  (9 tuần ≈ 11 nghìn dòng, ~1,2 s khi đo).
+- Bảng "Theo ngày" mặc định của Reverse là 14 ngày gần nhất đọc từ cùng RPC khi người dùng chọn client; không có
+  cột benchmark (WTD, tốt nhất 6 tuần, cùng ngày tháng trước) vì bảng lịch sử không lưu.
+- "Toàn bộ" vẫn là SPB + SPE, không cộng Reverse vào để khỏi lẫn chỉ tiêu.
+- Chatbot AI (`server/chat`, `ai_chat_*`) chưa hỗ trợ Reverse.

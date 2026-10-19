@@ -3,13 +3,16 @@
 // "SPB (Shopee Express Backlog)" và "SPE (Shopee Express Standard)".
 // SPB là Shopee Bulky.
 
+// Reverse chỉ có Pick (bảng kas_reverse_history); mã khớp client_name trong dữ liệu.
+export const REVERSE_CLIENT = 'SPE Reverse';
+
 export const CLIENT_LABELS = {
   SPB: 'Shopee Bulky',
   SPE: 'Shopee Express',
-  'Shopee Reverse': 'Shopee Reverse'
+  [REVERSE_CLIENT]: 'Shopee Reverse'
 };
 
-export const CLIENT_ORDER = ['SPB', 'SPE', 'Shopee Reverse'];
+export const CLIENT_ORDER = ['SPB', 'SPE', REVERSE_CLIENT];
 
 /** Giá trị hợp lệ của bộ lọc client trên header (kèm 'ALL'). */
 export const CLIENT_FILTER_VALUES = [...CLIENT_ORDER, 'ALL'];
@@ -29,7 +32,7 @@ export function getClientLabel(code) {
 }
 
 /**
- * clientFilter của header là 'SPB' | 'SPE' | 'Shopee Reverse' | 'ALL' → danh sách client cần vẽ.
+ * clientFilter của header là 'SPB' | 'SPE' | 'SPE Reverse' | 'ALL' → danh sách client cần vẽ.
  * Giao với danh sách client thực có trong data để không vẽ cột rỗng.
  */
 export function resolveClients(clientFilter, availableClients) {

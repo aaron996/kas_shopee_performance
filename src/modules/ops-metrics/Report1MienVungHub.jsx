@@ -14,6 +14,7 @@ import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
 import { supabase } from '../../utils/supabaseClient';
+import { REVERSE_CLIENT } from '../../utils/clientLabels';
 import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange } from '../../utils/weeklyKpi';
 
 const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
@@ -90,6 +91,12 @@ export default function Report1MienVungHub({
   const filteredFd = useMemo(() => {
     return clientFilter === 'ALL' ? fdRows : fdRows.filter(r => r.client_name === clientFilter);
   }, [fdRows, clientFilter]);
+
+  // Reverse chỉ có Pick: giữ bảng ở nhóm lấy hàng.
+  const pickOnly = clientFilter === REVERSE_CLIENT;
+  useEffect(() => {
+    if (pickOnly && activeTableTab !== 'p1st' && activeTableTab !== 'popr') setActiveTableTab('p1st');
+  }, [pickOnly, activeTableTab]);
 
   const previousTableTab = useRef(null);
 
@@ -565,7 +572,7 @@ export default function Report1MienVungHub({
       try {
         const loaded = { pick: [], deli: [], fd: [] };
         for (const dataset of ['pick', 'deli', 'fd']) {
-          if (need.has(dataset)) loaded[dataset] = await fetchDailyRows(supabase, dataset, filters.from, filters.to || exportDateRange.max);
+          if (need.has(dataset)) loaded[dataset] = await fetchDailyRows(supabase, dataset === 'pick' && pickOnly ? 'reverse' : dataset, filters.from, filters.to || exportDateRange.max);
         }
         const rows = filterExportRows(buildExportSources(loaded.pick, loaded.deli, loaded.fd), filters, false);
         if (!rows.length) {
@@ -584,7 +591,7 @@ export default function Report1MienVungHub({
     try {
       const loaded = { pick: [], deli: [], fd: [] };
       for (const dataset of ['pick', 'deli', 'fd']) {
-        if (need.has(dataset)) loaded[dataset] = (await fetchWeeklyRows(supabase, dataset)).rows;
+        if (need.has(dataset)) loaded[dataset] = (await fetchWeeklyRows(supabase, dataset === 'pick' && pickOnly ? 'reverse' : dataset)).rows;
       }
       const rows = filterExportRows(buildExportSources(loaded.pick, loaded.deli, loaded.fd), filters, true);
       if (!rows.length) {
@@ -1377,6 +1384,8 @@ export default function Report1MienVungHub({
               OPR
             </button>
           </div>
+          {/* Reverse chỉ có dữ liệu Pick: không có nhóm giao hàng và FD. */}
+          {!pickOnly && (<>
           <div className="kpi-tab-group" role="group" aria-label="Nhóm giao hàng">
             <button role="tab" id="ops-tab-d1st" aria-selected={activeTableTab === 'd1st'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'd1st' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'd1st' ? 'active' : ''}`} onClick={() => setActiveTableTab('d1st')}>
               1st Deli
@@ -1390,6 +1399,7 @@ export default function Report1MienVungHub({
               FD
             </button>
           </div>
+          </>)}
           {/* Không dùng role="tab": bộ xử lý phím mũi tên ở trên chỉ duyệt các tab chỉ số. */}
           <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem" style={{ marginLeft: 'auto' }}>
             <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={() => setViewMode('day')}>
