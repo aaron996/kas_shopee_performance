@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Layers } from 'lucide-react';
-import { Boxes, Check, Zap } from 'lucide';
+import { Boxes, Check, Undo2, Zap } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
 import ModalDialog from './ui/ModalDialog';
 
@@ -16,6 +16,12 @@ const OPTIONS = [
     icon: Boxes,
     title: 'Shopee Bulky',
     tag: 'SPB'
+  },
+  {
+    key: 'SPE Reverse',
+    icon: Undo2,
+    title: 'Shopee Reverse',
+    tag: 'Reverse'
   }
 ];
 

@@ -176,3 +176,21 @@ test('fetchDailyRows chia khoảng dài thành lát 10 ngày, gọi lần lượ
   assert.equal(rows.length, 8);
   await assert.rejects(fetchDailyRows({ rpc: async () => ({ data: null, error: new Error('boom') }) }, 'pick', '2026-07-01', '2026-07-02'), /boom/);
 });
+
+test('Reverse đọc dataset reverse cho chỉ số Pick; các client/chỉ số khác giữ nguyên', async () => {
+  const { datasetFor, WEEKLY_METRICS } = await import('./weeklyKpi.js');
+  assert.equal(datasetFor(WEEKLY_METRICS.p1st, 'SPE Reverse'), 'reverse');
+  assert.equal(datasetFor(WEEKLY_METRICS.popr, 'SPE Reverse'), 'reverse');
+  assert.equal(datasetFor(WEEKLY_METRICS.p1st, 'SPB'), 'pick');
+  assert.equal(datasetFor(WEEKLY_METRICS.p1st, 'ALL'), 'pick');
+  assert.equal(datasetFor(WEEKLY_METRICS.d1st, 'SPE Reverse'), 'deli');
+});
+
+test('normalizeClientFilter nhận mã không phân biệt hoa/thường và từ chối mã lạ', async () => {
+  const { normalizeClientFilter } = await import('./clientLabels.js');
+  assert.equal(normalizeClientFilter('spe reverse'), 'SPE Reverse');
+  assert.equal(normalizeClientFilter(' spb '), 'SPB');
+  assert.equal(normalizeClientFilter('all'), 'ALL');
+  assert.equal(normalizeClientFilter('TTS'), null);
+  assert.equal(normalizeClientFilter(undefined), null);
+});

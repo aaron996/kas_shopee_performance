@@ -35,6 +35,8 @@ const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
 import { RadioProvider } from './modules/performance-ranking/RadioProvider.jsx';
 import RadioFloatingLayer from './modules/performance-ranking/RadioFloatingLayer.jsx';
+import { normalizeClientFilter, REVERSE_CLIENT } from './utils/clientLabels';
+import { fetchDailyRangeRows, addDays } from './utils/weeklyKpi';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -144,7 +146,7 @@ export default function App() {
   // Embedded scope remains authoritative: the host already chose the client.
   const [clientChoiceToken, setClientChoiceToken] = useState(null);
   const [hostPickedClient, setHostPickedClient] = useState(() =>
-    ['SPB', 'SPE', 'ALL'].includes(new URLSearchParams(window.location.search).get('scope')?.trim().toUpperCase())
+    normalizeClientFilter(new URLSearchParams(window.location.search).get('scope')) !== null
   );
   const [introCompletedFor, setIntroCompletedFor] = useState(null);
   const userEmail = currentUser?.email?.trim().toLowerCase();
@@ -185,8 +187,8 @@ export default function App() {
       const data = event.data;
       if (!data || typeof data !== 'object' || data.source !== 'control-tower') return;
       if (data.type === 'set-scope') {
-        const scope = typeof data.scope === 'string' ? data.scope.trim().toUpperCase() : null;
-        if (scope === 'SPB' || scope === 'SPE') {
+        const scope = normalizeClientFilter(data.scope);
+        if (scope && scope !== 'ALL') {
           setClientFilter(scope);
           setHostPickedClient(true);
           sessionStorage.setItem('ghn_client_choice', 'true');
@@ -296,6 +298,8 @@ export default function App() {
   const [ca1Rows, setCa1Rows] = useState([]);
   const [leadtimeRows, setLeadtimeRows] = useState([]);
   const [fdRows, setFdRows] = useState([]);
+  // Reverse chỉ có Pick và đọc từ bảng lịch sử riêng, nên chỉ tải khi chọn client này (14 ngày gần nhất).
+  const [reverseRows, setReverseRows] = useState(null);
   const [dataSources, setDataSources] = useState({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải', fd: 'Chưa tải' });
   // Sources stay explicit; operational reports start empty, never with mock rows.
   const [leadtimeSource, setLeadtimeSource] = useState('none');
@@ -331,8 +335,8 @@ export default function App() {
   });
 
   const allHubTypes = React.useMemo(() => {
-    return collectHubTypes([pickRows, deliRows, ca1Rows, fdRows]);
-  }, [pickRows, deliRows, ca1Rows, fdRows]);
+    return collectHubTypes([pickRows, deliRows, ca1Rows, fdRows, reverseRows || []]);
+  }, [pickRows, deliRows, ca1Rows, fdRows, reverseRows]);
 
   // Initial state should be all hub types
   const [hubTypeSelection, setHubTypeSelection] = useState(initialView.hubTypes);
@@ -713,27 +717,48 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  const isReverse = clientFilter === REVERSE_CLIENT;
+  useEffect(() => {
+    if (!isReverse || reverseRows || !currentUser) return undefined;
+    let cancelled = false;
+    const to = getVietnamBusinessDay();
+    fetchDailyRangeRows(supabase, 'reverse', addDays(to, -13), to)
+      .then(({ rows }) => { if (!cancelled) setReverseRows(rows); })
+      .catch(() => {
+        if (cancelled) return;
+        setReverseRows([]);
+        showToast('Không tải được dữ liệu Shopee Reverse. Chọn lại client để thử lại.', { tone: 'warning' });
+      });
+    return () => { cancelled = true; };
+  }, [isReverse, reverseRows, currentUser, showToast]);
+  useEffect(() => { if (!isReverse && reverseRows?.length === 0) setReverseRows(null); }, [isReverse, reverseRows]);
+
+  // Reverse chỉ có Pick: dòng Deli/FD của SPB-SPE không áp dụng cho client này.
+  const activePickRows = isReverse ? (reverseRows || []) : pickRows;
+  const activeDeliRows = isReverse ? [] : deliRows;
+  const activeFdRows = isReverse ? [] : fdRows;
+
   // Filter datasets based on selectedRegions and selectedHubTypes
   const filteredPickRows = React.useMemo(() => {
-    return filterRowsByScope(pickRows, selectedRegions, selectedHubTypes);
-  }, [pickRows, selectedRegions, selectedHubTypes]);
+    return filterRowsByScope(activePickRows, selectedRegions, selectedHubTypes);
+  }, [activePickRows, selectedRegions, selectedHubTypes]);
 
   const filteredDeliRows = React.useMemo(() => {
-    return filterRowsByScope(deliRows, selectedRegions, selectedHubTypes);
-  }, [deliRows, selectedRegions, selectedHubTypes]);
+    return filterRowsByScope(activeDeliRows, selectedRegions, selectedHubTypes);
+  }, [activeDeliRows, selectedRegions, selectedHubTypes]);
 
   const filteredCa1Rows = React.useMemo(() => {
     return filterRowsByScope(ca1Rows, selectedRegions, selectedHubTypes, 'vung_giao');
   }, [ca1Rows, selectedRegions, selectedHubTypes]);
 
   const filteredFdRows = React.useMemo(() => {
-    return filterRowsByScope(fdRows, selectedRegions, selectedHubTypes);
-  }, [fdRows, selectedRegions, selectedHubTypes]);
+    return filterRowsByScope(activeFdRows, selectedRegions, selectedHubTypes);
+  }, [activeFdRows, selectedRegions, selectedHubTypes]);
 
   const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedDeli = filteredDeliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedFd = filteredFdRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
-  const headerRows = activeTab === 'report5' ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...pickRows, ...deliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
+  const headerRows = activeTab === 'report5' ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...activePickRows, ...activeDeliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
   const allDates = [...new Set(headerRows.map(r => activeTab === 'report5' ? r.ngay : r.report_date))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(allDates);
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
@@ -806,8 +831,8 @@ export default function App() {
       syncedAt: leadtimeSyncedAt
     },
     'report-insight': {
-      pickRows,
-      deliRows,
+      pickRows: activePickRows,
+      deliRows: activeDeliRows,
       leadtimeRows,
       clientFilter,
       onJumpToRegion: handleJumpToRegion

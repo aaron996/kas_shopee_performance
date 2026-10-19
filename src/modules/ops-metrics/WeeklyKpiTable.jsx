@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchWeeklyRows, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 
 const addDays = (day, n) => {
@@ -23,17 +23,18 @@ export default function WeeklyKpiTable({
   client = supabase
 }) {
   const metric = WEEKLY_METRICS[metricKey];
+  const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setState(prev => ({ status: 'loading', data: prev.data && prev.data.dataset === metric.dataset ? prev.data : null, error: null }));
-    fetchRows(client, metric.dataset)
-      .then(data => { if (!cancelled) setState({ status: 'ready', data: { ...data, dataset: metric.dataset }, error: null }); })
+    setState(prev => ({ status: 'loading', data: prev.data && prev.data.dataset === dataset ? prev.data : null, error: null }));
+    fetchRows(client, dataset)
+      .then(data => { if (!cancelled) setState({ status: 'ready', data: { ...data, dataset }, error: null }); })
       .catch(error => { if (!cancelled) setState({ status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [metric.dataset, attempt, fetchRows, client]);
+  }, [dataset, attempt, fetchRows, client]);
 
   // Khoảng ngày: dữ liệu theo tuần nên khoảng được hiểu là "các tuần có ngày nằm trong khoảng".
   const [range, setRange] = useState({ from: '', to: '' });

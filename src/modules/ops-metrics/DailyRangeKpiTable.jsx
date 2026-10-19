@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchDailyRangeRows, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
+import { fetchDailyRangeRows, datasetFor, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 
 // Cụm lọc khoảng ngày của "Theo ngày". `bounds` là ngày đầu/cuối có thể chọn của chỉ số đang xem.
@@ -41,17 +41,18 @@ export default function DailyRangeKpiTable({
   client = supabase
 }) {
   const metric = WEEKLY_METRICS[metricKey];
+  const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading', data: null, error: null });
-    fetchRows(client, metric.dataset, range.from, range.to)
+    fetchRows(client, dataset, range.from, range.to)
       .then(data => { if (!cancelled) setState({ status: 'ready', data, error: null }); })
       .catch(error => { if (!cancelled) setState({ status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [metric.dataset, range.from, range.to, attempt, fetchRows, client]);
+  }, [dataset, range.from, range.to, attempt, fetchRows, client]);
 
   const matrix = useMemo(() => {
     if (state.status !== 'ready') return null;

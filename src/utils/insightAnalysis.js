@@ -21,7 +21,7 @@ import {
   splitLeadtimeRows, buildLeadtimeIndex, aggregate, resolveBaseline,
   classifyDeviation, scopeAll
 } from './leadtimeCalc';
-import { resolveClients, getClientLabel } from './clientLabels';
+import { resolveClients, getClientLabel, ALL_CLIENTS_LABEL } from './clientLabels';
 
 function getRowVal(r, primaryCol, fallbackCol) {
   if (r[primaryCol] !== undefined && r[primaryCol] !== null) return Number(r[primaryCol]) || 0;
@@ -205,7 +205,7 @@ export function buildNarrative({ pickRows = [], deliRows = [], leadtimeRows = []
   const okAll = deltas.every(m => m.delta === null || m.delta >= -0.5);
 
   return {
-    clientLabel: clientFilter === 'ALL' ? 'SPB + SPE' : getClientLabel(clientFilter),
+    clientLabel: clientFilter === 'ALL' ? ALL_CLIENTS_LABEL : getClientLabel(clientFilter),
     bullets,
     okAll,
     leadtimeSignal,

@@ -1,4 +1,5 @@
 import { buildSuggestionPlanPool } from './suggestionPlans.js';
+import { CLIENT_FILTER_VALUES } from './clientLabels.js';
 
 const TABS = ['report1', 'report5', 'report3', 'report-insight'];
 const METRICS = ['odr', 'd1st', 'opr', 'p1st'];
@@ -39,7 +40,7 @@ export function formatSuggestionScope(context = {}) {
 }
 
 export function buildDynamicSuggestions({ activeTab = 'report1', client = 'SPB', regions = null, hubTypes = null, seed = 0 } = {}) {
-  const context = { activeTab: TABS.includes(activeTab) ? activeTab : 'report1', client: ['SPB', 'SPE', 'ALL'].includes(client) ? client : 'SPB', regions, hubTypes };
+  const context = { activeTab: TABS.includes(activeTab) ? activeTab : 'report1', client: CLIENT_FILTER_VALUES.includes(client) ? client : 'SPB', regions, hubTypes };
   const pool = buildSuggestionPlanPool(context, null, seed);
   const placeholder = activeTab === 'report3' ? 'Ví dụ: Leadtime 30 ngày qua tập trung ở chặng nào?'
     : activeTab === 'report5' ? 'Ví dụ: Lane nào cải thiện Ca 1 trong 7 ngày qua?'

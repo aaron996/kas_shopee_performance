@@ -16,6 +16,7 @@ import {
   normalizeSearchText,
   rankSearchItems
 } from '../utils/universalSearch';
+import { CLIENT_FILTER_VALUES, ALL_CLIENTS_LABEL } from '../utils/clientLabels';
 
 const MIN_DATA_QUERY_LENGTH = 2;
 
@@ -56,10 +57,10 @@ export default function CommandPalette({
       icon: module.icon
     }));
 
-    const clientItems = ['SPB', 'SPE', 'ALL'].map(code => ({
+    const clientItems = CLIENT_FILTER_VALUES.map(code => ({
       type: 'client',
       id: code,
-      label: code === 'ALL' ? 'Client: Toàn bộ (SPB + SPE)' : `Client: ${code}`,
+      label: code === 'ALL' ? `Client: Toàn bộ (${ALL_CLIENTS_LABEL})` : `Client: ${code}`,
       section: 'Điều hướng',
       icon: Filter
     }));
