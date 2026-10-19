@@ -112,3 +112,5 @@
   .dev-access-list-toolbar .dev-panel-search { width: 100%; }
   .dev-access-pagination button, .dev-panel .model-registry-actions button { min-height: 44px; }
 }
+
+.app-usage-sections { margin-bottom: 20px; }
