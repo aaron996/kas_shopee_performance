@@ -15,6 +15,13 @@
 
 .loading-skeleton--page { padding: 0.25rem 0 1rem; }
 .loading-skeleton--block { padding: 1rem; }
+.loading-skeleton--inline {
+  display: inline-flex;
+  width: 5ch;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.loading-skeleton--inline > .loading-skeleton__bar { width: 100%; }
 
 .loading-skeleton__bar {
   display: block;

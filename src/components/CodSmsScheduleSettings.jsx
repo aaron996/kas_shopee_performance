@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchDevApi } from '../utils/devDataClient.js';
 
@@ -46,7 +47,7 @@ export default function CodSmsScheduleSettings({ currentUser }) {
   const busy = status === 'loading' || status === 'saving';
   const lastRun = current?.lastRun;
   return <div className="cod-schedule-settings">
-    {status === 'loading' && <p role="status">Đang tải lịch chấm SMS…</p>}
+    {status === 'loading' && <LoadingScreen />}
     {status === 'error' && <p role="alert">{message} <button type="button" className="btn-secondary" onClick={load}>Thử lại</button></p>}
     {current && status !== 'error' && status !== 'loading' && <>
       {!current.ready && <p role="status">Lịch tự động chưa được kết nối. Có thể lưu giờ mong muốn; cần hoàn tất cấu hình backend trước khi bật.</p>}

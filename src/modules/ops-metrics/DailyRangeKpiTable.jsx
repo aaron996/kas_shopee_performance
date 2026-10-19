@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
@@ -76,7 +77,7 @@ export default function DailyRangeKpiTable({
   );
 
   if (state.status === 'loading') {
-    return shell(<div className="weekly-kpi-note" role="status">Đang tải số liệu theo ngày…</div>);
+    return shell(<LoadingScreen />);
   }
   if (state.status === 'error') {
     return shell(

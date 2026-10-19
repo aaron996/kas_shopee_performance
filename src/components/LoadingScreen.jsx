@@ -6,11 +6,19 @@ import { getLoadingOverlayConfig } from '../utils/loadingOverlay.js';
  * The one loading state for every tab: a skeleton shaped like the content that is
  * about to arrive. `variant="page"` stands in for a whole report (KPI tiles, chart,
  * table); `variant="block"` for a card, section or modal region.
+ * `variant="inline"` uses the same shimmer for a single pending value.
  * Zero visible text — accessibility is carried by the ARIA status semantics.
  */
 export default function LoadingScreen({ variant = 'block' }) {
   const config = getLoadingOverlayConfig({ variant });
   const rows = Array.from({ length: config.rowCount }, (_, i) => i);
+
+  if (config.variant === 'inline') {
+    return <span className={config.className} role={config.role}
+      aria-live={config.ariaLive} aria-busy={config.ariaBusy} aria-label={config.ariaLabel}>
+      <span className="loading-skeleton__bar" aria-hidden="true" />
+    </span>;
+  }
 
   return (
     <div

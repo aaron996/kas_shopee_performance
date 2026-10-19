@@ -18,6 +18,8 @@ người chạy (`loading_sprite.jpg`) và overlay mờ che cả màn hình.
 | `variant="page"` | Vùng chính của app khi chưa có số lần đầu (`App.jsx`); fallback `Suspense` khi mở tab lazy (`ModuleSurfaceOutlet.jsx`) | 4 ô KPI + biểu đồ + bảng 7 dòng |
 | `variant="block"` (mặc định) | Thẻ/khu vực nhỏ: danh sách COD, bằng chứng SMS, màn Dev Admin | tiêu đề + bảng 4 dòng |
 
+| `variant="inline"` | Giá trị KPI/MTD, ô thống kê và trạng thái tìm kiếm nhỏ | một thanh skeleton, cùng màu và hiệu ứng |
+
 - Không có chữ hiển thị; `role="status"`, `aria-busy="true"`,
   `aria-label="Đang tải dữ liệu"` (contract ở `utils/loadingOverlay.js`, có test).
 - Ẩn 150ms đầu (`loadingSkeletonIn`) để tải nhanh không bị chớp skeleton.
@@ -30,3 +32,7 @@ giữ nguyên, Header chỉ đổi dòng trạng thái.
 
 Các spinner nhỏ gắn với một hành động cụ thể (nút "Lưu xử lý", "Tải lại" trong
 COD/AI) giữ nguyên; chúng không phải trạng thái chờ dữ liệu của tab.
+
+## Phạm vi đã đồng bộ
+
+KPI theo ngày/tuần, MTD, dự báo thời tiết, danh sách nhạc BXH, COD/SMS và chi tiết batch, danh mục model, cấu hình AI, hạn mức, nhật ký câu hỏi, lịch chấm/mốc SMS, phân quyền/email và thống kê truy cập đều dùng `LoadingScreen`. Không tự dựng chữ chờ, spinner hay skeleton khác cho vùng dữ liệu. Các bảng đặt component trong `td`; giá trị trong `span`/nút dùng `inline` để giữ HTML hợp lệ.

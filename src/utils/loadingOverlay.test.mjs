@@ -22,6 +22,13 @@ test('getLoadingOverlayConfig provides accessible attributes and no visible text
   assert.equal(block.hasChart, false);
   assert.equal(block.kpiCount, 0);
   assert.equal(block.hasVisibleText, false);
+
+  const inline = getLoadingOverlayConfig({ variant: 'inline' });
+  assert.equal(inline.variant, 'inline');
+  assert.equal(inline.rowCount, 0, 'A pending value must fit inside a label or button');
+  assert.equal(inline.hasChart, false);
+  assert.equal(inline.ariaLabel, page.ariaLabel);
+  assert.equal(inline.hasVisibleText, false);
 });
 
 test('LoadingScreen.jsx renders only structural placeholders', () => {

@@ -1,3 +1,4 @@
+import LoadingScreen from './LoadingScreen.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, RefreshCw, Clock, User, Cpu } from 'lucide-react';
 import { fetchCodSmsRunItems, fetchCodSmsRuns } from '../utils/codSuspicionClient';
@@ -94,7 +95,7 @@ function RunItems({ run, state, driverNameById, onRetry }) {
   }, [state?.items, filter, query]);
 
   if (!state || state.loading) {
-    return <div className="cod-sms-runs__detail-empty">Đang tải chi tiết batch...</div>;
+    return <LoadingScreen />;
   }
   if (state.error) {
     return (
@@ -280,7 +281,7 @@ export default function CodSmsRunHistoryPanel({ driverNameById, refreshKey = 0 }
 
       <div className="cod-sms-runs__list">
         {loading && runs.length === 0 ? (
-          <div className="cod-sms-runs__detail-empty">Đang tải...</div>
+          <LoadingScreen />
         ) : runs.length === 0 ? (
           <div className="cod-sms-runs__detail-empty">
             Chưa có batch nào được ghi log. Batch đầu tiên sẽ xuất hiện sau lượt cron hoặc lượt chạy thủ công kế tiếp.

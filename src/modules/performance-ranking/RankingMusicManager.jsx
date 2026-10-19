@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GripVertical, Play, Shuffle, SkipBack, SkipForward, Trash2, Upload, X } from 'lucide-react';
 import ModalDialog from '../../components/ui/ModalDialog.jsx';
@@ -267,7 +268,7 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
       </section>
 
       <div className="prr-mm-body">
-        {loading && tracks.length === 0 && <p className="prr-mm-note">Đang tải…</p>}
+        {loading && tracks.length === 0 && <LoadingScreen />}
         <ol className="prr-mm-list">
           {tracks.map((track, index) => {
             const isPlaying = track.id === playingId;

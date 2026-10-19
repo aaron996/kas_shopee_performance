@@ -5,12 +5,11 @@
  * arrive (no spinner, no sprite, no progress bar). Enforces:
  * 1. No visible text or CTA — the placeholder is purely structural.
  * 2. Accessibility: role="status", aria-live="polite", aria-busy="true", aria-label.
- * 3. Two shapes: `page` (KPI tiles + chart + table, for a whole tab) and
- *    `block` (title + rows, for a card/section/modal region).
+ * 3. One skeleton style, sized for `page`, `block` or an `inline` value.
  */
 
 export function getLoadingOverlayConfig({ variant = 'block' } = {}) {
-  const shape = variant === 'page' ? 'page' : 'block';
+  const shape = ['page', 'inline'].includes(variant) ? variant : 'block';
   return {
     variant: shape,
     className: `loading-skeleton loading-skeleton--${shape}`,
@@ -20,7 +19,7 @@ export function getLoadingOverlayConfig({ variant = 'block' } = {}) {
     ariaLabel: 'Đang tải dữ liệu',
     tabIndex: -1,
     kpiCount: shape === 'page' ? 4 : 0,
-    rowCount: shape === 'page' ? 7 : 4,
+    rowCount: shape === 'inline' ? 0 : shape === 'page' ? 7 : 4,
     hasChart: shape === 'page',
     hasVisibleText: false
   };

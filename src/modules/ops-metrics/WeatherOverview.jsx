@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import { useState, useMemo, useRef, useEffect, useId } from 'react';
 import { MapPin, LocateFixed, Pin, PinOff, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import WeatherPaperIcon from './WeatherPaperIcon';
@@ -111,7 +112,7 @@ export default function WeatherOverview({ selectedRegions = [], active = false, 
       : !locations.length ? <p className="weather-notice">Chưa có điểm dự báo đã xác minh cho vùng đang chọn.</p> : <>
       {localPreview ? <p className="weather-notice">Chế độ xem thử: dự báo thật cần phiên đăng nhập và cấu hình API.</p>
         : !active ? <p className="weather-notice">Dự báo sẵn sàng sau khi hoàn tất đăng nhập và chọn Client.</p> : null}
-      {request.loading && <p className="weather-notice" role="status">Đang tải dự báo mưa…</p>}
+      {request.loading && <LoadingScreen />}
       {request.error && <div className="weather-notice" role="alert"><p>{request.error.message}</p>{request.error.code !== 'WEATHER_CONFIG_MISSING' && request.error.code !== 'WEATHER_CACHE_CONFIG' && <button type="button" className="nav-btn-sleek" onClick={request.reload}>Thử lại dự báo</button>}</div>}
       {request.errors.some(error => error.locationId === selectedId) && <div className="weather-notice" role="alert">Không tải được dự báo tại {location.name}. <button type="button" className="nav-btn-sleek" onClick={request.reload}>Thử lại</button></div>}
       {forecast && !hours.length && <div className="weather-notice" role="status">Bản dự báo đã hết thời hạn hiển thị. <button type="button" className="nav-btn-sleek" onClick={request.reload}>Lấy dự báo mới</button></div>}
