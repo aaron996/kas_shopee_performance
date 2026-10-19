@@ -4,6 +4,7 @@
 // the base URL.
 import { MIEN_REGIONS } from '../data/defaultDataset.js';
 import { reassignKaRegion, normalizeDashboardRows, filterRowsByScope, collectHubTypes, getHubType } from './dataProcessor.js';
+import { CLIENT_LABELS, normalizeClientFilter } from './clientLabels.js';
 
 export const SNAPSHOT_VIEWS = {
   'pick:1st': { data: 'pick', module: 'report1', metric: 'p1st' },
@@ -18,14 +19,15 @@ export const SNAPSHOT_VIEWS = {
   'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' }
 };
 
-export const SNAPSHOT_CLIENT_LABELS = { SPB: 'Shopee Bulky', SPE: 'Shopee Express' };
+export const SNAPSHOT_CLIENT_LABELS = CLIENT_LABELS;
 
 export function parseSnapshotParams(search) {
   const params = new URLSearchParams(search);
   const report = (params.get('report') || '').trim().toLowerCase();
   const table = (params.get('table') || (report === 'fd' ? 'fd' : '')).trim().toLowerCase();
   const view = SNAPSHOT_VIEWS[`${report}:${table}`];
-  const client = (params.get('client') || 'SPB').trim().toUpperCase();
+  const clientParam = (params.get('client') || 'SPB').trim();
+  const client = normalizeClientFilter(clientParam) ?? clientParam.toUpperCase();
   const token = params.get('token') || '';
 
   if (!view) return { error: `Không có bảng report=${report || '∅'}, table=${table || '∅'}.` };

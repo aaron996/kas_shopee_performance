@@ -35,6 +35,7 @@ const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
 import { RadioProvider } from './modules/performance-ranking/RadioProvider.jsx';
 import RadioFloatingLayer from './modules/performance-ranking/RadioFloatingLayer.jsx';
+import { normalizeClientFilter } from './utils/clientLabels';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -144,7 +145,7 @@ export default function App() {
   // Embedded scope remains authoritative: the host already chose the client.
   const [clientChoiceToken, setClientChoiceToken] = useState(null);
   const [hostPickedClient, setHostPickedClient] = useState(() =>
-    ['SPB', 'SPE', 'ALL'].includes(new URLSearchParams(window.location.search).get('scope')?.trim().toUpperCase())
+    normalizeClientFilter(new URLSearchParams(window.location.search).get('scope')) !== null
   );
   const [introCompletedFor, setIntroCompletedFor] = useState(null);
   const userEmail = currentUser?.email?.trim().toLowerCase();
@@ -185,8 +186,8 @@ export default function App() {
       const data = event.data;
       if (!data || typeof data !== 'object' || data.source !== 'control-tower') return;
       if (data.type === 'set-scope') {
-        const scope = typeof data.scope === 'string' ? data.scope.trim().toUpperCase() : null;
-        if (scope === 'SPB' || scope === 'SPE') {
+        const scope = normalizeClientFilter(data.scope);
+        if (scope && scope !== 'ALL') {
           setClientFilter(scope);
           setHostPickedClient(true);
           sessionStorage.setItem('ghn_client_choice', 'true');
