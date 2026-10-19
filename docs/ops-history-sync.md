@@ -192,6 +192,6 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
   cần đặt trigger cho `syncReverseHistory()` và BI ghi query 14 ngày vào tab `reverse`.
 - **Số đo trên Superset (19/10)**: backfill 21/06 → 18/10 là 120 ngày, 126.541 dòng ở mức (ngày, region, hub), mẫu 669.909, PUD
   452.902, chạy khoảng 4 phút. Query 14 ngày khớp từng ngày (số dòng, mẫu, 1st, OTS, PUD) với backfill ở cả 14 ngày chung.
-- **Kiểm thử**: `node scripts/apps-script/reverse-history-sync.test.mjs` (PGlite, 38 kiểm tra): replace xoá đúng cửa sổ, NULL region,
+- **Kiểm thử**: `node scripts/apps-script/reverse-history-sync.test.mjs` (PGlite, 39 kiểm tra): replace xoá đúng cửa sổ, NULL region,
   lỗi không đổi dữ liệu, quyền, backfill chia tuần và từ chối ngoài cửa sổ, daily đúng D-14..D-1. Chưa chạy trên Supabase hay Apps
   Script thật.
