@@ -1,15 +1,14 @@
--- KAS-291 TEST: 1st Pickup / OPR / PUD của SPE Reverse (client 224845) theo hub-ngày, cùng khung với pick_weekly_60d_test.sql.
--- Khác pick: ngày hẹn lấy = ngày lớn hơn giữa OrderDate và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1; rule giờ tạo
--- để tránh đơn tạo sau 16h mà OrderDate vẫn hẹn cùng ngày); lọc shopee_business_type = 1 hoặc NULL;
--- không loại IsExpectedDropOff mà xử lý DropAtStation (khách ra BC khác BC được gán đầu tiên thì tính cho BC được gán đầu tiên);
--- thêm cột pud (đơn đã lấy thành công, không xét ngày hẹn).
--- Range: report_date từ thứ Hai cách 8 tuần trước tuần hiện tại đến today-1. Cửa sổ quét nguồn nới thêm so với range:
--- partition 7 ngày, LoadDate 10 ngày, biz 2 ngày, end_pick_time 7 ngày.
+-- KAS-291: SPE Reverse (client 224845) 1st Pickup / OPR / PUD theo hub-ngày, 14 ngày gần nhất (sync hằng ngày, replace D-14..D-1).
+-- Cùng khung với pick_weekly_60d_test.sql, output thêm cột pud.
+-- Ngày hẹn lấy = ngày lớn hơn giữa OrderDate và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1; rule giờ tạo để tránh đơn
+-- tạo sau 16h mà OrderDate vẫn hẹn cùng ngày). Lọc shopee_business_type = 1 hoặc NULL. Không loại IsExpectedDropOff mà xử lý
+-- DropAtStation: khách ra BC khác BC được gán đầu tiên thì tính cho BC được gán đầu tiên. Không có cutover 01/08 vì
+-- created_date đã có shopee_business_type từ trước đó.
+-- Range: report_date từ today-14 đến today-1. Cửa sổ quét nguồn nới thêm: partition 7 ngày, LoadDate 10, biz 2, end_pick_time 7.
 WITH ky_bao_cao AS (
     SELECT
         t.today_date,
-        CAST(date_trunc('week', t.today_date) AS DATE) - INTERVAL '56' DAY AS win_start,
-        DATE '2026-08-01' AS cutover_date
+        CAST(t.today_date AS DATE) - INTERVAL '14' DAY AS win_start
     FROM (
         SELECT CAST(CONVERT_TZ(NOW(), 'UTC', 'Asia/Ho_Chi_Minh') AS DATE) AS today_date
     ) t
@@ -21,10 +20,7 @@ biz AS (
         MAX(get_json_int(data, '$.shopee_business_type')) AS shopee_business_type
     FROM default_catalog.sr_clean.online_core__shipping_order__created_date
     WHERE client_id = 224845
-      AND dt >= GREATEST(
-            (SELECT win_start FROM ky_bao_cao) - INTERVAL '2' DAY,
-            (SELECT cutover_date FROM ky_bao_cao)
-          )
+      AND dt >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '2' DAY
       AND dt <= (SELECT today_date FROM ky_bao_cao)
     GROUP BY order_code
 ),
