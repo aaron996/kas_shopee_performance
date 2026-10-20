@@ -356,7 +356,7 @@ test('cancelled empty stream never starts recovery', async () => {
       if (!body.stream) return { status: 'completed', usage, output: [] };
       return { async *[Symbol.asyncIterator]() { controller.abort(); yield { type: 'response.created' }; } };
     } } }
-  }), { code: 'CHAT_MODEL_STREAM_INCOMPLETE' });
+  }), { code: 'CHAT_TIMEOUT' });
   assert.equal(calls, 2);
 });
 

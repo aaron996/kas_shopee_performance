@@ -132,10 +132,11 @@ function extractResponseText(response) {
     .join('');
 }
 
-async function consumeFinalStream(stream, onText) {
+async function consumeFinalStream(stream, onText, signal) {
   let completedResponse = null;
   let streamedText = '';
   for await (const event of stream) {
+    signal?.throwIfAborted();
     if (event.type === 'response.output_text.delta' || event.type === 'response.refusal.delta') {
       const delta = event.delta || '';
       streamedText += delta;
@@ -152,6 +153,8 @@ async function consumeFinalStream(stream, onText) {
       throw new ChatError('CHAT_MODEL_STREAM_FAILED', 'Luồng trả lời từ mô hình AI bị gián đoạn.', 502);
     }
   }
+  // The raw SDK stream can end quietly on abort; preserve the deadline error.
+  signal?.throwIfAborted();
   if (!completedResponse) {
     const error = new ChatError('CHAT_MODEL_STREAM_INCOMPLETE', 'Luồng trả lời kết thúc chưa hoàn chỉnh.', 502);
     error.hasStreamedText = streamedText.length > 0;
@@ -328,7 +331,7 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
         if (final.text.trim()) onText?.(final.text);
       } else {
         try {
-          final = await consumeFinalStream(response, onText);
+          final = await consumeFinalStream(response, onText, signal);
         } catch (error) {
           // Retry synthesis only: never replay tools or append a second answer after partial text.
           if (attempt === 1 && error.code === 'CHAT_MODEL_STREAM_INCOMPLETE' && !error.hasStreamedText && !signal?.aborted) {

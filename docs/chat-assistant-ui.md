@@ -14,7 +14,7 @@ connects this state to assistant-ui primitives; no Assistant Cloud service is co
   turn with the original question, structured query, and screen context. It costs
   a new quota turn and does not replace or branch the original answer.
 - `ChatQueryCard`, `ChatMessageMarkdown`, the mascot, collapsed data details,
-  and Prompt Kit shimmer remain the GHN components.
+  and Prompt Kit loaders remain the GHN components.
 - Stop aborts the active request and preserves the received text with a stopped
   label. Partial text remains part of subsequent conversation history.
 
@@ -39,3 +39,10 @@ Pending data sources are hidden until completion.
 
 Fixture checks do not establish authenticated production or real-model behavior.
 Backend route and business data logic are unchanged by this UI integration.
+## Waiting motion and long reasoning
+
+Pending messages and the header reuse Prompt Kit's bouncing-dot loader, including its reduced-motion styles. The message indicator disappears when text arrives; the header indicator remains until the turn finishes or is cancelled.
+
+The default turn deadline is 180 seconds (`AI_CHAT_TURN_TIMEOUT_MS` can override it); the Vercel function allows 300 seconds. Keep the selected model and reasoning effort unchanged. Send SSE comment heartbeats every 10 seconds during an active turn and clear the timer on completion, failure or disconnect.
+
+Raw SDK streams can end quietly after their abort signal fires. Check the signal before treating EOF as a missing `response.completed`, so a deadline reports `CHAT_TIMEOUT`. For genuine missing-terminal EOF before any text, retry synthesis once without streaming using the existing evidence. Do not replay tools, retry after cancellation/partial text, or accept incomplete fallback output.
