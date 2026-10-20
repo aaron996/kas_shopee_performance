@@ -11,6 +11,7 @@ import Mascot from './chat/Mascot';
 import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
+import ChatChartBoundary from './chat/ChatChartBoundary';
 import { canRetry, formatDataScope } from '../utils/chatRetry';
 import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
 const ChatChart = lazy(() => import('./chat/ChatChart'));
@@ -542,11 +543,11 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
                   onSubmit={(query, selectionMessage) => handleInteractionSubmit(details.messageIndex, query, selectionMessage)} />}
                 {!details.isPending && <>
                   {details.stopped && content !== 'Đã dừng trả lời.' && <span className="chat-stopped-label">Đã dừng trả lời</span>}
-                  {!details.stopped && details.sources?.some(source => source.visualization) && <Suspense fallback={<p role="status">Đang tải biểu đồ…</p>}>
+                  {!details.stopped && details.sources?.some(source => source.visualization) && <ChatChartBoundary><Suspense fallback={<p role="status">Đang tải biểu đồ…</p>}>
                     {Array.from(new Map(details.sources.filter(source => source.visualization).map(source => [source.evidenceId, source])).values()).slice(0, 3).map(source =>
                       <ChatChart key={source.evidenceId} chart={source.visualization} dataAsOf={source.dataAsOf} />)}
                     {new Set(details.sources.filter(source => source.visualization).map(source => source.evidenceId)).size > 3 && <p className="chat-stopped-label">Hiển thị 3 biểu đồ đầu tiên. Hãy hỏi riêng chỉ số/phạm vi còn lại để xem tiếp.</p>}
-                  </Suspense>}
+                  </Suspense></ChatChartBoundary>}
                   <DataScopeBlock sources={details.sources} />
                   <ActionBarPrimitive.Root className="chat-message-actions" hideWhenRunning>
                     <ActionBarPrimitive.Copy className="chat-message-action" aria-label="Sao chép câu trả lời" title="Sao chép câu trả lời">
