@@ -70,7 +70,7 @@ export default function Report1MienVungHub({
   const [viewMode, setViewMode] = useState('day');
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
   // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
-  const [dayRange, setDayRange] = useState({ from: '', to: '' });
+  const [dayRange, setDayRange] = useState({ from: '', to: '', preset: 'Mặc định' });
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -1410,7 +1410,7 @@ export default function Report1MienVungHub({
             </button>
           </div>
         </div>
-        {viewMode === 'day' && dayRangeBounds && (
+        {viewMode === 'day' && dayRangeBounds && !activeDayRange && (
           <div className="day-range-bar">
             <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />
           </div>
@@ -1422,7 +1422,7 @@ export default function Report1MienVungHub({
               metricKey={activeTableTab}
               title={WEEKLY_TITLES[activeTableTab]}
               range={activeDayRange}
-              defaultShowVolume={dayRange.preset === '7 ngày gần nhất'}
+              rangeFilter={<DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />}
               clientFilter={clientFilter}
               selectedRegions={selectedRegions}
               selectedHubTypes={selectedHubTypes}
