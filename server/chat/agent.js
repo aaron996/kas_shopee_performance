@@ -108,7 +108,11 @@ function buildReasoningOptions(config, includeEncryptedReasoning = false) {
 
 function outputFailure(response) {
   if (response?.status === 'incomplete') {
-    return new ChatError('CHAT_MODEL_INCOMPLETE', 'Mô hình AI chưa hoàn tất câu trả lời. Vui lòng thử lại.', 502);
+    const tokenLimit = response.incomplete_details?.reason === 'max_output_tokens';
+    const failure = new ChatError(tokenLimit ? 'CHAT_MODEL_TOKEN_LIMIT' : 'CHAT_MODEL_INCOMPLETE',
+      tokenLimit ? 'Mô hình AI đã hết ngân sách xử lý trước khi hoàn tất câu trả lời. Vui lòng thử lại hoặc thu hẹp câu hỏi.' : 'Mô hình AI chưa hoàn tất câu trả lời. Vui lòng thử lại.', 502);
+    failure.usageResponse = response;
+    return failure;
   }
   if (response?.status === 'failed') {
     return new ChatError('CHAT_MODEL_FAILED', 'Mô hình AI không thể tạo câu trả lời lúc này.', 502);
@@ -331,6 +335,9 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       actualMicrousd: usage.reduce((sum, row) => sum + row.estimatedMicrousd, 0)
     };
   } catch (error) {
+    if (error.usageResponse?.usage) {
+      usage.push(usageRow(error.usageResponse, usage.length + 1, config.model, config.reasoningEffort, [], 0, 'failed', config.modelPricing));
+    }
     const modelTimedOut = error instanceof OpenAI.APIConnectionTimeoutError;
     if (!(error instanceof ChatError)) {
       // Only structured diagnostics: never log prompts, provider messages or credentials.

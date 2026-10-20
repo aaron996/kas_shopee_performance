@@ -33,6 +33,19 @@ test('SDK timeout stays distinct from connectivity failure and retains completed
   });
 });
 
+test('incomplete reasoning records consumed tokens and distinguishes token exhaustion', async () => {
+  await assert.rejects(runChatAgent({ config, request }, {
+    openai: { responses: { create: async () => ({ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, usage }) } }
+  }), e => {
+    assert.equal(e.code, 'CHAT_MODEL_TOKEN_LIMIT');
+    assert.equal(e.chatDetails.usage[0].outputTokens, 50);
+    assert.equal(e.chatDetails.usage[0].reasoningTokens, 10);
+    assert.equal(e.chatDetails.usage[0].status, 'failed');
+    assert.ok(e.chatDetails.actualMicrousd > 0);
+    return true;
+  });
+});
+
 test('usageRow applies Luna token prices in microdollars', () => {
   const row = usageRow({ usage }, 1, 'gpt-5.6-luna', 'low', [], 20);
   assert.equal(row.estimatedMicrousd, 77); // 80*0.2 + 20*0.02 + 50*1.2
