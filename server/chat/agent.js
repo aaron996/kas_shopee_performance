@@ -6,6 +6,7 @@ import { calculateModelCost } from './pricing.js';
 import { createMetricQueryInteraction, REQUEST_METRIC_QUERY_TOOL_NAME } from './interactions.js';
 import { executeFastPath, isFastPathEligible } from './fast-path.js';
 import { resolveEffectiveScope } from './scope.js';
+import { executeRegionComparison } from './region-comparison.js';
 import { CONVERSATION_POLICY } from './conversation-policy.js';
 import { PUBLIC_SEARCH_NAME, searchPublicInformation, publicSourceLinks, countBillableSearches, WEB_SEARCH_CALL_MICROUSD } from './public-search.js';
 
@@ -191,6 +192,8 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
   });
 
   try {
+    const comparison = await executeRegionComparison({ request, userClient, signal, onStatus, onText, onSource }, dependencies);
+    if (comparison) return comparison;
     const fastPathRunner = dependencies.executeFastPath ?? executeFastPath;
     if (isFastPathEligible(request)) {
       const fastPathResult = await fastPathRunner(

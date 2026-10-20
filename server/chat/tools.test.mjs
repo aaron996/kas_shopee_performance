@@ -1,6 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CHAT_TOOLS, executeChatTool } from './tools.js';
+import { MAX_SCOPE_ITEMS } from './protocol.js';
+import { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
+
+test('model tool schemas accept every dashboard region and match runtime scope limits', () => {
+  const regions = Object.values(MIEN_REGIONS).flat();
+  assert.ok(regions.length > 20);
+  for (const tool of CHAT_TOOLS) {
+    for (const key of ['regions', 'hub_types']) {
+      const field = tool.parameters.properties[key];
+      if (!field) continue;
+      assert.equal(field.maxItems, MAX_SCOPE_ITEMS, `${tool.name}.${key}`);
+      assert.ok(field.maxItems >= regions.length, `${tool.name} accepts all selected regions`);
+    }
+  }
+});
+
+test('metric tool preserves all 21 selected regions, with no truncation or widening', async () => {
+  const regions = Object.values(MIEN_REGIONS).flat();
+  const calls = [];
+  await executeChatTool({ name: 'get_metric_summary', arguments: {
+    metric: 'd1st', client: 'SPB', date_from: '2026-10-13', date_to: '2026-10-19',
+    grain: 'region', regions: [], hub_types: [], limit: 15, sort: 'volume_desc'
+  } }, { screenContext: { client: 'SPB', regions, hubTypes: ['GXT', 'BC', 'KA'] },
+    userClient: { rpc: async (name, params) => { calls.push({ name, params }); return { data: { rows: [] } }; } } });
+  assert.deepEqual(calls[0].params.p_regions,regions);
+  assert.deepEqual(calls[0].params.p_hub_types,['GXT', 'BC', 'KA']);
+});
 
 test('tool definitions are strict and never expose arbitrary SQL', () => {
   assert.ok(CHAT_TOOLS.length >= 6);
