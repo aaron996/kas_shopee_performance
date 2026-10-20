@@ -1,4 +1,5 @@
 import { ChatError } from './errors.js';
+import { chartFromEvidence } from './charts.js';
 
 export const MAX_EVIDENCE_BYTES = 24 * 1024;
 
@@ -35,11 +36,13 @@ export function toPublicSource(toolName, result) {
       scope.hubTypes = result.params.p_hub_types.filter(h => h !== '__NO_MATCH__');
     }
   }
+  const visualization = chartFromEvidence(toolName, result, scope);
   return {
     evidenceId: result?.evidenceId ?? null,
     tool: toolName,
     dataAsOf: data?.dataAsOf ?? data?.data_as_of ?? null,
     syncedAt: data?.syncedAt ?? data?.synced_at ?? null,
-    scope
+    scope,
+    ...(visualization ? { visualization } : {})
   };
 }

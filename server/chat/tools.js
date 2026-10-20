@@ -7,6 +7,7 @@ import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
 import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
 import { MAX_SCOPE_ITEMS } from './protocol.js';
 import { PUBLIC_SEARCH_TOOL } from './public-search.js';
+import { createHash } from 'node:crypto';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
@@ -74,6 +75,22 @@ function parseArguments(raw) {
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 
 export const CHAT_TOOLS = Object.freeze([
+  {
+    type: 'function', name: 'get_metric_trend', strict: true,
+    description: 'Đọc KPI P1ST/OPR/D1ST/ODR theo từng ngày để vẽ biểu đồ đường. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
+    parameters: {
+      type: 'object', additionalProperties: false,
+      required: ['metric', 'client', 'date_from', 'date_to', 'regions', 'hub_types'],
+      properties: {
+        metric: { type: 'string', enum: [...METRICS] },
+        client: { type: 'string', enum: [...CLIENTS] },
+        date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+      },
+    },
+  },
   {
     type: 'function',
     name: 'get_data_coverage',
@@ -200,6 +217,47 @@ export async function executeChatTool(call, context = {}) {
   const args = normalizeToolScope(call.name, rawArgs, effectiveScope);
 
   switch (call.name) {
+    case 'get_metric_trend': {
+      const [from, to] = dateRange(args.date_from, args.date_to);
+      const count = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+      if (new Date(Date.parse(from)).toISOString().slice(0, 10) !== from || new Date(Date.parse(to)).toISOString().slice(0, 10) !== to) invalid('Khoảng ngày không hợp lệ.');
+      if (count > 14) invalid('Biểu đồ theo ngày hỗ trợ tối đa 14 ngày mỗi lượt. Hãy chọn khoảng ngắn hơn.');
+      const params = {
+        p_metric: enumValue(args.metric, METRICS, 'metric'),
+        p_client: enumValue(args.client, CLIENTS, 'client'),
+        p_regions: textList(args.rpcRegions, 'regions'),
+        p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
+        p_grain: 'nationwide', p_limit: 1, p_sort: 'worst',
+      };
+      const budget = context.trendBudget ?? { remaining: 14 };
+      if (count > budget.remaining) invalid('Lượt hỏi đã đạt giới hạn 14 điểm dữ liệu theo ngày.');
+      budget.remaining -= count;
+      const rows = [], evidenceIds = [];
+      let syncedAt = null, dataAsOf = null;
+      // Existing permission-checked aggregate RPC, sequential and bounded. No raw
+      // history download, new SQL, schema change, or invented daily interpolation.
+      for (let i = 0; i < count; i += 1) {
+        if (context.signal?.aborted) throw new ChatError('CHAT_TIMEOUT', 'Đã dừng tra cứu biểu đồ.', 504);
+        const day = new Date(Date.parse(from) + i * 86400000).toISOString().slice(0, 10);
+        const scopedClient = { rpc(name, rpcParams) {
+          const request = userClient.rpc(name, rpcParams);
+          return context.signal && typeof request.abortSignal === 'function' ? request.abortSignal(context.signal) : request;
+        } };
+        const result = await callDashboardRpc(scopedClient, DASHBOARD_RPCS.metric, { ...params, p_date_from: day, p_date_to: day });
+        if (context.signal?.aborted) throw new ChatError('CHAT_TIMEOUT', 'Đã dừng tra cứu biểu đồ.', 504);
+        if (!Array.isArray(result.data?.rows) || result.data.rows.length > 1) throw new ChatError('CHAT_DATA_UNAVAILABLE', 'Dữ liệu theo ngày chưa đúng định dạng.', 503);
+        const row = result.data.rows[0];
+        rows.push({ date: day, value: row?.value ?? null, volume: row?.volume ?? null, ontime: row?.ontime ?? null });
+        evidenceIds.push(result.evidenceId);
+        if (result.data.dataAsOf && (!dataAsOf || result.data.dataAsOf > dataAsOf)) dataAsOf = result.data.dataAsOf;
+        if (result.data.syncedAt && (!syncedAt || result.data.syncedAt > syncedAt)) syncedAt = result.data.syncedAt;
+      }
+      return {
+        evidenceId: `db_${createHash('sha256').update(JSON.stringify(evidenceIds)).digest('hex').slice(0, 16)}`,
+        params: { ...params, p_date_from: from, p_date_to: to, p_grain: 'day' },
+        data: { metric: params.p_metric, scope: { client: params.p_client, dateFrom: from, dateTo: to, grain: 'day' }, dataAsOf, syncedAt, rows },
+      };
+    }
     case 'get_data_coverage': {
       const dataset = enumValue(args.dataset, DATASETS, 'dataset');
       const client = enumValue(args.client, CLIENTS, 'client');

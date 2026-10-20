@@ -1,0 +1,38 @@
+.pk-text-shimmer {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+@supports (background-clip: text) {
+  .pk-text-shimmer {
+    background-image: linear-gradient(to right, var(--text-secondary) var(--pk-shimmer-start, 30%), var(--text-primary) 50%, var(--text-secondary) var(--pk-shimmer-end, 70%));
+    background-size: 200% auto;
+    background-clip: text;
+    color: transparent;
+    animation: pk-shimmer 4s linear infinite;
+  }
+}
+
+.pk-loader { display: inline-flex; align-items: center; vertical-align: middle; }
+.pk-loader--sm { --pk-dot-size: 4px; --pk-loader-height: 16px; }
+.pk-loader--md { --pk-dot-size: 6px; --pk-loader-height: 20px; }
+.pk-loader--lg { --pk-dot-size: 8px; --pk-loader-height: 24px; }
+.pk-loader-dots { display: inline-flex; align-items: center; gap: 4px; height: var(--pk-loader-height); }
+.pk-loader-dots > span { width: var(--pk-dot-size); height: var(--pk-dot-size); border-radius: 50%; background: currentColor; animation: pk-typing 1s ease-in-out infinite; }
+.pk-loader-dots--dots > span { animation: pk-bounce-dots 1.4s ease-in-out infinite; }
+.pk-loader-dots--pulse-dot > span { animation: pk-pulse-dot 1.2s ease-in-out infinite; }
+
+@keyframes pk-shimmer { to { background-position: -200% center; } }
+@keyframes pk-typing { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes pk-bounce-dots { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-4px); } }
+@keyframes pk-pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-text-shimmer { animation: none; background: none; color: var(--text-secondary); }
+  .pk-loader-dots > span { animation: none; }
+}
+
+@media (forced-colors: active) {
+  .pk-text-shimmer { background: none; color: CanvasText; }
+  .pk-loader-dots > span { background: CanvasText; }
+}

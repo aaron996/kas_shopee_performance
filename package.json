@@ -11,6 +11,7 @@
     "test": "node --test src/utils/*.test.mjs server/chat/*.test.mjs server/cod-sms/*.test.mjs server/cod-export/*.test.mjs server/snapshot/*.test.mjs server/weather/*.test.mjs tests/api/*.test.mjs scripts/apps-script/ops-incremental-sync.test.mjs scripts/apps-script/ops-history-sync.test.mjs"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.15.30",
     "@formkit/auto-animate": "^0.10.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
