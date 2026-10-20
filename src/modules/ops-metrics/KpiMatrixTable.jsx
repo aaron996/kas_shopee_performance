@@ -4,7 +4,7 @@ import { formatPct, formatVol, getHeatTier, getHigherIsWorseTier } from '../../u
 
 // Bảng Toàn quốc > Miền > Vùng > Hub x cột thời gian (mỗi cột hai ô: % và volume), dùng chung cho
 // "Theo tuần" (cột = tuần) và "Theo ngày" có khoảng ngày (cột = ngày). `matrix` do buildWeeklyMatrix dựng.
-export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhất' }) {
+export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhất', showVolume = true, horizontalScroll = false }) {
   const { metric } = matrix;
   const [expanded, setExpanded] = useState({});
 
@@ -19,18 +19,21 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
   const cells = (stats, bold = false) => stats.map((s, i) => (
     <React.Fragment key={matrix.weeks[i].start}>
       <td {...heat(s.pct)}>{formatPct(s.pct)}</td>
-      <td style={bold ? { fontWeight: 'bold' } : undefined}>{formatVol(s.tot)}</td>
+      {showVolume && <td style={bold ? { fontWeight: 'bold' } : undefined}>{formatVol(s.tot)}</td>}
     </React.Fragment>
   ));
 
   return (
-    <div className="mtx-wrap report1-master-table" style={{ '--thead-h': '72px', '--allrow-h': '39px' }}>
+    <div className={`mtx-wrap report1-master-table${horizontalScroll ? ' daily-matrix-scroll' : ''}`}
+      role={horizontalScroll ? 'region' : undefined} tabIndex={horizontalScroll ? 0 : undefined}
+      aria-label={horizontalScroll ? 'Bảng performance theo ngày, cuộn ngang để xem đầy đủ' : undefined}
+      style={{ '--thead-h': '72px', '--allrow-h': '39px' }}>
       <table className="mtx-table weekly-kpi-table">
         <thead>
           <tr>
             <th rowSpan="2" className="lbl">{metric.isFd ? 'Vùng / Kho giao' : 'Vùng / Hub'}</th>
             {matrix.weeks.map(w => (
-              <th key={w.start} colSpan="2" className="grp-start">
+              <th key={w.start} colSpan={showVolume ? 2 : 1} className="grp-start">
                 {w.title}{'\n'}{w.range}{w.note ? ` · ${w.note}` : ''}
               </th>
             ))}
@@ -39,7 +42,7 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
             {matrix.weeks.map(w => (
               <React.Fragment key={w.start}>
                 <th className="grp-start">%</th>
-                <th>Vol</th>
+                {showVolume && <th>Vol</th>}
               </React.Fragment>
             ))}
           </tr>
@@ -82,7 +85,7 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
                     ))}
                     {open && reg.hubCount > reg.hubs.length && (
                       <tr>
-                        <td className="lbl weekly-kpi-hub weekly-kpi-more" colSpan={1 + matrix.weeks.length * 2}>
+                        <td className="lbl weekly-kpi-hub weekly-kpi-more" colSpan={1 + matrix.weeks.length * (showVolume ? 2 : 1)}>
                           Hiển thị {reg.hubs.length}/{reg.hubCount} (nhiều đơn trễ nhất {lastLabel})
                         </td>
                       </tr>

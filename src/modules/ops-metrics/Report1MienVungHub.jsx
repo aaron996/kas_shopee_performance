@@ -1418,9 +1418,11 @@ export default function Report1MienVungHub({
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
           {activeDayRange ? (
             <DailyRangeKpiTable
+              key={`${dayRange.from}:${dayRange.to}:${dayRange.preset}`}
               metricKey={activeTableTab}
               title={WEEKLY_TITLES[activeTableTab]}
               range={activeDayRange}
+              defaultShowVolume={dayRange.preset === '7 ngày gần nhất'}
               clientFilter={clientFilter}
               selectedRegions={selectedRegions}
               selectedHubTypes={selectedHubTypes}
