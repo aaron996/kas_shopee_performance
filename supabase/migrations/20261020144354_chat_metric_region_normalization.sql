@@ -177,5 +177,3 @@ $$;
 
 -- CREATE OR REPLACE preserves the existing invoker security and ACLs. No table
 -- permissions, RLS policies, role timeouts or KPI business rules are changed.
-
-
