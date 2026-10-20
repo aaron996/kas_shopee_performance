@@ -7,6 +7,8 @@ import { MAX_BODY_BYTES, parseRequestBody, requestPayloadHash } from '../server/
 import { finalizeChatRequest, getUserQuotaInfo, recordQuotaRejection, reserveChatRequest } from '../server/chat/quota.js';
 import { sendJson, sendSse, startSse } from '../server/chat/sse.js';
 
+export const maxDuration = 300;
+
 async function readBody(req) {
   if (req.body !== undefined) return req.body;
   const chunks = [];
@@ -58,7 +60,9 @@ export function createChatHandler(dependencies = {}) {
     let reserved = false;
     const controller = new AbortController();
     let timeout;
+    let heartbeat;
     res.on('close', () => {
+      clearInterval(heartbeat);
       if (!res.writableEnded) controller.abort(new Error('Client disconnected'));
     });
 
@@ -92,6 +96,10 @@ export function createChatHandler(dependencies = {}) {
       reserved = true;
 
       startSse(res);
+      heartbeat = setInterval(() => {
+        if (!res.writableEnded && !res.destroyed) res.write(': keep-alive\n\n');
+      }, 10000);
+      heartbeat.unref?.();
       sendSse(res, 'message_start', {
         requestId: request.requestId,
         model: effectiveConfig.model,
@@ -170,6 +178,7 @@ export function createChatHandler(dependencies = {}) {
       }
     } finally {
       if (timeout) clearTimeout(timeout);
+      clearInterval(heartbeat);
     }
   };
 }

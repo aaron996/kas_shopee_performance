@@ -6,6 +6,7 @@ import { ChatError } from './errors.js';
 import { ALLOWED_MODELS } from './config.js';
 import { requestPayloadHash } from './protocol.js';
 import { serializeEvidence } from './context.js';
+import { runChatAgent } from './agent.js';
 
 const requestId = '550e8400-e29b-41d4-a716-446655440000';
 const config = {
@@ -93,6 +94,78 @@ test('endpoint streams a structured interaction before completing the message', 
   assert.match(res.body, /event: interaction/);
   assert.match(res.body, /"type":"query_parameters"/);
   assert.ok(res.body.indexOf('event: message_end') > res.body.indexOf('event: interaction'));
+});
+
+test('long reasoning keeps SSE alive past 90 seconds and reports deadline abort truthfully', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  let ready;
+  const streamReady = new Promise(resolve => { ready = resolve; });
+  let agentSignal;
+  let finalized;
+  const handler = createChatHandler({
+    readConfig: () => ({ ...config, turnTimeoutMs: 180000 }),
+    resolveEffectiveConfig: async (_client, base) => ({ ...base, reasoningEffort: 'max' }),
+    authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
+    reserve: async () => ({}),
+    runAgent: options => {
+      agentSignal = options.signal;
+      return runChatAgent(options, { openai: { responses: { create: async body => {
+        if (!body.stream) return { status: 'completed', output: [] };
+        return { async *[Symbol.asyncIterator]() {
+          yield { type: 'response.created' };
+          await new Promise(resolve => { options.signal.addEventListener('abort', resolve, { once: true }); ready(); });
+          // Raw SDK iteration can return quietly when its signal aborts.
+        } };
+      } } } });
+    },
+    finalize: async (_client, _id, details) => { finalized = details; }
+  });
+  const res = new FakeResponse();
+  const pending = handler(request(), res);
+  await streamReady;
+  t.mock.timers.tick(90000);
+  assert.equal(agentSignal.aborted, false);
+  assert.equal(res.writableEnded, false);
+  assert.match(res.body, /: keep-alive\n\n/);
+  t.mock.timers.tick(90000);
+  await pending;
+  assert.equal(finalized.status, 'aborted');
+  assert.equal(finalized.errorCode, 'CHAT_TIMEOUT');
+  assert.equal(finalized.refundTurn, true);
+  assert.match(res.body, /"code":"CHAT_TIMEOUT"/);
+  assert.doesNotMatch(res.body, /CHAT_MODEL_STREAM_INCOMPLETE|event: message_end/);
+  const finishedBody = res.body;
+  t.mock.timers.tick(10000);
+  assert.equal(res.body, finishedBody);
+});
+
+test('long reasoning can complete after the previous 90-second cutoff without changing model settings', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  let ready;
+  const agentReady = new Promise(resolve => { ready = resolve; });
+  const handler = createChatHandler({
+    readConfig: () => ({ ...config, turnTimeoutMs: 180000 }),
+    resolveEffectiveConfig: async (_client, base) => ({ ...base, model: 'gpt-6-luna', reasoningEffort: 'max' }),
+    authenticate: async () => ({ user: { id: 'u1' }, userClient: {}, serviceClient: {} }),
+    reserve: async () => ({}),
+    runAgent: async ({ config: resolved, signal, onText }) => {
+      assert.equal(resolved.model, 'gpt-6-luna');
+      assert.equal(resolved.reasoningEffort, 'max');
+      await new Promise(resolve => { setTimeout(resolve, 120000); ready(); });
+      assert.equal(signal.aborted, false);
+      onText('Đã tổng hợp xong.');
+      return completedAgentResult;
+    },
+    finalize: async () => {}
+  });
+  const res = new FakeResponse();
+  const pending = handler(request(), res);
+  await agentReady;
+  t.mock.timers.tick(120000);
+  await pending;
+  assert.match(res.body, /Đã tổng hợp xong/);
+  assert.match(res.body, /event: message_end/);
+  assert.doesNotMatch(res.body, /event: error/);
 });
 
 test('GET /api/chat returns only quota info and does not expose model controls', async () => {
