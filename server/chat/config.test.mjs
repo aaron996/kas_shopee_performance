@@ -10,6 +10,13 @@ const validEnv = {
   SUPABASE_SERVICE_ROLE_KEY: 'test-service'
 };
 
+test('model requests have room for reasoning while the whole turn stays bounded', () => {
+  const config = readChatConfig(validEnv);
+  assert.equal(config.modelTimeoutMs, 60000);
+  assert.equal(config.turnTimeoutMs, 90000);
+  assert.equal(readChatConfig({ ...validEnv, AI_CHAT_MODEL_TIMEOUT_MS: '25000' }).modelTimeoutMs, 25000);
+});
+
 test('chat config fails closed while feature flag is off', () => {
   assert.throws(() => readChatConfig({ ...validEnv, AI_CHAT_ENABLED: 'false' }), error => error.code === 'CHAT_DISABLED');
 });
