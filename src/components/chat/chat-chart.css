@@ -1,0 +1,13 @@
+.chat-chart { width: 100%; min-width: 0; margin: 8px 0; padding: 12px; background: var(--surface-default); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); color: var(--text-primary); }
+.chat-chart h3 { margin: 0; font: 600 0.9rem/1.4 var(--font-sans); }
+.chat-chart figcaption p, .chat-chart-note { margin: 4px 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.5; overflow-wrap: anywhere; }
+.chat-chart-canvas { width: 100%; min-width: 0; margin-top: 12px; }
+.chat-chart-tooltip { display: flex; flex-direction: column; gap: 4px; max-width: 240px; padding: 10px 12px; background: var(--surface-default); border: 1px solid var(--border-strong); border-radius: var(--radius-control); color: var(--text-primary); font-size: 0.8rem; overflow-wrap: anywhere; }
+.chat-chart-data { margin-top: 8px; font-size: 0.75rem; }
+.chat-chart-data summary { cursor: pointer; padding: 8px 0; }
+.chat-chart-table-wrap { overflow-x: auto; max-width: 100%; }
+.chat-chart-data table { width: 100%; border-collapse: collapse; text-align: left; }
+.chat-chart-data th, .chat-chart-data td { padding: 7px 5px; border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; }
+.chat-chart-data td { font-variant-numeric: tabular-nums; }
+.chat-chart-data caption { text-align: left; margin-bottom: 8px; }
+@media (max-width: 768px) { .chat-chart-data summary { min-height: 44px; } }

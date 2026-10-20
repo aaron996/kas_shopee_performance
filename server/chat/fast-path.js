@@ -3,6 +3,7 @@ import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
 import { toPublicSource } from './context.js';
 import { ChatError } from './errors.js';
 import { resolveEffectiveScope } from './scope.js';
+import { isChartQuestion } from '../../src/utils/chatChart.js';
 
 export const METRIC_DATASETS = Object.freeze({
   p1st: 'pick',
@@ -65,6 +66,7 @@ export function isFastPathEligible(request) {
 
   // Nếu câu hỏi tự nhiên có yêu cầu grain chi tiết (vùng, kho, Ca 1, leadtime...), giữ luồng agent
   const question = typeof request.question === 'string' ? request.question : '';
+  if (isChartQuestion(question)) return false;
   if (SCOPE_GRAIN_OVERRIDE_RE.test(question)) {
     return false;
   }
@@ -155,7 +157,7 @@ export function formatDeterministicKpiResponse({
   return lines.join('\n');
 }
 
-export async function executeFastPath({ request, userClient, signal, onStatus, onText, onSource }, dependencies = {}) {
+export async function executeFastPath({ request, userClient, signal: _signal, onStatus, onText, onSource }, dependencies = {}) {
   const rpcCaller = dependencies.callRpc ?? callDashboardRpc;
   const query = request.query;
   if (!isFastPathEligible(request)) return null;

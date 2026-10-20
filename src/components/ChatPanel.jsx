@@ -1,5 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Database, Eye, EyeOff, LoaderCircle, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, Check, Copy, Database, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
+import { ActionBarPrimitive, AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useExternalStoreRuntime } from '@assistant-ui/react';
+import { TextShimmer } from './prompt-kit/TextShimmer';
+import { convertAssistantUiMessage, getComposerQuestion, toAssistantUiMessages } from '../utils/chatAssistantUi';
+import { preserveChartQuestion } from '../utils/chatChart';
+import './chat/assistant-ui.css';
 import { supabase } from '../utils/supabaseClient';
 import { emitUsageAction } from '../utils/appUsageTracker.js';
 import Mascot from './chat/Mascot';
@@ -8,6 +13,7 @@ import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import { canRetry, formatDataScope } from '../utils/chatRetry';
 import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
+const ChatChart = lazy(() => import('./chat/ChatChart'));
 
 function createRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -129,7 +135,6 @@ function formatSuggestionDate(dateStr) {
 
 export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = null, suppressed = false }) {
   const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(null);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
@@ -149,7 +154,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
   const launcherRef = useRef(null);
   const revealRef = useRef(null);
   const inputRef = useRef(null);
-  const scrollRef = useRef(null);
   const abortRef = useRef(null);
 
   useEffect(() => {
@@ -287,15 +291,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     };
   }, [isOpen, onClose, mascotHidden, isExpanded]);
 
-  useEffect(() => {
-    if (!messages.length && !pending && !error && !failedRequest) {
-      scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-      return;
-    }
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
-  }, [messages, pending, error, failedRequest, status, isOpen, followupSuggestions]);
-
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
@@ -328,11 +323,12 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
 
   const submitQuestion = async (question, query = null, displayQuestion = question, context = screenContext) => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || abortRef.current) return;
+    if (!normalizedQuestion || abortRef.current || (quota && !quota.isUnlimited && quota.remainingTurns <= 0)) return;
 
     const controller = new AbortController();
+    const turnId = createRequestId();
     abortRef.current = controller;
-    setDraft('');
+    runtime.thread.composer.setText('');
     setError(null);
     setFailedRequest(null);
     setFocused(false);
@@ -343,14 +339,18 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         ? { ...message, interaction: { ...message.interaction, dismissed: true } }
         : message
     )));
-    setPending({ question: displayQuestion, answer: '', sources: [], interaction: null });
+    setPending({ id: turnId, question: displayQuestion, answer: '', sources: [], interaction: null });
+
+    let answer = '';
+    let sources = [];
+    let interaction = null;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       if (!session?.access_token) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi thử lại.');
 
-      const requestBody = { requestId: createRequestId(), question: normalizedQuestion, history };
+      const requestBody = { requestId: turnId, question: normalizedQuestion, history };
       if (query) requestBody.query = query;
       if (context) requestBody.screenContext = context;
 
@@ -375,9 +375,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
 
       emitUsageAction('chat_questions', context?.activeTab);
       let completed = false;
-      let answer = '';
-      let sources = [];
-      let interaction = null;
       await readSse(response, (eventName, payload) => {
         if (eventName === 'message_start' && payload.quota) setQuota(payload.quota);
         if (eventName === 'status') setStatus(payload);
@@ -401,14 +398,20 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
       if (!answer.trim() && !interaction) throw new Error('Chatbot chưa tạo được nội dung trả lời. Vui lòng thử lại.');
       const assistantContent = answer.trim() || interaction.prompt;
       setMessages(current => [...current,
-        { role: 'user', content: displayQuestion },
-        { role: 'assistant', content: assistantContent, sources, interaction, requestQuestion: normalizedQuestion, screenContext: context }
+        { id: `${turnId}-user`, role: 'user', content: displayQuestion },
+        { id: `${turnId}-assistant`, role: 'assistant', content: assistantContent, sources, interaction, requestQuestion: normalizedQuestion, requestQuery: query, displayQuestion, screenContext: context }
       ]);
       setPending(null);
       setStatus(null);
       setAnnouncement('Đã trả lời xong.');
     } catch (requestError) {
       const wasAborted = controller.signal.aborted;
+      if (wasAborted) {
+        setMessages(current => [...current,
+          { id: `${turnId}-user`, role: 'user', content: displayQuestion },
+          { id: `${turnId}-assistant`, role: 'assistant', content: answer || 'Đã dừng trả lời.', sources, stopped: true, requestQuestion: normalizedQuestion, requestQuery: query, displayQuestion, screenContext: context },
+        ]);
+      }
       setPending(null);
       setStatus(null);
       setFocused(false);
@@ -417,6 +420,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         || (quota && !quota.isUnlimited && quota.remainingTurns <= 0);
       setError(wasAborted ? null : requestError.message || 'Không thể gửi câu hỏi lúc này.');
       setFailedRequest(wasAborted ? null : {
+        id: turnId,
         question: normalizedQuestion,
         query,
         displayQuestion,
@@ -436,11 +440,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     submitQuestion(question, query, displayQuestion, context);
   };
 
-  const handleSubmit = event => {
-    event.preventDefault();
-    submitQuestion(draft);
-  };
-
   const handleInteractionSubmit = (messageIndex, query, message) => {
     if (abortRef.current) return;
     setMessages(current => current.map((item, index) => (
@@ -448,7 +447,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         ? { ...item, interaction: { ...item.interaction, selection: message.summary } }
         : item
     )));
-    submitQuestion(message.question, query, message.summary);
+    submitQuestion(preserveChartQuestion(message.question, messages[messageIndex]?.requestQuestion), query, message.summary);
   };
 
   const renderSuggestions = data => (
@@ -460,11 +459,21 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     </div>
   );
 
+  const uiMessages = useMemo(() => toAssistantUiMessages(messages, pending, failedRequest), [messages, pending, failedRequest]);
+  const runtime = useExternalStoreRuntime({
+    messages: uiMessages,
+    convertMessage: convertAssistantUiMessage,
+    isRunning: isStreaming,
+    isDisabled: Boolean(quota && !quota.isUnlimited && quota.remainingTurns <= 0) && !isStreaming,
+    onNew: message => submitQuestion(getComposerQuestion(message)),
+    onCancel: stopStreaming,
+  });
+
   // Preserve the conversation when visiting a surface without the assistant.
   if (suppressed) return null;
 
   return (
-    <>
+    <AssistantRuntimeProvider runtime={runtime}>
     {!isOpen && !mascotHidden && <div className="chat-mascot-launcher">
       <button ref={launcherRef} type="button" className="chat-fab chat-fab--mascot"
         onClick={onOpen} onContextMenu={event => { event.preventDefault(); setVisibilityMenuOpen(true); }}
@@ -481,7 +490,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         onContextMenu={event => { event.preventDefault(); setMascotVisibility(false); }}
         title="Hiện Trợ lý KAS" aria-label="Hiện Trợ lý KAS"><Eye size={16} /> Hiện trợ lý</button>
     </div>}
-    {isOpen && <section id="kas-chat-panel" className={`chat-panel${isExpanded ? ' chat-panel--expanded' : ''}`} role="dialog" aria-labelledby="chat-panel-title">
+    {isOpen && <ThreadPrimitive.Root asChild><section id="kas-chat-panel" className={`chat-panel${isExpanded ? ' chat-panel--expanded' : ''}`} role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
         <div className="chat-panel-title">
           <span className="chat-mascot-avatar"><Mascot state={mascotState} active={isOpen} /></span>
@@ -502,7 +511,8 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
         </div>
       </header>
 
-      <div className="chat-panel-body" ref={scrollRef}>
+      <div className="chat-thread-body">
+      <ThreadPrimitive.Viewport className="chat-panel-body" autoScroll>
         {!messages.length && !pending && !failedRequest && !error && (
           <div className="chat-welcome">
             <div className="chat-mascot-intro"><Mascot state="idle" active={isOpen} /></div>
@@ -512,25 +522,43 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           </div>
         )}
 
-        {messages.map((message, index) => (
-          <article className={`chat-message chat-message--${message.role}`} key={`${message.role}-${index}`}>
-            <div className="chat-message-bubble">
-              {message.role === 'assistant' ? (
-                <ChatMessageMarkdown content={message.content} />
-              ) : (
-                message.content.split('\n').map((line, lineIndex) => <p key={lineIndex}>{line || '\u00a0'}</p>)
-              )}
-            </div>
-            {message.role === 'assistant' && message.interaction && (
-              <ChatQueryCard
-                interaction={message.interaction}
-                disabled={isStreaming || Boolean(quota && !quota.isUnlimited && quota.remainingTurns <= 0)}
-                onSubmit={(query, selectionMessage) => handleInteractionSubmit(index, query, selectionMessage)}
-              />
-            )}
-            {message.role === 'assistant' && <DataScopeBlock sources={message.sources} />}
-          </article>
-        ))}
+        <ThreadPrimitive.Messages>{({ message }) => {
+          const details = message.metadata?.custom || {};
+          const content = message.content.filter(part => part.type === 'text').map(part => part.text).join('\n');
+          return (
+            <MessagePrimitive.Root className={`chat-message chat-message--${message.role}`}>
+              <div className={`chat-message-bubble${details.isPending ? ' chat-message-bubble--pending' : ''}`}>
+                {details.isPending && !content
+                  ? <span className="chat-loading" role="status"><TextShimmer>{statusText(status)}</TextShimmer></span>
+                  : message.role === 'assistant'
+                    ? <ChatMessageMarkdown content={content} />
+                    : content.split('\n').map((line, index) => <p key={index}>{line || '\u00a0'}</p>)}
+              </div>
+              {message.role === 'assistant' && <>
+                {details.interaction && <ChatQueryCard interaction={details.interaction} disabled={suggestionsDisabled || details.isPending}
+                  onSubmit={(query, selectionMessage) => handleInteractionSubmit(details.messageIndex, query, selectionMessage)} />}
+                {!details.isPending && <>
+                  {details.stopped && content !== 'Đã dừng trả lời.' && <span className="chat-stopped-label">Đã dừng trả lời</span>}
+                  {!details.stopped && details.sources?.some(source => source.visualization) && <Suspense fallback={<p role="status">Đang tải biểu đồ…</p>}>
+                    {Array.from(new Map(details.sources.filter(source => source.visualization).map(source => [source.evidenceId, source])).values()).slice(0, 3).map(source =>
+                      <ChatChart key={source.evidenceId} chart={source.visualization} dataAsOf={source.dataAsOf} />)}
+                    {new Set(details.sources.filter(source => source.visualization).map(source => source.evidenceId)).size > 3 && <p className="chat-stopped-label">Hiển thị 3 biểu đồ đầu tiên. Hãy hỏi riêng chỉ số/phạm vi còn lại để xem tiếp.</p>}
+                  </Suspense>}
+                  <DataScopeBlock sources={details.sources} />
+                  <ActionBarPrimitive.Root className="chat-message-actions" hideWhenRunning>
+                    <ActionBarPrimitive.Copy className="chat-message-action" aria-label="Sao chép câu trả lời" title="Sao chép câu trả lời">
+                      <Copy size={14} className="chat-copy-idle" aria-hidden="true" /><Check size={14} className="chat-copy-done" aria-hidden="true" />
+                      <span className="chat-copy-idle">Sao chép</span><span className="chat-copy-done" role="status">Đã sao chép</span>
+                    </ActionBarPrimitive.Copy>
+                    {details.requestQuestion && !details.interaction && <button type="button" className="chat-message-action" disabled={suggestionsDisabled}
+                      onClick={() => submitQuestion(details.requestQuestion, details.requestQuery, details.displayQuestion || details.requestQuestion, details.screenContext)}
+                      title="Gửi lại câu hỏi này; tính một lượt hỏi mới"><RotateCcw size={14} aria-hidden="true" /> Hỏi lại</button>}
+                  </ActionBarPrimitive.Root>
+                </>}
+              </>}
+            </MessagePrimitive.Root>
+          );
+        }}</ThreadPrimitive.Messages>
 
         {messages.length > 0 && !pending && !failedRequest && !error && followupSuggestions && (
           <div className="chat-followups" aria-label="Gợi ý hỏi tiếp">
@@ -539,27 +567,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           </div>
         )}
 
-        {pending && (
-          <>
-            <article className="chat-message chat-message--user"><div className="chat-message-bubble"><p>{pending.question}</p></div></article>
-            <article className="chat-message chat-message--assistant">
-              <div className="chat-message-bubble chat-message-bubble--pending">
-                {pending.answer
-                  ? <ChatMessageMarkdown content={pending.answer} />
-                  : pending.interaction
-                    ? <p>{pending.interaction.prompt}</p>
-                    : <span className="chat-loading"><LoaderCircle size={16} /> {statusText(status)}</span>}
-              </div>
-              {pending.interaction && <ChatQueryCard interaction={pending.interaction} disabled onSubmit={() => {}} />}
-            </article>
-          </>
-        )}
-
-        {failedRequest && !pending && (
-          <article className="chat-message chat-message--user">
-            <div className="chat-message-bubble"><p>{failedRequest.displayQuestion}</p></div>
-          </article>
-        )}
         {error && (
           <div className="chat-error-card" role="alert">
             <div className="chat-error-message">{error}</div>
@@ -583,39 +590,36 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
             )}
           </div>
         )}
+        <ThreadPrimitive.ScrollToBottom className="chat-scroll-bottom" aria-label="Đến tin nhắn mới nhất" title="Đến tin nhắn mới nhất" behavior="auto"><ArrowDown size={15} aria-hidden="true" /> Tin mới nhất</ThreadPrimitive.ScrollToBottom>
+      </ThreadPrimitive.Viewport>
       </div>
 
-      <form className="chat-composer" onSubmit={handleSubmit}>
-        <textarea
+      <ComposerPrimitive.Root className="chat-composer">
+        <ComposerPrimitive.Input
           ref={inputRef}
           id="chat-question"
           aria-label="Nhập câu hỏi cho trợ lý"
-          value={draft}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          onChange={event => setDraft(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              submitQuestion(draft);
-            }
-          }}
+          cancelOnEscape={false}
+          addAttachmentOnPaste={false}
           placeholder={followupSuggestions?.placeholder || visibleSuggestions.placeholder}
-          rows={2}
-          disabled={isStreaming}
+          minRows={2}
+          maxRows={5}
+          disabled={suggestionsDisabled}
         />
         <div className="chat-composer-actions">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span>Enter để gửi · Shift + Enter xuống dòng</span>
           </div>
           {isStreaming ? (
-            <button type="button" className="chat-stop-button" onClick={stopStreaming}><Square size={13} /> Dừng</button>
+            <ComposerPrimitive.Cancel className="chat-stop-button"><Square size={13} /> Dừng</ComposerPrimitive.Cancel>
           ) : (
-            <button type="submit" className="chat-send-button" disabled={!draft.trim() || (quota && !quota.isUnlimited && quota.remainingTurns <= 0)} aria-label="Gửi câu hỏi"><SendHorizontal size={17} /></button>
+            <ComposerPrimitive.Send className="chat-send-button" disabled={suggestionsDisabled} aria-label="Gửi câu hỏi"><SendHorizontal size={17} /></ComposerPrimitive.Send>
           )}
         </div>
-      </form>
-    </section>}
-    </>
+      </ComposerPrimitive.Root>
+    </section></ThreadPrimitive.Root>}
+    </AssistantRuntimeProvider>
   );
 }
