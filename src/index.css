@@ -8114,5 +8114,25 @@ table.weekly-kpi-table td.lbl { min-width: 150px; max-width: 220px; }
 .day-range-bar { display: flex; justify-content: flex-end; padding: 0.4rem 0.75rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle); }
 body.dark-mode .day-range-bar { background: transparent; }
 .day-range-bar .weekly-range { margin-left: 0; }
+.daily-volume-toggle { flex: none; min-height: 36px; margin-left: auto; }
+.daily-volume-toggle:focus-visible,
+.daily-matrix-scroll:focus-visible { outline: 2px solid var(--ghn-blue); outline-offset: -2px; }
+.daily-matrix-hint { margin: 0; padding: 0.35rem 0.75rem; color: var(--text-muted); font-size: 0.75rem; }
+/* Keep the scrollbar reachable and the labels/header visible in long ranges. */
+.report1-master-table.daily-matrix-scroll {
+  max-width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+  scrollbar-width: auto;
+  scrollbar-color: var(--border-strong) var(--surface-subtle);
+}
+.daily-matrix-scroll table.weekly-kpi-table { width: 100%; min-width: max-content; }
+.daily-matrix-scroll table.weekly-kpi-table th,
+.daily-matrix-scroll table.weekly-kpi-table td { min-width: 72px; white-space: nowrap; }
+.daily-matrix-scroll table.weekly-kpi-table thead { top: 0; }
+.daily-matrix-scroll table.weekly-kpi-table .lbl { position: sticky; left: 0; z-index: 2; background: var(--surface); }
+.daily-matrix-scroll table.weekly-kpi-table thead .lbl { background: var(--ghn-blue); }
+.daily-matrix-scroll table.weekly-kpi-table .grp-row .lbl { background: var(--surface-subtle); }
+@media (max-width: 720px) { .daily-volume-toggle { min-height: 44px; } }
 .weekly-range .export-filter-error { flex-basis: 100%; margin: 0; }
 @media (max-width: 720px) { .view-mode-toggle { margin-left: 0 !important; } .weekly-range { margin-left: 0; } }

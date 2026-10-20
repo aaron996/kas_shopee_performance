@@ -14,14 +14,14 @@ export function DayRangeFilter({ range, onChange, bounds }) {
     <div className="weekly-range day-range" role="group" aria-label="Khoảng ngày">
       <DateField label="Từ ngày" value={range.from}
         min={range.to ? (addDays(range.to, -(DAILY_MAX_DAYS - 1)) > bounds.min ? addDays(range.to, -(DAILY_MAX_DAYS - 1)) : bounds.min) : bounds.min}
-        max={range.to || bounds.max} onChange={from => onChange({ ...range, from })} />
+        max={range.to || bounds.max} onChange={from => onChange({ ...range, from, preset: 'custom' })} />
       <span className="weekly-range-sep" aria-hidden="true">→</span>
       <DateField label="Đến ngày" value={range.to} min={range.from || bounds.min}
         max={range.from && addDays(range.from, DAILY_MAX_DAYS - 1) < bounds.max ? addDays(range.from, DAILY_MAX_DAYS - 1) : bounds.max}
-        onChange={to => onChange({ ...range, to })} />
+        onChange={to => onChange({ ...range, to, preset: 'custom' })} />
       <div className="weekly-range-presets">
         {presets.map(p => (
-          <button key={p.label} type="button" className={`export-filter-preset ${range.from === p.from && range.to === p.to ? 'is-active' : ''}`} onClick={() => onChange({ from: p.from, to: p.to })}>{p.label}</button>
+          <button key={p.label} type="button" className={`export-filter-preset ${range.preset !== 'custom' && range.from === p.from && range.to === p.to ? 'is-active' : ''}`} onClick={() => onChange({ from: p.from, to: p.to, preset: p.label })}>{p.label}</button>
         ))}
       </div>
       {invalid && <p className="export-filter-error" role="alert">Ngày bắt đầu phải trước ngày kết thúc.</p>}
@@ -35,6 +35,7 @@ export default function DailyRangeKpiTable({
   metricKey,
   title,
   range,
+  defaultShowVolume = false,
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
@@ -45,6 +46,10 @@ export default function DailyRangeKpiTable({
   const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
+  // A new range restores its default; manual toggles only affect this selection.
+  const selectionKey = `${range.from}:${range.to}:${defaultShowVolume}`;
+  const [volumeOverride, setVolumeOverride] = useState(null);
+  const showVolume = volumeOverride?.key === selectionKey ? volumeOverride.show : defaultShowVolume;
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +76,10 @@ export default function DailyRangeKpiTable({
           {metric.target != null && <span className="kpi-badge">Target ≥ {metric.target.toFixed(0)}%</span>}
           <span className="kpi-badge weekly-kpi-badge">{range.from.split('-').reverse().join('/')} → {range.to.split('-').reverse().join('/')}</span>
         </div>
+        <button type="button" className="btn-secondary daily-volume-toggle" aria-pressed={showVolume}
+          onClick={() => setVolumeOverride({ key: selectionKey, show: !showVolume })}>
+          {showVolume ? 'Ẩn volume' : 'Hiện volume'}
+        </button>
       </div>
       {body}
     </div>
@@ -92,7 +101,8 @@ export default function DailyRangeKpiTable({
   }
   return shell(
     <>
-      <KpiMatrixTable matrix={matrix} lastLabel="ngày cuối khoảng" />
+      <p className="daily-matrix-hint">Cuộn ngang để xem đủ ngày · Shift + lăn chuột hoặc vuốt ngang</p>
+      <KpiMatrixTable matrix={matrix} lastLabel="ngày cuối khoảng" showVolume={showVolume} horizontalScroll />
       <div className="table-legend">
         <div>* Khoảng ngày đọc từ bảng lịch sử nên không có cột WTD, Tốt nhất 6 tuần và Cùng ngày tháng trước.</div>
       </div>
