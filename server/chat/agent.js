@@ -331,12 +331,23 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       actualMicrousd: usage.reduce((sum, row) => sum + row.estimatedMicrousd, 0)
     };
   } catch (error) {
+    const modelTimedOut = error instanceof OpenAI.APIConnectionTimeoutError;
+    if (!(error instanceof ChatError)) {
+      // Only structured diagnostics: never log prompts, provider messages or credentials.
+      console.error('[chat] model request failed', {
+        type: error?.name,
+        status: Number.isInteger(error?.status) ? error.status : null,
+        requestId: typeof error?.request_id === 'string' ? error.request_id : null,
+        timedOut: modelTimedOut,
+        aborted: Boolean(signal?.aborted)
+      });
+    }
     const failure = error instanceof ChatError
       ? error
       : new ChatError(
-        signal?.aborted ? 'CHAT_TIMEOUT' : 'CHAT_MODEL_UNAVAILABLE',
-        signal?.aborted ? 'Chatbot xử lý quá thời gian cho phép.' : 'Không thể kết nối mô hình AI lúc này.',
-        signal?.aborted ? 504 : 502,
+        signal?.aborted ? 'CHAT_TIMEOUT' : modelTimedOut ? 'CHAT_MODEL_TIMEOUT' : 'CHAT_MODEL_UNAVAILABLE',
+        signal?.aborted ? 'Chatbot xử lý quá thời gian cho phép.' : modelTimedOut ? 'Mô hình AI phản hồi quá lâu. Vui lòng thử lại.' : 'Không thể kết nối mô hình AI lúc này.',
+        signal?.aborted || modelTimedOut ? 504 : 502,
         { cause: error }
       );
     failure.chatDetails = {

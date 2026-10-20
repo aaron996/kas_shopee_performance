@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import OpenAI from 'openai';
 import { BASE_INSTRUCTIONS, runChatAgent, usageRow } from './agent.js';
 
 const config = {
@@ -18,6 +19,19 @@ const usage = {
   output_tokens: 50,
   output_tokens_details: { reasoning_tokens: 10 }
 };
+
+test('SDK timeout stays distinct from connectivity failure and retains completed usage', async () => {
+  const timeout = new OpenAI.APIConnectionTimeoutError();
+  await assert.rejects(runChatAgent({ config, request }, {
+    openai: { responses: { create: async () => { throw timeout; } } }
+  }), e => {
+    assert.equal(e.code, 'CHAT_MODEL_TIMEOUT');
+    assert.equal(e.status, 504);
+    assert.equal(e.cause, timeout);
+    assert.deepEqual(e.chatDetails.toolNames, []);
+    return true;
+  });
+});
 
 test('usageRow applies Luna token prices in microdollars', () => {
   const row = usageRow({ usage }, 1, 'gpt-5.6-luna', 'low', [], 20);

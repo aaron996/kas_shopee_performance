@@ -113,7 +113,7 @@ export function readChatConfig(env = process.env) {
     orgDailyMicrousd: readInt(env, 'AI_CHAT_ORG_DAILY_MICROUSD', 5000000, 1, 10000000000),
     requestReserveMicrousd: readInt(env, 'AI_CHAT_REQUEST_RESERVE_MICROUSD', 25000, 1, 100000000),
     maxOutputTokens: readInt(env, 'AI_CHAT_MAX_OUTPUT_TOKENS', 2048, 256, 16384),
-    modelTimeoutMs: readInt(env, 'AI_CHAT_MODEL_TIMEOUT_MS', 20000, 1000, 120000),
+    modelTimeoutMs: readInt(env, 'AI_CHAT_MODEL_TIMEOUT_MS', 60000, 1000, 120000),
     turnTimeoutMs: readInt(env, 'AI_CHAT_TURN_TIMEOUT_MS', 90000, 5000, 300000)
   };
 }
