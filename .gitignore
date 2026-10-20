@@ -28,3 +28,6 @@ output/playwright/
 
 # brand-video render scratch
 tools/brand-video/.frames/
+
+# graphify
+graphify-out/
