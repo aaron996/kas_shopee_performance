@@ -86,8 +86,8 @@ export const CHAT_TOOLS = Object.freeze([
         client: { type: 'string', enum: [...CLIENTS] },
         date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
-        hub_types: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
       },
     },
   },
@@ -118,8 +118,8 @@ export const CHAT_TOOLS = Object.freeze([
         date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         grain: { type: 'string', enum: [...GRAINS] },
-        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
-        hub_types: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
         sort: { type: 'string', enum: [...SORTS] }
       }
@@ -137,8 +137,8 @@ export const CHAT_TOOLS = Object.freeze([
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
         grain: { type: 'string', enum: [...GRAINS] },
-        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
-        hub_types: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
         sort: { type: 'string', enum: [...SORTS] }
       }
@@ -156,7 +156,7 @@ export const CHAT_TOOLS = Object.freeze([
         date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         lane: nullableString,
-        regions: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         limit: { type: 'integer', minimum: 1, maximum: 50 }
       }
     }
