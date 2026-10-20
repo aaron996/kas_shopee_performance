@@ -288,6 +288,78 @@ test('agent retries one empty completed answer before returning text', async () 
   assert.equal(result.usage.length, 3);
 });
 
+test('empty truncated stream recovers once without streaming or replaying database tools', async () => {
+  const bodies = [];
+  const deltas = [];
+  let toolCalls = 0;
+  const result = await runChatAgent({ config, request, onText: text => deltas.push(text) }, {
+    executeTool: async () => { toolCalls++; return { evidenceId: 'db_1', data: { rows: [{ value: 95 }] } }; },
+    openai: { responses: { create: async body => {
+      bodies.push(structuredClone(body));
+      if (bodies.length === 1) return { status: 'completed', usage, output: [
+        { type: 'function_call', call_id: 'c1', name: 'get_metric_summary', arguments: '{}' }
+      ] };
+      if (bodies.length === 2) return { status: 'completed', usage, output: [] };
+      if (body.stream) return { async *[Symbol.asyncIterator]() { yield { type: 'response.created', response: { status: 'in_progress' } }; } };
+      return { status: 'completed', usage, output_text: 'ODR là 95%.' };
+    } } }
+  });
+  assert.equal(bodies.length, 4);
+  assert.equal(toolCalls, 1);
+  assert.equal(bodies[2].stream, true);
+  assert.equal(bodies[3].stream, false);
+  assert.equal(bodies[3].tools, undefined);
+  assert.deepEqual(bodies[2].input, bodies[3].input);
+  assert.deepEqual(deltas, ['ODR là 95%.']);
+  assert.equal(result.usage.length, 3); // No invented usage for a stream lacking terminal metadata.
+});
+
+test('truncated stream with partial text fails without retrying or duplicating the answer', async () => {
+  let calls = 0;
+  const deltas = [];
+  await assert.rejects(runChatAgent({ config, request, onText: text => deltas.push(text) }, {
+    openai: { responses: { create: async body => {
+      calls++;
+      if (!body.stream) return { status: 'completed', usage, output: [] };
+      return { async *[Symbol.asyncIterator]() { yield { type: 'response.output_text.delta', delta: 'ODR là ' }; } };
+    } } }
+  }), { code: 'CHAT_MODEL_STREAM_INCOMPLETE' });
+  assert.equal(calls, 2);
+  assert.deepEqual(deltas, ['ODR là ']);
+});
+
+test('stream recovery remains bounded and rejects incomplete or empty fallback output', async () => {
+  for (const fallback of [
+    { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, usage, output_text: 'partial' },
+    { status: 'completed', usage, output: [] },
+    { status: 'in_progress', output_text: 'partial' }
+  ]) {
+    let calls = 0;
+    await assert.rejects(runChatAgent({ config, request, onText: () => assert.fail('no partial output') }, {
+      openai: { responses: { create: async body => {
+        calls++;
+        if (calls === 1) return { status: 'completed', usage, output: [] };
+        if (body.stream) return { async *[Symbol.asyncIterator]() { yield { type: 'response.created' }; } };
+        return fallback;
+      } } }
+    }), error => ['CHAT_MODEL_TOKEN_LIMIT', 'CHAT_MODEL_EMPTY', 'CHAT_MODEL_STREAM_INCOMPLETE'].includes(error.code));
+    assert.equal(calls, 3);
+  }
+});
+
+test('cancelled empty stream never starts recovery', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  await assert.rejects(runChatAgent({ config, request, signal: controller.signal }, {
+    openai: { responses: { create: async body => {
+      calls++;
+      if (!body.stream) return { status: 'completed', usage, output: [] };
+      return { async *[Symbol.asyncIterator]() { controller.abort(); yield { type: 'response.created' }; } };
+    } } }
+  }), { code: 'CHAT_MODEL_STREAM_INCOMPLETE' });
+  assert.equal(calls, 2);
+});
+
 test('structured query valid goes to fast path and DOES NOT call OpenAI agent', async () => {
   let openaiCalled = false;
   const openai = {

@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, Check, Copy, Database, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
 import { ActionBarPrimitive, AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useExternalStoreRuntime } from '@assistant-ui/react';
-import { TextShimmer } from './prompt-kit/TextShimmer';
+import { Loader } from './prompt-kit/Loader';
 import { convertAssistantUiMessage, getComposerQuestion, toAssistantUiMessages } from '../utils/chatAssistantUi';
 import { preserveChartQuestion } from '../utils/chatChart';
 import './chat/assistant-ui.css';
@@ -496,7 +496,10 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           <span className="chat-mascot-avatar"><Mascot state={mascotState} active={isOpen} /></span>
           <div>
             <h2 id="chat-panel-title">Trợ lý KAS</h2>
-            <p role="status" aria-live="polite">{error ? 'Chưa thể trả lời' : pending ? (pending.answer ? 'Đang trả lời…' : statusText(status)) : focused ? 'Mình đang nghe…' : announcement || 'Tra cứu dữ liệu KAS'}</p>
+            <p role="status" aria-live="polite" className="chat-header-status">
+              {pending && !error && <Loader variant="dots" size="sm" aria-hidden="true" />}
+              {error ? 'Chưa thể trả lời' : pending ? (pending.answer ? 'Đang trả lời…' : statusText(status)) : focused ? 'Mình đang nghe…' : announcement || 'Tra cứu dữ liệu KAS'}
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -529,7 +532,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
             <MessagePrimitive.Root className={`chat-message chat-message--${message.role}`}>
               <div className={`chat-message-bubble${details.isPending ? ' chat-message-bubble--pending' : ''}`}>
                 {details.isPending && !content
-                  ? <span className="chat-loading" role="status"><TextShimmer>{statusText(status)}</TextShimmer></span>
+                  ? <span className="chat-loading" role="status"><Loader variant="dots" aria-hidden="true" /><span>{statusText(status)}</span></span>
                   : message.role === 'assistant'
                     ? <ChatMessageMarkdown content={content} />
                     : content.split('\n').map((line, index) => <p key={index}>{line || '\u00a0'}</p>)}

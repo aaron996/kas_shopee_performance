@@ -5659,6 +5659,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
 .chat-md-table th, .chat-md-table td { padding: 0.3rem 0.5rem; border: 1px solid var(--border-subtle); }
 .chat-md-table th { background: var(--surface-subtle); font-weight: 600; color: var(--text-primary); }
 
+.chat-header-status { display: flex; align-items: center; gap: 0.4rem; }
 .chat-loading { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--text-secondary); }
 .chat-loading svg { animation: chat-spinner 0.8s linear infinite; }
 @keyframes chat-spinner { to { transform: rotate(360deg); } }

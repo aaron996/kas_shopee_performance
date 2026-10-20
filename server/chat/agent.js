@@ -152,7 +152,11 @@ async function consumeFinalStream(stream, onText) {
       throw new ChatError('CHAT_MODEL_STREAM_FAILED', 'Luồng trả lời từ mô hình AI bị gián đoạn.', 502);
     }
   }
-  if (!completedResponse) throw new ChatError('CHAT_MODEL_STREAM_INCOMPLETE', 'Luồng trả lời kết thúc chưa hoàn chỉnh.', 502);
+  if (!completedResponse) {
+    const error = new ChatError('CHAT_MODEL_STREAM_INCOMPLETE', 'Luồng trả lời kết thúc chưa hoàn chỉnh.', 502);
+    error.hasStreamedText = streamedText.length > 0;
+    throw error;
+  }
 
   if (!streamedText.trim()) {
     const fallbackText = extractResponseText(completedResponse);
@@ -297,22 +301,43 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
 
     onStatus?.({ phase: 'answering' });
     let finalText = '';
+    let recoverWithoutStream = false;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const finalStartedAt = Date.now();
       const retryInstruction = attempt === 2
         ? '\nLượt tổng hợp trước không tạo nội dung. Bắt buộc trả về một câu trả lời văn bản ngắn; nếu thiếu bằng chứng, hỏi đúng một câu làm rõ.'
         : '';
-      const stream = await openai.responses.create({
+      const response = await openai.responses.create({
         model: config.model,
         instructions: `${instructions}\n\nĐây là lượt trả lời cuối. Không gọi thêm tool. Với số liệu app/tin tức mới chỉ kết luận từ bằng chứng đã có; nguồn web có available=false thì nói chưa xác minh được tin mới. Kiến thức và khái niệm ổn định trong phạm vi được trả lời trực tiếp. Dẫn link nguồn công khai gần nhận định; không hiện mã citation nội bộ. Nếu chưa đủ, chỉ hỏi những thông tin thực sự không thể suy ra.${retryInstruction}`,
         input,
         ...buildReasoningOptions(config),
         max_output_tokens: config.maxOutputTokens,
         store: false,
-        stream: true
+        stream: !recoverWithoutStream
       }, { signal });
 
-      const final = await consumeFinalStream(stream, onText);
+      let final;
+      if (recoverWithoutStream) {
+        const failure = outputFailure(response);
+        if (failure) throw failure;
+        if (response.status !== 'completed') {
+          throw new ChatError('CHAT_MODEL_STREAM_INCOMPLETE', 'Luồng trả lời kết thúc chưa hoàn chỉnh.', 502);
+        }
+        final = { completedResponse: response, text: extractResponseText(response) };
+        if (final.text.trim()) onText?.(final.text);
+      } else {
+        try {
+          final = await consumeFinalStream(response, onText);
+        } catch (error) {
+          // Retry synthesis only: never replay tools or append a second answer after partial text.
+          if (attempt === 1 && error.code === 'CHAT_MODEL_STREAM_INCOMPLETE' && !error.hasStreamedText && !signal?.aborted) {
+            recoverWithoutStream = true;
+            continue;
+          }
+          throw error;
+        }
+      }
       usage.push(usageRow(
         final.completedResponse,
         usage.length + 1,
