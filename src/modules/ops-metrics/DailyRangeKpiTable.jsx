@@ -75,7 +75,7 @@ export default function DailyRangeKpiTable({
 
   const shell = body => (
     <div className="metric-block metric-block-sticky weekly-kpi-block">
-      <div className="metric-header daily-range-header">
+      <div className="metric-header daily-range-header detail-metric-toolbar">
         <div className="metric-title">
           <span title={title}>{metric.title}</span>
           {metric.target != null && <span className="kpi-badge">Target ≥ {metric.target.toFixed(0)}%</span>}
