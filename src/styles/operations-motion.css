@@ -122,3 +122,46 @@
 @media(prefers-reduced-motion:reduce){.overview-kpi-cards .kpi-card{transition:none}.overview-kpi-cards .kpi-card.selected{transform:none}}
 
 .app-sidebar{transition:width 180ms cubic-bezier(.23,1,.32,1)}.app-sidebar:has(:focus-visible){transition:none}@media(prefers-reduced-motion:reduce){.app-sidebar,.sidebar-pin-btn{transition:none}}
+
+/* Region/Hub detail: title in the app bar; one compact row above the matrix. */
+.compact-header-page-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 700 var(--type-page-title)/1.2 var(--font-heading);
+  color: var(--text-primary);
+}
+.ops-workspace .detail-metric-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2) var(--space-4);
+}
+.ops-workspace .detail-metric-toolbar .metric-title {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+.ops-workspace .detail-metric-toolbar .weekly-range {
+  margin-left: 0;
+  min-width: 0;
+}
+.ops-workspace .detail-metric-toolbar > .btn-secondary {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  .compact-header-page-title {
+    flex-basis: 100%;
+    order: -1;
+    font-size: var(--type-section);
+  }
+  .ops-workspace .detail-metric-toolbar .metric-title {
+    flex-basis: 100%;
+  }
+  .ops-workspace .detail-metric-toolbar .weekly-range {
+    flex: 1 1 0;
+  }
+  .ops-workspace .detail-metric-toolbar > .btn-secondary {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

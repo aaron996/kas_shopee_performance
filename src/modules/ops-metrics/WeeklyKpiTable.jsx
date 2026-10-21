@@ -79,7 +79,7 @@ export default function WeeklyKpiTable({
 
   const shell = body => (
     <div className="metric-block metric-block-sticky weekly-kpi-block">
-      <div className="metric-header">
+      <div className="metric-header detail-metric-toolbar">
         <div className="metric-title">
           <span className="metric-title-text">{title}</span>
           <span className="metric-title-short">{metric.title}</span>

@@ -958,12 +958,13 @@ export default function Report1MienVungHub({
       <div className={`metric-block metric-block-sticky ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
         {/* Layout comes from .metric-header in CSS (flex / space-between /
             center) — keep it there so the mobile breakpoint can restack it. */}
-        <div className="metric-header">
+        <div className={`metric-header${snapshotMetric ? '' : ' detail-metric-toolbar'}`}>
           <div className="metric-title">
             <span className="metric-title-text">{title}</span>
             <span className="metric-title-short">{shortTitle}</span>
             {target != null && <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>}
           </div>
+          {!snapshotMetric && dayRangeBounds && <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />}
           <button
             onClick={() => handleCopyImage(sectionRef, title)}
             className="btn-secondary"
@@ -972,12 +973,12 @@ export default function Report1MienVungHub({
           >
             <>{snapshotMetric ? <><Copy size={13} /> Copy Ảnh</> : <AnimatedIcon name="Copy" size={18} />}</>
           </button>
-          <button type="button" className="btn-secondary jump-latest-day" aria-label={`Tới ${isFd ? 'D-8' : 'D-1'}`} data-tooltip={`Tới ${isFd ? 'D-8' : 'D-1'}`} disabled={!d1Date} onClick={() => {
+          {snapshotMetric && <button type="button" className="btn-secondary jump-latest-day" aria-label={`Tới ${isFd ? 'D-8' : 'D-1'}`} data-tooltip={`Tới ${isFd ? 'D-8' : 'D-1'}`} disabled={!d1Date} onClick={() => {
             const scroller = sectionRef.current?.querySelector('.report1-master-table');
             const latest = scroller?.querySelector('[data-latest-day]');
             const sticky = scroller?.querySelector('th.lbl-2');
             if (scroller && latest) scroller.scrollTo({ left: scroller.scrollLeft + latest.getBoundingClientRect().left - scroller.getBoundingClientRect().left - (sticky?.getBoundingClientRect().width || 0) - 8, behavior: 'instant' });
-          }}>{snapshotMetric ? <>Tới {isFd ? 'D-8' : 'D-1'}</> : <AnimatedIcon name="ArrowRightToLine" size={18} />}</button>
+          }}>Tới {isFd ? 'D-8' : 'D-1'}</button>}
         </div>
 
         <div className="mtx-wrap report1-master-table" style={{ '--thead-h': `${theadHeight}px`, '--allrow-h': `${allRowHeight}px` }}>
@@ -1361,8 +1362,6 @@ export default function Report1MienVungHub({
         </div>
       )}
 
-      <div className="workspace-heading detail-workspace-heading"><div><h1>Chi tiết Vùng/Hub</h1></div></div>
-
       <div className={`density-${density} kpi-tab-container`}>
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -1410,11 +1409,6 @@ export default function Report1MienVungHub({
             </button>
           </div>
         </div>
-        {viewMode === 'day' && dayRangeBounds && !activeDayRange && (
-          <div className="day-range-bar">
-            <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />
-          </div>
-        )}
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
           {activeDayRange ? (
             <DailyRangeKpiTable

@@ -100,6 +100,7 @@ export default function Header({
             </div>
           )}
 
+      {activeTab === 'report1' && <h1 className="compact-header-page-title">Chi tiết Vùng/Hub</h1>}
       {activeTab === 'ranking' ? <div id="ranking-header-controls" /> : <div className="compact-header-actions">
         <HeaderPopover {...sharedPopover} name="sync" icon="RefreshCw" label="Đồng bộ dữ liệu" summary={syncSummary} align="right" status={isLoading ? 'is-loading' : syncStatus?.kind === 'error' ? 'is-error' : 'is-current'}>
           <dl className="sync-details"><div><dt>{hasDistinctFdDate ? 'Pickup/Giao tới' : 'Dữ liệu tới'}</dt><dd>{d1DateFormatted || 'Chưa có dữ liệu'}</dd></div>{hasDistinctFdDate && <div><dt>FD tới</dt><dd>{fdD1DateFormatted}</dd></div>}<div><dt>Đồng bộ gần nhất</dt><dd>{lastSyncedLabel || 'Chưa xác định'}</dd></div></dl>
