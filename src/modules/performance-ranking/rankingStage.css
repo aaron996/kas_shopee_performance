@@ -153,16 +153,50 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
 .performance-road-ranking-tab .prr-scene-empty { flex: 1; align-self: center; padding: calc(var(--prr-controls-height) + 20px) 20px 20px; }
 .performance-road-ranking-tab .prr-scene-empty p { max-width: 54ch; }
 .performance-road-ranking-tab .prr-scene-empty .prr-replay-btn { margin-top: 12px; min-height: 44px; }
-.performance-road-ranking-tab .prr-3d-controls { bottom: 20px; right: 20px; gap: 8px; }
-.performance-road-ranking-tab .prr-idle-toggle[aria-pressed="true"] {
-  background: #e2e8f0;
-  color: #0f172a;
-  border-color: #e2e8f0;
+.performance-road-ranking-tab .prr-3d-controls {
+  bottom: 20px; right: 20px; gap: 2px; padding: 3px;
+  width: max-content; flex-wrap: nowrap; align-items: center;
+  background: var(--surface-default); color: var(--text-primary);
+  border-radius: var(--radius-pill); box-shadow: var(--shadow-raised);
 }
-.performance-road-ranking-tab .prr-3d-controls .prr-camera-icon,
 .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  width: 36px; min-width: 36px; height: 36px; min-height: 36px;
+  padding: 0; margin: 0; border: 0; box-shadow: none;
+  border-radius: var(--radius-pill); background: transparent; color: var(--text-primary);
+}
+.performance-road-ranking-tab .prr-idle-toggle[aria-pressed="true"] {
+  color: var(--action-primary);
+  background: var(--surface-subtle);
+}
+.prr-camera-select {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  gap: 4px; width: 56px; height: 36px; margin-left: 3px;
+  border-left: 1px solid var(--border-subtle); color: var(--text-primary);
+}
+.prr-camera-select.is-cinematic { color: var(--ghn-orange, #f15a22); }
+.prr-camera-select select {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0;
+  cursor: pointer; font: inherit; font-size: 14px;
+}
+.prr-camera-select option { color: var(--text-primary); background: var(--surface-default); }
+.prr-camera-select:focus-within {
+  outline: 2px solid var(--action-primary); outline-offset: 1px; border-radius: var(--radius-control);
+}
+.prr-camera-select:has(select:disabled) { opacity: 0.45; }
+.prr-camera-select select:disabled { cursor: default; }
+.performance-road-ranking-tab .prr-3d-controls .prr-replay-btn:disabled { opacity: 0.4; }
+.performance-road-ranking-tab .prr-3d-controls .prr-replay-btn:focus-visible {
+  outline: 2px solid var(--action-primary); outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn:not(:disabled):hover {
+    background: var(--surface-subtle);
+  }
+}
+@media (pointer: coarse) {
+  .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .prr-camera-select { height: 44px; }
 }
 /* Compact comparison sheet: names and samples lead; numeric columns stay aligned. */
 .performance-road-ranking-tab .prr-3d-hud {
@@ -284,10 +318,9 @@ body:has(.prr-scene-only) .app-layout-ranking .app-header :is(.scope-filter-clus
   .prr-stage-header .prr-count-selector .seg-btn { width: 28px; padding: 4px 0; min-height: 44px; }
   .prr-stage-settings { position: static; }
   .prr-stage-settings-panel { right: 12px; top: calc(100% + 4px); width: min(300px, calc(100% - 24px)); max-height: calc(100dvh - var(--app-header-height, 52px) - 128px); overflow: auto; overscroll-behavior: contain; }
-  .performance-road-ranking-tab .prr-3d-controls { bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; right: 12px; justify-content: center; flex-wrap: nowrap; }
-  .performance-road-ranking-tab .prr-3d-controls .prr-segmented-limit { min-width: 0; }
-  .performance-road-ranking-tab .prr-3d-controls .seg-btn,
-  .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { min-height: 44px; font-size: 11px; padding: 4px 8px; }
+  .performance-road-ranking-tab .prr-3d-controls { bottom: max(12px, env(safe-area-inset-bottom)); left: auto; right: 12px; }
+  .performance-road-ranking-tab .prr-3d-controls .prr-replay-btn { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .prr-camera-select { height: 44px; }
   .performance-road-ranking-tab .prr-3d-hud { display: none; }
   .performance-road-ranking-tab .prr-table-card { inset: 112px 8px 8px; padding: 12px; }
   .performance-road-ranking-tab .prr-table-card { inset: calc(var(--prr-controls-height) + 8px) 8px 8px; }

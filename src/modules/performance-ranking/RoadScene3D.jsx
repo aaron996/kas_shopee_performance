@@ -14,10 +14,11 @@ import {
   getRegionRoadLength,
   getRoadLength
 } from '../../utils/rankingSceneLayout.js';
-import { RotateCcw, Video, Scan, Focus, Pin, Route } from 'lucide-react';
-import { Shuffle, MoveRight } from 'lucide';
+import { RotateCcw, Video, Scan, Focus, Pin, Route, Clapperboard, ChevronDown } from 'lucide-react';
+import { Shuffle, MoveRight, LockKeyhole } from 'lucide';
 import MorphIcon from '../../components/ui/MorphIcon.jsx';
 import useSceneIdle from './useSceneIdle.js';
+import { idleModeControl } from '../../utils/sceneIdleMode.js';
 import { createTrafficExtras } from '../../utils/sceneIdle.js';
 import TrafficUnloading from './TrafficUnloading.jsx';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
@@ -32,6 +33,7 @@ import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
+import { cinematicBeat, cinematicCameraGoal, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
 import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
@@ -175,7 +177,7 @@ function CanvasSetup({ label }) {
  * or flies to a followed truck. Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd }) {
+function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd, cinematicItems, cinematicSubjectId, onManualCamera }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -187,6 +189,9 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
   const cameraViewRef = useRef(rankView);
   const localLengthRef = useRef(localLength);
   const cameraGoalRef = useRef(null);
+  const cinemaRef = useRef(null);
+  const manualTakeoverRef = useRef(false);
+  const manualDistanceRef = useRef(0);
 
   useEffect(() => {
     const resetTime = () => { if (tourRef.current) tourRef.current.lastTime = performance.now(); };
@@ -225,7 +230,7 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       const follow = followCameraGoal(f, aspectRatio);
       return { target: new THREE.Vector3(...follow.target), position: new THREE.Vector3(...follow.position), fov: follow.fov };
     }
-    if (mode === 'tv') {
+    if (mode === 'tv' || mode === 'cinematic') {
       const tv = tvCameraGoal(roadLength, roadWidth, aspectRatio, { view: rankView, localLength, offsetX });
       return { target: new THREE.Vector3(...tv.target), position: new THREE.Vector3(...tv.position), fov: tv.fov, roadX: tv.roadX };
     }
@@ -259,9 +264,35 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
     }
     camera.near = 0.5;
     camera.far = Math.max(fitDistance * 6 + 100, roadLength * 2);
-    if (!tourKey || reducedMotion) camera.fov = goal.fov;
+    if ((!tourKey || reducedMotion) && mode !== 'cinematic' && !manualTakeoverRef.current) camera.fov = goal.fov;
     camera.updateProjectionMatrix();
     const controls = controlsRef.current;
+    if (manualTakeoverRef.current) {
+      manualTakeoverRef.current = false;
+      cinemaRef.current = null;
+      flightRef.current = null;
+      invalidate();
+      return;
+    }
+    if (mode === 'cinematic' && !reducedMotion && !tourKey) {
+      if (!placedRef.current) {
+        camera.position.copy(goal.position);
+        camera.fov = goal.fov;
+        camera.updateProjectionMatrix();
+        controls.target.copy(goal.target);
+        controls.update();
+      }
+      // Keep the displayed pose on entry or data/viewport changes. The next
+      // frame blends from here instead of snapping back to the TV goal.
+      cinemaRef.current = { elapsed: 0, beat: -1, subjectId: null };
+      flightRef.current = null;
+      tourRef.current = null;
+      followedRef.current = null;
+      placedRef.current = true;
+      invalidate();
+      return;
+    }
+    cinemaRef.current = null;
     const instantSwitch = !animateViewChange && cameraViewRef.current !== rankView;
     cameraViewRef.current = rankView;
     const resizing = localLengthRef.current !== localLength || Boolean(flightRef.current?.motionKey);
@@ -298,12 +329,51 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
     }
     placedRef.current = true;
     invalidate();
-  }, [camera, goal, fitDistance, reducedMotion, animateViewChange, rankView, invalidate, roadLength, localLength, tourKey, motionKey, motion?.kind, motion?.durationMs, hasFocus, clockRef]);
+  }, [camera, goal, fitDistance, reducedMotion, animateViewChange, rankView, invalidate, roadLength, localLength, tourKey, motionKey, motion?.kind, motion?.durationMs, hasFocus, clockRef, mode]);
 
   useFrame((_, delta) => {
     const flight = flightRef.current;
     const controls = controlsRef.current;
     if (!controls) return;
+    const cinema = cinemaRef.current;
+    if (cinema && mode === 'cinematic') {
+      if (document.hidden || !running) return;
+      cinema.elapsed += Math.min(delta, 0.1);
+      const beat = cinematicBeat(cinema.elapsed);
+      let subject = positionsRef.current.get(cinema.subjectId);
+      if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65) {
+        const candidates = cinematicItems.filter(item => {
+          const pose = positionsRef.current.get(item.id);
+          return !item.ghost && !item.ambient && pose && pose.alpha >= 0.65;
+        });
+        const next = candidates.find(item => item.id === cinematicSubjectId) || candidates[beat.index % Math.max(1, Math.min(3, candidates.length))];
+        cinema.subjectId = next?.id;
+        subject = positionsRef.current.get(cinema.subjectId);
+        cinema.beat = beat.index;
+        cinema.blendStart = cinema.elapsed;
+        cinema.startPosition = camera.position.clone();
+        cinema.startTarget = controls.target.clone();
+        cinema.startFov = camera.fov;
+        cinema.startSubject = subject ? new THREE.Vector3(subject.x, subject.lift, subject.z) : null;
+      }
+      if (!subject) return;
+      const shot = cinematicCameraGoal({ x: subject.x, y: subject.lift, z: subject.z,
+        heading: subject.heading, pitch: subject.pitch }, cinema.elapsed, aspectRatio);
+      const p = easeInOutCubic(Math.min(1, (cinema.elapsed - cinema.blendStart) / CINEMATIC_BLEND_SECONDS));
+      // Translate the source pose with the moving subject during a blend so
+      // a fast idle vehicle cannot outrun its framing between two shots.
+      const shift = new THREE.Vector3(subject.x, subject.lift, subject.z).sub(cinema.startSubject);
+      camera.position.copy(cinema.startPosition).add(shift).lerp(new THREE.Vector3(...shot.position), p);
+      controls.target.copy(cinema.startTarget).add(shift).lerp(new THREE.Vector3(...shot.target), p);
+      camera.fov = THREE.MathUtils.lerp(cinema.startFov, shot.fov, p);
+      camera.updateProjectionMatrix();
+      controls.update();
+      if (import.meta.env.DEV && window.__ranking3d) window.__ranking3d.cinematic = {
+        shot: beat.shot.id, label: beat.shot.label, elapsed: cinema.elapsed, subjectId: cinema.subjectId
+      };
+      invalidate();
+      return;
+    }
     const travel = tourRef.current;
     if (travel) {
       const now = performance.now();
@@ -418,8 +488,17 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       minPolarAngle={0.25}
       maxPolarAngle={Math.PI / 2 - 0.08} // never below the road surface
       minDistance={6}
-      maxDistance={Math.max(fitDistance * 1.35, goal.position.distanceTo(goal.target) * 1.5)}
-      onStart={() => { flightRef.current = null; }}
+      maxDistance={Math.max(fitDistance * 1.35, goal.position.distanceTo(goal.target) * 1.5,
+        mode === 'cinematic' ? 140 : manualDistanceRef.current)}
+      onStart={() => {
+        flightRef.current = null;
+        if (mode === 'cinematic') {
+          manualDistanceRef.current = camera.position.distanceTo(controlsRef.current.target) * 1.2;
+          cinemaRef.current = null;
+          manualTakeoverRef.current = true;
+          onManualCamera();
+        }
+      }}
       onChange={keepTargetOnRoad}
     />
   );
@@ -432,6 +511,7 @@ export default function RoadScene3D({
 }) {
   const colors = useThemeColors();
   const idle = useSceneIdle(reducedMotion);
+  const idleControl = idleModeControl(idle.mode);
   // UI theme changes label/status colours; the world follows its own solar time.
   const [world, setWorld] = useState(() => {
     try { return initialWorld(localStorage.getItem('ghn-ranking-world-pin')); }
@@ -459,11 +539,26 @@ export default function RoadScene3D({
   const [hoveredId, setHoveredId] = useState(null);
   const [camMode, setCamMode] = useState(selectedHubId ? 'follow' : 'tv');
   const sceneCamMode = useRef('tv'); // restore the chosen scene view after clearing a Hub
+  const [idleCameraDismissed, setIdleCameraDismissed] = useState(false);
+  useEffect(() => { if (!idle.active) setIdleCameraDismissed(false); }, [idle.active]);
+  const chooseCamera = useCallback(next => {
+    setIdleCameraDismissed(idle.active);
+    if (next !== 'follow') sceneCamMode.current = next;
+    setCamMode(next);
+  }, [idle.active]);
+  const takeManualCamera = useCallback(() => {
+    setIdleCameraDismissed(idle.active);
+    if (camMode === 'cinematic') {
+      sceneCamMode.current = 'tv';
+      setCamMode('tv');
+    }
+  }, [camMode, idle.active]);
   const [previousView, setPreviousView] = useState(rankView);
   if (previousView !== rankView) {
     setPreviousView(rankView);
-    sceneCamMode.current = 'tv';
-    setCamMode('tv');
+    const nextMode = camMode === 'cinematic' ? 'cinematic' : 'tv';
+    sceneCamMode.current = nextMode;
+    setCamMode(nextMode);
     setHoveredId(null);
   }
 
@@ -472,6 +567,7 @@ export default function RoadScene3D({
   if (prevSelectedId !== selectedHubId) {
     setPrevSelectedId(selectedHubId);
     setCamMode(selectedHubId ? 'follow' : sceneCamMode.current);
+    setIdleCameraDismissed(idle.active);
   }
 
   const count = sceneTrucks.length;
@@ -574,8 +670,12 @@ export default function RoadScene3D({
   }, []);
 
   const selectedTruck = useMemo(() => trucks.find((t) => t.id === selectedHubId) || null, [trucks, selectedHubId]);
-  const activeCamMode = scene.tour ? 'tv' : camMode === 'follow' && !selectedTruck ? sceneCamMode.current : camMode;
-  const focus = !scene.tour && camMode === 'follow' && selectedTruck ? { id: selectedTruck.id, x: selectedTruck.x, z: selectedTruck.z } : null;
+  const activeCamMode = resolveCameraMode({ chosen: camMode, fallback: sceneCamMode.current,
+    hasSelection: Boolean(selectedTruck), idle: idle.active, dismissed: idleCameraDismissed,
+    busy: Boolean(scene.motion), touring: Boolean(scene.tour), reducedMotion });
+  const focus = activeCamMode === 'follow' && selectedTruck ? { id: selectedTruck.id, x: selectedTruck.x, z: selectedTruck.z } : null;
+  const CameraIcon = { tv: Video, overview: Scan, follow: Focus, cinematic: Clapperboard }[activeCamMode] || Video;
+  const cameraModeLabel = { tv: 'TV cam', overview: 'Toàn cảnh', follow: 'Bám xe', cinematic: 'Cinematic' }[activeCamMode];
 
   // Labels drawn on the 2D overlay canvas by LabelProjector.
   const overlayRef = useRef(null);
@@ -678,7 +778,10 @@ export default function RoadScene3D({
       data-world={world}
       data-view-tour={scene.tour ? 'travelling' : 'idle'}
       data-idle-enabled={idle.enabled}
+      data-idle-mode={idle.mode}
       data-idle-active={idle.active && !scene.motion && !scene.tour}
+      data-camera-mode={activeCamMode}
+      data-cinematic-source={activeCamMode === 'cinematic' ? camMode === 'cinematic' ? 'manual' : 'idle' : undefined}
       role="group"
       tabIndex={0}
       aria-label={ariaLabel}
@@ -755,7 +858,8 @@ export default function RoadScene3D({
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} running={running} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
-          motion={scene.motion} clockRef={clockRef} tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour} />
+          motion={scene.motion} clockRef={clockRef} tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour}
+          cinematicItems={fleetItems} cinematicSubjectId={selectedHubId} onManualCamera={takeManualCamera} />
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
@@ -770,13 +874,13 @@ export default function RoadScene3D({
       <SceneTimeControl mode={lightingMode} onChange={setLightingMode} timeRef={timeRef} />
       {scene.tour && <div className="prr-tour-status" role="status">{rankView === 'worst' ? 'Lùi về cuối đoàn · Worst' : 'Tiến về đầu đoàn · Best'}</div>}
 
-      <div className="prr-3d-controls">
+      <div className="prr-3d-controls" role="group" aria-label="Điều khiển cảnh và camera">
         <button type="button" className="prr-replay-btn prr-idle-toggle"
-          aria-label="Mô phỏng giao thông khi rời trình duyệt" aria-pressed={idle.enabled}
+          aria-label={idleControl.label} aria-pressed={idle.enabled} data-mode={idle.mode}
           disabled={reducedMotion}
-          title={reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : idle.enabled ? 'Idle đang bật · Rời trình duyệt 10 giây để mô phỏng giao thông' : 'Idle đang tắt · Bật mô phỏng giao thông khi rời trình duyệt'}
-          onClick={() => idle.setEnabled(value => !value)}>
-          <MorphIcon icon={idle.enabled ? Shuffle : MoveRight} size={16} />
+          title={reducedMotion ? 'Thiết bị đang bật chế độ giảm chuyển động' : idleControl.title}
+          onClick={idle.cycle}>
+          <MorphIcon icon={idle.mode === 'locked' ? LockKeyhole : idle.mode === 'auto' ? Shuffle : MoveRight} size={16} />
         </button>
         <button
           type="button"
@@ -788,30 +892,17 @@ export default function RoadScene3D({
         >
           <RotateCcw size={16} aria-hidden="true" />
         </button>
-        <div className="prr-segmented-limit" role="group" aria-label="Chế độ camera">
-          <button type="button" disabled={Boolean(scene.tour)} className={`seg-btn prr-camera-icon ${activeCamMode === 'tv' ? 'active' : ''}`} aria-label="TV cam" aria-pressed={activeCamMode === 'tv'} title="TV cam · Góc nhìn chéo dọc tuyến, tập trung vào nhóm đang xem" onClick={() => { sceneCamMode.current = 'tv'; setCamMode('tv'); }}><Video size={16} aria-hidden="true" /></button>
-          <button
-            type="button"
-            className={`seg-btn prr-camera-icon ${activeCamMode === 'overview' ? 'active' : ''}`}
-            aria-label="Toàn cảnh"
-            title="Toàn cảnh"
-            disabled={Boolean(scene.tour)}
-            aria-pressed={activeCamMode === 'overview'}
-            onClick={() => { sceneCamMode.current = 'overview'; setCamMode('overview'); }}
-          >
-            <Scan size={16} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={`seg-btn prr-camera-icon ${camMode === 'follow' && selectedTruck ? 'active' : ''}`}
-            aria-label="Bám xe"
-            aria-pressed={camMode === 'follow' && Boolean(selectedTruck)}
-            disabled={!selectedTruck || Boolean(scene.tour)}
-            title={selectedTruck ? 'Bám xe' : 'Bám xe · Chọn một xe để camera bám theo'}
-            onClick={() => setCamMode('follow')}
-          >
-            <Focus size={16} aria-hidden="true" />
-          </button>
+        <div className={`prr-camera-select ${activeCamMode === 'cinematic' ? 'is-cinematic' : ''}`}>
+          <CameraIcon size={16} aria-hidden="true" />
+          <ChevronDown size={12} aria-hidden="true" />
+          <select aria-label="Chế độ camera" value={activeCamMode} disabled={Boolean(scene.tour)}
+            title={`Camera: ${cameraModeLabel} · Bấm để đổi góc máy`}
+            onChange={event => chooseCamera(event.target.value)}>
+            <option value="tv">TV cam</option>
+            <option value="overview">Toàn cảnh</option>
+            <option value="follow" disabled={!selectedTruck}>Bám xe{!selectedTruck ? ' · Chọn xe trước' : ''}</option>
+            <option value="cinematic" disabled={reducedMotion}>Cinematic{reducedMotion ? ' · Đang giảm chuyển động' : ''}</option>
+          </select>
         </div>
       </div>
 

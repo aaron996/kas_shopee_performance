@@ -1248,7 +1248,10 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
 ## Idle giao thông ngẫu nhiên (16/10/2026)
 
 - Nút Shuffle cạnh replay/camera bật mặc định; Morphicon đổi sang mũi tên khi tắt.
-  Lưu lựa chọn trong `ghn-ranking-idle-enabled`.
+  Nút chuyển ba chế độ Tự động → Khóa idle → Tắt → Tự động. Ổ khóa kích hoạt
+  idle ngay và bỏ qua pointer/focus/keyboard khi đang xem; vẫn giữ pause, tab ẩn
+  và giảm chuyển động. Chuyển Tắt đưa xe về BXH. Lưu trong
+  `ghn-ranking-idle-mode`, đọc lựa chọn on/off cũ nếu chưa có mode mới.
 - Con trỏ rời trang hoặc cửa sổ mất focus từ 10 giây mới vào idle. Đứng yên chuột
   trong trang không kích hoạt. Pointer quay lại, click, chạm, bàn phím hoặc lấy
   lại focus đưa xe về đội hình xếp hạng hiện tại.
@@ -1290,3 +1293,25 @@ trôi giữ nguyên giữa hai lần đọc; nhãn và camera vẫn tương tác
   scene hiển thị, console không có lỗi JavaScript. Đã thêm trạng thái tải/lỗi
   cho trang preview tạm. Chưa xác nhận trực quan mọi hành vi quay đầu ở runtime;
   các kiểm tra quỹ đạo/clearance là mô phỏng thuần, không phải production/FPS proof.
+
+### Camera Cinematic
+
+- Thanh điều khiển gọn gồm Idle, Replay và bộ chọn camera (icon mode hiện tại
+  cùng mũi tên). Bộ chọn native hỗ trợ bàn phím, có TV, Toàn cảnh, Bám xe và
+  Cinematic; Bám xe bị khóa khi chưa chọn Hub. Vùng bấm cao 44px trên mobile.
+  Runtime trước đây chỉ có ba góc đầu và cú chuyển Best/Worst; bộ sáu shot promo
+  nằm ở worktree làm video riêng. `src/utils/sceneCinematic.js` chuyển ý tưởng
+  đó thành chương trình camera dùng trong app, không phụ thuộc tooling video.
+- Sáu shot: bám thấp, lia ngang, hạ từ cao, bay vòng rộng, vòng quanh xe, kéo xa
+  nâng cao. Mỗi shot dài 14 giây hoạt động; 3 giây đầu hòa từ pose đang hiển thị
+  bằng easing sẵn có. Camera giữ cùng phía đường, không roll/rung/zoom liên tục.
+- Bám xe đã chọn hoặc lần lượt ba xe đầu còn hiện; giữ chủ thể hết shot, chỉ
+  đổi sớm khi xe fade/rời cảnh. Màn hình dọc tự tăng khoảng cách để giữ silhouette.
+- Auto/khóa idle tạm chuyển sang cinematic; kết thúc idle trả góc đã chọn trước
+  đó. Chọn camera khác, chọn Hub hoặc kéo/zoom camera ngắt quyền tự điều khiển
+  trong phiên idle hiện tại. Phiên idle kế tiếp vẫn tự vào cinematic.
+- Chọn Cinematic thủ công giữ mode qua chuyển Best/Worst và đổi Top. Tour/replay
+  tạm ưu tiên camera nghiệp vụ rồi tiếp tục cinematic. Pause/tab ẩn đóng băng
+  chương trình; reduced motion vô hiệu hóa Cinematic và giữ góc tĩnh.
+- Kiểm tra toán học: `node --test src/utils/sceneCinematic.test.mjs` bao gồm
+  chu kỳ sáu shot, silhouette/nhãn dọc-ngang và quy tắc ưu tiên camera.
