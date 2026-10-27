@@ -16,35 +16,43 @@ export function createOverviewMtdLoader({ load = loadOverviewMtdCache, save = sa
       const token = generation;
       const requests = ranges.filter(([, to]) => to).map(([dataset, to]) => ({ dataset, to,
         from: `${to.slice(0, 7)}-01`, key: buildOverviewMtdCacheKey(dataset, `${to.slice(0, 7)}-01`, to, scope) }));
-      const restored = new Set();
-      // Restore every card before waiting for any network request.
-      await Promise.all(requests.map(async ({ dataset, key }) => {
-        const rows = memory.peek(key) ?? await load(key);
-        if (rows && isCurrent(token, cancelled)) {
-          restored.add(dataset);
-          onResult(dataset, { rows });
-        }
-      }));
-      // Revalidate sequentially to avoid three large history queries at once.
-      for (const { dataset, from, to, key } of requests) {
+      // Each small MTD request runs independently of other datasets and disk I/O.
+      await Promise.all(requests.map(async ({ dataset, from, to, key }) => {
         if (!isCurrent(token, cancelled)) return;
+        let restored = false;
+        let fresh = false;
+        const restore = rows => {
+          if (Array.isArray(rows)) {
+            restored = true;
+            if (!fresh && isCurrent(token, cancelled)) onResult(dataset, { rows });
+          }
+        };
+        const cached = memory.peek(key);
+        const cacheRead = cached !== undefined
+          ? Promise.resolve(restore(cached))
+          : Promise.resolve().then(() => load(key)).then(restore).catch(() => {});
         try {
           let fetched = false;
           const rows = await memory.read(key, async () => {
             fetched = true;
-            const { data, error } = await client.rpc('get_kas_daily_range_compact', { dataset, date_from: from, date_to: to });
+            const { data, error } = await client.rpc('get_kas_mtd_compact', { dataset, date_from: from, date_to: to });
             if (error) throw error;
-            if (!data || !Array.isArray(data.weeks) || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_DAILY_PAYLOAD');
-            return normalizeDashboardRows(expandCompactRows(data.cols, data.rows));
+            if (!data || data.dataset !== dataset || data.date_from !== from || data.date_to !== to
+              || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_MTD_PAYLOAD');
+            return normalizeDashboardRows(expandCompactRows(data.cols, data.rows).map(row => ({ ...row, report_date: to })));
           }, { forceRefresh });
+          fresh = true;
           if (!isCurrent(token, cancelled)) return;
           onResult(dataset, { rows, refreshError: false, error: false });
           // Do not extend disk TTL when merely reusing a recent RAM response.
-          if (fetched || !restored.has(dataset)) await save(key, rows);
+          if (fetched || !restored) void Promise.resolve().then(() => {
+            if (isCurrent(token, cancelled)) return save(key, rows);
+          }).catch(() => {});
         } catch {
-          if (isCurrent(token, cancelled)) onResult(dataset, restored.has(dataset) ? { refreshError: true } : { error: true });
+          await cacheRead;
+          if (isCurrent(token, cancelled)) onResult(dataset, restored ? { refreshError: true } : { error: true });
         }
-      }
+      }));
     },
     async clear() {
       generation++;

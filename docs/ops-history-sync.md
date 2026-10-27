@@ -208,3 +208,49 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
   cột benchmark (WTD, tốt nhất 6 tuần, cùng ngày tháng trước) vì bảng lịch sử không lưu.
 - "Toàn bộ" vẫn là SPB + SPE, không cộng Reverse vào để khỏi lẫn chỉ tiêu.
 - Chatbot AI (`server/chat`, `ai_chat_*`) chưa hỗ trợ Reverse.
+
+## Overview MTD — 27/10/2026
+
+Overview uses `get_kas_mtd_compact(dataset, date_from, date_to)` instead of the
+daily matrix RPC. It sums the month by raw region/hub/type/client, retaining
+`wh_id` for Deli/FD, then runs the existing frontend KA/CK/GXT normalizer.
+The frontend assigns each sum the requested end date, so the weighted MTD
+aggregator and client/region/hub-type filters keep their existing semantics.
+Each dataset uses its own latest date (FD currently ends earlier than Pick/Deli).
+No daily matrix or CSV export query was changed.
+
+The three overview requests and cache reads start independently. A completed
+network response is displayed before best-effort IndexedDB persistence; an older
+cache response cannot overwrite it. A failed request retains cached data when
+available and only marks its own dataset as failed otherwise. Memory requests
+and persisted cache keys are scoped by user and date range; cache format v2
+invalidates the old full daily payloads. Retry bypasses the MTD RAM cache; its TTL, size limit and logout invalidation are preserved.
+
+Migration: `20261027034650_kas_mtd_compact_rpc.sql`, applied to Supabase project
+`iyjsihwgnzcytbojvoom` on 27/10. The function deliberately uses SECURITY DEFINER
+like the existing history RPCs because authenticated users cannot read history
+tables directly. EXECUTE is limited to authenticated/service_role, and the body
+requires a user ID or service-role JWT. Advisor flags signed-in access to this
+function (expected for this API); anonymous execution is revoked and verified.
+No new table, index, RLS policy or sync behavior was introduced.
+
+Live comparison of the old/new RPCs on the same snapshot:
+
+| Dataset | Range | Daily rows → MTD groups | JSON bytes before → after | Groups with mismatched sums |
+| --- | --- | --- | --- | --- |
+| Pick | 01–26/10 | 55,133 → 2,943 | 4,013,066 → 180,586 | 0 |
+| Deli | 01–26/10 | 55,864 → 2,897 | 4,822,551 → 218,942 | 0 |
+| FD | 01–19/10 | 48,652 → 2,927 | 3,927,234 → 201,125 | 0 |
+
+Uncompressed JSON total: 12,762,851 → 600,653 bytes (95.3% smaller). One live
+`EXPLAIN ANALYZE` of the complete new Deli RPC took 99.4 ms, excluding network
+and browser time. This is one measurement, not an end-to-end latency guarantee.
+Reproducible read-only comparisons are in `docs/sql/verify_overview_mtd_20261027.sql`.
+
+Verification: 31 MTD unit/SQL and existing weekly/daily-reader tests pass;
+production build and targeted lint pass. PGlite checks weighted totals, inclusive
+month boundaries, empty results, KA/CK/GXT filters and RPC grants. Built-in Codex
+browser QA uses the real hook/cards with controlled RPC fixtures: FD/Deli render
+while Pickup remains pending (local fixture with simulated RPC responses).
+This browser check uses simulated data; live data equivalence is verified in SQL.
+Frontend release uses the existing identity/role scope and stale-refresh notice from main.

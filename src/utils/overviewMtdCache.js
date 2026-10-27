@@ -1,5 +1,5 @@
-// Best-effort persisted cache for Overview MTD history payloads.
-export const OVERVIEW_MTD_CACHE_VERSION = 1;
+// Best-effort persisted cache for MTD sums (v1 held full daily detail rows).
+export const OVERVIEW_MTD_CACHE_VERSION = 2;
 export const OVERVIEW_MTD_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const DB_NAME = 'kas-overview-mtd-cache';
