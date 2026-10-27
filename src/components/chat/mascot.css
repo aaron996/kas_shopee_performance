@@ -15,8 +15,15 @@
 .chat-mascot-menu button { width: 100%; padding: 0.5rem 0.6rem; border-radius: calc(var(--radius-control) - 3px); text-align: left; }
 .chat-mascot-menu button:hover { background: var(--surface-subtle); }
 .chat-mascot-reveal { position: fixed; z-index: 1150; right: 1.25rem; bottom: 1.25rem; }
-.chat-mascot-reveal button { min-height: 36px; padding: 0 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface-default); box-shadow: var(--shadow-raised); }
-.chat-mascot-reveal button:hover { background: var(--surface-subtle); }
+/* Ẩn mascot -> chỉ còn một nút tròn 36px, chữ chỉ bung ra khi hover/focus. */
+.chat-mascot-reveal { right: 0.9rem; bottom: 0.9rem; opacity: 0.72; transition: opacity 160ms ease; }
+.chat-mascot-reveal:hover, .chat-mascot-reveal:focus-within { opacity: 1; }
+.chat-mascot-reveal button { justify-content: center; gap: 0; min-width: 36px; height: 36px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface-default); color: var(--text-muted); box-shadow: var(--shadow-raised); overflow: hidden; white-space: nowrap; transition: color 160ms ease, background 160ms ease; }
+.chat-mascot-reveal button span { max-width: 0; opacity: 0; transition: max-width 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms ease, margin 200ms ease; }
+.chat-mascot-reveal button:hover, .chat-mascot-reveal button:focus-visible { background: var(--surface-subtle); color: var(--text-primary); }
+.chat-mascot-reveal button:hover span, .chat-mascot-reveal button:focus-visible span { max-width: 6rem; margin-left: 0.4rem; opacity: 1; }
+.chat-mascot-reveal button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .chat-mascot-reveal, .chat-mascot-reveal button, .chat-mascot-reveal button span { transition: none; } }
 
 /* Four discrete frames per state. Each sequence has its own character poses. */
 .kas-mascot--active[data-state="idle"] .kas-mascot-sprite { --sprite-duration: 2.8s; }
@@ -51,6 +58,7 @@
 #kas-chat-panel { right: 1.25rem; bottom: 1.25rem; height: min(660px, calc(100dvh - 2.5rem)); }
 @media (max-width: 768px) {
   .chat-mascot-launcher, .chat-mascot-reveal { right: 0.75rem; bottom: calc(64px + env(safe-area-inset-bottom) + 0.75rem); }
+  .chat-mascot-reveal button { min-width: 40px; height: 40px; }
   .chat-fab.chat-fab--mascot { width: 120px; height: 120px; }
   #kas-chat-panel { right: 0.75rem; bottom: calc(64px + env(safe-area-inset-bottom) + 0.75rem); height: min(660px, calc(100dvh - 152px - env(safe-area-inset-bottom))); }
   .chat-mascot-avatar { width: 72px; height: 72px; }

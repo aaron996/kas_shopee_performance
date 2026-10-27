@@ -431,7 +431,7 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     {!isOpen && mascotHidden && <div className="chat-mascot-reveal">
       <button ref={revealRef} type="button" onClick={() => setMascotVisibility(false)}
         onContextMenu={event => { event.preventDefault(); setMascotVisibility(false); }}
-        title="Hiện Trợ lý KAS" aria-label="Hiện Trợ lý KAS"><Eye size={16} /> Hiện trợ lý</button>
+        title="Hiện Trợ lý KAS" aria-label="Hiện Trợ lý KAS"><Eye size={16} aria-hidden="true" /><span>Hiện trợ lý</span></button>
     </div>}
     {isOpen && <ThreadPrimitive.Root asChild><section id="kas-chat-panel" className={`chat-panel${isExpanded ? ' chat-panel--expanded' : ''}`} role="dialog" aria-labelledby="chat-panel-title">
       <header className="chat-panel-header">
