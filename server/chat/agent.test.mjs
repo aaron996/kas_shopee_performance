@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import OpenAI from 'openai';
-import { BASE_INSTRUCTIONS, runChatAgent, usageRow } from './agent.js';
+import { BASE_INSTRUCTIONS, detectQuestionMetrics, runChatAgent, usageRow } from './agent.js';
 
 const config = {
   model: 'gpt-5.6-luna', reasoningEffort: 'low', maxOutputTokens: 1024,
@@ -173,7 +173,7 @@ test('agent replays reasoning/tool output then streams a grounded final answer',
 
 test('agent requires explicit KPI, client and time while retaining safe scope inference', () => {
   assert.match(BASE_INSTRUCTIONS, /request_metric_query/);
-  assert.match(BASE_INSTRUCTIONS, /Không được tự mặc định latest/);
+  assert.match(BASE_INSTRUCTIONS, /Không hỏi lại chỉ vì thiếu thời gian/);
   assert.match(BASE_INSTRUCTIONS, /"vùng\/miền" = grain region/);
   assert.match(BASE_INSTRUCTIONS, /"tệ nhất\/thấp nhất" = sort worst/);
 });
@@ -587,4 +587,34 @@ test('open-ended agent tool call flow receives dashboard screenContext via execu
   assert.equal(sources.length, 1);
   assert.deepEqual(sources[0].scope.regions, ['HCM - KA']);
   assert.deepEqual(sources[0].scope.hubTypes, ['LM']);
+});
+
+test('multi-metric questions preserve both metrics without offering the single-metric chooser', async () => {
+  const question = '1st pickup và OPR của vùng nào gap nhiều nhất';
+  assert.deepEqual(detectQuestionMetrics(question), ['p1st', 'opr']);
+  assert.deepEqual(detectQuestionMetrics('1st deli và ODR'), ['d1st', 'odr']);
+  assert.deepEqual(detectQuestionMetrics('OPR'), ['opr']);
+  const queried = [];
+  let plans = 0;
+  await runChatAgent({ config, request: { ...request, question, screenContext: { client: 'SPB' } },
+    onInteraction: () => assert.fail('must not force a single metric'), onText: () => {}
+  }, {
+    openai: { responses: { create: async body => {
+      if (body.stream) return { async *[Symbol.asyncIterator]() {
+        yield { type: 'response.output_text.delta', delta: 'Kết quả P1ST và OPR theo vùng.' };
+        yield { type: 'response.completed', response: { status: 'completed', usage, output: [] } };
+      } };
+      assert.ok(!body.tools.some(tool => tool.name === 'request_metric_query'));
+      if (plans++) return { status: 'completed', usage, output: [] };
+      return { status: 'completed', usage, output: ['p1st', 'opr'].map(metric => ({
+        type: 'function_call', call_id: metric, name: 'get_latest_metric_summary',
+        arguments: JSON.stringify({ metric, client: 'SPB', grain: 'region', sort: 'worst' })
+      })) };
+    } } },
+    executeTool: async call => {
+      queried.push(JSON.parse(call.arguments).metric);
+      return { evidenceId: call.call_id, data: { rows: [], dataAsOf: '2026-10-26' } };
+    }
+  });
+  assert.deepEqual(queried.sort(), ['opr', 'p1st']);
 });

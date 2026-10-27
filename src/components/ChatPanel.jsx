@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, Check, Copy, Database, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
+import { ArrowDown, Check, Copy, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
 import { ActionBarPrimitive, AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useExternalStoreRuntime } from '@assistant-ui/react';
 import { Loader } from './prompt-kit/Loader';
 import { convertAssistantUiMessage, getComposerQuestion, toAssistantUiMessages } from '../utils/chatAssistantUi';
@@ -12,7 +12,7 @@ import { getMascotState } from '../utils/mascotState';
 import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import ChatChartBoundary from './chat/ChatChartBoundary';
-import { canRetry, formatDataScope } from '../utils/chatRetry';
+import { canRetry } from '../utils/chatRetry';
 import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
 const ChatChart = lazy(() => import('./chat/ChatChart'));
 
@@ -69,64 +69,6 @@ function statusText(status) {
   if (status?.phase === 'searching_public_information') return 'Đang tra cứu nguồn công khai…';
   if (status?.phase === 'answering') return 'Đang tổng hợp câu trả lời…';
   return 'Đang hiểu câu hỏi…';
-}
-
-function DataScopeBlock({ sources }) {
-  if (!sources?.length) return null;
-  const uniqueSources = Array.from(
-    new Map(sources.map(source => [source.evidenceId || `${source.tool}-${source.dataAsOf}`, source])).values()
-  ).filter(source => source.scope || source.dataAsOf || source.syncedAt);
-  if (!uniqueSources.length) return null;
-
-  return (
-    <details className="chat-data-details">
-      <summary>Chi tiết dữ liệu</summary>
-      <div className="chat-data-scope-container" aria-label="Phạm vi dữ liệu đã truy vấn">
-      {uniqueSources.map(source => {
-        const formatted = formatDataScope(source);
-        if (!formatted) return null;
-        const key = formatted.evidenceId || `${formatted.tool}-${source.dataAsOf}`;
-
-        return (
-          <div className="chat-data-scope" key={key}>
-            <div className="chat-data-scope-header">
-              <span className="chat-data-scope-title">
-                <Database size={13} aria-hidden="true" />
-                <span>Phạm vi dữ liệu</span>
-              </span>
-            </div>
-            <div className="chat-data-scope-grid">
-              {formatted.scopeDesc && (
-                <div className="chat-data-scope-item">
-                  <span className="chat-data-scope-label">Đối tượng:</span>
-                  <span className="chat-data-scope-value">{formatted.scopeDesc}</span>
-                </div>
-              )}
-              {formatted.dateRangeText && (
-                <div className="chat-data-scope-item">
-                  <span className="chat-data-scope-label">Kỳ báo cáo:</span>
-                  <span className="chat-data-scope-value">{formatted.dateRangeText}</span>
-                </div>
-              )}
-              {formatted.dataAsOfText && (
-                <div className="chat-data-scope-item">
-                  <span className="chat-data-scope-label">Dữ liệu tới:</span>
-                  <span className="chat-data-scope-value">{formatted.dataAsOfText}</span>
-                </div>
-              )}
-              {formatted.syncedAtText && (
-                <div className="chat-data-scope-item">
-                  <span className="chat-data-scope-label">Đồng bộ lúc:</span>
-                  <span className="chat-data-scope-value">{formatted.syncedAtText}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      </div>
-    </details>
-  );
 }
 
 function formatSuggestionDate(dateStr) {
@@ -548,7 +490,6 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
                       <ChatChart key={source.evidenceId} chart={source.visualization} dataAsOf={source.dataAsOf} />)}
                     {new Set(details.sources.filter(source => source.visualization).map(source => source.evidenceId)).size > 3 && <p className="chat-stopped-label">Hiển thị 3 biểu đồ đầu tiên. Hãy hỏi riêng chỉ số/phạm vi còn lại để xem tiếp.</p>}
                   </Suspense></ChatChartBoundary>}
-                  <DataScopeBlock sources={details.sources} />
                   <ActionBarPrimitive.Root className="chat-message-actions" hideWhenRunning>
                     <ActionBarPrimitive.Copy className="chat-message-action" aria-label="Sao chép câu trả lời" title="Sao chép câu trả lời">
                       <Copy size={14} className="chat-copy-idle" aria-hidden="true" /><Check size={14} className="chat-copy-done" aria-hidden="true" />
