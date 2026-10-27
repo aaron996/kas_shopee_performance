@@ -30,6 +30,7 @@ import BrandSplash from './components/BrandSplash.jsx';
 import { hasSeenIntroToday, markIntroSeen } from './utils/introSeen.js';
 import { clientVisitToken,needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
 import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay } from './utils/syncCache.js';
+import { overviewMtdLoader } from './utils/overviewMtdLoader.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
 import { useToast } from './components/ui/Toast';
@@ -471,6 +472,7 @@ export default function App() {
     setHasCompletedInitialSync(false);
     liveSyncDoneRef.current = false;
     void clearSyncSnapshot();
+    void overviewMtdLoader.clear();
   };
 
   // Shared by the live sync and the cache restore so both paint identically.
@@ -705,6 +707,7 @@ export default function App() {
   const handleLogout = async () => {
     if (LOCAL_PREVIEW_USER) return;
     clearWeatherPreference(sessionStorage);
+    await overviewMtdLoader.clear();
     await clearSyncSnapshot();
     await supabase.auth.signOut();
     localStorage.removeItem('ghn_user');
@@ -857,6 +860,7 @@ export default function App() {
     'dev-admin': { onlineUsers, currentUser }
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1,
+    mtdScope: userEmail ? `${userEmail}:${currentUser?.role || 'user'}` : '',
     weatherProps: { selectedRegions, userKey: userEmail || 'anonymous',
       active: Boolean(currentUser && !currentUser.localPreview && !introVisible && hasPickedClient),
       localPreview: Boolean(currentUser?.localPreview) } };

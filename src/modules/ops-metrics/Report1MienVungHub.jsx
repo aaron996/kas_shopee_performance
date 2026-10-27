@@ -54,6 +54,7 @@ export default function Report1MienVungHub({
   // metric's table, without the KPI cards, alert strip and tabs.
   snapshotMetric = null,
   overview = false,
+  mtdScope,
   onOpenOps,
   weatherProps
 }) {
@@ -1314,7 +1315,7 @@ export default function Report1MienVungHub({
     modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode} />;
 
   if (overview) return <>
-    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} weatherProps={weatherProps} mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} />
+    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} weatherProps={weatherProps} mtdScope={mtdScope} mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} />
     {exportDialog}
   </>;
 

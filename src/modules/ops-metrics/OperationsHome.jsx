@@ -11,9 +11,9 @@ import useOverviewMtd from './useOverviewMtd';
 const dateLabel = date => date ? formatDateLabel(date).replace('\n', ' ') : 'Chưa có dữ liệu';
 const percentage = value => formatPct(value).replace('.', ',');
 
-export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, dataNotice, mtdFilters }) {
+export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, dataNotice, mtdFilters, mtdScope }) {
   const [metric, setMetric] = useState('p1st');
-  const { cards: mtdCards, retry } = useOverviewMtd(cards, mtdFilters);
+  const { cards: mtdCards, retry } = useOverviewMtd(cards, mtdFilters, mtdScope);
   const card = cards.find(item => item.id === metric) || cards[0];
   const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1) || cards.find(item => item.historyDates.length)?.historyDates.at(-1);
   const selectedDate = card?.historyDates.at(-1);
@@ -31,6 +31,7 @@ export default function OperationsHome({ cards, risks, onOpenOps, weatherProps, 
         </span>
       </div>
       <OverviewKpiCards cards={mtdCards} selectedMetric={card?.id} onSelect={setMetric} />
+      {mtdCards.some(item => item.mtdRefreshError) && <div role="status">Đang hiển thị số MTD đã lưu; chưa cập nhật được số mới. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
       {mtdCards.some(item => item.mtdStatus === 'error') && <div role="alert">Không tải được số liệu MTD. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
     </section>}
 
