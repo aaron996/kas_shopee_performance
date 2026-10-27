@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap, shouldAnimate } from '../../utils/gsapSetup';
 
 const focusableSelector = [
@@ -128,7 +129,9 @@ export default function ModalDialog({
 
   if (!isMounted) return null;
 
-  return (
+  // Portal ra body: modal đặt trong card báo cáo (có transform/contain) sẽ bị
+  // position:fixed của backdrop co lại theo card, lớp mờ chỉ phủ một phần màn hình.
+  return createPortal(
     <div
       ref={backdropRef}
       className="modal-backdrop"
@@ -152,6 +155,7 @@ export default function ModalDialog({
       >
         {children}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
