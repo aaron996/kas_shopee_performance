@@ -80,9 +80,9 @@ test('formatDeterministicKpiResponse generates structured Vietnamese report', ()
   assert.match(text, /Khách hàng.*SPB/);
   assert.match(text, /Thời gian.*01\/09\/2026 – 07\/09\/2026/);
   assert.match(text, /Kết quả.*\*\*95\.42%\*\* \(95\.420 \/ 100\.000 đơn đúng hạn\)/);
-  assert.match(text, /Dữ liệu tính đến \(dataAsOf\).*07\/09\/2026/);
+  assert.match(text, /Dữ liệu tính đến.*07\/09\/2026/);
   assert.match(text, /Thời điểm đồng bộ.*08\/09\/2026/);
-  assert.match(text, /Evidence ID.*`db_test123`/);
+  assert.doesNotMatch(text, /Evidence ID|db_test123/);
 });
 
 test('fast path: latest query resolves dataAsOf and queries exactly dataAsOf', async () => {

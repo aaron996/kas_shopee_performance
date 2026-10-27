@@ -94,7 +94,6 @@ export function formatDeterministicKpiResponse({
   dateTo,
   dataAsOf,
   syncedAt,
-  evidenceId,
   row
 }) {
   const metricLabel = METRIC_NAMES[metric] || metric.toUpperCase();
@@ -145,13 +144,10 @@ export function formatDeterministicKpiResponse({
   if (client === 'SPE Reverse') lines.push('- Shopee Reverse chưa có target KPI được định nghĩa.');
 
   if (dataAsOf) {
-    lines.push(`- **Dữ liệu tính đến (dataAsOf)**: ${formatDateVi(dataAsOf)}`);
+    lines.push(`- **Dữ liệu tính đến**: ${formatDateVi(dataAsOf)}`);
   }
   if (syncedAt) {
     lines.push(`- **Thời điểm đồng bộ**: ${formatDateTimeVi(syncedAt)}`);
-  }
-  if (evidenceId) {
-    lines.push(`- **Evidence ID**: \`${evidenceId}\``);
   }
 
   return lines.join('\n');
@@ -246,7 +242,6 @@ export async function executeFastPath({ request, userClient, signal: _signal, on
     dateTo,
     dataAsOf: metricDataAsOf,
     syncedAt: metricSyncedAt,
-    evidenceId: metricResult.evidenceId,
     row: firstRow
   });
 
