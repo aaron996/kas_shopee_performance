@@ -10,13 +10,37 @@ import { executeRegionComparison } from './region-comparison.js';
 import { CONVERSATION_POLICY } from './conversation-policy.js';
 import { PUBLIC_SEARCH_NAME, searchPublicInformation, publicSourceLinks, countBillableSearches, WEB_SEARCH_CALL_MICROUSD } from './public-search.js';
 
+const METRIC_PATTERNS = [
+  ['p1st', /\b(p1st|1st\s*pick(?:up)?|first\s*pick(?:up)?)\b/i],
+  ['opr', /\bopr\b/i],
+  ['d1st', /\b(d1st|1st\s*deli(?:very)?|first\s*deli(?:very)?)\b/i],
+  ['odr', /\bodr\b/i],
+];
+
+// Nói chung về "pickup"/"delivery" không nêu chỉ số cụ thể = cả cặp chỉ số của nhóm đó.
+const GENERIC_GROUPS = [
+  [/\b(pick\s*up|pickup)\b|lấy hàng/i, ['p1st', 'opr']],
+  [/\bdeli(?:very)?\b|giao hàng/i, ['d1st', 'odr']],
+];
+
 export function detectQuestionMetrics(question = '') {
-  return [
-    ['p1st', /\b(p1st|1st\s*pick(?:up)?|first\s*pick(?:up)?)\b/i],
-    ['opr', /\bopr\b/i],
-    ['d1st', /\b(d1st|1st\s*deli(?:very)?|first\s*deli(?:very)?)\b/i],
-    ['odr', /\bodr\b/i],
-  ].filter(([, pattern]) => pattern.test(question)).map(([metric]) => metric);
+  const found = new Set(METRIC_PATTERNS.filter(([, pattern]) => pattern.test(question)).map(([metric]) => metric));
+  for (const [pattern, metrics] of GENERIC_GROUPS) {
+    if (metrics.some(metric => found.has(metric)) || !pattern.test(question)) continue;
+    metrics.forEach(metric => found.add(metric));
+  }
+  return METRIC_PATTERNS.map(([metric]) => metric).filter(metric => found.has(metric));
+}
+
+function shouldRejectMetricCard(call, detectedMetrics) {
+  if (detectedMetrics.length > 1) return true;
+  if (!detectedMetrics.length) return false;
+  try {
+    const args = typeof call.arguments === 'string' ? JSON.parse(call.arguments) : call.arguments;
+    return !args?.metric;
+  } catch {
+    return false;
+  }
 }
 
 const MAX_PLANNER_ROUNDS = 3;
@@ -38,7 +62,8 @@ Quy tắc bắt buộc:
 - Mapping client: SPB = 3892833, SPE = 18692, Shopee Reverse / SPE Reverse / Reverse = 224845 (mã tool SPE Reverse). Reverse là client riêng, không gộp vào SPE. Nguồn Reverse hiện chỉ có Pickup (P1ST/OPR); không có Delivery, FD hay Leadtime. Shopee Reverse chưa có target KPI được định nghĩa; chỉ báo số liệu, không dùng target SPE/SPB để đánh giá.
 - Chỉ với yêu cầu tra cứu số liệu KPI: dùng request_metric_query khi thật sự chưa xác định được chỉ số hoặc client. Không hỏi lại chỉ số người dùng đã nêu. Nếu hỏi nhiều chỉ số, truy vấn từng chỉ số và trả lời chung; không ép chọn một chỉ số, không dùng request_metric_query cho câu hỏi nhiều chỉ số. Nếu còn thiếu phạm vi trong câu hỏi nhiều chỉ số và screenContext không có, hỏi đúng phần thiếu bằng một câu ngắn.
 - Nếu người dùng chưa nêu thời gian, dùng kỳ dashboard khi có khoảng ngày rõ ràng; nếu không có thì dùng dữ liệu mới nhất qua get_latest_metric_summary và ghi rõ ngày dữ liệu trong câu trả lời. Không hỏi lại chỉ vì thiếu thời gian. Không thay khoảng ngày người dùng đã nêu bằng latest.
-- Nhận diện đồng nghĩa: "1st pickup", "1st pick", "first pickup" = p1st; "1st deli", "first delivery" = d1st. Câu "1st pickup và OPR của vùng nào gap nhiều nhất" yêu cầu cả p1st và opr ở grain region, sort worst, so gap với target từng chỉ số; không cộng các tỷ lệ/gap thành một chỉ số mới. Nếu không có target thì nói rõ không đủ dữ liệu để tính gap.
+- Hỏi chung "tình hình/kết quả pickup" (không nêu chỉ số) = cả P1ST và OPR; hỏi chung về delivery/giao hàng = cả D1ST và ODR. Tự truy vấn cả hai chỉ số, không bắt người dùng chọn chỉ số. Ví dụ: "tình hình pickup HCM thế nào" → get_latest_metric_summary cho p1st và opr (client từ screenContext); "thu gom/lấy đơn hôm nay ra sao" → như pickup; "giao hàng miền Bắc ổn không" → d1st và odr. Chỉ hiện thẻ chọn khi câu hỏi hoàn toàn không gợi ra chỉ số nào.
+- Nhận diện đồng nghĩa:"1st pickup", "1st pick", "first pickup" = p1st; "1st deli", "first delivery" = d1st. Câu "1st pickup và OPR của vùng nào gap nhiều nhất" yêu cầu cả p1st và opr ở grain region, sort worst, so gap với target từng chỉ số; không cộng các tỷ lệ/gap thành một chỉ số mới. Nếu không có target thì nói rõ không đủ dữ liệu để tính gap.
 - Với lựa chọn có cấu trúc đi kèm câu hỏi, metric/client/dateMode/dateFrom/dateTo là giá trị người dùng đã xác nhận; dùng đúng các giá trị đó, không suy đoán lại.
 - Với dateMode=trailing_7d, lấy dataAsOf qua get_data_coverage rồi truy vấn đúng 7 ngày dữ liệu kết thúc tại dataAsOf. Với dateMode=custom, dùng đúng dateFrom/dateTo đã chọn.
 - Tự suy ra tham số an toàn từ ngôn ngữ tự nhiên: "vùng/miền" = grain region, "hub/kho" = grain hub, còn lại = nationwide; "tệ nhất/thấp nhất" = sort worst; "tốt nhất/cao nhất" = sort best; không lọc vùng/hub type thì truyền mảng rỗng.
@@ -192,10 +217,10 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
   const publicSources = new Map();
   let publicSearches = 0;
   const instructions = `${BASE_INSTRUCTIONS}\nNgày hiện tại ở Việt Nam: ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })}.`;
-  const multipleMetrics = detectQuestionMetrics(request.question).length > 1;
+  const detectedMetrics = detectQuestionMetrics(request.question);
+  const multipleMetrics = detectedMetrics.length > 1;
   const tools = CHAT_TOOLS.filter(tool =>
-    !(config.webSearchEnabled === false && tool.name === PUBLIC_SEARCH_NAME) &&
-    !(multipleMetrics && tool.name === REQUEST_METRIC_QUERY_TOOL_NAME));
+    !(config.webSearchEnabled === false && tool.name === PUBLIC_SEARCH_NAME));
   let evidenceBytes = 0;
   const trendBudget = { remaining: 14 };
   const effectiveScope = resolveEffectiveScope({
@@ -256,6 +281,22 @@ export async function runChatAgent({ config, request, userClient, signal, onStat
       if (calls.length > MAX_CALLS_PER_ROUND) {
         throw new ChatError('CHAT_TOO_MANY_TOOL_CALLS', 'Câu hỏi cần quá nhiều truy vấn; hãy thu hẹp phạm vi.', 422);
       }
+
+      // Người dùng đã nêu chỉ số thì không hỏi lại: từ chối thẻ chọn và buộc mô hình truy vấn.
+      const rejected = calls.filter(call => call.name === REQUEST_METRIC_QUERY_TOOL_NAME && shouldRejectMetricCard(call, detectedMetrics));
+      for (const call of rejected) {
+        input.push({
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: JSON.stringify({
+            rejected: true,
+            instruction: `Người dùng đã nêu chỉ số (${detectedMetrics.join(', ')}). Không hỏi lại; truy vấn từng chỉ số bằng tool database, lấy client/thời gian từ screenContext hoặc dữ liệu mới nhất.`
+          })
+        });
+      }
+      const activeCalls = calls.filter(call => !rejected.includes(call));
+      if (!activeCalls.length) continue;
+      calls.splice(0, calls.length, ...activeCalls);
 
       const interactionCalls = calls.filter(call => call.name === REQUEST_METRIC_QUERY_TOOL_NAME);
       if (interactionCalls.length) {

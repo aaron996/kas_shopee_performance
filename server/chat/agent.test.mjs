@@ -594,6 +594,9 @@ test('multi-metric questions preserve both metrics without offering the single-m
   assert.deepEqual(detectQuestionMetrics(question), ['p1st', 'opr']);
   assert.deepEqual(detectQuestionMetrics('1st deli và ODR'), ['d1st', 'odr']);
   assert.deepEqual(detectQuestionMetrics('OPR'), ['opr']);
+  assert.deepEqual(detectQuestionMetrics('tình hình pickup của HCM đang như thế nào?'), ['p1st', 'opr']);
+  assert.deepEqual(detectQuestionMetrics('1st pickup của HCM'), ['p1st']);
+  assert.deepEqual(detectQuestionMetrics('tình hình delivery miền Bắc'), ['d1st', 'odr']);
   const queried = [];
   let plans = 0;
   await runChatAgent({ config, request: { ...request, question, screenContext: { client: 'SPB' } },
@@ -604,7 +607,6 @@ test('multi-metric questions preserve both metrics without offering the single-m
         yield { type: 'response.output_text.delta', delta: 'Kết quả P1ST và OPR theo vùng.' };
         yield { type: 'response.completed', response: { status: 'completed', usage, output: [] } };
       } };
-      assert.ok(!body.tools.some(tool => tool.name === 'request_metric_query'));
       if (plans++) return { status: 'completed', usage, output: [] };
       return { status: 'completed', usage, output: ['p1st', 'opr'].map(metric => ({
         type: 'function_call', call_id: metric, name: 'get_latest_metric_summary',
@@ -617,4 +619,52 @@ test('multi-metric questions preserve both metrics without offering the single-m
     }
   });
   assert.deepEqual(queried.sort(), ['opr', 'p1st']);
+});
+
+test('metric card requested for a question that already names metrics is rejected and the model must query', async () => {
+  const question = 'tình hình pickup của HCM đang như thế nào?';
+  const queried = [];
+  const outputs = [];
+  let plans = 0;
+  await runChatAgent({ config, request: { ...request, question, screenContext: { client: 'SPB' } },
+    onInteraction: () => assert.fail('must not show the metric chooser'), onText: () => {}
+  }, {
+    openai: { responses: { create: async body => {
+      if (body.stream) return { async *[Symbol.asyncIterator]() {
+        yield { type: 'response.output_text.delta', delta: 'Pickup HCM.' };
+        yield { type: 'response.completed', response: { status: 'completed', usage, output: [] } };
+      } };
+      plans += 1;
+      if (plans === 1) return { status: 'completed', usage, output: [{
+        type: 'function_call', call_id: 'card', name: 'request_metric_query',
+        arguments: JSON.stringify({ metric: null, client: null, date_mode: null, date_from: null, date_to: null })
+      }] };
+      outputs.push(body.input.find(item => item.type === 'function_call_output' && item.call_id === 'card'));
+      if (plans === 2) return { status: 'completed', usage, output: ['p1st', 'opr'].map(metric => ({
+        type: 'function_call', call_id: metric, name: 'get_latest_metric_summary',
+        arguments: JSON.stringify({ metric, client: 'SPB', grain: 'region', sort: 'worst' })
+      })) };
+      return { status: 'completed', usage, output: [] };
+    } } },
+    executeTool: async call => {
+      queried.push(JSON.parse(call.arguments).metric);
+      return { evidenceId: call.call_id, data: { rows: [], dataAsOf: '2026-10-26' } };
+    }
+  });
+  assert.ok(outputs[0], 'rejection is fed back to the model');
+  assert.equal(JSON.parse(outputs[0].output).rejected, true);
+  assert.deepEqual(queried.sort(), ['opr', 'p1st']);
+});
+
+test('metric card is still allowed when the question names no metric', async () => {
+  let interaction = null;
+  await runChatAgent({ config, request: { ...request, question: 'cho mình xem số liệu', screenContext: null },
+    onInteraction: value => { interaction = value; }, onText: () => {}
+  }, {
+    openai: { responses: { create: async () => ({ status: 'completed', usage, output: [{
+      type: 'function_call', call_id: 'card', name: 'request_metric_query',
+      arguments: JSON.stringify({ metric: null, client: null, date_mode: null, date_from: null, date_to: null })
+    }] }) } }
+  });
+  assert.equal(interaction?.type, 'query_parameters');
 });
