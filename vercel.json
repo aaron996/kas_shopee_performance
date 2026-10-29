@@ -14,6 +14,34 @@
       "destination": "/api/chat-suggestions?__weather=1"
     },
     {
+      "source": "/api/mcp",
+      "destination": "/api/snapshot-token?__route=mcp"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/snapshot-token?__route=well-known-protected-resource"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/snapshot-token?__route=well-known-auth-server"
+    },
+    {
+      "source": "/api/oauth/register",
+      "destination": "/api/snapshot-token?__route=oauth-register"
+    },
+    {
+      "source": "/api/oauth/authorize",
+      "destination": "/api/snapshot-token?__route=oauth-authorize"
+    },
+    {
+      "source": "/api/oauth/callback",
+      "destination": "/api/snapshot-token?__route=oauth-callback"
+    },
+    {
+      "source": "/api/oauth/token",
+      "destination": "/api/snapshot-token?__route=oauth-token"
+    },
+    {
       "source": "/snapshot",
       "destination": "/api/snapshot-page"
     },
