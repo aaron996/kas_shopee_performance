@@ -62,6 +62,11 @@ function limit(value) {
   return value;
 }
 
+function offset(value) {
+  if (!Number.isInteger(value) || value < 0 || value > 100000) invalid('offset phải từ 0 đến 100000.');
+  return value;
+}
+
 function parseArguments(raw) {
   try {
     const value = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -107,11 +112,11 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_metric_summary',
-    description: 'Đọc KPI pickup/delivery từ database theo client, ngày và cấp tổng hợp.',
+    description: 'Đọc KPI pickup/delivery từ database theo client, ngày và cấp tổng hợp. Kết quả trả về totalEntities (tổng số dòng có thật, trước khi cắt theo limit/offset) và offset đã dùng — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết, giữ nguyên các tham số khác và cùng một sort.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'date_from', 'date_to', 'grain', 'regions', 'hub_types', 'limit', 'sort'],
+      required: ['metric', 'client', 'date_from', 'date_to', 'grain', 'regions', 'hub_types', 'limit', 'offset', 'sort'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
@@ -121,6 +126,7 @@ export const CHAT_TOOLS = Object.freeze([
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
+        offset: { type: 'integer', minimum: 0, maximum: 100000, description: 'Bỏ qua bấy nhiêu dòng đầu (theo cùng thứ tự sort) trước khi lấy limit dòng tiếp theo. 0 cho lần gọi đầu tiên.' },
         sort: { type: 'string', enum: [...SORTS] }
       }
     }
@@ -128,11 +134,11 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_latest_metric_summary',
-    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn.',
+    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn. Kết quả trả về totalEntities và offset — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'grain', 'regions', 'hub_types', 'limit', 'sort'],
+      required: ['metric', 'client', 'grain', 'regions', 'hub_types', 'limit', 'offset', 'sort'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
@@ -140,6 +146,7 @@ export const CHAT_TOOLS = Object.freeze([
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
+        offset: { type: 'integer', minimum: 0, maximum: 100000, description: 'Bỏ qua bấy nhiêu dòng đầu (theo cùng thứ tự sort) trước khi lấy limit dòng tiếp theo. 0 cho lần gọi đầu tiên.' },
         sort: { type: 'string', enum: [...SORTS] }
       }
     }
@@ -275,6 +282,7 @@ export async function executeChatTool(call, context = {}) {
         p_regions: textList(args.rpcRegions, 'regions'),
         p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
+        p_offset: offset(args.offset),
         p_sort: enumValue(args.sort, SORTS, 'sort')
       });
     }
@@ -299,6 +307,7 @@ export async function executeChatTool(call, context = {}) {
         p_regions: textList(args.rpcRegions, 'regions'),
         p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
+        p_offset: offset(args.offset),
         p_sort: enumValue(args.sort, SORTS, 'sort')
       });
     }
