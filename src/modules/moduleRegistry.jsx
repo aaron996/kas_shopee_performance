@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck } from 'lucide-react';
+import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck, CircleHelp } from 'lucide-react';
 import { MODULE_IDS } from './moduleIds.js';
 
 // Share the import promise between startup preload and React.lazy.
@@ -107,6 +107,13 @@ export const moduleRegistry = Object.freeze([
     navigation: { sidebar: false, commandPalette: false, mobile: false },
     requiresDevAdmin: true,
     surface: startupSurface(() => import('../components/DevAdminDashboard.jsx'))
+  },
+  {
+    id: 'guide', label: 'Hướng dẫn & MCP', mobileLabel: 'Hướng dẫn',
+    icon: CircleHelp, motionIcon: 'CircleHelp',
+    description: 'Cách dùng dashboard, kết nối MCP và câu hỏi mẫu',
+    navigation: { sidebar: true, commandPalette: true, mobile: true },
+    surface: startupSurface(() => import('./guide/UserGuide.jsx'))
   }
 ]);
 

@@ -7,6 +7,7 @@ export const MODULE_PATHS = Object.freeze({
   'report-insight': '/insight',
   'cod-suspicion': '/cod-suspicion',
   ranking: '/ranking',
+  guide: '/guide',
   'dev-admin': '/dev-admin',
 });
 

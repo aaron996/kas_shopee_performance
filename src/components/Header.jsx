@@ -61,7 +61,7 @@ export default function Header({
     </div></div>}
     <div className="compact-header-toolbar" role={activeTab === 'ranking' ? 'toolbar' : undefined} aria-label={activeTab === 'ranking' ? 'Điều khiển BXH' : undefined}>
       {activeTab === 'ranking' && <div id="ranking-header-heading" />}
-      {activeTab !== 'cod-suspicion' && <div className="scope-filter-cluster" inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
+      {!['cod-suspicion', 'guide'].includes(activeTab) && <div className="scope-filter-cluster" inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
         {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter} badge="•">
           <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{CLIENT_ORDER.map(c => [c, c]).map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
         </HeaderPopover>}
@@ -100,6 +100,7 @@ export default function Header({
             </div>
           )}
 
+      {activeTab === 'guide' && <span className="compact-header-page-title">Hướng dẫn</span>}
       {activeTab === 'report1' && <h1 className="compact-header-page-title">Chi tiết Vùng/Hub</h1>}
       {activeTab === 'ranking' ? <div id="ranking-header-controls" /> : <div className="compact-header-actions">
         <HeaderPopover {...sharedPopover} name="sync" icon="RefreshCw" label="Đồng bộ dữ liệu" summary={syncSummary} align="right" status={isLoading ? 'is-loading' : syncStatus?.kind === 'error' ? 'is-error' : 'is-current'}>
