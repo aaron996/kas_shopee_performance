@@ -113,6 +113,16 @@ Giống hệt tham số/schema của các tool cùng tên trong `server/chat/too
 - `get_metric_definition` — định nghĩa/công thức/target một chỉ số.
 - `get_dashboard_help` — giải thích một khu vực của dashboard.
 
+### Phân trang `get_metric_summary` / `get_latest_metric_summary`
+
+`limit` vẫn tối đa 50 dòng mỗi lần gọi (không đổi — không có lý do kỹ thuật
+bắt buộc, chỉ là số mặc định từ lúc dựng chatbot, xem comment đầu
+`supabase/migrations/20261029090000_chat_metric_pagination.sql`). Khi cấp
+`grain='hub'` (hoặc `region`) có nhiều hơn `limit` dòng thật, kết quả trả thêm
+`totalEntities` (tổng số dòng thật, trước khi cắt) và `offset` (đã dùng). Lấy
+hết bằng cách gọi lại tăng dần `offset` thêm đúng `limit`, giữ nguyên các
+tham số khác và cùng một `sort`, dừng khi `offset + rows.length >= totalEntities`.
+
 ## Giới hạn đã biết
 
 - Dữ liệu thật sự được đọc bằng `SUPABASE_SERVICE_ROLE_KEY` (không theo RLS

@@ -10,9 +10,14 @@ import { createSnapshotTokenOrMcpHandler } from '../../api/snapshot-token.js';
 
 function fakeServiceClient() {
   return {
-    rpc: async name => {
+    rpc: async (name, params) => {
       if (name === 'get_ai_chat_coverage') {
         return { data: { dataAsOf: '2026-10-01', syncedAt: '2026-10-02T00:00:00Z' }, error: null };
+      }
+      if (name === 'get_ai_chat_metric') {
+        const allRows = Array.from({ length: 55 }, (_, i) => ({ entity: `Hub ${55 - i}`, volume: 55 - i, ontime: 55 - i, value: 100 }));
+        const rows = allRows.slice(params.p_offset, params.p_offset + params.p_limit);
+        return { data: { metric: params.p_metric, scope: {}, dataAsOf: '2026-10-28', syncedAt: '2026-10-29T00:00:00Z', totalEntities: allRows.length, offset: params.p_offset, rows }, error: null };
       }
       throw new Error(`unexpected rpc ${name}`);
     }
@@ -46,6 +51,29 @@ test('callTool dispatches through the same validated chat-tool executor', async 
   assert.equal(result.isError, undefined);
   const data = JSON.parse(result.content[0].text);
   assert.equal(data.data.dataAsOf, '2026-10-01');
+});
+
+test('get_metric_summary pages through more than 50 entities via offset/totalEntities, end to end through MCP', async () => {
+  const { client } = await connectedClient(fakeServiceClient());
+  const call = offset => client.callTool({
+    name: 'get_metric_summary',
+    arguments: {
+      metric: 'p1st', client: 'SPB', date_from: '2026-10-28', date_to: '2026-10-28',
+      grain: 'hub', regions: [], hub_types: [], limit: 50, offset, sort: 'volume_desc'
+    }
+  }).then(result => {
+    assert.equal(result.isError, undefined);
+    return JSON.parse(result.content[0].text).data;
+  });
+
+  const first = await call(0);
+  assert.equal(first.totalEntities, 55);
+  assert.equal(first.rows.length, 50);
+  const second = await call(50);
+  assert.equal(second.rows.length, 5);
+
+  const seen = new Set([...first.rows, ...second.rows].map(r => r.entity));
+  assert.equal(seen.size, 55, 'two pages together cover every hub exactly once');
 });
 
 test('callTool surfaces validation errors instead of throwing', async () => {

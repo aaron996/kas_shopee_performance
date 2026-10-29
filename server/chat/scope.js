@@ -188,6 +188,7 @@ export function normalizeToolScope(toolName, rawArgs = {}, effectiveScope = {}) 
   // Safe defaults for open-ended KPI queries
   const grain = args.grain || 'nationwide';
   const limit = args.limit !== undefined ? args.limit : 10;
+  const offset = args.offset !== undefined ? args.offset : 0;
   const sort = args.sort || 'worst';
 
   return {
@@ -199,6 +200,7 @@ export function normalizeToolScope(toolName, rawArgs = {}, effectiveScope = {}) 
     hub_types: finalHubTypes,
     rpcHubTypes,
     limit,
+    offset,
     sort
   };
 }

@@ -32,10 +32,11 @@ export async function callReverseRpc(client, name, args) {
     return { data: { dataset: 'pick', client: REVERSE_CLIENT, dataAsOf: dates.at(-1) ?? null, dateFrom: null, syncedAt: null }, error: null };
   }
   if (name !== 'get_ai_chat_metric' || !['p1st', 'opr'].includes(args.p_metric)) return unsupported();
-  const { p_date_from: from, p_date_to: to, p_grain: grain, p_sort: sort, p_limit: limit } = args;
+  const { p_date_from: from, p_date_to: to, p_grain: grain, p_sort: sort, p_limit: limit, p_offset: offset = 0 } = args;
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
   if (!Number.isFinite(days) || days < 0 || days > 90 || !['nationwide', 'region', 'hub'].includes(grain)
-      || !['worst', 'best', 'volume_desc'].includes(sort) || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+      || !['worst', 'best', 'volume_desc'].includes(sort) || !Number.isInteger(limit) || limit < 1 || limit > 50
+      || !Number.isInteger(offset) || offset < 0 || offset > 100000) {
     throw new ChatError('CHAT_TOOL_ARGUMENTS_INVALID', 'Phạm vi tra cứu Shopee Reverse không hợp lệ.', 400);
   }
   const raw = await readCompact(client, 'get_kas_daily_range_compact', { dataset: 'reverse', date_from: from, date_to: to });
@@ -60,5 +61,6 @@ export async function callReverseRpc(client, name, args) {
   return { data: { metric: args.p_metric,
     scope: { client: REVERSE_CLIENT, dateFrom: from, dateTo: to, grain },
     dataAsOf: rows.map(row => row.report_date).sort().at(-1) ?? null,
-    syncedAt: null, rows: grouped.slice(0, limit) }, error: null };
+    syncedAt: null, totalEntities: grouped.length, offset,
+    rows: grouped.slice(offset, offset + limit) }, error: null };
 }
