@@ -8,6 +8,7 @@ export const MODULE_IDS = Object.freeze([
   'report3',
   'report-insight',
   'cod-suspicion',
+  'guide',
   'dev-admin'
 ]);
 
