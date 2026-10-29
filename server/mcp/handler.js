@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { checkEmailAllowed } from '../../src/utils/authPolicy.js';
 import { createMcpServer } from './server.js';
-import { isMcpKey } from './auth.js';
+import { readOAuthConfig } from './oauth.js';
+import { verifyToken } from './oauth-tokens.js';
 import { sendJson } from '../chat/sse.js';
 
 // Read-only MCP endpoint for other agents to query the same dashboard metrics
@@ -9,21 +11,24 @@ import { sendJson } from '../chat/sse.js';
 // transport. No per-agent session: a fresh Server + transport is created for
 // every request (sessionIdGenerator: undefined => stateless mode).
 //
+// Auth is OAuth 2.1 (server/mcp/oauth.js): the caller presents an access
+// token minted after signing in with Google through this app's existing
+// Supabase auth, restricted by checkEmailAllowed. Re-checked here on every
+// call (not just at token-mint time) so removing someone from the allowlist
+// takes effect before their access token's 1h expiry.
+//
 // Lives outside api/ and is mounted at /api/mcp through a vercel.json rewrite
 // into an existing function (see api/snapshot-token.js): the project is
 // already at the Hobby plan's 12 Serverless Functions cap, same reason
 // /api/weather shares api/chat-suggestions.js's slot instead of having its
 // own file.
 export function createMcpHandler(dependencies = {}) {
-  const readKey = dependencies.readKey ?? (() => process.env.MCP_API_KEY?.trim());
-  const createServiceClient = dependencies.createServiceClient ?? (() => {
-    const supabaseUrl = process.env.SUPABASE_URL?.trim();
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-    if (!supabaseUrl || !supabaseServiceRoleKey) return null;
-    return createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
-  });
+  const getConfig = dependencies.readConfig ?? (() => readOAuthConfig());
+  const checkAllowed = dependencies.checkEmailAllowed ?? checkEmailAllowed;
+  const now = dependencies.now ?? (() => Date.now());
+  const createServiceClient = dependencies.createServiceClient ?? (config => createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  }));
 
   return async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -32,19 +37,27 @@ export function createMcpHandler(dependencies = {}) {
       return;
     }
 
-    const key = readKey();
-    if (!key) {
-      sendJson(res, 503, { error: { code: 'MCP_CONFIG_MISSING', message: 'Chưa cấu hình MCP_API_KEY.' } });
-      return;
-    }
-    if (!isMcpKey(key, req.headers.authorization)) {
-      sendJson(res, 401, { error: { code: 'MCP_UNAUTHORIZED', message: 'Sai hoặc thiếu MCP API key.' } });
+    const config = getConfig();
+    if (!config) {
+      sendJson(res, 503, { error: { code: 'MCP_CONFIG_MISSING', message: 'Chưa cấu hình MCP OAuth.' } });
       return;
     }
 
-    const serviceClient = createServiceClient();
-    if (!serviceClient) {
-      sendJson(res, 503, { error: { code: 'MCP_CONFIG_MISSING', message: 'Chưa cấu hình Supabase cho MCP.' } });
+    const unauthorized = () => {
+      res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${config.baseUrl}/.well-known/oauth-protected-resource"`);
+      sendJson(res, 401, { error: { code: 'MCP_UNAUTHORIZED', message: 'Thiếu hoặc hết hạn OAuth access token.' } });
+    };
+
+    const match = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
+    const tokenData = match && verifyToken(config.secret, match[1].trim(), 'mcp_access', now());
+    if (!tokenData) {
+      unauthorized();
+      return;
+    }
+
+    const serviceClient = createServiceClient(config);
+    if (!(await checkAllowed(tokenData.email, serviceClient))) {
+      unauthorized();
       return;
     }
 

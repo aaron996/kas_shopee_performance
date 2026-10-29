@@ -1,6 +1,7 @@
 import { issueSnapshotToken, isSnapshotSecret } from '../server/snapshot/token.js';
 import { sendJson } from '../server/chat/sse.js';
 import { createMcpHandler } from '../server/mcp/handler.js';
+import { createOAuthHandlers } from '../server/mcp/oauth.js';
 
 export const maxDuration = 60;
 
@@ -30,15 +31,26 @@ export function createSnapshotTokenHandler(dependencies = {}) {
   };
 }
 
-// Keep /api/mcp independent at the public URL while sharing this unauthenticated
-// (secret-gated) utility function's deployment slot: the project is already at
-// the Hobby plan's 12 Serverless Functions cap. See docs/mcp-server.md.
-export function createSnapshotTokenOrMcpHandler({ snapshotToken = createSnapshotTokenHandler(), mcp = createMcpHandler() } = {}) {
+// Keep /api/mcp and its OAuth endpoints independent at their public URLs
+// while sharing this unauthenticated (secret-gated) utility function's
+// deployment slot: the project is already at the Hobby plan's 12 Serverless
+// Functions cap. See docs/mcp-server.md.
+const MCP_ROUTES = [
+  { pathname: '/api/mcp', flag: 'mcp', handlerKey: 'mcp' },
+  { pathname: '/.well-known/oauth-protected-resource', flag: 'well-known-protected-resource', handlerKey: 'protectedResourceMetadata' },
+  { pathname: '/.well-known/oauth-authorization-server', flag: 'well-known-auth-server', handlerKey: 'authorizationServerMetadata' },
+  { pathname: '/api/oauth/register', flag: 'oauth-register', handlerKey: 'register' },
+  { pathname: '/api/oauth/authorize', flag: 'oauth-authorize', handlerKey: 'authorize' },
+  { pathname: '/api/oauth/callback', flag: 'oauth-callback', handlerKey: 'callback' },
+  { pathname: '/api/oauth/token', flag: 'oauth-token', handlerKey: 'token' }
+];
+
+export function createSnapshotTokenOrMcpHandler({ snapshotToken = createSnapshotTokenHandler(), mcp = createMcpHandler(), oauth = createOAuthHandlers() } = {}) {
+  const handlers = { mcp, ...oauth };
   return (req, res) => {
     const url = new URL(req.url || '/', 'http://localhost');
-    if (url.pathname === '/api/mcp' || url.searchParams.get('__mcp') === '1') {
-      return mcp(req, res);
-    }
+    const route = MCP_ROUTES.find(r => url.pathname === r.pathname || url.searchParams.get('__route') === r.flag);
+    if (route) return handlers[route.handlerKey](req, res);
     return snapshotToken(req, res);
   };
 }
