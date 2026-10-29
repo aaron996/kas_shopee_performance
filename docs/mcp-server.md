@@ -16,6 +16,17 @@ chỉ có ý nghĩa trong vòng lặp hội thoại UI (`request_metric_query`,
 `search_public_information`). Không có truy vấn SQL hay bảng/cột mới nào được
 mở thêm qua đường này.
 
+## Vì sao không có file `api/mcp.js`
+
+Project đã chạm trần 12 Serverless Functions của gói Hobby trên Vercel (xem
+comment trong `api/chat-suggestions.js` về `/api/weather`). Thêm hẳn một file
+`api/mcp.js` sẽ làm build lỗi `exceeded_serverless_functions_per_deployment`.
+Thay vào đó, handler MCP sống ở `server/mcp/handler.js` (ngoài thư mục `api/`
+nên không bị tính là function riêng) và `/api/mcp` được route vào đó qua rewrite
+trong `vercel.json`, dùng chung slot deployment với `api/snapshot-token.js`
+(xem `createSnapshotTokenOrMcpHandler`). Với client gọi vào, URL công khai vẫn
+là `POST /api/mcp` như bình thường — chi tiết chia sẻ slot là nội bộ.
+
 ## Cấu hình
 
 Thêm vào biến môi trường server (Vercel project settings hoặc `.env`):

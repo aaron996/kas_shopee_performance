@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../../server/mcp/server.js';
-import { createMcpHandler } from '../../api/mcp.js';
+import { createMcpHandler } from '../../server/mcp/handler.js';
 import { isMcpKey } from '../../server/mcp/auth.js';
+import { createSnapshotTokenOrMcpHandler } from '../../api/snapshot-token.js';
 
 function fakeServiceClient() {
   return {
@@ -91,4 +92,22 @@ test('handler rejects non-POST, missing config and wrong key before touching Sup
   const resNoConfig = response();
   await noKeyHandler({ method: 'POST', headers: { authorization: 'Bearer anything' } }, resNoConfig);
   assert.equal(resNoConfig.statusCode, 503);
+});
+
+test('/api/mcp shares the snapshot-token deployment slot and routes by path or query marker', async () => {
+  let mcpCalls = 0, snapshotCalls = 0;
+  const dispatch = createSnapshotTokenOrMcpHandler({
+    snapshotToken: (req, res) => { snapshotCalls++; res.end?.(); },
+    mcp: (req, res) => { mcpCalls++; res.end?.(); }
+  });
+
+  await dispatch({ method: 'POST', url: '/api/mcp', headers: {} }, { end: () => {} });
+  assert.equal(mcpCalls, 1);
+  assert.equal(snapshotCalls, 0);
+
+  await dispatch({ method: 'POST', url: '/api/snapshot-token?__mcp=1', headers: {} }, { end: () => {} });
+  assert.equal(mcpCalls, 2);
+
+  await dispatch({ method: 'POST', url: '/api/snapshot-token', headers: {} }, { end: () => {} });
+  assert.equal(snapshotCalls, 1);
 });

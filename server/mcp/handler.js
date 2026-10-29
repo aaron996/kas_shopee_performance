@@ -1,16 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { createMcpServer } from '../server/mcp/server.js';
-import { isMcpKey } from '../server/mcp/auth.js';
-import { sendJson } from '../server/chat/sse.js';
-
-export const maxDuration = 60;
+import { createMcpServer } from './server.js';
+import { isMcpKey } from './auth.js';
+import { sendJson } from '../chat/sse.js';
 
 // Read-only MCP endpoint for other agents to query the same dashboard metrics
 // the AI chatbot reads (server/chat/tools.js), over the Streamable HTTP
 // transport. No per-agent session: a fresh Server + transport is created for
-// every request (sessionIdGenerator: undefined => stateless mode), matching
-// how this project's other api/* handlers run on Vercel.
+// every request (sessionIdGenerator: undefined => stateless mode).
+//
+// Lives outside api/ and is mounted at /api/mcp through a vercel.json rewrite
+// into an existing function (see api/snapshot-token.js): the project is
+// already at the Hobby plan's 12 Serverless Functions cap, same reason
+// /api/weather shares api/chat-suggestions.js's slot instead of having its
+// own file.
 export function createMcpHandler(dependencies = {}) {
   const readKey = dependencies.readKey ?? (() => process.env.MCP_API_KEY?.trim());
   const createServiceClient = dependencies.createServiceClient ?? (() => {
@@ -61,5 +64,3 @@ export function createMcpHandler(dependencies = {}) {
     }
   };
 }
-
-export default createMcpHandler();

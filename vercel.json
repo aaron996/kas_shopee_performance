@@ -14,6 +14,10 @@
       "destination": "/api/chat-suggestions?__weather=1"
     },
     {
+      "source": "/api/mcp",
+      "destination": "/api/snapshot-token?__mcp=1"
+    },
+    {
       "source": "/snapshot",
       "destination": "/api/snapshot-page"
     },

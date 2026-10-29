@@ -1,5 +1,8 @@
 import { issueSnapshotToken, isSnapshotSecret } from '../server/snapshot/token.js';
 import { sendJson } from '../server/chat/sse.js';
+import { createMcpHandler } from '../server/mcp/handler.js';
+
+export const maxDuration = 60;
 
 // n8n (daily Telegram report) calls this with `Authorization: Bearer
 // <SNAPSHOT_SECRET>` and gets back a short-lived token for the /snapshot
@@ -27,4 +30,16 @@ export function createSnapshotTokenHandler(dependencies = {}) {
   };
 }
 
-export default createSnapshotTokenHandler();
+// Keep /api/mcp independent at the public URL while sharing this unauthenticated
+// (secret-gated) utility function's deployment slot: the project is already at
+// the Hobby plan's 12 Serverless Functions cap. See docs/mcp-server.md.
+export function createSnapshotTokenOrMcpHandler({ snapshotToken = createSnapshotTokenHandler(), mcp = createMcpHandler() } = {}) {
+  return (req, res) => {
+    const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/mcp' || url.searchParams.get('__mcp') === '1') {
+      return mcp(req, res);
+    }
+    return snapshotToken(req, res);
+  };
+}
+export default createSnapshotTokenOrMcpHandler();
