@@ -789,8 +789,9 @@ export default function App() {
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
   // Tabs that load their own data and never read the report rows: they must not wait
   // behind (or stack a second skeleton on top of) the report sync.
-  const ownsItsData = activeTab === 'home' || activeTab === 'dev-admin' || activeTab === 'cod-suspicion';
+  const ownsItsData = activeTab === 'home' || activeTab === 'dev-admin' || activeTab === 'cod-suspicion' || activeTab === 'guide';
   const runtimeByModule = {
+    guide: { onNavigate: setActiveTab },
     report1: {
       pickRows: filteredPickRows,
       deliRows: filteredDeliRows,
