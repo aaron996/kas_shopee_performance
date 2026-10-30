@@ -861,6 +861,7 @@ export default function App() {
     'dev-admin': { onlineUsers, currentUser }
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1,
+    allHubTypes,
     mtdScope: userEmail ? `${userEmail}:${currentUser?.role || 'user'}` : '',
     weatherProps: { selectedRegions, userKey: userEmail || 'anonymous',
       active: Boolean(currentUser && !currentUser.localPreview && !introVisible && hasPickedClient),

@@ -5,11 +5,14 @@ import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor
 
 const percentage = value => formatPct(value).replace('.', ',');
 
-export default function OverviewKpiCards({ cards, selectedMetric, onSelect }) {
+export default function OverviewKpiCards({ cards, selectedMetric, onSelect, headingRange }) {
   return <div className="overview-metrics" role="group" aria-label="Chọn KPI để xem xu hướng">
     {cards.map(card => {
       const hasData = card.mtd?.tot > 0 && Number.isFinite(card.mtd?.pct);
       const hasTarget = card.target != null;
+      // The block heading already states the range; repeat it per card only when
+      // this KPI's data actually ends on another day.
+      const ownRange = card.mtd?.to && (card.mtd.to !== headingRange?.to || card.mtd.from !== headingRange?.from);
       const status = !hasData || !hasTarget ? 'neutral' : card.mtd.pct >= card.target ? 'good' : 'bad';
       return <button type="button" key={card.id}
         className={`overview-metric ${selectedMetric === card.id ? 'is-selected' : ''}`}
@@ -29,7 +32,7 @@ export default function OverviewKpiCards({ cards, selectedMetric, onSelect }) {
         <span className="overview-metric-volume">
           {card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : hasData ? <><span>{formatVol(card.mtd.tot)} đơn</span><span>{formatVol(card.subStatLabel ? card.mtd.ont : card.mtd.tot - card.mtd.ont)} {card.subStatLabel || 'trễ'}</span></> : <span>— đơn</span>}
         </span>
-        {card.mtd?.to && <span className="overview-metric-date">{formatDateLabel(card.mtd.from).replace('\n', ' ')} – {formatDateLabel(card.mtd.to).replace('\n', ' ')}</span>}
+        {ownRange && <span className="overview-metric-date">{formatDateLabel(card.mtd.from).replace('\n', ' ')} – {formatDateLabel(card.mtd.to).replace('\n', ' ')}</span>}
       </button>;
     })}
   </div>;
