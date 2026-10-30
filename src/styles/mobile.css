@@ -6,12 +6,16 @@
   .app-header { display: block; height: auto; padding: 8px 12px; }
   .main-content { padding: 8px; }
 
-  .compact-mobile-brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-family: var(--font-heading); }
+  /* One row: theme toggle, scope filters (not on Tổng quan, which has its own
+     scope chips), then search and export. */
+  .app-header.compact-header { display: flex; align-items: center; gap: 8px; }
+  .compact-mobile-brand { display: flex; align-items: center; gap: 12px; margin: 0; flex: none; font-family: var(--font-heading); }
   .compact-mobile-settings { display: flex; gap: 4px; }
-  .compact-header-toolbar { gap: 8px; flex-wrap: wrap; }
+  .compact-header-toolbar { gap: 8px; flex-wrap: nowrap; }
   .compact-header-actions { gap: 0; }
   .compact-header-actions > .desktop-header-action { display: none; }
   .scope-filter-cluster { gap: 0; padding: 0; }
+  .mobile-report-menu-actions { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
   .header-popover-panel, .header-popover-panel.align-right {
     position: fixed;
     top: calc(var(--app-header-height, 112px) + 8px);

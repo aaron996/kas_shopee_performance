@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import AnimatedIcon from './AnimatedIcon';
 
 // Hover previews the panel; clicking pins it for selection or touch input.
-export default function HeaderPopover({ name, icon, label, summary, badge, state, setState, children, status = '', align = 'left' }) {
+export default function HeaderPopover({ name, icon, label, summary, badge, state, setState, children, status = '', align = 'left', className = '' }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
@@ -30,7 +30,7 @@ export default function HeaderPopover({ name, icon, label, summary, badge, state
     document.addEventListener('pointerdown', dismiss);
     return () => document.removeEventListener('pointerdown', dismiss);
   });
-  return <div ref={root} className={`header-popover ${status}`} onPointerEnter={event => {
+  return <div ref={root} className={`header-popover ${status} ${className}`} onPointerEnter={event => {
     cancelClose();
     if (event.pointerType === 'mouse') setState(current => current?.pinned ? current : { name, pinned: false });
   }} onPointerLeave={scheduleClose} onBlur={scheduleClose} onKeyDown={event => {

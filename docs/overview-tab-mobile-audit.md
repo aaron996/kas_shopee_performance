@@ -1,7 +1,7 @@
 # Rà soát tab Tổng quan — trọng tâm trải nghiệm điện thoại
 
-Ngày rà soát: 2026-10-30. Các mục P1 và P2 đã sửa (xem "Đã sửa" ở cuối); P3, P4
-và danh sách widget vẫn là đề xuất, chưa làm.
+Ngày rà soát: 2026-10-30. P1, P2 và vòng góp ý trực tiếp trên ảnh chụp màn hình
+đã sửa (xem các mục "Đã sửa" ở cuối); P3, P4 và danh sách widget vẫn là đề xuất.
 
 Phạm vi file: `src/modules/ops-metrics/OperationsHome.jsx`, `OverviewKpiCards.jsx`,
 `OverviewTrend.jsx`, `overview.css`, `WeatherOverview.jsx`, `useOverviewMtd.js`,
@@ -251,3 +251,83 @@ Mobile 390px: dải scope 44px, không tràn ngang, tổng chiều cao trang 1.6
 hơn nhiều so với 2.100px ban đầu).
 Desktop 1280px: lưới KPI vẫn 5 cột, dải scope 32px, không tràn ngang.
 `npm run lint` không có cảnh báo mới; `npm test` 809/809 pass.
+
+## Đã sửa — vòng góp ý trên ảnh chụp màn hình (2026-10-30)
+
+Góp ý đánh dấu trực tiếp lên ảnh bản production: bỏ những thứ lặp hoặc không cần
+trên điện thoại.
+
+### Header điện thoại: 2 hàng → 1 hàng (113px → 61px)
+
+Bỏ chữ "GHN Performance", nút Dev và nút Đăng xuất khỏi hàng thương hiệu; bỏ nút
+Đồng bộ và nút Nhận xét D-1 khỏi thanh công cụ. Còn lại một hàng: nút sáng/tối ·
+(bộ lọc, ở các tab khác) · Tìm kiếm · Tải CSV.
+
+Dev Panel, Nhận xét D-1 và Đăng xuất chuyển vào menu **"Thêm"** của bottom nav,
+ngăn cách bằng một đường kẻ. Trên desktop ba thứ này vốn đã nằm ở sidebar và
+thanh header, nên desktop không đổi.
+
+### Ba icon lọc trên tab Tổng quan
+
+Ở tab Tổng quan, dải scope chip trên trang đã nói đủ nên ba icon Client / Vùng /
+Loại Hub trong header bị ẩn (`.scope-filter-cluster.is-replaced`). **Popover vẫn
+được mount** — chỉ ẩn phần nút bấm — vì chính các chip mở chúng; ẩn cả cụm thì
+chip sẽ thành nút chết. Các tab khác (Vùng/Hub, % Ca 1…) không có dải scope nên
+vẫn giữ nguyên ba icon.
+
+### Khối KPI
+
+- Bỏ dòng "Lũy kế từ đầu tháng"; nút (i) lên cùng hàng với `MTD · 1/10 – 29/10`.
+  Nội dung tooltip giữ nguyên câu giải thích đó. Heading 2 hàng → 1 hàng.
+- Bỏ chữ "MTD" trong từng card. Giữ lại dạng `.sr-only` để tên đọc được của nút
+  vẫn có mốc thời gian.
+- Thay chữ "Target" bằng icon bia ngắm (lucide `Target`), chỉ còn `◎ ≥97%`, kèm
+  `aria-label="Target MTD ≥97%"`. Không dùng icon "mũi tên cắm vào bia" vì ở
+  14px nó thành một vệt mực; bia ngắm ba vòng tròn là hình đọc được nhỏ nhất.
+- Card FD không có target nên mất hẳn hàng này: 165px → 139px.
+
+### Nút "!" khi nguồn có dữ liệu mới
+
+Thay cho nút Đồng bộ trên điện thoại (trình duyệt đã có vuốt-để-tải-lại), và
+thêm cho cả desktop. Code: [`src/utils/dataFreshness.js`](../src/utils/dataFreshness.js),
+test `src/utils/dataFreshness.test.mjs`.
+
+`sync_kas_*_data()` thay toàn bộ bảng (delete + insert) nên `id` và `synced_at`
+của dòng cuối đổi sau mỗi lần sync. Vì vậy chỉ cần đọc **một dòng mỗi bảng** là
+biết nguồn đã chạy lại hay chưa — đúng mẹo boundary mà
+`supabaseTableReader.js` đang dùng để phát hiện bảng bị thay giữa chừng.
+
+- `fingerprintSnapshot(payload)` lấy mốc từ chính snapshot đang hiển thị, bất kể
+  nó đến từ sync thật hay từ cache IndexedDB (cả hai đều giữ cột `id`/`synced_at`
+  ở dạng thô). Nhờ vậy mở app bằng cache cũ cũng phát hiện được là đã có số mới.
+- `readFreshnessMarks` đọc 5 dòng, mỗi bảng một dòng, timeout 8s. **Bảng nào đọc
+  lỗi thì bỏ qua**, không bao giờ báo "có dữ liệu mới" vì một lần rớt mạng.
+- `hasNewerData` chỉ bật khi một dataset có mốc ở cả hai phía và mốc khác nhau.
+- Chạy khi người dùng quay lại tab (`visibilitychange`, `focus`) và mỗi 10 phút
+  khi tab đang mở, chặn trùng trong vòng 2 phút, và không chạy khi đang sync.
+  5 truy vấn một dòng là không đáng kể so với 150–200 request của một lần sync
+  đầy đủ.
+- Nút hiện ở header (cả mobile lẫn desktop) với nền hổ phách, bấm thì chạy
+  `handleSyncLiveSheet`. Biến mất ngay khi `applySupabaseRows` chạy.
+
+### Kiểm lại
+
+| | Trước vòng này | Sau |
+| --- | ---: | ---: |
+| Header điện thoại | 113 px | 61 px |
+| Heading khối KPI | 2 hàng | 1 hàng (53 px) |
+| 1 card KPI | 140 px | 140 px |
+| Card FD | 165 px | 139 px |
+| Lưới KPI | 444 px | 418 px |
+| Khối KPI | 520 px | 472 px |
+
+Tab Vùng/Hub kiểm lại: ba icon lọc vẫn còn (cụm rộng 132px), header vẫn 1 hàng.
+Desktop 1280px: sync, Nhận xét D-1, mật độ bảng, toàn màn hình, xuất CSV đều còn;
+chip Loại Hub mở đúng popover.
+
+`npm run lint` không có cảnh báo mới. `npm test` 815/815 pass (thêm 6 test của
+`dataFreshness`).
+
+**Chưa kiểm được bằng dữ liệu thật:** nút "!" chỉ được kiểm bằng unit test và
+bằng cách chèn tay nút vào DOM để xem style. Luồng "nguồn chạy sync → nút hiện"
+cần một phiên đăng nhập thật đúng lúc job sync chạy.
