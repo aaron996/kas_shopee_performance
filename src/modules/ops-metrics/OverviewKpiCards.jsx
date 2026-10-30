@@ -1,5 +1,5 @@
 import LoadingScreen from '../../components/LoadingScreen.jsx';
-import { Check } from 'lucide-react';
+import { Check, Target } from 'lucide-react';
 import AnimatedNumber from '../../components/ui/AnimatedNumber';
 import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor';
 
@@ -13,6 +13,8 @@ export default function OverviewKpiCards({ cards, selectedMetric, onSelect, head
       // The block heading already states the range; repeat it per card only when
       // this KPI's data actually ends on another day.
       const ownRange = card.mtd?.to && (card.mtd.to !== headingRange?.to || card.mtd.from !== headingRange?.from);
+      const note = card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" />
+        : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : hasData ? null : 'Chưa có dữ liệu MTD';
       const status = !hasData || !hasTarget ? 'neutral' : card.mtd.pct >= card.target ? 'good' : 'bad';
       return <button type="button" key={card.id}
         className={`overview-metric ${selectedMetric === card.id ? 'is-selected' : ''}`}
@@ -25,10 +27,15 @@ export default function OverviewKpiCards({ cards, selectedMetric, onSelect, head
         <span className={`overview-metric-value is-${status}`}>
           {card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : hasData ? <AnimatedNumber value={card.mtd.pct} format={percentage} /> : '—'}
         </span>
-        <span className="overview-metric-comparison">
-          <span>{card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : hasData ? 'MTD' : 'Chưa có dữ liệu MTD'}</span>
-          {hasTarget && <span>Target ≥{card.target}%</span>}
-        </span>
+        <span className="sr-only">MTD</span>
+        {(note || hasTarget) && <span className="overview-metric-comparison">
+          {note && <span>{note}</span>}
+          {/* The bullseye carries the word "Target"; the period is in the block
+              heading, so it only needs to stay in the accessible name. */}
+          {hasTarget && <span className="overview-metric-target" aria-label={`Target MTD ≥${card.target}%`}>
+            <Target aria-hidden="true" />≥{card.target}%
+          </span>}
+        </span>}
         <span className="overview-metric-volume">
           {card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" /> : hasData ? <><span>{formatVol(card.mtd.tot)} đơn</span><span>{formatVol(card.subStatLabel ? card.mtd.ont : card.mtd.tot - card.mtd.ont)} {card.subStatLabel || 'trễ'}</span></> : <span>— đơn</span>}
         </span>

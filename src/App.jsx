@@ -30,6 +30,7 @@ import BrandSplash from './components/BrandSplash.jsx';
 import { hasSeenIntroToday, markIntroSeen } from './utils/introSeen.js';
 import { clientVisitToken,needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
 import { loadSyncSnapshot, saveSyncSnapshot, clearSyncSnapshot, isSameVietnamDay } from './utils/syncCache.js';
+import { fingerprintSnapshot, readFreshnessMarks, hasNewerData } from './utils/dataFreshness.js';
 import { overviewMtdLoader } from './utils/overviewMtdLoader.js';
 
 const LOCAL_PREVIEW_USER = getLocalPreviewUser();
@@ -42,6 +43,11 @@ import { fetchDailyRangeRows, addDays } from './utils/weeklyKpi';
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
 const accessLogRequests = new Set();
+
+// "Dữ liệu mới" probe: 5 single-row reads, so it can run while the tab is open
+// without adding meaningful load (a full snapshot is 150-200 paged requests).
+const FRESHNESS_POLL_MS = 10 * 60 * 1000;
+const FRESHNESS_MIN_INTERVAL_MS = 2 * 60 * 1000;
 
 async function recordAccess(email) {
   const normalizedEmail = email.trim().toLowerCase();
@@ -388,6 +394,10 @@ export default function App() {
   const lastSyncedAtRef = React.useRef(null);
   const quietRetryRef = React.useRef({ count: 0, timer: null });
   const syncFnRef = React.useRef(null);
+  // Boundary of the snapshot currently on screen, and the resulting "new data" flag.
+  const seenFreshnessRef = React.useRef({});
+  const freshnessCheckedAtRef = React.useRef(0);
+  const [isDataStale, setIsDataStale] = useState(false);
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -477,6 +487,10 @@ export default function App() {
 
   // Shared by the live sync and the cache restore so both paint identically.
   const applySupabaseRows = useCallback((res, sourceLabel) => {
+    // Whatever produced this snapshot (live sync or cache), it is now the
+    // reference the freshness probe compares the DB against.
+    seenFreshnessRef.current = fingerprintSnapshot(res);
+    setIsDataStale(false);
     setPickRows(normalizeRows(res.pickData));
     setDeliRows(normalizeRows(res.deliData));
     setDataSources(prev => ({
@@ -495,6 +509,32 @@ export default function App() {
   }, []);
 
   const syncRequestRef = React.useRef(false);
+  // "Dữ liệu mới" alert: one tiny row per table, not another full snapshot.
+  const checkDataFreshness = useCallback(async () => {
+    if (!currentUser || currentUser.localPreview || syncRequestRef.current) return;
+    const seen = seenFreshnessRef.current;
+    if (!seen || !Object.keys(seen).length) return;
+    const now = Date.now();
+    if (now - freshnessCheckedAtRef.current < FRESHNESS_MIN_INTERVAL_MS) return;
+    freshnessCheckedAtRef.current = now;
+    const current = await readFreshnessMarks(supabase, Object.keys(seen));
+    if (!syncRequestRef.current) setIsDataStale(hasNewerData(seen, current));
+  }, [currentUser]);
+
+  // Check when the user comes back to the tab, and occasionally while they stay.
+  useEffect(() => {
+    if (!currentUser || currentUser.localPreview) return undefined;
+    const check = () => { if (document.visibilityState === 'visible') void checkDataFreshness(); };
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    const timer = window.setInterval(check, FRESHNESS_POLL_MS);
+    return () => {
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+      window.clearInterval(timer);
+    };
+  }, [currentUser, checkDataFreshness]);
+
   // A failed sync is not worth a warning when today's numbers (from the cache or an
   // earlier sync this session) are already on screen: stay quiet and retry in the background.
   const failQuietlyIfFreshToday = useCallback((reason) => {
@@ -916,7 +956,6 @@ export default function App() {
         <div className="app-main">
           {/* Header Navigation & Filter Bar */}
           <Header
-            setActiveTab={setActiveTab}
             activeTab={activeTab}
             clientFilter={clientFilter}
             setClientFilter={setClientFilter}
@@ -932,8 +971,6 @@ export default function App() {
             lastSyncedAt={lastSyncedAt}
             onOpenSummary={() => setIsSummaryOpen(true)}
             onOpenPalette={() => setIsPaletteOpen(true)}
-            currentUser={currentUser}
-            onLogout={handleLogout}
             isDarkMode={isDarkMode}
             setIsDarkMode={setIsDarkMode}
             density={density}
@@ -941,6 +978,7 @@ export default function App() {
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
             onRetryData={handleSyncLiveSheet}
+            isDataStale={isDataStale}
             canExport={canExport}
             exportContext={exportContext}
             codSuspicionFilters={codSuspicionFilters}
@@ -974,7 +1012,8 @@ export default function App() {
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
-          <MobileNavigation activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} />
+          <MobileNavigation activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser}
+            onOpenSummary={() => setIsSummaryOpen(true)} onLogout={handleLogout} />
 
           {/* Executive D-1 vs D-8 Summary Modal */}
           <ExecutiveSummaryModal
