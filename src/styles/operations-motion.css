@@ -80,7 +80,14 @@
 .scope-filter-cluster{display:flex;align-items:center;gap:4px;padding:4px;background:var(--surface-subtle);border-radius:var(--radius-control)}
 .compact-header-actions{display:flex;align-items:center;gap:4px;margin-left:auto}
 .compact-header-actions>.icon-btn,.compact-mobile-settings>.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;min-width:44px;height:44px;padding:0}
+/* "Dữ liệu mới" alert: only rendered when the DB moved on from what is on screen. */
+.compact-header-actions>.header-stale-alert{background:var(--amber-bg);color:var(--amber-text)}
+.compact-header-actions>.header-stale-alert:hover{background:var(--amber-bg);filter:brightness(.96)}
 .header-popover{position:relative;flex:none}
+/* Tổng quan shows the scope chips on the page instead; the popovers stay mounted
+   here so those chips have something to open. */
+.scope-filter-cluster.is-replaced{gap:0;padding:0;background:none}
+.scope-filter-cluster.is-replaced .header-popover-trigger{display:none}
 .header-popover-trigger{position:relative;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:var(--radius-control);background:transparent;color:var(--text-secondary);cursor:pointer;transition:background-color var(--duration-fast),color var(--duration-fast)}
 .header-popover-trigger:hover,.header-popover-trigger.is-open{background:var(--info-box-bg);color:var(--info-box-text)}
 .scope-count{position:absolute;top:2px;right:2px;min-width:14px;height:14px;padding:0 3px;background:var(--action-primary);border-radius:var(--radius-pill);color:white;font:600 10px/14px var(--font-mono);pointer-events:none}

@@ -33,10 +33,8 @@
 .overview-hubs-panel { min-width: 0; border: var(--stroke-thin) solid var(--border-subtle); border-radius: var(--radius-surface); background: var(--surface-default); }
 .overview-performance { overflow: clip; }
 .overview-performance-heading { padding: var(--space-2) var(--space-5); min-height: var(--size-touch-target); border-bottom: var(--stroke-thin) solid var(--border-subtle); color: var(--text-secondary); font-size: var(--type-caption); }
-.overview-data-date,
-.overview-comparison-note { display: flex; align-items: center; gap: var(--space-2); }
-.overview-data-date { font-weight: var(--weight-medium); color: var(--text-primary); }
-.overview-comparison-note .icon-btn { width: var(--size-control-compact); height: var(--size-control-compact); min-height: var(--size-control-compact); padding: 0; }
+.overview-data-date { display: flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-medium); color: var(--text-primary); }
+.overview-performance-heading .icon-btn { width: var(--size-control-compact); height: var(--size-control-compact); min-height: var(--size-control-compact); padding: 0; flex: none; }
 .overview-metrics { display: grid; grid-template-columns: var(--overview-metric-columns); }
 .overview-metric {
   position: relative;
@@ -67,6 +65,9 @@
 .overview-workspace .is-bad { color: var(--bad-red-text); }
 .overview-workspace .is-neutral { color: var(--text-primary); }
 .overview-metric-comparison { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); color: var(--text-secondary); font-size: var(--type-caption); }
+.overview-metric-comparison > span:only-child { margin-left: auto; }
+.overview-metric-target { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
+.overview-metric-target svg { width: var(--overview-icon-delta); height: var(--overview-icon-delta); flex: none; }
 .overview-metric-delta { display: inline-flex; align-items: center; gap: var(--space-0-5); font-weight: var(--weight-medium); }
 .overview-metric-volume { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: auto; color: var(--text-secondary); font-size: var(--type-caption); }
 .overview-metric-date { color: var(--text-secondary); font-size: var(--type-caption); }
@@ -133,9 +134,8 @@
 }
 @media (max-width: 600px) {
   .overview-workspace { --overview-gap: var(--overview-gap-mobile); }
-  .overview-performance-heading { align-items: flex-start; flex-direction: column; gap: 0; padding: var(--space-3) var(--space-4) var(--space-2); }
-  .overview-comparison-note { width: 100%; justify-content: space-between; }
-  .overview-comparison-note .icon-btn { width: var(--size-touch-target); height: var(--size-touch-target); min-height: var(--size-touch-target); margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-3)) calc(-1 * var(--space-1)) 0; }
+  .overview-performance-heading { padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4); }
+  .overview-performance-heading .icon-btn { width: var(--size-touch-target); height: var(--size-touch-target); min-height: var(--size-touch-target); }
   .overview-workspace .overview-scope-chip { min-height: var(--size-touch-target); }
   .overview-metrics { grid-template-columns: var(--overview-metric-columns-mobile); }
   .overview-metric { padding: var(--space-3-5) var(--space-4); gap: var(--space-2); border-bottom: var(--stroke-thin) solid var(--border-subtle); }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Ellipsis, X } from 'lucide-react';
+import { Ellipsis, LogOut, MessageSquareText, ShieldCheck, X } from 'lucide-react';
 import AnimatedIcon from './ui/AnimatedIcon';
 import ModalDialog from './ui/ModalDialog';
 import { navigationModules } from '../modules/moduleRegistry.jsx';
@@ -8,7 +8,7 @@ import { navigationModules } from '../modules/moduleRegistry.jsx';
 const PRIMARY_IDS = ['home', 'report1', 'report5', 'ranking'];
 const MOBILE_QUERY = '(max-width: 768px), (max-width: 960px) and (max-height: 500px)';
 
-export default function MobileNavigation({ activeTab, setActiveTab, currentUser }) {
+export default function MobileNavigation({ activeTab, setActiveTab, currentUser, onOpenSummary, onLogout }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const close = useCallback(() => setOpen(false), []);
@@ -64,6 +64,21 @@ export default function MobileNavigation({ activeTab, setActiveTab, currentUser 
           <span><strong>{module.label}</strong><small>{module.description}</small></span>
         </button>)}
       </nav>
+      {/* The phone header has no room for these; the desktop sidebar carries them. */}
+      <div aria-label="Tài khoản" role="group" className="mobile-report-menu-list mobile-report-menu-actions">
+        {onOpenSummary && <button type="button" onClick={() => { close(); onOpenSummary(); }}>
+          <MessageSquareText size={22} aria-hidden="true" />
+          <span><strong>Nhận xét D-1</strong><small>Tóm tắt điều hành D-1 vs D-8</small></span>
+        </button>}
+        {currentUser?.isDevAdmin && <button type="button" onClick={() => select('dev-admin')}>
+          <ShieldCheck size={22} aria-hidden="true" />
+          <span><strong>Dev Panel</strong><small>Công cụ quản trị</small></span>
+        </button>}
+        {onLogout && <button type="button" onClick={() => { close(); onLogout(); }}>
+          <LogOut size={22} aria-hidden="true" />
+          <span><strong>Đăng xuất</strong><small>{currentUser?.email || ''}</small></span>
+        </button>}
+      </div>
     </ModalDialog>, document.body)}
   </>;
 }

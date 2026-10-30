@@ -95,9 +95,7 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
     {cards.length > 0 && <section className="overview-performance" aria-label="KPI vận hành">
       <div className="overview-performance-heading">
         <span className="overview-data-date"><CalendarDays aria-hidden="true" />MTD · {commonDate ? `${dateLabel(`${commonDate.slice(0, 7)}-01`)} – ${dateLabel(commonDate)}` : 'Chưa có dữ liệu'}</span>
-        <span className="overview-comparison-note">Lũy kế từ đầu tháng
-          <IconButton icon="Info" label="Cách đọc KPI" detail="MTD tính từ đầu tháng đến ngày dữ liệu mới nhất của từng KPI, theo bộ lọc đang chọn. Tỷ lệ bằng tổng tử chia tổng mẫu. Chọn KPI để xem xu hướng từng ngày; — là chưa có số liệu MTD." />
-        </span>
+        <IconButton icon="Info" label="Cách đọc KPI" detail="Lũy kế từ đầu tháng đến ngày dữ liệu mới nhất của từng KPI, theo bộ lọc đang chọn. Tỷ lệ bằng tổng tử chia tổng mẫu. Chọn KPI để xem xu hướng từng ngày; — là chưa có số liệu MTD." />
       </div>
       <OverviewKpiCards cards={mtdCards} selectedMetric={card?.id} onSelect={selectMetric} headingRange={headingRange} />
       {mtdCards.some(item => item.mtdRefreshError) && <div role="status">Đang hiển thị số MTD đã lưu; chưa cập nhật được số mới. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
