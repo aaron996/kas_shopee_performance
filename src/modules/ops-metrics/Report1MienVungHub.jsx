@@ -41,6 +41,7 @@ export default function Report1MienVungHub({
   expandAllHubs,
   selectedRegions = [],
   selectedHubTypes = null,
+  allHubTypes = [],
   isHubTypeFiltered = false,
   emptyFilter = null,
   onResetFilters = null,
@@ -400,7 +401,7 @@ export default function Report1MienVungHub({
   };
 
   // Operational Risk Alert Hubs (Scanning D-1 for highest absolute late volume)
-  const riskAlertHubs = useMemo(() => {
+  const riskAlertAll = useMemo(() => {
     if (!pD1 && !dD1) return [];
 
     const hubLateList = [];
@@ -453,9 +454,11 @@ export default function Report1MienVungHub({
       });
     }
 
-    // Sort by absolute late volume descending and pick top 4
-    return hubLateList.sort((a, b) => b.late - a.late).slice(0, 4);
+    // Sort by absolute late volume descending; the Overview shows the top few
+    // but needs the full length to say how many Hubs are actually below target.
+    return hubLateList.sort((a, b) => b.late - a.late);
   }, [pD1, dD1, filteredPick, filteredDeli]);
+  const riskAlertHubs = useMemo(() => riskAlertAll.slice(0, 4), [riskAlertAll]);
 
 
   // Export Matrix Data to CSV, filtered by the export dialog.
@@ -1287,6 +1290,7 @@ export default function Report1MienVungHub({
   // Weather has its own readiness/error state, including when the KPI source
   // is unavailable or the user's operational filters leave no rows.
   if (overview && !pD1 && !dD1 && !fD1) return <OperationsHome cards={[]} risks={[]} onOpenOps={onOpenOps} weatherProps={weatherProps}
+    mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes}
     dataNotice={<StatusNotice><strong>{emptyFilter ? (emptyFilter === 'hubTypes' ? 'Chưa chọn loại Hub nào' : 'Chưa chọn vùng nào') : 'Chưa có dữ liệu vận hành'}</strong>
       <p>{emptyFilter ? 'Bộ lọc hiện tại không còn số liệu KPI để hiển thị.' : 'Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.'}</p>
       <button type="button" className="nav-btn-sleek" onClick={emptyFilter ? onResetFilters : onRetryData}>{emptyFilter ? 'Chọn lại tất cả' : 'Tải lại dữ liệu'}</button></StatusNotice>} />;
@@ -1315,7 +1319,9 @@ export default function Report1MienVungHub({
     modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode} />;
 
   if (overview) return <>
-    <OperationsHome cards={kpiCards} risks={riskAlertHubs} onOpenOps={onOpenOps} weatherProps={weatherProps} mtdScope={mtdScope} mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} />
+    <OperationsHome cards={kpiCards} risks={riskAlertHubs} riskTotal={riskAlertAll.length} riskDates={{ pick: pD1, deli: dD1 }}
+      onOpenOps={onOpenOps} weatherProps={weatherProps} mtdScope={mtdScope}
+      mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes} />
     {exportDialog}
   </>;
 

@@ -32,6 +32,16 @@ export default function Header({
     window.addEventListener('ranking-presentation-change', onPresentationChange);
     return () => window.removeEventListener('ranking-presentation-change', onPresentationChange);
   }, []);
+  // The Tổng quan scope chips open these same filters; the triggers are only
+  // icons up here, so the chips are where most people reach them on a phone.
+  useEffect(() => {
+    const openScope = event => {
+      const name = event.detail?.name;
+      if (name) setPopover({ name, pinned: true });
+    };
+    window.addEventListener('open-scope-popover', openScope);
+    return () => window.removeEventListener('open-scope-popover', openScope);
+  }, []);
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;

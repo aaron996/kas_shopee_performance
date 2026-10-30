@@ -85,7 +85,7 @@
 .overview-chart-caption span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
 .overview-chart-caption i { width: var(--space-4); border-top: var(--stroke-medium) solid var(--overview-trend-color, var(--action-primary)); }
 .overview-chart-caption .is-target { border-top: var(--stroke-thin) dashed var(--text-secondary); }
-.overview-hub-count { display: grid; place-items: center; min-width: var(--space-7); height: var(--space-7); background: var(--surface-subtle); color: var(--text-secondary); border-radius: var(--radius-control); font-size: var(--type-meta); }
+.overview-hub-count { display: grid; place-items: center; min-width: var(--space-7); height: var(--space-7); padding-inline: var(--space-2); background: var(--surface-subtle); color: var(--text-secondary); border-radius: var(--radius-control); font-size: var(--type-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .overview-hub-list { list-style: none; padding: 0; margin: var(--space-4) 0 0; }
 .overview-hub-list li + li { border-top: var(--stroke-thin) solid var(--border-subtle); }
 .overview-hub-list button { display: grid; gap: var(--space-1); width: 100%; padding: var(--space-3) 0; background: transparent; border: 0; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
@@ -101,6 +101,23 @@
 .overview-hubs-empty svg { flex: none; color: var(--good-green-text); }
 .overview-hubs-empty p { margin: 0; font-size: var(--type-body); line-height: var(--leading-relaxed); }
 .overview-workspace > .weather-overview { margin: 0; }
+/* Scope strip: says which Client / Vùng / Loại Hub every number below belongs to. */
+.overview-scope { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.overview-workspace .overview-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-height: var(--size-control-compact);
+  padding: var(--space-1) var(--space-3);
+  border: var(--stroke-thin) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-default);
+  color: var(--text-secondary);
+  font: var(--weight-medium) var(--type-caption)/var(--leading-normal) var(--font-sans);
+  cursor: pointer;
+}
+.overview-workspace .overview-scope-chip.is-warn { border-color: var(--bad-red-text); color: var(--bad-red-text); }
+.overview-scope-chip svg { width: var(--overview-icon-delta); height: var(--overview-icon-delta); flex: none; }
 @media (max-width: 1199px) {
   .overview-metric { padding: var(--space-4) var(--space-3); }
   .overview-metric::after { left: var(--space-3); right: var(--space-3); }
@@ -119,15 +136,19 @@
   .overview-performance-heading { align-items: flex-start; flex-direction: column; gap: 0; padding: var(--space-3) var(--space-4) var(--space-2); }
   .overview-comparison-note { width: 100%; justify-content: space-between; }
   .overview-comparison-note .icon-btn { width: var(--size-touch-target); height: var(--size-touch-target); min-height: var(--size-touch-target); margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-3)) calc(-1 * var(--space-1)) 0; }
+  .overview-workspace .overview-scope-chip { min-height: var(--size-touch-target); }
   .overview-metrics { grid-template-columns: var(--overview-metric-columns-mobile); }
   .overview-metric { padding: var(--space-3-5) var(--space-4); gap: var(--space-2); border-bottom: var(--stroke-thin) solid var(--border-subtle); }
   .overview-metric:nth-child(even) { border-right: 0; }
   .overview-metric:last-child { grid-column: 1 / -1; border-bottom: 0; }
-  .overview-metric:last-child .overview-metric-comparison,
-  .overview-metric:last-child .overview-metric-volume { flex-direction: row; }
+  /* Let volume and late count share a line when they fit and wrap when they do
+     not, instead of always costing two lines. */
+  .overview-metric-volume { flex-direction: row; }
   .overview-metric-value { font-size: var(--overview-type-metric-mobile); }
   .overview-trend-panel,
   .overview-hubs-panel { padding: var(--space-4); }
+  /* Selecting a KPI scrolls this panel up; keep it clear of the sticky header. */
+  .overview-trend-panel { scroll-margin-top: calc(var(--app-header-height, 112px) + var(--space-3)); }
   .overview-hub-list { display: block; }
   .overview-hub-list li:nth-child(2) { border-top: var(--stroke-thin) solid var(--border-subtle); }
   .overview-workspace .overview-trend-chart { height: var(--overview-chart-height-mobile); }
