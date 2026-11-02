@@ -157,6 +157,17 @@ Partial corners are valid only when the shape expresses containment or attachmen
 
 ## Components
 
+### Loading, empty and error states — mandatory
+
+**The Data Readiness Rule.** A pending data request must show the shared table-shaped skeleton (`src/components/LoadingScreen.jsx`). Never render “Chưa có dữ liệu”, “Không có dữ liệu”, zero totals, an empty chart or a retry CTA as a loading placeholder. Initialize request state as loading before the first render; when the request scope changes, treat the new scope as pending immediately, before its effect runs.
+
+- Use `variant="page"` for a report or lazy module, `block` for a table/card/modal region, and `inline` for a pending value. Do not add a separate spinner, loading illustration, progress bar or text-only data loader. Button progress for an explicit save/download action is a separate interaction.
+- Shared-source modules declare `requiredDatasets` in `src/modules/moduleRegistry.jsx`. `App.jsx` tracks pending sources independently; `ModuleSurfaceOutlet` guards reports before mounting their empty states. Core KPI readiness must not release Ca 1 or Leadtime while those sources are pending. Independent regions such as weather continue to use their own request state.
+- Keep existing source data visible during background refresh. Decide readiness from unfiltered source rows; filters with no matches are a valid empty result after the source is ready. For partial data, skeleton only the missing region/value.
+- Show empty copy only when the current request has completed successfully with no matching rows. Errors must expose an error/retry state and release the skeleton; stale rows remain visible when available. Reject responses from an obsolete request scope.
+- Preserve the shared component's ARIA status/busy label, theme tokens, 150ms anti-flicker delay and reduced-motion behavior. Put block skeletons inside `td`, never directly inside `tbody`; use inline skeletons in text containers.
+- Review new data surfaces with delayed data, successful empty data, failure/retry, partial sources, changed filters and refresh with existing data. See [loading-states.md](docs/loading-states.md) for the implementation contract and regression checks.
+
 ### Buttons
 - **Shape:** Primary and secondary compact actions are pills; rectangular KPI/comment actions use the control radius.
 - **Primary:** Cyan background, white text, and a restrained raised shadow. Use once for the strongest local action.

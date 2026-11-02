@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import IconButton from './ui/IconButton';
 import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
+import LoadingScreen from './LoadingScreen.jsx';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 import { formatRankingHubName } from '../utils/rankingHubName.js';
 import { CLIENT_ORDER } from '../utils/clientLabels';
@@ -118,7 +119,7 @@ export default function Header({
         {/* Phones reload with the browser's own pull-to-refresh; the stale-data
             alert is what tells people a new sync is worth doing. */}
         <HeaderPopover {...sharedPopover} className="desktop-header-action" name="sync" icon="RefreshCw" label="Đồng bộ dữ liệu" summary={syncSummary} align="right" status={isLoading ? 'is-loading' : syncStatus?.kind === 'error' ? 'is-error' : 'is-current'}>
-          <dl className="sync-details"><div><dt>{hasDistinctFdDate ? 'Pickup/Giao tới' : 'Dữ liệu tới'}</dt><dd>{d1DateFormatted || 'Chưa có dữ liệu'}</dd></div>{hasDistinctFdDate && <div><dt>FD tới</dt><dd>{fdD1DateFormatted}</dd></div>}<div><dt>Đồng bộ gần nhất</dt><dd>{lastSyncedLabel || 'Chưa xác định'}</dd></div></dl>
+          <dl className="sync-details"><div><dt>{hasDistinctFdDate ? 'Pickup/Giao tới' : 'Dữ liệu tới'}</dt><dd>{d1DateFormatted || (isLoading ? <LoadingScreen variant="inline" /> : 'Chưa có dữ liệu')}</dd></div>{hasDistinctFdDate && <div><dt>FD tới</dt><dd>{fdD1DateFormatted}</dd></div>}<div><dt>Đồng bộ gần nhất</dt><dd>{lastSyncedLabel || (isLoading ? <LoadingScreen variant="inline" /> : 'Chưa xác định')}</dd></div></dl>
           {syncStatus?.kind === 'error' && <p className="sync-error-note">Chưa tải được dữ liệu mới. Bạn có thể thử đồng bộ lại.</p>}
           <button type="button" className="nav-btn-sleek popover-sync-action" onClick={onRetryData} disabled={isLoading}>{isLoading ? 'Đang đồng bộ…' : 'Đồng bộ ngay'}</button>
         </HeaderPopover>

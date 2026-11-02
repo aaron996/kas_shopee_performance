@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, CalendarDays, CheckCheck, MapPin, UsersRound, Warehouse } from 'lucide-react';
 import IconButton from '../../components/ui/IconButton';
@@ -15,6 +16,7 @@ const MOBILE_LAYOUT = '(max-width: 600px)';
 const ALL_REGION_COUNT = Object.values(MIEN_REGIONS).flat().length;
 
 const dateLabel = date => date ? formatDateLabel(date).replace('\n', ' ') : 'Chưa có dữ liệu';
+const metricDataset = id => id === 'fd' ? 'fd' : ['d1st', 'dodr'].includes(id) ? 'deli' : 'pick';
 const percentage = value => formatPct(value).replace('.', ',');
 
 // The header filters are icon-only at every width, so the numbers on this tab
@@ -46,7 +48,7 @@ function ScopeStrip({ filters, allHubTypes }) {
   </div>;
 }
 
-export default function OperationsHome({ cards, risks, riskTotal, riskDates, onOpenOps, weatherProps, dataNotice, mtdFilters, mtdScope, allHubTypes }) {
+export default function OperationsHome({ cards, risks, riskTotal, riskDates, onOpenOps, weatherProps, dataNotice, mtdFilters, mtdScope, allHubTypes, loadingDatasets = {} }) {
   const [metric, setMetric] = useState('p1st');
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_LAYOUT).matches);
   const trendRef = useRef(null);
@@ -54,6 +56,9 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
   const card = cards.find(item => item.id === metric) || cards[0];
   const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1) || cards.find(item => item.historyDates.length)?.historyDates.at(-1);
   const selectedDate = card?.historyDates.at(-1);
+  const metricLoading = loadingDatasets[metricDataset(card?.id)];
+  const hubsLoading = loadingDatasets.pick || loadingDatasets.deli;
+  const displayCards = mtdCards.map(item => ({ ...item, mtdStatus: loadingDatasets[metricDataset(item.id)] ? 'loading' : item.mtdStatus }));
   const hasData = card?.d1?.tot > 0 && Number.isFinite(card?.d1?.pct);
   const selectedStatus = !hasData || card.target == null ? 'neutral' : card.d1.pct >= card.target ? 'good' : 'bad';
   // Every card repeating the heading's own range is noise; only a KPI whose data
@@ -97,7 +102,7 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
         <span className="overview-data-date"><CalendarDays aria-hidden="true" />MTD · {commonDate ? `${dateLabel(`${commonDate.slice(0, 7)}-01`)} – ${dateLabel(commonDate)}` : 'Chưa có dữ liệu'}</span>
         <IconButton icon="Info" label="Cách đọc KPI" detail="Lũy kế từ đầu tháng đến ngày dữ liệu mới nhất của từng KPI, theo bộ lọc đang chọn. Tỷ lệ bằng tổng tử chia tổng mẫu. Chọn KPI để xem xu hướng từng ngày; — là chưa có số liệu MTD." />
       </div>
-      <OverviewKpiCards cards={mtdCards} selectedMetric={card?.id} onSelect={selectMetric} headingRange={headingRange} />
+      <OverviewKpiCards cards={displayCards} selectedMetric={card?.id} onSelect={selectMetric} headingRange={headingRange} />
       {mtdCards.some(item => item.mtdRefreshError) && <div role="status">Đang hiển thị số MTD đã lưu; chưa cập nhật được số mới. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
       {mtdCards.some(item => item.mtdStatus === 'error') && <div role="alert">Không tải được số liệu MTD. <button type="button" className="overview-table-link" onClick={retry}>Thử lại</button></div>}
     </section>}
@@ -109,28 +114,28 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
     {card && <div className="overview-analysis">
       <section id="overview-trend" ref={trendRef} className="overview-trend-panel" aria-labelledby="overview-trend-title">
         <div className="overview-section-heading">
-          <div><h2 id="overview-trend-title">Xu hướng {card.title}</h2><p>{card.historyDates.length} ngày có dữ liệu gần nhất</p></div>
+          <div><h2 id="overview-trend-title">Xu hướng {card.title}</h2><p>{metricLoading ? <LoadingScreen variant="inline" /> : `${card.historyDates.length} ngày có dữ liệu gần nhất`}</p></div>
           <button type="button" className="overview-table-link" onClick={() => onOpenOps({ metricKey: card.id })} aria-label={`Mở bảng ${card.title}`}>
             Xem bảng <ArrowUpRight aria-hidden="true" />
           </button>
         </div>
-        <div className="overview-trend-summary">
+        {metricLoading ? <LoadingScreen /> : <><div className="overview-trend-summary">
           <strong className={`is-${selectedStatus}`}>{hasData ? percentage(card.d1.pct) : '—'}</strong>
           <span>{dateLabel(selectedDate)}<small>{card.target != null ? `Target ≥${card.target}%` : 'Không áp dụng target'}</small></span>
         </div>
         <OverviewTrend key={card.id} card={card} />
-        <div className={`overview-chart-caption ${selectedStatus === 'bad' ? 'has-bad-trend' : ''}`}><span><i aria-hidden="true" />{card.title}</span>{card.target != null && <span><i className="is-target" aria-hidden="true" />Target {card.target}%</span>}</div>
+        <div className={`overview-chart-caption ${selectedStatus === 'bad' ? 'has-bad-trend' : ''}`}><span><i aria-hidden="true" />{card.title}</span>{card.target != null && <span><i className="is-target" aria-hidden="true" />Target {card.target}%</span>}</div></>}
       </section>
 
       <section className="overview-hubs-panel" aria-labelledby="overview-hubs-title">
         <div className="overview-section-heading">
           <div><h2 id="overview-hubs-title">Hub cần theo dõi</h2><p>1st Pickup / 1st Deli · lượng trễ cao nhất{riskDateText && ` · ${riskDateText}`}</p></div>
           <span className="overview-hub-count"
-            aria-label={riskCapped ? `Hiển thị ${risks.length} trong ${riskTotal} Hub dưới target` : `${risks.length} Hub dưới target`}>
-            {riskCapped ? `${risks.length}/${riskTotal}` : risks.length}
+            aria-label={hubsLoading ? undefined : riskCapped ? `Hiển thị ${risks.length} trong ${riskTotal} Hub dưới target` : `${risks.length} Hub dưới target`}>
+            {hubsLoading ? <LoadingScreen variant="inline" /> : riskCapped ? `${risks.length}/${riskTotal}` : risks.length}
           </span>
         </div>
-        {risks.length ? <ol className="overview-hub-list">{risks.map((risk, index) => <li key={`${risk.hub}-${risk.sectionId}-${index}`}>
+        {hubsLoading ? <LoadingScreen /> : risks.length ? <ol className="overview-hub-list">{risks.map((risk, index) => <li key={`${risk.hub}-${risk.sectionId}-${index}`}>
           <button type="button" onClick={() => onOpenOps({ hub: risk.hub, region: risk.region, metricKey: risk.sectionId })}>
             <span className="overview-hub-top"><strong>{risk.hub}</strong><ArrowUpRight aria-hidden="true" /></span>
             <span className="overview-hub-meta">{risk.region} · {risk.metric}</span>

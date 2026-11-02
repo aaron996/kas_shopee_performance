@@ -50,6 +50,7 @@ export default function DailyRangeKpiTable({
   const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
+  const requestKey = `${dataset}:${range.from}:${range.to}:${attempt}`;
   const rangeDays = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86400000) + 1;
   const defaultShowVolume = rangeDays > 0 && rangeDays <= 7;
   // A new range restores its default; manual toggles only affect this selection.
@@ -59,19 +60,19 @@ export default function DailyRangeKpiTable({
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: 'loading', data: null, error: null });
+    setState({ key: requestKey, status: 'loading', data: null, error: null });
     fetchRows(client, dataset, range.from, range.to)
-      .then(data => { if (!cancelled) setState({ status: 'ready', data, error: null }); })
-      .catch(error => { if (!cancelled) setState({ status: 'error', data: null, error }); });
+      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data, error: null }); })
+      .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [dataset, range.from, range.to, attempt, fetchRows, client]);
+  }, [requestKey, dataset, range.from, range.to, attempt, fetchRows, client]);
 
   const matrix = useMemo(() => {
-    if (state.status !== 'ready') return null;
+    if (state.key !== requestKey || state.status !== 'ready') return null;
     return buildWeeklyMatrix({
       rows: state.data.rows, weeks: state.data.weeks, metricKey, clientFilter, selectedRegions, selectedHubTypes, labelFor: dayLabel
     });
-  }, [state, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
+  }, [state, requestKey, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
 
   const shell = body => (
     <div className="metric-block metric-block-sticky weekly-kpi-block">
@@ -91,7 +92,7 @@ export default function DailyRangeKpiTable({
     </div>
   );
 
-  if (state.status === 'loading') {
+  if (state.key !== requestKey || state.status === 'loading') {
     return shell(<LoadingScreen />);
   }
   if (state.status === 'error') {
