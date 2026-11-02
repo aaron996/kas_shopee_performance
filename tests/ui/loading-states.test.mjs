@@ -109,3 +109,33 @@ test('Reverse failures expose retry and completed empty data is not loading', ()
   assert.doesNotMatch(error, /loading-skeleton/);
   expectLoading(render(components.report, { ...props, dataLoading: true }));
 });
+
+test('PUD uses the shared default pickup table layout and motion hooks', () => {
+  const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC',
+    client_name: 'SPE Reverse', mau_pu: 0, ontime_pu_1st: 0, ontime_pu_opr: 0, pud: 1, mau_pud: 2 }],
+    deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
+  for (const metricKey of ['p1st', 'popr', 'pud']) {
+    const html = render(components.report, { ...props, focusTarget: { metricKey } });
+    for (const shared of [/detail-metric-toolbar/, /Copy bảng này thành ảnh/, /all-row-sticky/,
+      /mien-sticky-label/, /data-motion-id="all"/, /data-motion-id="region:HCM"/,
+      /hub-disclosure/, /data-latest-day/, /WTD \(CỘNG DỒN\)/, /Tốt nhất<br\/>6 tuần/, /Cùng ngày<br\/>tháng trước/]) {
+      assert.match(html, shared, `${metricKey}: ${shared}`);
+    }
+    assert.doesNotMatch(html, /weekly-kpi-table|weekly-kpi-expander/);
+  }
+});
+
+test('shared PUD daily/WTD preserves unknown samples and includes unassigned regions', () => {
+  const row = (date, hub, region, pud, mau_pud) => ({ report_date: date, hub, region, pud, mau_pud,
+    client_name: 'SPE Reverse', hub_type: 'BC', mau_pu: 0 });
+  const props = { deliRows: [], clientFilter: 'SPE Reverse', selectedHubTypes: ['BC'],
+    selectedRegions: Object.values(components.MIEN_REGIONS).flat(), focusTarget: { metricKey: 'pud' } };
+  const known = render(components.report, { ...props, pickRows: [row('2026-11-01','A','HCM',1,1), row('2026-11-01','B','',0,9)] });
+  assert.match(known, /10\.0%/);
+  assert.match(known, /Chưa rõ vùng/);
+  const unknown = render(components.report, { ...props, pickRows: [row('2026-10-31','A','HCM',1,null),row('2026-11-01','A','HCM',1,2)] });
+  assert.match(unknown, /50\.0%/);
+  assert.doesNotMatch(unknown, /100\.0%/);
+  assert.doesNotMatch(unknown, /heat heat-/);
+  assert.match(unknown, /<td[^>]*>–<\/td>/);
+});
