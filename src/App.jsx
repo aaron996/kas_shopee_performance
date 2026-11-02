@@ -843,6 +843,7 @@ export default function App() {
   const runtimeByModule = {
     guide: { onNavigate: setActiveTab },
     report1: {
+      userEmail,
       pickRows: filteredPickRows,
       deliRows: filteredDeliRows,
       fdRows: filteredFdRows,

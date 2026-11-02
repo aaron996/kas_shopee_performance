@@ -18,6 +18,8 @@ const addDays = (day, n) => {
 export default function WeeklyKpiTable({
   metricKey,
   title,
+  formattingRule = null,
+  formattingControl = null,
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
@@ -90,6 +92,7 @@ export default function WeeklyKpiTable({
           {isFiltered && <span className="kpi-badge weekly-kpi-badge">{visibleWeeks.length}/{allWeeks.length} tuần</span>}
         </div>
         {rangeFilter}
+        {formattingControl}
       </div>
       {body}
       {metricKey === 'pud' && <div className="table-legend"><div>{PUD_NOTE}</div></div>}
@@ -111,5 +114,5 @@ export default function WeeklyKpiTable({
     return shell(<div className="weekly-kpi-note">Chưa có dữ liệu theo tuần cho chỉ số này trong phạm vi đang chọn.</div>);
   }
 
-  return shell(<KpiMatrixTable matrix={matrix} />);
+  return shell(<KpiMatrixTable matrix={matrix} formattingRule={formattingRule} />);
 }
