@@ -3,7 +3,7 @@ import * as htmlToImage from 'html-to-image';
 import { ArrowRightLeft, X } from 'lucide-react';
 import { Check, Copy } from 'lucide';
 import { MorphIcon } from 'morphicons/react';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle } from '../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getContinuousColorStyle, getReportWeekLabel } from '../utils/dataProcessor';
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset';
 import { useToast } from './ui/Toast';
 import StatusNotice from './ui/StatusNotice';
@@ -241,11 +241,11 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
                 <th rowSpan="2" className="lbl lbl-2">{col1Label}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} style={{ borderRight: '1.5px solid rgba(255,255,255,0.4)' }}>
-                    TUẦN W-1 (TRỌN VẸN)
+                    {getReportWeekLabel(weekPrev.at(-1))}
                   </th>
                 )}
                 {weekCurBeforeD1.length > 0 && (
-                  <th colSpan={weekCurBeforeD1.length + 2}>TUẦN HIỆN TẠI</th>
+                  <th colSpan={weekCurBeforeD1.length + 2}>{getReportWeekLabel(d1Date)}</th>
                 )}
                 {/* WTD header group */}
                 <th colSpan="2" rowSpan="2" style={{ background: 'var(--action-primary-deep)', borderLeft: '1.5px solid rgba(255,255,255,0.4)', verticalAlign: 'middle' }}>
