@@ -4,6 +4,7 @@ import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchDailyRangeRows, datasetFor, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
+import { PUD_NOTE } from '../../utils/pud';
 
 // Cụm lọc khoảng ngày của "Theo ngày". `bounds` là ngày đầu/cuối có thể chọn của chỉ số đang xem.
 export function DayRangeFilter({ range, onChange, bounds }) {
@@ -89,6 +90,7 @@ export default function DailyRangeKpiTable({
         </button>
       </div>
       {body}
+      {metricKey === 'pud' && <div className="table-legend"><div>{PUD_NOTE}</div></div>}
     </div>
   );
 

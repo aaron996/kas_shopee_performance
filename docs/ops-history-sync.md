@@ -199,7 +199,7 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
 
 ## Hiển thị Shopee Reverse trong app
 
-- Client `SPE Reverse` (nhãn "Shopee Reverse") chỉ có Pick (1st Pickup, OPR); Deli/FD không áp dụng nên tab giao hàng và FD bị ẩn.
+- Client `SPE Reverse` (nhãn "Shopee Reverse") có 1st Pickup, OPR và PUD; Deli/FD không áp dụng nên tab giao hàng và FD bị ẩn.
 - `kas_reverse_history` chỉ `service_role` đọc được; app đọc qua ba RPC có thêm dataset `reverse`
   (`get_kas_weekly_compact`, `get_kas_daily_compact`, `get_kas_daily_range_compact`) trong
   `supabase/migrations/20261019120000_kas_reverse_rpc_datasets.sql`. Tuần được cộng trực tiếp từ bảng ngày

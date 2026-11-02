@@ -109,7 +109,15 @@ export const normalizeDashboardRows = (rows) => reassignGxtMienRegion(reassignKa
 // The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
 // `vung_giao` instead of `region`.
 export function filterRowsByScope(rows, regions, hubTypes, regionKey = 'region') {
-  return rows.filter(r => regions.includes(r[regionKey]) && hubTypes.includes(getHubType(r)));
+  return rows.filter(r => matchesRegionScope(r, regions, regionKey) && hubTypes.includes(getHubType(r)));
+}
+
+// Reverse source can lack a region. Keep those rows in the all-region total,
+// without guessing a geographic assignment; a specific region excludes them.
+export function matchesRegionScope(row, regions, regionKey = 'region') {
+  if (!regions || regions.includes(row[regionKey])) return true;
+  return row.client_name === 'SPE Reverse' && !String(row[regionKey] || '').trim()
+    && Object.values(MIEN_REGIONS).flat().every(region => regions.includes(region));
 }
 
 // Every hub type present in the loaded rows — what "Loại Hub: Tất cả" means.

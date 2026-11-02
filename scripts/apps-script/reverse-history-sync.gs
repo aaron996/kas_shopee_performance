@@ -21,7 +21,7 @@ const REVERSE_COLUMNS = [
   {name:'report_date',type:'date'},{name:'region',type:'text'},{name:'hub',type:'text'},
   {name:'hub_type',type:'text'},{name:'client_name',type:'text'},
   {name:'mau_pu',type:'numeric'},{name:'ontime_pu_1st',type:'numeric'},{name:'ontime_pu_opr',type:'numeric'},
-  {name:'pud',type:'numeric'}
+  {name:'pud',type:'numeric'},{name:'mau_pud',type:'numeric'}
 ];
 
 /** Một lệnh replace cho [from, to] với rows (mảng giá trị theo REVERSE_COLUMNS). */

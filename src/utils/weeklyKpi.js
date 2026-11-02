@@ -3,9 +3,10 @@
 // mang đúng tên cột của dòng hàng ngày (report_date là thứ Hai của tuần) nên chạy lại
 // được normalizeDashboardRows (KA, CK, GXT) rồi cộng tuần như bình thường.
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset.js';
-import { normalizeDashboardRows, getHubType, getWeekNumber, formatShortDate, formatDateLabel } from './dataProcessor.js';
+import { normalizeDashboardRows, getHubType, getWeekNumber, formatShortDate, formatDateLabel, matchesRegionScope } from './dataProcessor.js';
 import { getHubIdentityKey } from './performanceRanking.js';
 import { REVERSE_CLIENT } from './clientLabels.js';
+import { pudCounts } from './pud.js';
 
 export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trước đó
 
@@ -13,6 +14,7 @@ export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trướ
 export const WEEKLY_METRICS = {
   p1st: { dataset: 'pick', title: '1ST PICKUP', total: 'mau_pu', ontime: 'ontime_pu_1st', target: 97 },
   popr: { dataset: 'pick', title: 'OPR', total: 'mau_pu', ontime: 'ontime_pu_opr', target: 90 },
+  pud: { dataset: 'reverse', title: 'PUD', total: 'mau_pud', ontime: 'pud', target: null },
   d1st: { dataset: 'deli', title: '1ST DELI', total: 'mau_deli', ontime: 'ontime_deli_1st', target: 95 },
   dodr: { dataset: 'deli', title: 'ODR', total: 'mau_deli', ontime: 'ontime_deli_odr', target: 90 },
   fd: { dataset: 'fd', title: 'FD', total: 'mau_fd', ontime: 'fd_hoan_thanh', target: null, isFd: true }
@@ -124,7 +126,9 @@ export function weekLabel(start, days) {
   };
 }
 
-const toStat = ({ tot, ont }) => ({ tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null });
+const toStat = ({ tot, ont, incomplete }) => incomplete
+  ? { tot: null, ont: null, pct: null }
+  : { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null };
 
 // Dựng ma trận Toàn quốc > Miền > Vùng > Hub x tuần (hoặc x ngày khi truyền labelFor = dayLabel).
 export function buildWeeklyMatrix({
@@ -143,17 +147,20 @@ export function buildWeeklyMatrix({
   const hubInfo = new Map();
   const hubStats = new Map();
   const weekDays = weeks.map(() => 0);
+  let matched = 0;
 
   rows.forEach(r => {
     const index = weekIndex.get(r.report_date);
     if (index === undefined) return;
     if (clientFilter !== 'ALL' && r.client_name !== clientFilter) return;
-    if (selectedRegions && !selectedRegions.includes(r.region)) return;
+    if (!matchesRegionScope(r, selectedRegions)) return;
     if (selectedHubTypes && !selectedHubTypes.includes(getHubType(r))) return;
 
-    const tot = num(r[metric.total]);
-    const ont = num(r[metric.ontime]);
-    const region = r.region;
+    matched++;
+    const counts = metricKey === 'pud' ? pudCounts(r) : { tot: num(r[metric.total]), ont: num(r[metric.ontime]) };
+    const incomplete = counts.tot === null || counts.ont === null;
+    const tot = counts.tot || 0, ont = counts.ont || 0;
+    const region = r.region || 'Chưa rõ vùng';
     const mien = MIEN_ORDER.find(m => MIEN_REGIONS[m].includes(region)) || 'Miền Khác';
     weekDays[index] = Math.max(weekDays[index], num(r.days));
 
@@ -165,6 +172,7 @@ export function buildWeeklyMatrix({
     const hubId = metric.isFd ? `${region}::${hubName}` : getHubIdentityKey(r);
     if (!hubInfo.has(hubId)) hubInfo.set(hubId, { id: hubId, region, hub: hubName, hubType: metric.isFd ? '' : getHubType(r) });
     const h = bucket(hubStats, hubId)[index]; h.tot += tot; h.ont += ont;
+    if (incomplete) [all[index], m, g, h].forEach(stat => { stat.incomplete = true; });
   });
 
   const last = weeks.length - 1;
@@ -218,6 +226,6 @@ export function buildWeeklyMatrix({
     all: allStats,
     miens,
     maxPct,
-    empty: allStats.every(s => s.tot === 0)
+    empty: metricKey === 'pud' ? matched === 0 : allStats.every(s => s.tot === 0)
   };
 }

@@ -2,6 +2,8 @@ import LoadingScreen from '../../components/LoadingScreen.jsx';
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import WeeklyKpiTable from './WeeklyKpiTable';
+import PudKpiTable from './PudKpiTable';
+import { pudCounts } from '../../utils/pud';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -18,7 +20,9 @@ import { supabase } from '../../utils/supabaseClient';
 import { REVERSE_CLIENT } from '../../utils/clientLabels';
 import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange } from '../../utils/weeklyKpi';
 
-const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
+const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', 'PUD': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
+const REVERSE_EXPORT_METRICS = ['1st Pickup', 'OPR', 'PUD'];
+const DEFAULT_EXPORT_METRICS = ['1st Pickup', 'OPR', '1st Deli', 'ODR', 'FD'];
 const EXPORT_MODES = [{ value: 'day', label: 'Theo ngày' }, { value: 'week', label: 'Theo tuần' }];
 const addIsoDays = (day, n) => {
   const d = new Date(`${day}T00:00:00Z`);
@@ -29,6 +33,7 @@ const addIsoDays = (day, n) => {
 const WEEKLY_TITLES = {
   p1st: 'Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)',
   popr: 'Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)',
+  pud: 'PUD · SPE Reverse',
   d1st: 'Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)',
   dodr: 'Mục 1.4: Tỷ lệ giao hàng tổng thể (ODR)',
   fd: 'Mục 1.5: Tỷ lệ hoàn thành FD (FD)'
@@ -37,6 +42,7 @@ const WEEKLY_TITLES = {
 export default function Report1MienVungHub({
   dataLoading = false,
   loadingDatasets = {},
+  sourceError = null,
   pickRows,
   deliRows,
   fdRows = [],
@@ -63,14 +69,18 @@ export default function Report1MienVungHub({
   weatherProps
 }) {
   const showToast = useToast();
+  const pickOnly = clientFilter === REVERSE_CLIENT;
   const [expandedRegions, setExpandedRegions] = useState(() => {
     return focusTarget?.region ? { [focusTarget.region]: true } : {};
   });
   const [showHomeBtn, setShowHomeBtn] = useState(false);
   const [highlightedSection, setHighlightedSection] = useState(null);
-  const [activeTableTab, setActiveTableTab] = useState(() => {
+  const [requestedTableTab, setActiveTableTab] = useState(() => {
     return focusTarget?.metricKey || 'p1st';
   });
+  const activeTableTab = pickOnly
+    ? (['p1st', 'popr', 'pud'].includes(requestedTableTab) ? requestedTableTab : 'p1st')
+    : (requestedTableTab === 'pud' ? 'p1st' : requestedTableTab);
   // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
   const [viewMode, setViewMode] = useState('day');
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
@@ -96,12 +106,6 @@ export default function Report1MienVungHub({
   const filteredFd = useMemo(() => {
     return clientFilter === 'ALL' ? fdRows : fdRows.filter(r => r.client_name === clientFilter);
   }, [fdRows, clientFilter]);
-
-  // Reverse chỉ có Pick: giữ bảng ở nhóm lấy hàng.
-  const pickOnly = clientFilter === REVERSE_CLIENT;
-  useEffect(() => {
-    if (pickOnly && activeTableTab !== 'p1st' && activeTableTab !== 'popr') setActiveTableTab('p1st');
-  }, [pickOnly, activeTableTab]);
 
   const previousTableTab = useRef(null);
 
@@ -469,11 +473,12 @@ export default function Report1MienVungHub({
   const EXPORT_METRIC_DEFS = {
     '1st Pickup': { tot: r => getRowVal(r, 'mau_pu'), ont: r => getRowVal(r, 'ontime_pu_1st') },
     'OPR': { tot: r => getRowVal(r, 'mau_pu'), ont: r => getRowVal(r, 'ontime_pu_opr') },
+    'PUD': { tot: r => pudCounts(r).tot, ont: r => pudCounts(r).ont },
     '1st Deli': { tot: r => getRowVal(r, 'mau_deli', 'mau_del'), ont: r => getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') },
     'ODR': { tot: r => getRowVal(r, 'mau_deli', 'mau_del'), ont: r => getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr') },
     'FD': { tot: r => getRowVal(r, 'mau_fd'), ont: r => getRowVal(r, 'fd_hoan_thanh') }
   };
-  const EXPORT_METRICS = Object.keys(EXPORT_METRIC_DEFS);
+  const EXPORT_METRICS = pickOnly ? REVERSE_EXPORT_METRICS : DEFAULT_EXPORT_METRICS;
   // Giá trị trống vẫn phải là một lựa chọn lọc, nếu không dòng đó bị loại khỏi CSV (hay gặp ở FD).
   const EXPORT_BLANK = '(Không xác định)';
   const orBlank = (v) => v || EXPORT_BLANK;
@@ -484,7 +489,7 @@ export default function Report1MienVungHub({
   const buildExportSources = (pick, deli, fd) => {
     const src = (metrics, r, hub) => metrics.map(metric => ({ metric, r, hub: orBlank(hub), hubType: orBlank(getHubType(r)) }));
     return [
-      ...pick.flatMap(r => src(['1st Pickup', 'OPR'], r, r.hub)),
+      ...pick.flatMap(r => src(r.client_name === REVERSE_CLIENT ? ['1st Pickup', 'OPR', 'PUD'] : ['1st Pickup', 'OPR'], r, r.hub)),
       ...deli.flatMap(r => src(['1st Deli', 'ODR'], r, r.hub)),
       ...fd.flatMap(r => src(['FD'], r, r.deliverywh))
     ];
@@ -496,12 +501,12 @@ export default function Report1MienVungHub({
     const clients = uniq(x => orBlank(x.r.client_name));
     return [
       { key: 'client', label: 'Client', options: clients, initial: clientFilter === 'ALL' ? undefined : [clientFilter] },
-      { key: 'metric', label: 'Loại chỉ số', options: EXPORT_METRICS.map(v => ({ value: v, label: v })) },
+      { key: 'metric', label: 'Loại chỉ số', options: EXPORT_METRICS.map(v => ({ value: v, label: v })), initial: activeTableTab === 'pud' ? ['PUD'] : undefined },
       { key: 'region', label: 'Vùng', options: uniq(x => orBlank(x.r.region)) },
       { key: 'hubType', label: 'Loại hub (WH type)', options: uniq(x => x.hubType) },
       { key: 'hub', label: 'Hub / Kho giao', options: uniq(x => x.hub) }
     ];
-  }, [exportSources, clientFilter]);
+  }, [exportSources, clientFilter, EXPORT_METRICS, activeTableTab]);
   const exportDateRange = useMemo(() => {
     const d = exportSources.map(x => x.r.report_date).filter(Boolean).sort();
     if (!d.length) return null;
@@ -540,9 +545,9 @@ export default function Report1MienVungHub({
       const def = EXPORT_METRIC_DEFS[metric];
       const tot = def.tot(r);
       const ont = def.ont(r);
-      const pct = tot > 0 ? ((ont / tot) * 100).toFixed(2) : '0';
+      const pct = tot > 0 && ont !== null ? `${((ont / tot) * 100).toFixed(2)}%` : (metric === 'PUD' ? '–' : '0%');
       const dateCols = weekly ? [`Tuần ${getWeekNumber(r.report_date)}`, r.report_date, getRowVal(r, 'days')] : [r.report_date];
-      csvRows.push([metric, orBlank(r.client_name), orBlank(r.region), hubType, hub, ...dateCols, tot, ont, `${pct}%`].map(csvCell).join(','));
+      csvRows.push([metric, orBlank(r.client_name), orBlank(r.region), hubType, hub, ...dateCols, tot, ont, pct].map(csvCell).join(','));
     });
 
     const context = {
@@ -1278,6 +1283,8 @@ export default function Report1MienVungHub({
   const activeDayRange = viewMode === 'day' && dayRangeBounds ? resolveDayRange(dayRange, dayRangeBounds) : null;
 
   const metricTables = {
+    pud: () => <PudKpiTable rows={filteredPick} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes}
+      rangeFilter={dayRangeBounds && <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />} />,
     p1st: () => renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st'),
     popr: () => renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr'),
     d1st: () => renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st'),
@@ -1288,6 +1295,12 @@ export default function Report1MienVungHub({
   if (dataLoading) return overview
     ? <OperationsHome cards={[]} risks={[]} onOpenOps={onOpenOps} weatherProps={weatherProps} mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes} dataNotice={<LoadingScreen variant="page" />} />
     : <LoadingScreen variant="page" />;
+
+  if (sourceError && !pD1) return <StatusNotice>
+    <strong>Không tải được dữ liệu SPE Reverse</strong>
+    <p>Dữ liệu PUD chưa tải được. Vui lòng thử lại.</p>
+    <button type="button" className="nav-btn-sleek" onClick={onRetryData}>Thử lại</button>
+  </StatusNotice>;
 
   if (snapshotMetric) return (
     <div className={`density-${density} kpi-tab-container`}>
@@ -1335,6 +1348,8 @@ export default function Report1MienVungHub({
 
   return (
     <div className={`ops-workspace ${isFullscreen ? 'fullscreen-mode-active' : ''}`}>
+      {sourceError && <StatusNotice><p>Chưa tải được dữ liệu Reverse mới. Đang giữ số liệu đã tải trước đó.</p>
+        <button type="button" className="nav-btn-sleek" onClick={onRetryData}>Thử lại</button></StatusNotice>}
       {/* Floating Exit Fullscreen Button */}
       {isFullscreen && (
         <button
@@ -1397,6 +1412,9 @@ export default function Report1MienVungHub({
             <button role="tab" id="ops-tab-popr" aria-selected={activeTableTab === 'popr'} aria-controls="ops-metric-panel" tabIndex={activeTableTab === 'popr' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'popr' ? 'active' : ''}`} onClick={() => setActiveTableTab('popr')}>
               OPR
             </button>
+            {pickOnly && <button role="tab" id="ops-tab-pud" aria-selected={activeTableTab === 'pud'} aria-controls="ops-metric-panel"
+              tabIndex={activeTableTab === 'pud' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'pud' ? 'active' : ''}`}
+              onClick={() => setActiveTableTab('pud')}>PUD</button>}
           </div>
           {/* Reverse chỉ có dữ liệu Pick: không có nhóm giao hàng và FD. */}
           {!pickOnly && (<>
