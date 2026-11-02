@@ -5,9 +5,9 @@
  *
  * 1. Backfill một lần: BI ghi kết quả docs/sql/pick_reverse_backfill_20260621.sql vào tab reverse_backfill_tmp (header đúng tên
  *    cột của SELECT cuối), rồi chạy backfillReverseHistory(). Chỉ nhận ngày từ 2026-06-21 đến hôm qua, có ngày ngoài khoảng
- *    thì từ chối cả tab. Mỗi tuần một lệnh replace (xoá rồi chèn đúng các ngày của tuần đó) nên chạy lại an toàn.
+ *    thì từ chối cả tab. Mỗi tuần một lệnh upsert: thêm khoá mới, ghi đè số mới khi trùng khoá, không xoá dòng cũ.
  * 2. Hằng ngày: BI ghi kết quả docs/sql/pick_reverse_14d.sql vào tab reverse, đặt trigger hằng ngày cho syncReverseHistory().
- *    Replace D-14..D-1 trong bảng lịch sử (khác Pick: dòng nào không còn trong nguồn thì bị xoá). Nguồn phải có đủ ngày hôm
+ *    Upsert D-14..D-1 vào bảng lịch sử; dòng nào không còn trong nguồn vẫn được giữ. Nguồn phải có đủ ngày hôm
  *    qua và không có ngày ngoài cửa sổ, nếu không thì không ghi gì.
  */
 const REVERSE_TAB = 'reverse';
@@ -24,12 +24,12 @@ const REVERSE_COLUMNS = [
   {name:'pud',type:'numeric'},{name:'mau_pud',type:'numeric'}
 ];
 
-/** Một lệnh replace cho [from, to] với rows (mảng giá trị theo REVERSE_COLUMNS). */
-function reverseReplaceWindow_(from, to, rows, key) {
+/** Upsert rows trong [from, to]; không xoá dòng không còn trong nguồn. */
+function reverseUpsertWindow_(from, to, rows, key) {
   const objects = rows.map(row => {
     const o = {}; REVERSE_COLUMNS.forEach((c,j) => {o[c.name]=row[j];}); return o;
   });
-  return opsDeltaRpc_('replace_kas_reverse_history',{date_from:from,date_to:to,rows:objects},key);
+  return opsDeltaRpc_('upsert_kas_reverse_history',{date_from:from,date_to:to,rows:objects},key);
 }
 
 function reverseRows_(sheet, timezone) {
@@ -38,7 +38,7 @@ function reverseRows_(sheet, timezone) {
   return opsDeltaNormalizeRows_(values[0].map(h => String(h).trim()),values.slice(1),REVERSE_COLUMNS,timezone);
 }
 
-/** Hằng ngày: replace D-14..D-1 từ tab reverse. */
+/** Hằng ngày: upsert D-14..D-1 từ tab reverse. */
 function syncReverseHistory() {
   const key = opsHistoryKey_();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -52,8 +52,8 @@ function syncReverseHistory() {
   if (days[0] < lo || days[days.length-1] !== hi) {
     throw new Error('Tab '+REVERSE_TAB+' chưa đúng cửa sổ '+lo+'..'+hi+' (nguồn '+days[0]+'..'+days[days.length-1]+'); không ghi gì');
   }
-  const result = reverseReplaceWindow_(lo,hi,rows,key);
-  Logger.log(JSON.stringify({tab:REVERSE_TAB,mode:'daily',window:[lo,hi],result:result}));
+  const result = reverseUpsertWindow_(lo,hi,rows,key);
+  Logger.log(JSON.stringify({tab:REVERSE_TAB,mode:'daily-upsert',window:[lo,hi],result:result}));
 }
 
 /** Backfill một lần từ tab reverse_backfill_tmp, từng tuần. Hết ngân sách thời gian thì dừng và báo chạy lại. */
@@ -89,7 +89,7 @@ function backfillReverseHistory() {
     }
     const monday = order[i], sunday = opsHistoryShift_(monday,-6);
     const from = monday < lo ? lo : monday, to = sunday > hi ? hi : sunday;
-    const result = reverseReplaceWindow_(from,to,weeks[monday],key);
+    const result = reverseUpsertWindow_(from,to,weeks[monday],key);
     done.push(monday);
     Logger.log(JSON.stringify({tab:REVERSE_BACKFILL_TAB,week_start:monday,window:[from,to],result:result}));
   }

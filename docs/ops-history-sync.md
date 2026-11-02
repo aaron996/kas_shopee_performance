@@ -169,6 +169,9 @@ của luồng khác, không dùng chung.
 
 ## SPE Reverse (KAS-291, test)
 
+> Cập nhật 02/11/2026: Reverse hiện dùng **upsert**, trùng khóa ghi đè số mới và giữ dòng vắng khỏi sheet.
+> Mô tả replace bên dưới là lịch sử triển khai 19/10; rule và migration hiện tại ở [reverse-pud.md](reverse-pud.md).
+
 Channel SPE Reverse (client 224845) có luồng riêng, không đi qua `kas_pick_data`/`kas_pick_history` vì có thêm cột `pud` và rule
 riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây là bản test dữ liệu.
 

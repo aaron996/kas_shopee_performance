@@ -9,7 +9,8 @@ Các dòng có `mau_pu = 0` vẫn có thể có mẫu PUD.
 - File Apps Script `reverse-history-sync.gs`: `REVERSE_COLUMNS` nhận cả `pud` và `mau_pud` theo tên header, không theo vị trí.
 - Migration `20261102035351_reverse_pud_denominator.sql` thêm cột nullable `mau_pud` vào `public.kas_reverse_history` và mở rộng hàm replace cùng ba RPC compact theo ngày/tuần/export. Bảng không partition (đã kiểm tra catalog live); cửa sổ ngày dùng `report_date`.
 - Bảng và quyền truy cập giữ nguyên: bảng chỉ service role, các RPC đọc cho authenticated/service role. Không mở thêm quyền anon.
-- Script vẫn replace D-14..D-1 trong một transaction; không tạo lại hay đổi lịch trigger. Writer cũ thiếu khóa `mau_pud` được nhận khi cửa sổ chưa có mẫu mới; sau khi có mẫu mới, RPC từ chối writer cũ để tránh xóa mẫu đã biết.
+- Luồng hiện tại upsert D-14..D-1 trong một transaction: khóa mới được thêm, khóa trùng được cập nhật số mới, dòng không còn trên sheet vẫn được giữ. Chạy lại dữ liệu không đổi không ghi lại timestamp. Không tạo lại hay đổi lịch trigger.
+- Migration `20261102043310_reverse_history_upsert.sql` bổ sung `upsert_kas_reverse_history`; tên RPC cũ `replace_kas_reverse_history` chuyển tiếp sang cùng hàm upsert để script đã triển khai cũng không còn xóa cửa sổ dữ liệu. Writer thiếu khóa `mau_pud` vẫn bị chặn nếu có nguy cơ xóa mẫu đã biết.
 
 ## App
 
@@ -42,3 +43,14 @@ và tải lần lượt các dataset đã chọn.
 - Kiểm tra chính: `npm test`, `npm run test:loading`, `npm run build`,
   `node --test scripts/apps-script/reverse-history-sync.test.mjs`.
 - Backend additive tương thích app cũ. Bản app mới cần được merge/deploy trước khi tab PUD xuất hiện trên production.
+
+## Thay đổi luồng ghi ngày 02/11/2026
+
+Theo yêu cầu mới, Reverse dùng upsert thay cho replace cửa sổ. Khóa là
+`(report_date, region, hub, hub_type, client_name)`; NULL trong khóa được đối chiếu bằng unique constraint `NULLS NOT DISTINCT`.
+Các số `mau_pu`, `ontime_pu_1st`, `ontime_pu_opr`, `pud`, `mau_pud` được ghi đè từ nguồn khi thay đổi.
+Không cộng dồn các số của dòng trùng và không xóa dòng vắng mặt trong lần đồng bộ mới.
+
+Các mô tả replace và số dòng xóa ở phần kiểm tra trước đó là kết quả của lần chạy trước khi đổi luồng.
+Mã script trong repo gọi RPC upsert mới. Script đang triển khai vẫn có thể gọi tên RPC cũ;
+wrapper ở database đảm bảo hành vi upsert cho cả hai tên.

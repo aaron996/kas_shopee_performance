@@ -52,6 +52,9 @@ await db.exec('set role authenticated');
 await rejects(db.query(`select public.replace_kas_reverse_history('2026-10-05', '2026-10-05', '[]'::jsonb)`), /permission denied/, 'authenticated không gọi được RPC');
 await db.exec('reset role');
 
+// Current script uses upsert; the earlier assertions exercise the historical migration.
+await db.exec(readFileSync('supabase/migrations/20261102035351_reverse_pud_denominator.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/20261102043310_reverse_history_upsert.sql', 'utf8'));
 // --- Apps Script ---
 const calls = [];
 const logs = [];
@@ -99,7 +102,7 @@ check(calls.length === 0, 'từ chối thì không gọi RPC');
 setTab('reverse_backfill_tmp', fill('2026-06-21', 2), fill('2026-06-22', 3), fill('2026-06-28', 1), fill('2026-10-18', 2));
 logs.length = 0;
 ctx.backfillReverseHistory();
-check(calls.length === 3 && calls.every(c => c.rpc === 'replace_kas_reverse_history'), 'mỗi tuần một lệnh replace');
+check(calls.length === 3 && calls.every(c => c.rpc === 'upsert_kas_reverse_history'), 'mỗi tuần một lệnh upsert');
 check(calls[0].date_from === '2026-06-21' && calls[0].date_to === '2026-06-21' && calls[0].rows.length === 2, 'tuần đầu bị cắt ở 21/06');
 check(calls[1].date_from === '2026-06-22' && calls[1].date_to === '2026-06-28' && calls[1].rows.length === 4, 'tuần 22/06 đủ 7 ngày');
 check(calls[2].date_from === '2026-10-12' && calls[2].date_to === '2026-10-18' && calls[2].rows[0].pud === 9, 'tuần cuối đến hôm qua, có pud');
