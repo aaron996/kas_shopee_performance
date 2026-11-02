@@ -11,7 +11,7 @@ import { ChevronRight, ArrowUp, X, Copy } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getReportWeekLabel, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
@@ -988,8 +988,9 @@ export default function Report1MienVungHub({
       return shown > 0 ? "up" : shown < 0 ? "down" : "flat";
     };
 
-    const prevWeekNum = weekPrev.length > 0 ? getWeekNumber(weekPrev[weekPrev.length - 1]) : '';
-    const curWeekNum = weekCur.length > 0 ? getWeekNumber(weekCur[weekCur.length - 1]) : (d1Date ? getWeekNumber(d1Date) : '');
+    const reportNow = new Date();
+    const prevWeekLabel = getReportWeekLabel(weekPrev.at(-1), reportNow);
+    const curWeekLabel = getReportWeekLabel(weekCur.at(-1) || d1Date, reportNow);
 
     return (
       <div className={`metric-block metric-block-sticky ${isHighlighted ? 'section-pulse-glow' : ''}`} key={title} ref={sectionRef}>
@@ -1027,13 +1028,13 @@ export default function Report1MienVungHub({
                 <th rowSpan="2" className="lbl lbl-2">{isFd ? 'Vùng / Kho giao' : 'Vùng / Hub'}</th>
                 {weekPrev.length > 0 && (
                   <th colSpan={weekPrev.length} className="grp-start">
-                    {isFd ? `TUẦN W-2 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}` : `TUẦN W-1 ${prevWeekNum ? `(Tuần ${prevWeekNum})` : ''}`}
+                    {prevWeekLabel}
                   </th>
                 )}
                 {/* Week Cur: daily dates up to D-1 (D-1 spans 2 cols) */}
                 {weekCur.length > 0 && (
                   <th colSpan={weekCur.length + 1} className="grp-start">
-                    {isFd ? `TUẦN W-1 ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}` : `TUẦN HIỆN TẠI ${curWeekNum ? `(Tuần ${curWeekNum})` : ''}`}
+                    {curWeekLabel}
                   </th>
                 )}
                 {/* Header merge for WTD (spanning both rows) */}

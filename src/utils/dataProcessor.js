@@ -218,7 +218,27 @@ export function getWeekNumber(dateStr) {
   return weekNum;
 }
 
-// Group dates into Week W-1 and Week WTD
+// Label the data's week relative to the current calendar week in Vietnam.
+// Data may end on Sunday (or be delayed further), so its latest week is not
+// necessarily the current week. Compare Monday dates rather than week numbers
+// to handle ISO week/year boundaries correctly.
+export function getReportWeekLabel(dateStr, now = new Date()) {
+  if (!dateStr) return '';
+  const monday = (value) => {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+    return date.getTime();
+  };
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now);
+  const offset = Math.round((monday(today) - monday(dateStr)) / (7 * 86400000));
+  const label = offset === 0 ? 'TUẦN HIỆN TẠI' : `TUẦN W${offset > 0 ? '-' : '+'}${Math.abs(offset)}`;
+  return `${label} (Tuần ${getWeekNumber(dateStr)})`;
+}
+
+// Group dates into the latest data week and its preceding week.
 export function groupDatesByWeek(dates) {
   // Sort dates chronologically using proper Date parsing (since unpadded strings sort incorrectly)
   const parseToLocal = (dStr) => {
