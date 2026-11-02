@@ -1,3 +1,4 @@
+import LoadingScreen from '../../components/LoadingScreen.jsx';
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import WeeklyKpiTable from './WeeklyKpiTable';
@@ -34,6 +35,8 @@ const WEEKLY_TITLES = {
 };
 
 export default function Report1MienVungHub({
+  dataLoading = false,
+  loadingDatasets = {},
   pickRows,
   deliRows,
   fdRows = [],
@@ -718,6 +721,7 @@ export default function Report1MienVungHub({
     // derived here rather than passed in, to keep one source of truth.
     const shortTitle = title.match(/\(([^)]+)\)\s*$/)?.[1] ?? title;
     const isFd = metricKey === 'fd';
+    if (loadingDatasets[isFd ? 'fd' : isDeli ? 'deli' : 'pick']) return <LoadingScreen key={title} />;
     const rows = isFd ? filteredFd : (isDeli ? filteredDeli : filteredPick);
     const dateList = isFd ? fdRangeDates : (isDeli ? deliDates : pickDates);
     const weekPrev = isFd ? fWPrev : (isDeli ? dWPrev : pWPrev);
@@ -1281,6 +1285,10 @@ export default function Report1MienVungHub({
     fd: () => renderMetricTable('Mục 1.5: Tỷ lệ hoàn thành FD (FD)', 'fd', false, refFd, 'fd')
   };
 
+  if (dataLoading) return overview
+    ? <OperationsHome cards={[]} risks={[]} onOpenOps={onOpenOps} weatherProps={weatherProps} mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes} dataNotice={<LoadingScreen variant="page" />} />
+    : <LoadingScreen variant="page" />;
+
   if (snapshotMetric) return (
     <div className={`density-${density} kpi-tab-container`}>
       <div className="kpi-table-content">{metricTables[snapshotMetric]?.()}</div>
@@ -1292,7 +1300,7 @@ export default function Report1MienVungHub({
   if (overview && !pD1 && !dD1 && !fD1) return <OperationsHome cards={[]} risks={[]} onOpenOps={onOpenOps} weatherProps={weatherProps}
     mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes}
     dataNotice={<StatusNotice><strong>{emptyFilter ? (emptyFilter === 'hubTypes' ? 'Chưa chọn loại Hub nào' : 'Chưa chọn vùng nào') : 'Chưa có dữ liệu vận hành'}</strong>
-      <p>{emptyFilter ? 'Bộ lọc hiện tại không còn số liệu KPI để hiển thị.' : 'Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.'}</p>
+      <p>{emptyFilter ? 'Bộ lọc hiện tại không còn số liệu KPI để hiển thị.' : 'Không có số liệu cho ngày D-1 trong phạm vi đang chọn.'}</p>
       <button type="button" className="nav-btn-sleek" onClick={emptyFilter ? onResetFilters : onRetryData}>{emptyFilter ? 'Chọn lại tất cả' : 'Tải lại dữ liệu'}</button></StatusNotice>} />;
 
   // An empty Loại Hub / Vùng selection filters every row out — say so instead
@@ -1310,7 +1318,7 @@ export default function Report1MienVungHub({
   if (!pD1 && !dD1 && !fD1) return (
     <StatusNotice>
       <strong>Chưa có dữ liệu vận hành</strong>
-      <p>Nguồn dữ liệu chưa tải xong hoặc chưa có số liệu cho ngày D-1.</p>
+      <p>Không có số liệu cho ngày D-1 trong phạm vi đang chọn.</p>
       <button type="button" className="nav-btn-sleek" onClick={onRetryData}>Tải lại dữ liệu</button>
     </StatusNotice>
   );
@@ -1319,7 +1327,7 @@ export default function Report1MienVungHub({
     modes={EXPORT_MODES} mode={exportMode} onModeChange={setExportMode} />;
 
   if (overview) return <>
-    <OperationsHome cards={kpiCards} risks={riskAlertHubs} riskTotal={riskAlertAll.length} riskDates={{ pick: pD1, deli: dD1 }}
+    <OperationsHome loadingDatasets={loadingDatasets} cards={kpiCards} risks={riskAlertHubs} riskTotal={riskAlertAll.length} riskDates={{ pick: pD1, deli: dD1 }}
       onOpenOps={onOpenOps} weatherProps={weatherProps} mtdScope={mtdScope}
       mtdFilters={{ clientFilter, selectedRegions, selectedHubTypes }} allHubTypes={allHubTypes} />
     {exportDialog}

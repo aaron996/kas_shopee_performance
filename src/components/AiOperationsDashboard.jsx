@@ -47,13 +47,13 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
 
   // Overview State
   const [overviewData, setOverviewData] = useState(null);
-  const [isOverviewLoading, setIsOverviewLoading] = useState(false);
+  const [isOverviewLoading, setIsOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState('');
 
   // User Quotas State
   const [quotaSearch, setQuotaSearch] = useState('');
   const [quotasData, setQuotasData] = useState({ overrides: [], auditLogs: [], today: '', defaultTurnLimit: null });
-  const [isQuotasLoading, setIsQuotasLoading] = useState(false);
+  const [isQuotasLoading, setIsQuotasLoading] = useState(true);
   const [quotasError, setQuotasError] = useState('');
 
   // Modal Set/Reset Quota State
@@ -71,7 +71,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
   const [researchTopFingerprints, setResearchTopFingerprints] = useState([]);
   const [researchStatusFilter, setResearchStatusFilter] = useState('all');
   const [researchSearch, setResearchSearch] = useState('');
-  const [isResearchLoading, setIsResearchLoading] = useState(false);
+  const [isResearchLoading, setIsResearchLoading] = useState(true);
   const [researchError, setResearchError] = useState('');
   const [expandedQuestionId, setExpandedQuestionId] = useState(null);
   const [isPurging, setIsPurging] = useState(false);
@@ -90,7 +90,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
   const [modelConfigData, setModelConfigData] = useState(cachedConfig || null);
   const [loadedTargetKey, setLoadedTargetKey] = useState(cachedConfig ? `${feature}:all` : null);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [isModelConfigLoading, setIsModelConfigLoading] = useState(false);
+  const [isModelConfigLoading, setIsModelConfigLoading] = useState(!cachedConfig);
   const [modelConfigError, setModelConfigError] = useState('');
   const [formModel, setFormModel] = useState(cachedSetting?.model || cachedConfig?.allowedModels?.[0]?.id || '');
   const [formReasoningEffort, setFormReasoningEffort] = useState(cachedSetting?.reasoningEffort ?? null);
@@ -1285,6 +1285,7 @@ export default function AiOperationsDashboard({ view = 'overview', feature = 'ch
                           disabled={isModelConfigLoading || isSavingConfig}
                           onChange={(e) => {
                             setUserSearchTerm(e.target.value);
+                            setIsSearchingUsers(Boolean(e.target.value.trim()));
                             setIsUserMenuOpen(true);
                             setHighlightedIndex(-1);
                           }}

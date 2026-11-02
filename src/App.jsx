@@ -24,8 +24,8 @@ import useAppUsage from './hooks/useAppUsage.js';
 import useModuleNavigation from './hooks/useModuleNavigation.js';
 
 import ModuleSurfaceOutlet from './modules/ModuleSurfaceOutlet.jsx';
-import { preloadDashboardModules } from './modules/moduleRegistry.jsx';
-import LoadingScreen from './components/LoadingScreen.jsx';
+import { moduleRegistry, preloadDashboardModules } from './modules/moduleRegistry.jsx';
+import { isReportDataLoading, pendingReportDatasets } from './utils/reportLoading.js';
 import BrandSplash from './components/BrandSplash.jsx';
 import { hasSeenIntroToday, markIntroSeen } from './utils/introSeen.js';
 import { clientVisitToken,needsClientChoice, saveClientChoice } from './utils/clientOnboarding.js';
@@ -372,12 +372,12 @@ export default function App() {
     });
   }, [setActiveTab]);
 
-  const [syncStatus, setSyncStatus] = useState({ kind: 'default', source: 'Chưa tải', text: 'Chưa có dữ liệu vận hành' });
-  // Gates the single unified loading animation over the report area. Only the
-  // very first sync attempt of the session blocks the view — later background
-  // refreshes never re-show it, so previously loaded numbers stay on screen
-  // (see the lastSyncedAt comment below).
-  const [hasCompletedInitialSync, setHasCompletedInitialSync] = useState(!!LOCAL_PREVIEW_USER);
+  const [syncStatus, setSyncStatus] = useState(() => LOCAL_PREVIEW_USER
+    ? { kind: 'default', source: 'Local preview', text: 'Local preview' }
+    : { kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
+  // Each report waits for its own sources. Cached rows stay visible while
+  // pending sources without rows render the shared skeleton in their region.
+  const [pendingDatasets, setPendingDatasets] = useState(() => pendingReportDatasets(!LOCAL_PREVIEW_USER));
   // Core live data releases the intro before secondary reports finish. A failed
   // attempt also releases it to show the error/retry UI; cache restore does not.
   const [liveSyncSettled, setLiveSyncSettled] = useState(!!LOCAL_PREVIEW_USER);
@@ -479,7 +479,7 @@ export default function App() {
     setLeadtimeSyncedAt(null);
     setLastSyncedAt(null);
     setSyncStatus({ kind: 'default', source: 'Chưa tải', text: 'Đã xóa dữ liệu trên phiên này. Tải lại để lấy dữ liệu vận hành.' });
-    setHasCompletedInitialSync(false);
+    setPendingDatasets(pendingReportDatasets(false));
     liveSyncDoneRef.current = false;
     void clearSyncSnapshot();
     void overviewMtdLoader.clear();
@@ -558,6 +558,7 @@ export default function App() {
     }
     if (syncRequestRef.current) return;
     syncRequestRef.current = true;
+    setPendingDatasets(pendingReportDatasets(true));
     setSyncStatus({ kind: 'loading', source: 'Đang đồng bộ', text: 'Đang tải dữ liệu...' });
     try {
 
@@ -571,10 +572,10 @@ export default function App() {
         setPickRows(normalizeRows(pickData));
         setDeliRows(normalizeRows(deliData));
         if (fdData) setFdRows(normalizeRows(fdData));
+        setPendingDatasets(prev => ({ ...prev, pick: false, deli: false, fd: false }));
         setDataSources(prev => ({ ...prev, pick: 'Supabase', deli: 'Supabase', fd: fdData ? 'Supabase' : prev.fd }));
         liveSyncDoneRef.current = true;
         setOverviewDataReady(true);
-        setHasCompletedInitialSync(true);
         setLiveSyncSettled(true);
       }
     });
@@ -595,12 +596,12 @@ export default function App() {
     // publicly link-shared (e.g. a dev/test sheet set via Data Source Manager).
     const res = await syncAllGoogleSheetTabs('1eZCDlKCrZVZAac6j-kBbKPgEmIQcRlTabAFzsl1zwGA', {
       onCoreReady: ({ pickData, deliData }) => {
+        setPendingDatasets(prev => ({ ...prev, pick: false, deli: false }));
         setPickRows(normalizeRows(pickData));
         setDeliRows(normalizeRows(deliData));
         setDataSources(prev => ({ ...prev, pick: 'Google Sheet', deli: 'Google Sheet' }));
         liveSyncDoneRef.current = true;
         setOverviewDataReady(true);
-        setHasCompletedInitialSync(true);
         setLiveSyncSettled(true);
       }
     });
@@ -639,7 +640,7 @@ export default function App() {
       if (!failQuietlyIfFreshToday(error)) setSyncStatus({ kind: 'error', source: 'Đồng bộ lỗi', text: 'Không tải được dữ liệu mới. Dữ liệu đã tải trước đó được giữ nguyên; vui lòng thử lại.' });
     } finally {
       syncRequestRef.current = false;
-      setHasCompletedInitialSync(true);
+      setPendingDatasets(pendingReportDatasets(false));
       setLiveSyncSettled(true);
     }
   }, [currentUser, showToast, applySupabaseRows, failQuietlyIfFreshToday]);
@@ -663,7 +664,6 @@ export default function App() {
       if (cancelled || !snapshot || liveSyncDoneRef.current) return;
       applySupabaseRows(snapshot, 'Bộ nhớ đệm');
       setLastSyncedAt(new Date(snapshot.savedAt));
-      setHasCompletedInitialSync(true);
     })();
     return () => { cancelled = true; };
   }, [currentUser?.email, applySupabaseRows]);
@@ -755,7 +755,7 @@ export default function App() {
     setIntroCompletedFor(null);
     setLiveSyncSettled(false);
     setOverviewDataReady(false);
-    setHasCompletedInitialSync(false);
+    setPendingDatasets(pendingReportDatasets(true));
     setClientChoiceToken(null);
     setCurrentUser(null);
   };
@@ -827,9 +827,6 @@ export default function App() {
     ...(['home', 'report1'].includes(activeTab) && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
   const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
-  // Tabs that load their own data and never read the report rows: they must not wait
-  // behind (or stack a second skeleton on top of) the report sync.
-  const ownsItsData = activeTab === 'home' || activeTab === 'dev-admin' || activeTab === 'cod-suspicion' || activeTab === 'guide';
   const runtimeByModule = {
     guide: { onNavigate: setActiveTab },
     report1: {
@@ -906,6 +903,13 @@ export default function App() {
     weatherProps: { selectedRegions, userKey: userEmail || 'anonymous',
       active: Boolean(currentUser && !currentUser.localPreview && !introVisible && hasPickedClient),
       localPreview: Boolean(currentUser?.localPreview) } };
+  const sourceRows = { pick: pickRows, deli: deliRows, fd: fdRows, ca1: ca1Rows, leadtime: leadtimeRows };
+  for (const module of moduleRegistry) {
+    runtimeByModule[module.id].dataLoading = isReportDataLoading(module.requiredDatasets, pendingDatasets, sourceRows);
+  }
+  runtimeByModule.report1.loadingDatasets = runtimeByModule.home.loadingDatasets = Object.fromEntries(
+    ['pick', 'deli', 'fd'].map(dataset => [dataset, isReportDataLoading([dataset], pendingDatasets, sourceRows)])
+  );
   return (
     <RadioProvider started={radioStarted} canManage={Boolean(currentUser?.isDevAdmin)}>
     <div className="app-container" inert={introVisible} aria-hidden={introVisible ? true : undefined}>
@@ -990,13 +994,8 @@ export default function App() {
 
           {/* Main View Area (Principle 6: Slow In & Slow Out / Tab View Transitions) */}
           <main className="main-content">
-            {!ownsItsData && !hasCompletedInitialSync ? (
-              <div className="main-content-initial-loading">
-                <LoadingScreen variant="page" />
-              </div>
-            ) : null}
-              <div hidden={!ownsItsData && !hasCompletedInitialSync}>
-                {!ownsItsData && syncStatus.kind === 'error' && <div className="report-data-context">
+              <div>
+                {moduleRegistry.find(module => module.id === activeTab)?.requiredDatasets?.length > 0 && syncStatus.kind === 'error' && <div className="report-data-context">
                   <StatusNotice tone="warning">
                     {syncStatus.text} <button type="button" className="nav-btn-sleek" onClick={handleSyncLiveSheet}>Thử lại</button>
                   </StatusNotice>
@@ -1017,6 +1016,7 @@ export default function App() {
 
           {/* Executive D-1 vs D-8 Summary Modal */}
           <ExecutiveSummaryModal
+            dataLoading={isReportDataLoading(['pick', 'deli'], pendingDatasets, sourceRows)}
             isOpen={isSummaryOpen}
             onClose={() => setIsSummaryOpen(false)}
             pickRows={filteredPickRows}

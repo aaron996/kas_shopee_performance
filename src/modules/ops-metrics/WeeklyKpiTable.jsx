@@ -27,19 +27,20 @@ export default function WeeklyKpiTable({
   const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
+  const requestKey = `${dataset}:${attempt}`;
 
   useEffect(() => {
     let cancelled = false;
-    setState(prev => ({ status: 'loading', data: prev.data && prev.data.dataset === dataset ? prev.data : null, error: null }));
+    setState(prev => ({ key: requestKey, status: 'loading', data: prev.data && prev.data.dataset === dataset ? prev.data : null, error: null }));
     fetchRows(client, dataset)
-      .then(data => { if (!cancelled) setState({ status: 'ready', data: { ...data, dataset }, error: null }); })
-      .catch(error => { if (!cancelled) setState({ status: 'error', data: null, error }); });
+      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset }, error: null }); })
+      .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [dataset, attempt, fetchRows, client]);
+  }, [requestKey, dataset, attempt, fetchRows, client]);
 
   // Khoảng ngày: dữ liệu theo tuần nên khoảng được hiểu là "các tuần có ngày nằm trong khoảng".
   const [range, setRange] = useState({ from: '', to: '' });
-  const allWeeks = state.data?.weeks;
+  const allWeeks = state.key === requestKey ? state.data?.weeks : null;
   const bounds = useMemo(() => (allWeeks?.length
     ? { min: allWeeks[0], max: addDays(allWeeks[allWeeks.length - 1], 6) }
     : null), [allWeeks]);
@@ -52,11 +53,11 @@ export default function WeeklyKpiTable({
   const isFiltered = Boolean(allWeeks && visibleWeeks && !rangeInvalid && visibleWeeks.length < allWeeks.length);
 
   const matrix = useMemo(() => {
-    if (state.status !== 'ready') return null;
+    if (state.key !== requestKey || state.status !== 'ready') return null;
     return buildWeeklyMatrix({
       rows: state.data.rows, weeks: visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes
     });
-  }, [state, visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
+  }, [state, requestKey, visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
 
   const presets = allWeeks?.length ? [4, 8].filter(n => n < allWeeks.length).map(n => ({
     label: `${n} tuần gần nhất`, from: allWeeks[allWeeks.length - n], to: bounds.max
@@ -93,7 +94,7 @@ export default function WeeklyKpiTable({
     </div>
   );
 
-  if (state.status === 'loading' && !matrix) {
+  if (state.key !== requestKey || (state.status === 'loading' && !matrix)) {
     return shell(<LoadingScreen />);
   }
   if (state.status === 'error') {

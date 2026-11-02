@@ -5,8 +5,9 @@ import { MorphIcon } from 'morphicons/react';
 import { buildExecutiveSummary, formatExecutiveSummary } from '../utils/executiveSummary';
 import ModalDialog from './ui/ModalDialog';
 import StatusNotice from './ui/StatusNotice';
+import LoadingScreen from './LoadingScreen.jsx';
 
-export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliRows, clientFilter }) {
+export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliRows, clientFilter, dataLoading = false }) {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -64,19 +65,19 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, pickRows, deliR
             💡 <strong>Quy chuẩn báo cáo:</strong> So sánh tăng/giảm chỉ số ngày D-1 so với D-8 (cùng thứ tuần trước), tự động trích xuất Top 3 Vùng có nhiều đơn trễ 1st Pickup / 1st Deli nhất (số đơn tuyệt đối, không xếp theo %). Giao hàng lấy ngày gần nhất có đơn đến hạn (CN không có đơn giao nên sáng thứ 2 so T7). Cùng nội dung với tin nhắn Telegram gửi mỗi sáng. Có thể dán trực tiếp vào nhóm Zalo / Telegram điều hành.
           </StatusNotice>
 
-          <textarea 
+          {dataLoading ? <LoadingScreen /> : <textarea
             className="summary-textarea"
             readOnly
             value={summaryText}
             style={{ borderRadius: '10px' }}
-          />
+          />}
         </div>
 
         <div className="modal-footer" style={{ padding: '0.85rem 1.25rem' }}>
           <button className="btn-secondary" onClick={onClose}>
             Đóng
           </button>
-          <button className="nav-btn primary" onClick={handleCopy} style={{ gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '8px' }}>
+          <button className="nav-btn primary" disabled={dataLoading} onClick={handleCopy} style={{ gap: '0.5rem', padding: '0.55rem 1.1rem', borderRadius: '8px' }}>
             <MorphIcon icon={copied ? Check : Copy} size={16} reducedMotion="user" />
             {copied ? 'Đã Sao Chép Zalo!' : 'Sao Chép Nội Dung Zalo / Telegram'}
           </button>

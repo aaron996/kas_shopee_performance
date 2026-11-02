@@ -20,11 +20,14 @@ function startupSurface(loader) {
 export const moduleRegistry = Object.freeze([
   {
     id: 'home', label: 'Tổng quan', mobileLabel: 'Tổng quan', icon: LayoutDashboard, motionIcon: 'LayoutDashboard', description: 'KPI, Hub cần ưu tiên và xu hướng vận hành',
+    requiredDatasets: ['pick', 'deli', 'fd'],
+    handlesDataLoading: true, // Weather loads independently inside the overview.
     group: 'overview', navigation: { sidebar: true, commandPalette: true, mobile: true },
     surface: startupSurface(() => import('./ops-metrics/OperationsOverview.jsx'))
   },
   {
     id: 'report1',
+    requiredDatasets: ['pick', 'deli', 'fd'],
     motionIcon: 'ChartNoAxesColumnIncreasing',
     description: 'Tra cứu chỉ số theo Toàn quốc, Miền, Vùng và Hub',
     label: 'Chi tiết Vùng/Hub',
@@ -36,6 +39,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report5',
+    requiredDatasets: ['ca1'],
     motionIcon: 'ArrowRightLeft',
     description: 'Ca 1 theo lane vận hành',
     label: '% Ca 1 theo lane',
@@ -47,6 +51,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report3',
+    requiredDatasets: ['leadtime'],
     motionIcon: 'Clock',
     description: 'Leadtime theo từng chặng · Đang phát triển',
     label: 'Leadtime từng chặng',
@@ -62,6 +67,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report-insight',
+    requiredDatasets: ['pick', 'deli', 'leadtime'],
     motionIcon: 'Sparkles',
     description: 'Phân tích biến động KPI · Đang phát triển',
     label: 'Insight',
@@ -91,6 +97,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'ranking',
+    requiredDatasets: ['pick', 'deli'],
     motionIcon: 'Truck',
     description: 'Xếp hạng hiệu suất vận hành',
     label: 'BXH Performance',

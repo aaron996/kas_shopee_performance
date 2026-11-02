@@ -47,7 +47,7 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
   const measuredRef = useRef(new Set());
   const measuringRef = useRef(false);
   const [tracks, setTracks] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
   const [uploads, setUploads] = useState([]);
@@ -262,7 +262,7 @@ export default function RankingMusicManager({ isOpen, onClose, radio }) {
             </div>
             <div className="prr-mm-times"><span>{formatClock(resolved.offset)}</span><span>{formatClock(resolved.track.duration)}</span></div>
           </>
-        ) : (
+        ) : loading ? <LoadingScreen variant="inline" /> : (
           <p className="prr-mm-note">Chưa có bài nào để phát. Tải nhạc lên bên dưới; khi trống, BXH phát bài mặc định đi kèm ứng dụng.</p>
         )}
       </section>

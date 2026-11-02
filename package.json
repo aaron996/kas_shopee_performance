@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test src/utils/*.test.mjs server/chat/*.test.mjs server/cod-sms/*.test.mjs server/cod-export/*.test.mjs server/snapshot/*.test.mjs server/weather/*.test.mjs tests/api/*.test.mjs scripts/apps-script/ops-incremental-sync.test.mjs scripts/apps-script/ops-history-sync.test.mjs"
+    "test": "node --test src/utils/*.test.mjs server/chat/*.test.mjs server/cod-sms/*.test.mjs server/cod-export/*.test.mjs server/snapshot/*.test.mjs server/weather/*.test.mjs tests/api/*.test.mjs tests/ui/*.test.mjs scripts/apps-script/ops-incremental-sync.test.mjs scripts/apps-script/ops-history-sync.test.mjs",
+    "test:loading": "node --test src/utils/reportLoading.test.mjs src/utils/loadingOverlay.test.mjs tests/ui/loading-states.test.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.30",

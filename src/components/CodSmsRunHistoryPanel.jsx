@@ -199,7 +199,7 @@ export default function CodSmsRunHistoryPanel({ driverNameById, refreshKey = 0 }
   const [runs, setRuns] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [itemsByRun, setItemsByRun] = useState(() => new Map());

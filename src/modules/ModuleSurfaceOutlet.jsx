@@ -4,6 +4,8 @@ import UnderDevelopmentOverlay from '../components/ui/UnderDevelopmentOverlay.js
 import { getModule } from './moduleRegistry.jsx';
 
 function ModuleSurface({ module, runtime, onBackToOverview }) {
+  // Resolve data readiness before mounting reports or their empty-state overlays.
+  if (runtime.dataLoading && !module.handlesDataLoading) return <LoadingScreen variant="page" />;
   const Surface = module.surface;
   const content = (
     <Suspense fallback={<LoadingScreen variant="page" />}>

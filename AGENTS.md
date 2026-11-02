@@ -1,3 +1,10 @@
+## Design system — trạng thái chờ dữ liệu
+
+- Khi thêm/sửa màn hình dữ liệu, đọc `DESIGN.md` mục “Loading, empty and error states” và `docs/loading-states.md`.
+- Mọi vùng đang chờ dữ liệu phải dùng skeleton dạng bảng từ `LoadingScreen` (`page` / `block` / `inline`). Không dùng “chưa có dữ liệu”, số 0, biểu đồ rỗng hoặc spinner riêng để thay cho loading.
+- Khởi tạo trạng thái chờ ngay từ render đầu; theo dõi riêng từng nguồn. Module dùng dữ liệu chung phải khai báo `requiredDatasets` trong `src/modules/moduleRegistry.jsx`. Chỉ hiện empty sau khi tải xong; giữ dữ liệu đã có khi refresh, báo lỗi và cho thử lại khi request lỗi.
+- Kiểm tra tải chậm, dữ liệu rỗng thật, lỗi, nguồn về lệch nhau và đổi phạm vi. Chạy regression loading khi thay đổi luồng chờ; không khởi chạy browser ngoài `iab` để QA.
+
 # GHN / KAS knowledge base
 
 - Khi xử lý yêu cầu về nghiệp vụ GHN/KAS, đọc `GHN_KAS_knowledge_base.md` trong thư mục gốc project trước khi phân tích hoặc đề xuất thay đổi.
