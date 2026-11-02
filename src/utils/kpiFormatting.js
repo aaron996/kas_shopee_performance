@@ -1,5 +1,6 @@
 // Display preferences only: these thresholds never change KPI calculations.
 export const FORMATTING_MODES = [
+  { value: 'app', label: 'Mặc định ứng dụng' },
   { value: 'below', label: '2 màu · Dưới KPI có màu' },
   { value: 'above', label: '2 màu · Trên KPI có màu' },
   { value: 'three', label: 'Dải 3 màu' },
@@ -13,6 +14,16 @@ export function defaultFormatting(metricKey) {
   const fd = metricKey === 'fd';
   return { mode: fd ? 'above' : 'below', threshold: THRESHOLDS[metricKey] ?? 90, spread: 5,
     lowColor: fd ? '#ffffff' : '#ef9184', midColor: '#ffffff', highColor: fd ? '#ef9184' : '#ffffff' };
+}
+
+// The application's stepped heat classes are distinct from a custom gradient.
+export function appFormatting(metricKey) {
+  return { ...defaultFormatting(metricKey), mode: 'app' };
+}
+
+export function visibleFormattingRules(rules, preview = null) {
+  const merged = preview ? { ...rules, [preview.metricKey]: preview.value } : rules;
+  return Object.fromEntries(Object.entries(merged).filter(([, rule]) => rule?.mode !== 'app'));
 }
 
 export function normalizeFormatting(value, metricKey) {
@@ -63,7 +74,7 @@ export function textOnColor(color) {
 }
 
 export function formattingColor(pct, rule) {
-  if (!rule || rule.mode === 'off' || typeof pct !== 'number' || !Number.isFinite(pct)) return null;
+  if (!rule || rule.mode === 'off' || rule.mode === 'app' || typeof pct !== 'number' || !Number.isFinite(pct)) return null;
   const shown = Math.round(pct * 10) / 10;
   const { threshold: pivot, spread, lowColor, midColor, highColor, mode } = rule;
   if (mode === 'below') return shown >= pivot ? highColor : mix(lowColor, highColor, (shown - Math.max(0, pivot - spread)) / (Math.min(spread, pivot) || 1));

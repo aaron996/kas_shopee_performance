@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { readFormatting, saveFormatting, formattingStorageKey } from '../utils/kpiFormatting';
+import { readFormatting, saveFormatting, formattingStorageKey, visibleFormattingRules } from '../utils/kpiFormatting';
 
 function readUserRules(userEmail) {
   try { return typeof window === 'undefined' ? {} : readFormatting(window.localStorage, userEmail); }
@@ -30,6 +30,6 @@ export default function useKpiFormatting(userEmail) {
     const next = saveFormatting(window.localStorage, userEmail, metricKey, value);
     setState({ key, rules: next });
   };
-  const visibleRules = draft?.key === key ? { ...rules, [draft.metricKey]: draft.value } : rules;
+  const visibleRules = visibleFormattingRules(rules, draft?.key === key ? draft : null);
   return { rules: visibleRules, save, preview };
 }

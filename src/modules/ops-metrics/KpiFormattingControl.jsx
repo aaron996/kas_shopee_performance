@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Palette, X } from 'lucide-react';
-import { defaultFormatting, FORMATTING_MODES, formattingColor } from '../../utils/kpiFormatting';
+import { appFormatting, defaultFormatting, FORMATTING_MODES, formattingColor } from '../../utils/kpiFormatting';
 import './kpiFormatting.css';
 
 const COLOR_PRESETS = [
@@ -41,7 +41,7 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
   const panel = useRef(null);
   const trigger = useRef(null);
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(() => rule || defaultFormatting(metricKey));
+  const [draft, setDraft] = useState(() => rule || appFormatting(metricKey));
   const [error, setError] = useState('');
   const [position, setPosition] = useState({ top: 12, left: 12 });
   const close = () => { panel.current?.hidePopover(); trigger.current?.focus(); };
@@ -58,7 +58,8 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
     positionPanel();
     const observer = new ResizeObserver(positionPanel);
     if (panel.current) observer.observe(panel.current);
-    panel.current?.querySelector('.kpi-format-presets button')?.focus({ preventScroll: true });
+    const selectedOption = panel.current?.querySelector('[aria-pressed="true"]') || panel.current?.querySelector('.kpi-format-presets button');
+    selectedOption?.focus({ preventScroll: true });
     window.addEventListener('resize', positionPanel);
     window.addEventListener('scroll', positionPanel, true);
     return () => {
@@ -68,13 +69,16 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
     };
   }, [open]);
   const update = (key, value) => { setDraft(prev => ({ ...prev, [key]: value })); setError(''); };
-  const enabled = draft.mode !== 'off';
+  const enabled = draft.mode !== 'off' && draft.mode !== 'app';
   const valid = !enabled || (Number.isFinite(draft.threshold) && draft.threshold >= 0 && draft.threshold <= 100
     && Number.isFinite(draft.spread) && draft.spread >= 0.1 && draft.spread <= 100
     && ['lowColor', 'midColor', 'highColor'].every(key => /^#[0-9a-f]{6}$/i.test(draft[key])));
   const colors = draft.mode === 'three'
     ? [['lowColor', 'Màu thấp'], ['midColor', 'Màu tại mốc KPI'], ['highColor', 'Màu cao']]
     : [['lowColor', draft.mode === 'below' ? 'Màu dưới KPI' : 'Màu tại / dưới KPI'], ['highColor', draft.mode === 'below' ? 'Màu tại / trên KPI' : 'Màu trên KPI']];
+  const selectedPreset = COLOR_PRESETS.find(preset => draft.mode === preset.mode
+    && ['lowColor', 'highColor', ...(preset.mode === 'three' ? ['midColor'] : [])].every(key => draft[key].toLowerCase() === preset[key]));
+  const selectionLabel = draft.mode === 'app' ? 'Mặc định ứng dụng' : draft.mode === 'off' ? 'Không tô màu' : selectedPreset?.name || 'Tùy chỉnh';
   useEffect(() => {
     onPreview?.(metricKey, open && valid ? draft : null);
   }, [open, valid, draft, metricKey, onPreview]);
@@ -83,7 +87,7 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
     <button ref={trigger} type="button" className="btn-secondary kpi-format-trigger" aria-expanded={open}
       aria-controls={id} aria-haspopup="dialog" aria-label={`Tô màu bảng ${label}`} title={`Tô màu bảng ${label}`} onClick={() => {
         if (open) { close(); return; }
-        setDraft(rule || defaultFormatting(metricKey)); setError(''); panel.current?.showPopover();
+        setDraft(rule || appFormatting(metricKey)); setError(''); panel.current?.showPopover();
       }}><Palette size={18} aria-hidden="true" /></button>
     {typeof document !== 'undefined' && createPortal(<section ref={panel} id={id} popover="auto" role="dialog" aria-modal="false" aria-labelledby={`${id}-title`}
       className="kpi-format-panel" style={position} onToggle={event => setOpen(event.newState === 'open')}>
@@ -98,6 +102,12 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
         catch { setError('Không lưu được cài đặt. Kiểm tra quyền lưu của trình duyệt rồi thử lại.'); }
       }}>
           <fieldset className="kpi-format-presets"><legend>Chọn dải màu</legend>
+            <p className="kpi-format-selection" role="status">Đang chọn: <strong>{selectionLabel}</strong></p>
+            <button type="button" className="kpi-format-app" aria-pressed={draft.mode === 'app'}
+              onClick={() => { setDraft(appFormatting(metricKey)); setError(''); }}>
+              <span className="kpi-app-strip" aria-hidden="true"><span /><span /><span /><span /></span>
+              <span>Mặc định ứng dụng</span>{draft.mode === 'app' && <Check size={16} aria-hidden="true" />}
+            </button>
             <div>{COLOR_PRESETS.map(preset => {
               const selected = draft.mode === preset.mode && ['lowColor', 'highColor', ...(preset.mode === 'three' ? ['midColor'] : [])].every(key => draft[key].toLowerCase() === preset[key]);
               return <button type="button" key={preset.name} aria-label={preset.name} aria-pressed={selected} title={preset.name}
@@ -106,6 +116,9 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
               </button>;
             })}</div>
           </fieldset>
+        {enabled && !selectedPreset && <div className="kpi-format-custom" aria-label="Dải màu tùy chỉnh đang chọn">
+          <ColorStrip rule={draft} /><span>Tùy chỉnh</span><Check size={16} aria-hidden="true" />
+        </div>}
         {enabled && <>
           <div className="kpi-format-numbers">
             <label className="kpi-format-field">Mốc tô màu (%)
@@ -118,11 +131,11 @@ export default function KpiFormattingControl({ metricKey, label, rule, onSave, o
               <input type="text" className="kpi-format-hex" aria-label={`Mã ${name.toLowerCase()}`} value={draft[key]} pattern="#[0-9a-fA-F]{6}" maxLength={7} spellCheck={false} onChange={event => update(key, event.target.value)} /></span>
           </div>)}</div>
         </>}
-        <label className="kpi-format-off"><input type="checkbox" checked={!enabled} onChange={event => update('mode', event.target.checked ? 'off' : defaultFormatting(metricKey).mode)} />Không tô màu</label>
+        <label className="kpi-format-off"><input type="checkbox" checked={draft.mode === 'off'} onChange={event => update('mode', event.target.checked ? 'off' : defaultFormatting(metricKey).mode)} />Không tô màu</label>
         {!valid && <p className="kpi-format-error" role="alert">Mốc từ 0 đến 100%; mã màu gồm # và 6 ký tự hex.</p>}
         {error && <p className="kpi-format-error" role="alert">{error}</p>}
         <footer className="kpi-format-footer">
-          <button type="button" className="btn-secondary" onClick={() => { setDraft(defaultFormatting(metricKey)); setError(''); }}>Mặc định</button>
+          <button type="button" className="btn-secondary" onClick={() => { setDraft(appFormatting(metricKey)); setError(''); }}>Mặc định</button>
           <button type="button" className="btn-secondary" onClick={close}>Hủy</button>
           <button type="submit" className="btn-primary-sleek" disabled={!valid}>Lưu cài đặt</button>
         </footer>

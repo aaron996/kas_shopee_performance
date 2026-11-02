@@ -13,10 +13,16 @@ Mọi màu đều chọn được bằng bộ chọn màu hoặc mã hex `#RRGGB
 
 Mốc mặc định hiện theo cấu hình bảng: 1st Pickup 97%, OPR 90%, 1st Deli 95%, ODR 90%; FD dùng mốc hiển thị 3% và mặc định tô phía trên. Đây là mốc tô màu, không thay đổi target, số liệu, công thức KPI hay quy tắc nghiệp vụ theo khách hàng.
 
-**Lưu cài đặt** giữ lựa chọn cho lần sau; bảng hiển thị bản nháp ngay trong lúc chỉnh. **Hủy**, click bên ngoài và Escape bỏ bản nháp. **Mặc định** đưa bản nháp về dải gợi ý để xem trước rồi lưu. Trước lần lưu đầu tiên, bảng vẫn dùng cách tô màu có sẵn.
+**Lưu cài đặt** giữ lựa chọn cho lần sau; bảng hiển thị bản nháp ngay trong lúc chỉnh. **Hủy**, click bên ngoài và Escape bỏ bản nháp. **Mặc định** đưa bản nháp về đúng cách tô theo bậc có sẵn của ứng dụng. Trước lần lưu đầu tiên, bảng vẫn dùng cách tô màu có sẵn.
 
 Cài đặt lưu trong localStorage, khóa `ghn:kpi-formatting:v1:<email đã chuẩn hóa>`, tách riêng từng tài khoản và từng KPI. Tải lại trang và đăng nhập lại cùng tài khoản trên cùng trình duyệt sẽ khôi phục. Thay đổi ở tab khác cùng origin được đồng bộ qua sự kiện storage. Chưa đồng bộ giữa các thiết bị/trình duyệt; xóa dữ liệu trình duyệt sẽ mất cài đặt. Nếu không lưu được, bảng giữ lựa chọn cũ và bộ chỉnh báo lỗi để thử lại.
 
 PUD của SPE Reverse giữ hiển thị trung tính và không có công cụ tô màu vì chưa định nghĩa target.
 
 Chức năng chỉ đọc dữ liệu đã có, không gọi DB khi mở/chỉnh/lưu. Trang snapshot tự động dùng quy tắc màu có sẵn, độc lập với lựa chọn cá nhân.
+
+## Trạng thái hiện tại
+
+Khi chưa lưu lựa chọn cá nhân, tool đánh dấu **Mặc định ứng dụng**: dùng đúng cách tô theo bậc và màu chữ của bảng hiện có. Mở tool không chuyển sang dải chuyển sắc. Nút Mặc định cũng trả về cách tô này.
+
+Khi mở, dòng **Đang chọn** cùng dấu tick cho biết đang dùng mặc định, mẫu dải màu, tùy chỉnh hoặc không tô màu. Màu tùy chỉnh không trùng mẫu có một dòng riêng kèm mẫu màu đang dùng. Lựa chọn đã lưu trước đây được giữ nguyên.
