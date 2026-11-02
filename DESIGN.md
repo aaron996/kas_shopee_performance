@@ -157,6 +157,10 @@ Partial corners are valid only when the shape expresses containment or attachmen
 
 ## Components
 
+### KPI tables — shared implementation
+
+**Shared KPI Table Rule.** A new metric beside an existing metric must use the same renderer/component for the same view mode, including toolbar actions, sticky rows/columns, disclosure controls, motion hooks and reduced-motion behavior. Parameterize numerator, denominator and target; do not introduce a parallel table for a new KPI. A targetless metric stays neutral and unavailable benchmarks display a dash. Verify the new metric beside its existing peers in both layout and interaction before shipping.
+
 ### Loading, empty and error states — mandatory
 
 **The Data Readiness Rule.** A pending data request must show the shared table-shaped skeleton (`src/components/LoadingScreen.jsx`). Never render “Chưa có dữ liệu”, “Không có dữ liệu”, zero totals, an empty chart or a retry CTA as a loading placeholder. Initialize request state as loading before the first render; when the request scope changes, treat the new scope as pending immediately, before its effect runs.

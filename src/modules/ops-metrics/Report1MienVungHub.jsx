@@ -2,8 +2,7 @@ import LoadingScreen from '../../components/LoadingScreen.jsx';
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import WeeklyKpiTable from './WeeklyKpiTable';
-import PudKpiTable from './PudKpiTable';
-import { pudCounts } from '../../utils/pud';
+import { pudCounts, PUD_NOTE } from '../../utils/pud';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -12,7 +11,7 @@ import { ChevronRight, ArrowUp, X, Copy } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType } from '../../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
@@ -89,6 +88,7 @@ export default function Report1MienVungHub({
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
+  const refPud = useRef(null);
   const refD1st = useRef(null);
   const refDOdr = useRef(null);
   const refFd = useRef(null);
@@ -357,6 +357,7 @@ export default function Report1MienVungHub({
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
         const targetRef = focusTarget.metricKey === 'popr' ? refPOpr
+          : focusTarget.metricKey === 'pud' ? refPud
           : focusTarget.metricKey === 'd1st' ? refD1st
           : focusTarget.metricKey === 'dodr' ? refDOdr
           : refP1st;
@@ -726,13 +727,21 @@ export default function Report1MienVungHub({
     // derived here rather than passed in, to keep one source of truth.
     const shortTitle = title.match(/\(([^)]+)\)\s*$/)?.[1] ?? title;
     const isFd = metricKey === 'fd';
+    const isPud = metricKey === 'pud';
     if (loadingDatasets[isFd ? 'fd' : isDeli ? 'deli' : 'pick']) return <LoadingScreen key={title} />;
-    const rows = isFd ? filteredFd : (isDeli ? filteredDeli : filteredPick);
+    const rows = isPud ? filteredPick.filter(row => matchesRegionScope(row, selectedRegions))
+      .map(row => ({ ...row, region: String(row.region || '').trim() || 'Chưa rõ vùng' }))
+      : isFd ? filteredFd : (isDeli ? filteredDeli : filteredPick);
+    const extraRegions = isPud ? [...new Set(rows.map(row => row.region))]
+      .filter(region => !MIEN_ORDER.some(mien => MIEN_REGIONS[mien].includes(region))) : [];
+    const metricMienOrder = extraRegions.length ? [...MIEN_ORDER, 'Miền Khác'] : MIEN_ORDER;
+    const metricMienRegions = extraRegions.length ? { ...MIEN_REGIONS, 'Miền Khác': extraRegions } : MIEN_REGIONS;
+    const regionSelected = region => selectedRegions.includes(region) || extraRegions.includes(region);
     const dateList = isFd ? fdRangeDates : (isDeli ? deliDates : pickDates);
     const weekPrev = isFd ? fWPrev : (isDeli ? dWPrev : pWPrev);
     const weekCur = isFd ? fWCur : (isDeli ? dWCur : pWCur);
     const d1Date = isFd ? fD1 : (isDeli ? dD1 : pD1);
-    const target = isFd ? null : (TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0)));
+    const target = isFd || isPud ? null : (TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0)));
 
     if (!rows.length || !d1Date) {
       return (
@@ -762,7 +771,11 @@ export default function Report1MienVungHub({
 
       let tot = 0;
       let ont = 0;
-      if (isFd) {
+      const pud = isPud ? pudCounts(r) : null;
+      if (isPud) {
+        tot = pud.tot || 0;
+        ont = pud.ont || 0;
+      } else if (isFd) {
         tot = getRowVal(r, 'mau_fd');
         ont = getRowVal(r, 'fd_hoan_thanh');
       } else if (isDeli) {
@@ -798,7 +811,7 @@ export default function Report1MienVungHub({
           dateEntityMap[rKey].bestOnt += getRowVal(r, 'best_l6w_fd_hoan_thanh');
           dateEntityMap[rKey].sameVol += getRowVal(r, 'sameday_lm_vol_fd');
           dateEntityMap[rKey].sameOnt += getRowVal(r, 'sameday_lm_fd_hoan_thanh');
-        } else {
+        } else if (!isPud) {
           const bVolKey = metricKey === '1st' ? 'best_l6w_vol_1st' : (isDeli ? 'best_l6w_vol_odr' : 'best_l6w_vol_opr');
           const bOntKey = metricKey === '1st' ? 'best_l6w_ontime_1st' : (isDeli ? 'best_l6w_ontime_odr' : 'best_l6w_ontime_opr');
           const sOntKey = metricKey === '1st' ? 'sameday_lm_ontime_1st' : (isDeli ? 'sameday_lm_ontime_odr' : 'sameday_lm_ontime_opr');
@@ -821,21 +834,25 @@ export default function Report1MienVungHub({
       if (!dateEntityMap[tKey]) dateEntityMap[tKey] = { tot: 0, ont: 0 };
       dateEntityMap[tKey].tot += tot;
       dateEntityMap[tKey].ont += ont;
+      if (isPud && pud.tot === null) {
+        [hKey, compKey, rKey, mKey, tKey].forEach(key => { dateEntityMap[key].incomplete = true; });
+      }
     });
 
     // Helper to calculate Pct & Vol for an entity across a list of dates
     const calcStats = (keyPrefix, dates) => {
-      let tot = 0, ont = 0;
+      let tot = 0, ont = 0, incomplete = false;
       dates.forEach(d => {
         const item = dateEntityMap[`${keyPrefix}_${d}`];
         if (item) {
           tot += item.tot;
           ont += item.ont;
+          incomplete ||= item.incomplete;
         }
       });
-      const pct = tot > 0 ? (ont / tot) * 100 : null;
+      const pct = !incomplete && tot > 0 ? (ont / tot) * 100 : null;
       if (pct !== null && pct > tableMaxPct) tableMaxPct = pct;
-      return { tot, ont, pct };
+      return { tot: incomplete ? null : tot, ont: incomplete ? null : ont, pct };
     };
 
     // Table max pct drives the FD tier scale
@@ -882,7 +899,11 @@ export default function Report1MienVungHub({
         if (r.report_date === d1Date) {
           let tot = 0;
           let ont = 0;
-          if (isFd) {
+          if (isPud) {
+            const pud = pudCounts(r);
+            tot = pud.tot || 0;
+            ont = pud.ont || 0;
+          } else if (isFd) {
             tot = getRowVal(r, 'mau_fd');
             ont = getRowVal(r, 'fd_hoan_thanh');
           } else if (isDeli) {
@@ -939,10 +960,13 @@ export default function Report1MienVungHub({
     // regions whose WTD volume is 0 so the table only lists regions that carry
     // those hub types — except the region drilled into from the ranking. With
     // every hub type selected the full region list stays.
-    const hasWtdVolume = (reg) => weekCur.some(d => (dateEntityMap[`REG_${reg}_${d}`]?.tot || 0) > 0);
+    const hasWtdVolume = (reg) => weekCur.some(d => {
+      const item = dateEntityMap[`REG_${reg}_${d}`];
+      return (item?.tot || 0) > 0 || (isPud && item?.incomplete);
+    });
     const isRegionVisible = (reg) => !isHubTypeFiltered || hasWtdVolume(reg) || focusTarget?.region === reg;
-    const hiddenRegionCount = MIEN_ORDER.flatMap(mien => MIEN_REGIONS[mien])
-      .filter(reg => selectedRegions.includes(reg) && !isRegionVisible(reg)).length;
+    const hiddenRegionCount = metricMienOrder.flatMap(mien => metricMienRegions[mien])
+      .filter(reg => regionSelected(reg) && !isRegionVisible(reg)).length;
 
     const isHighlighted = highlightedSection === sectionId;
 
@@ -1072,8 +1096,8 @@ export default function Report1MienVungHub({
               </tr>
 
               {/* 2. MIỀN & VÙNG ROWS */}
-              {MIEN_ORDER.map(mien => {
-                const filteredMienRegions = MIEN_REGIONS[mien].filter(r => selectedRegions.includes(r) && isRegionVisible(r));
+              {metricMienOrder.map(mien => {
+                const filteredMienRegions = metricMienRegions[mien].filter(r => regionSelected(r) && isRegionVisible(r));
                 if (filteredMienRegions.length === 0) return null;
 
                 const mienStats = calcStats(`MIEN_${mien}`, weekCur);
@@ -1133,7 +1157,8 @@ export default function Report1MienVungHub({
                     {sortedRegions.map(reg => {
                       const isExpanded = !!expandedRegions[reg];
                       const d1RegData = dateEntityMap[`REG_${reg}_${d1Date}`] || { tot: 0, ont: 0, bestVol: 0, bestOnt: 0, sameVol: 0, sameOnt: 0 };
-                      const regD1Pct = d1RegData.tot > 0 ? (d1RegData.ont / d1RegData.tot) * 100 : null;
+                      const regD1Stats = calcStats(`REG_${reg}`, [d1Date]);
+                      const regD1Pct = regD1Stats.pct;
 
                       const bestPct = d1RegData.bestVol > 0 ? (d1RegData.bestOnt / d1RegData.bestVol) * 100 : null;
                       const samePct = d1RegData.sameVol > 0 ? (d1RegData.sameOnt / d1RegData.sameVol) * 100 : null;
@@ -1167,7 +1192,7 @@ export default function Report1MienVungHub({
                             })}
                             {/* D-1 & WTD */}
                             <td {...heatCell(regD1Pct, d1StartClass)}>{formatPct(regD1Pct)}</td>
-                            <td>{formatVol(d1RegData.tot)}</td>
+                            <td>{formatVol(regD1Stats.tot)}</td>
                             <td {...heatCell(regWtd.pct, "grp-start")}>{formatPct(regWtd.pct)}</td>
                             <td>{formatVol(regWtd.tot)}</td>
 
@@ -1259,6 +1284,8 @@ export default function Report1MienVungHub({
                 </div>
               ))}
             </div>
+          ) : isPud ? (
+            <div>{PUD_NOTE} Mẫu PUD hiển thị ở cột volume của D-1 và WTD.</div>
           ) : (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
@@ -1268,7 +1295,9 @@ export default function Report1MienVungHub({
           {hiddenRegionCount > 0 && (
             <div>* Đã ẩn {hiddenRegionCount} vùng không phát sinh sản lượng WTD với loại Hub đang chọn.</div>
           )}
-          <div>{isFd ? '* Kho giao mặc định ẩn, click ▶ để mở các kho giao phát sinh đơn chưa hoàn thành nhiều nhất.' : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
+          <div>{isFd ? '* Kho giao mặc định ẩn, click ▶ để mở các kho giao phát sinh đơn chưa hoàn thành nhiều nhất.' : isPud
+            ? '* Hubs mặc định ẩn, click ▶ để mở top 10 hub có nhiều đơn thuộc mẫu PUD chưa lấy thành công nhất.'
+            : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
         </div>
       </div>
     );
@@ -1283,8 +1312,7 @@ export default function Report1MienVungHub({
   const activeDayRange = viewMode === 'day' && dayRangeBounds ? resolveDayRange(dayRange, dayRangeBounds) : null;
 
   const metricTables = {
-    pud: () => <PudKpiTable rows={filteredPick} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes}
-      rangeFilter={dayRangeBounds && <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />} />,
+    pud: () => renderMetricTable('PUD', 'pud', false, refPud, 'pud'),
     p1st: () => renderMetricTable('Mục 1.1: Tỷ lệ lấy hàng đúng giờ (1st Pickup)', '1st', false, refP1st, 'p1st'),
     popr: () => renderMetricTable('Mục 1.2: Tỷ lệ lấy hàng tổng thể (OPR)', 'OPR', false, refPOpr, 'popr'),
     d1st: () => renderMetricTable('Mục 1.3: Tỷ lệ giao hàng đúng giờ (1st Deli)', '1st', true, refD1st, 'd1st'),

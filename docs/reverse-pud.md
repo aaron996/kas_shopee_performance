@@ -16,7 +16,10 @@ Các dòng có `mau_pu = 0` vẫn có thể có mẫu PUD.
 
 Chọn **SPE Reverse → Chi tiết Vùng/Hub → PUD**, cạnh 1st Pickup/OPR.
 Ngày mặc định dùng dữ liệu Reverse đã tải; ngày tùy chọn và tuần dùng RPC lịch sử.
-Các bảng cộng tử/mẫu theo Toàn quốc → Miền → Vùng → Hub và hiển thị cột **Mẫu PUD**.
+Các bảng cộng tử/mẫu theo Toàn quốc → Miền → Vùng → Hub và hiển thị mẫu PUD ở cột volume.
+Ở chế độ ngày mặc định, PUD dùng cùng renderer với 1st Pickup/OPR: toolbar, Copy ảnh,
+cột nhóm tuần, D-1/WTD, hàng cố định, mở rộng Hub và animation dùng chung. Volume là mẫu PUD.
+Các cột benchmark chưa có nguồn hiển thị dấu –. Ngày tùy chọn/tuần vẫn dùng bảng lịch sử chung của các KPI.
 PUD không xuất hiện cho SPB/SPE. Overview và BXH chưa bổ sung KPI PUD.
 
 Mẫu bằng 0 hoặc thiếu tử/mẫu hiển thị dấu **–**. Nếu một nhóm ngày/tuần chứa dòng thiếu mẫu,

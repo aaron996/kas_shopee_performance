@@ -6,4 +6,4 @@ export { default as history } from '../../src/components/CodSmsRunHistoryPanel.j
 export { ToastProvider } from '../../src/components/ui/Toast.jsx';
 export { default as daily } from '../../src/modules/ops-metrics/DailyRangeKpiTable.jsx';
 export { default as weekly } from '../../src/modules/ops-metrics/WeeklyKpiTable.jsx';
-export { default as pud } from '../../src/modules/ops-metrics/PudKpiTable.jsx';
+export { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
