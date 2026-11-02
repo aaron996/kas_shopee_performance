@@ -1,11 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultFormatting, normalizeFormatting, formattingColor, formattingCellProps, textOnColor, readFormatting, saveFormatting, formattingStorageKey } from './kpiFormatting.js';
+import { appFormatting, visibleFormattingRules, defaultFormatting, normalizeFormatting, formattingColor, formattingCellProps, textOnColor, readFormatting, saveFormatting, formattingStorageKey } from './kpiFormatting.js';
 
 function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
 }
+test('opening an untouched KPI preserves the application heat rules, rather than a gradient', () => {
+  const app = appFormatting('popr');
+  assert.equal(app.mode, 'app');
+  assert.deepEqual(visibleFormattingRules({}, { metricKey: 'popr', value: app }), {});
+  assert.equal(formattingColor(85, app), null);
+});
+test('previewing app defaults and canceling retain the correct saved choice', () => {
+  const custom = { ...defaultFormatting('popr'), lowColor: '#123456' };
+  const saved = { popr: custom, fd: defaultFormatting('fd') };
+  assert.deepEqual(visibleFormattingRules(saved), saved);
+  assert.deepEqual(visibleFormattingRules(saved, { metricKey: 'popr', value: custom }), saved);
+  assert.deepEqual(visibleFormattingRules(saved, { metricKey: 'popr', value: appFormatting('popr') }), { fd: saved.fd });
+  assert.deepEqual(visibleFormattingRules(saved), saved);
+  const off = { ...custom, mode: 'off' };
+  assert.deepEqual(visibleFormattingRules(saved, { metricKey: 'popr', value: off }).popr, off);
+});
+test('saving app defaults overrides custom colors and survives reload independently per KPI', () => {
+  const store = storage();
+  saveFormatting(store, 'user@ghn.vn', 'popr', defaultFormatting('popr'));
+  saveFormatting(store, 'user@ghn.vn', 'fd', defaultFormatting('fd'));
+  saveFormatting(store, 'user@ghn.vn', 'popr', appFormatting('popr'));
+  const loaded = readFormatting(store, 'user@ghn.vn');
+  assert.equal(loaded.popr.mode, 'app');
+  assert.equal(visibleFormattingRules(loaded).popr, undefined);
+  assert.equal(visibleFormattingRules(loaded).fd.mode, 'above');
+});
 test('two-color ranges clamp endpoints and use the displayed KPI value at the threshold', () => {
   const below = { ...defaultFormatting('popr'), lowColor: '#0000ff', highColor: '#ffffff' };
   assert.equal(formattingColor(0, below), '#0000ff');
