@@ -169,6 +169,9 @@ của luồng khác, không dùng chung.
 
 ## SPE Reverse (KAS-291, test)
 
+> Cập nhật 02/11/2026: Reverse hiện dùng **upsert**, trùng khóa ghi đè số mới và giữ dòng vắng khỏi sheet.
+> Mô tả replace bên dưới là lịch sử triển khai 19/10; rule và migration hiện tại ở [reverse-pud.md](reverse-pud.md).
+
 Channel SPE Reverse (client 224845) có luồng riêng, không đi qua `kas_pick_data`/`kas_pick_history` vì có thêm cột `pud` và rule
 riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây là bản test dữ liệu.
 
@@ -199,7 +202,7 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
 
 ## Hiển thị Shopee Reverse trong app
 
-- Client `SPE Reverse` (nhãn "Shopee Reverse") chỉ có Pick (1st Pickup, OPR); Deli/FD không áp dụng nên tab giao hàng và FD bị ẩn.
+- Client `SPE Reverse` (nhãn "Shopee Reverse") có 1st Pickup, OPR và PUD; Deli/FD không áp dụng nên tab giao hàng và FD bị ẩn.
 - `kas_reverse_history` chỉ `service_role` đọc được; app đọc qua ba RPC có thêm dataset `reverse`
   (`get_kas_weekly_compact`, `get_kas_daily_compact`, `get_kas_daily_range_compact`) trong
   `supabase/migrations/20261019120000_kas_reverse_rpc_datasets.sql`. Tuần được cộng trực tiếp từ bảng ngày

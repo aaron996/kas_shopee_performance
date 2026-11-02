@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck, CircleHelp } from 'lucide-react';
 import { MODULE_IDS } from './moduleIds.js';
+import { REVERSE_CLIENT } from '../utils/clientLabels.js';
 
 // Share the import promise between startup preload and React.lazy.
 function startupSurface(loader) {
@@ -20,6 +21,7 @@ function startupSurface(loader) {
 export const moduleRegistry = Object.freeze([
   {
     id: 'home', label: 'Tổng quan', mobileLabel: 'Tổng quan', icon: LayoutDashboard, motionIcon: 'LayoutDashboard', description: 'KPI, Hub cần ưu tiên và xu hướng vận hành',
+    requiredDatasetsByClient: { [REVERSE_CLIENT]: ['reverse'] },
     requiredDatasets: ['pick', 'deli', 'fd'],
     handlesDataLoading: true, // Weather loads independently inside the overview.
     group: 'overview', navigation: { sidebar: true, commandPalette: true, mobile: true },
@@ -27,6 +29,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report1',
+    requiredDatasetsByClient: { [REVERSE_CLIENT]: ['reverse'] },
     requiredDatasets: ['pick', 'deli', 'fd'],
     motionIcon: 'ChartNoAxesColumnIncreasing',
     description: 'Tra cứu chỉ số theo Toàn quốc, Miền, Vùng và Hub',
@@ -67,6 +70,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'report-insight',
+    requiredDatasetsByClient: { [REVERSE_CLIENT]: ['reverse'] },
     requiredDatasets: ['pick', 'deli', 'leadtime'],
     motionIcon: 'Sparkles',
     description: 'Phân tích biến động KPI · Đang phát triển',
@@ -97,6 +101,7 @@ export const moduleRegistry = Object.freeze([
   },
   {
     id: 'ranking',
+    requiredDatasetsByClient: { [REVERSE_CLIENT]: ['reverse'] },
     requiredDatasets: ['pick', 'deli'],
     motionIcon: 'Truck',
     description: 'Xếp hạng hiệu suất vận hành',

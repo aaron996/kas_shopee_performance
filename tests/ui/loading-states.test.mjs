@@ -77,3 +77,35 @@ test('daily and weekly table first renders use the same skeleton', () => {
     range: { from: '2026-10-26', to: '2026-11-01' } }));
   expectLoading(render(components.weekly, { metricKey: 'p1st', title: '1st Pickup' }));
 });
+
+test('PUD daily/week requests start with skeletons and Reverse declares its own source', () => {
+  for (const id of ['home', 'report1', 'ranking', 'report-insight']) {
+    assert.deepEqual(registry.find(module => module.id === id).requiredDatasetsByClient['SPE Reverse'], ['reverse']);
+  }
+  expectLoading(render(components.daily, { metricKey: 'pud', title: 'PUD', clientFilter: 'SPE Reverse',
+    range: { from: '2026-10-26', to: '2026-11-01' } }));
+  expectLoading(render(components.weekly, { metricKey: 'pud', title: 'PUD', clientFilter: 'SPE Reverse' }));
+});
+
+test('PUD tab and default matrix use Reverse scope, separate sample, and no target heat', () => {
+  const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 0, pud: 1, mau_pud: 1 },
+    { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 0, pud: 0, mau_pud: 9 }];
+  const html = render(components.report, { pickRows: rows, deliRows: [], clientFilter: 'SPE Reverse',
+    selectedRegions: ['HCM'], selectedHubTypes: ['BC'], focusTarget: { metricKey: 'pud' } });
+  assert.match(html, /id="ops-tab-pud" aria-selected="true"/);
+  assert.match(html, /10,0%|10\.0%/);
+  assert.match(html, /Mẫu PUD/);
+  assert.doesNotMatch(html, /Target ≥|heat heat-/);
+  const other = render(components.report, { pickRows: rows.map(row => ({ ...row, client_name: 'SPB' })), deliRows: [],
+    clientFilter: 'SPB', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] });
+  assert.doesNotMatch(other, /ops-tab-pud/);
+});
+
+test('Reverse failures expose retry and completed empty data is not loading', () => {
+  const props = { pickRows: [], deliRows: [], clientFilter: 'SPE Reverse' };
+  const error = render(components.report, { ...props, sourceError: true });
+  assert.match(error, /Không tải được dữ liệu SPE Reverse/);
+  assert.match(error, /Thử lại/);
+  assert.doesNotMatch(error, /loading-skeleton/);
+  expectLoading(render(components.report, { ...props, dataLoading: true }));
+});

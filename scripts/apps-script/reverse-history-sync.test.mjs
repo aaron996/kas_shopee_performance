@@ -52,11 +52,14 @@ await db.exec('set role authenticated');
 await rejects(db.query(`select public.replace_kas_reverse_history('2026-10-05', '2026-10-05', '[]'::jsonb)`), /permission denied/, 'authenticated không gọi được RPC');
 await db.exec('reset role');
 
+// Current script uses upsert; the earlier assertions exercise the historical migration.
+await db.exec(readFileSync('supabase/migrations/20261102035351_reverse_pud_denominator.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/20261102043310_reverse_history_upsert.sql', 'utf8'));
 // --- Apps Script ---
 const calls = [];
 const logs = [];
 const props = { SUPABASE_SERVICE_ROLE_KEY: 'k' };
-const header = ['report_date', 'region', 'hub', 'hub_type', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'pud', 'client_name'];
+const header = ['report_date', 'region', 'hub', 'hub_type', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'pud', 'client_name', 'mau_pud'];
 const tabs = {};
 const ss = {
   getSpreadsheetTimeZone: () => 'Asia/Ho_Chi_Minh',
@@ -81,7 +84,7 @@ vm.runInContext(readFileSync('scripts/apps-script/ops-history-sync.gs', 'utf8'),
 vm.runInContext(readFileSync('scripts/apps-script/reverse-history-sync.gs', 'utf8'), ctx);
 ctx.opsDeltaRpc_ = (name, payload) => { calls.push({ rpc: name, ...payload }); return { rows: payload.rows.length, deleted: 0, inserted: payload.rows.length }; };
 
-const fill = (day, n) => Array.from({ length: n }, (_, i) => [day + 'T00:00:00', 'HCM', 'Hub' + i, 'BC', 10, 9, 8, 9, 'SPE Reverse']);
+const fill = (day, n) => Array.from({ length: n }, (_, i) => [day + 'T00:00:00', 'HCM', 'Hub' + i, 'BC', 10, 9, 8, 9, 'SPE Reverse', 12]);
 const setTab = (name, ...parts) => { tabs[name] = [header, ...parts.flat()]; };
 
 // Backfill: từ chối ngoài [2026-06-21, hôm qua 2026-10-18].
@@ -99,7 +102,7 @@ check(calls.length === 0, 'từ chối thì không gọi RPC');
 setTab('reverse_backfill_tmp', fill('2026-06-21', 2), fill('2026-06-22', 3), fill('2026-06-28', 1), fill('2026-10-18', 2));
 logs.length = 0;
 ctx.backfillReverseHistory();
-check(calls.length === 3 && calls.every(c => c.rpc === 'replace_kas_reverse_history'), 'mỗi tuần một lệnh replace');
+check(calls.length === 3 && calls.every(c => c.rpc === 'upsert_kas_reverse_history'), 'mỗi tuần một lệnh upsert');
 check(calls[0].date_from === '2026-06-21' && calls[0].date_to === '2026-06-21' && calls[0].rows.length === 2, 'tuần đầu bị cắt ở 21/06');
 check(calls[1].date_from === '2026-06-22' && calls[1].date_to === '2026-06-28' && calls[1].rows.length === 4, 'tuần 22/06 đủ 7 ngày');
 check(calls[2].date_from === '2026-10-12' && calls[2].date_to === '2026-10-18' && calls[2].rows[0].pud === 9, 'tuần cuối đến hôm qua, có pud');
@@ -116,6 +119,9 @@ calls.length = 0; logs.length = 0;
 setTab('reverse', fill('2026-10-05', 2), fill('2026-10-18', 2));
 ctx.syncReverseHistory();
 check(calls.length === 1 && calls[0].date_from === '2026-10-05' && calls[0].date_to === '2026-10-18' && calls[0].rows.length === 4, 'daily: một lệnh replace D-14..D-1');
+check(calls[0].rows[0].mau_pud === 12, 'mau_pud lấy đúng cột J, không dùng mau_pu');
+tabs.reverse = [header.slice(0, -1), ...fill('2026-10-18', 1).map(r => r.slice(0, -1))];
+assert.throws(() => ctx.syncReverseHistory(), /Missing header: mau_pud/); checks++;
 setTab('reverse', fill('2026-10-04', 1), fill('2026-10-18', 1));
 assert.throws(() => ctx.syncReverseHistory(), /chưa đúng cửa sổ 2026-10-05\.\.2026-10-18/); checks++;
 setTab('reverse', fill('2026-10-05', 1), fill('2026-10-17', 1));

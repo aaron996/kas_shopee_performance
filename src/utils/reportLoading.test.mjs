@@ -35,3 +35,10 @@ test('completed empty/error requests release skeleton; retry without rows restor
   assert.equal(source.filter(row => row.region === 'HNO').length, 0);
   assert.equal(isReportDataLoading(['pick'], { pick: true }, { pick: source }), false);
 });
+
+test('Reverse readiness is independent of loaded Pick/Deli and keeps rows during refresh', () => {
+  const rows = { pick: [{}], deli: [{}], reverse: null };
+  assert.equal(isReportDataLoading(['reverse'], { reverse: true }, rows), true);
+  assert.equal(isReportDataLoading(['reverse'], { reverse: false }, rows), false);
+  assert.equal(isReportDataLoading(['reverse'], { reverse: true }, { ...rows, reverse: [{}] }), false);
+});

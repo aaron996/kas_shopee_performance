@@ -38,7 +38,7 @@ import { useToast } from './components/ui/Toast';
 import { RadioProvider } from './modules/performance-ranking/RadioProvider.jsx';
 import RadioFloatingLayer from './modules/performance-ranking/RadioFloatingLayer.jsx';
 import { normalizeClientFilter, REVERSE_CLIENT } from './utils/clientLabels';
-import { fetchDailyRangeRows, addDays } from './utils/weeklyKpi';
+import { fetchDailyRangeRows, addDays, clearWeeklyCache } from './utils/weeklyKpi';
 
 const ACCESS_LOGGED_KEY_PREFIX = 'ghn_access_logged:';
 const ACCESS_LOG_RETRY_DELAYS = [0, 1500, 5000];
@@ -307,6 +307,9 @@ export default function App() {
   const [fdRows, setFdRows] = useState([]);
   // Reverse chỉ có Pick và đọc từ bảng lịch sử riêng, nên chỉ tải khi chọn client này (14 ngày gần nhất).
   const [reverseRows, setReverseRows] = useState(null);
+  const [reverseLoadedKey, setReverseLoadedKey] = useState(null);
+  const [reverseError, setReverseError] = useState(null);
+  const [reverseAttempt, setReverseAttempt] = useState(0);
   const [dataSources, setDataSources] = useState({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải', fd: 'Chưa tải' });
   // Sources stay explicit; operational reports start empty, never with mock rows.
   const [leadtimeSource, setLeadtimeSource] = useState('none');
@@ -314,11 +317,12 @@ export default function App() {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      window.__GHN_DEV_INJECT_DATA__ = ({ pick, deli, ca1, user } = {}) => {
+      window.__GHN_DEV_INJECT_DATA__ = ({ pick, deli, ca1, reverse, user } = {}) => {
         if (user) setCurrentUser(user);
         if (pick) setPickRows(normalizeRows(pick));
         if (deli) setDeliRows(normalizeRows(deli));
         if (ca1) setCa1Rows(normalizeRows(ca1));
+        if (reverse) setReverseRows(normalizeRows(reverse));
       };
     }
     return () => {
@@ -474,6 +478,9 @@ export default function App() {
     setCa1Rows([]);
     setLeadtimeRows([]);
     setFdRows([]);
+    setReverseRows(null);
+    setReverseLoadedKey(null);
+    setReverseError(null);
     setDataSources({ pick: 'Chưa tải', deli: 'Chưa tải', ca1: 'Chưa tải', fd: 'Chưa tải' });
     setLeadtimeSource('none');
     setLeadtimeSyncedAt(null);
@@ -757,25 +764,31 @@ export default function App() {
     setOverviewDataReady(false);
     setPendingDatasets(pendingReportDatasets(true));
     setClientChoiceToken(null);
+    setReverseRows(null);
+    setReverseLoadedKey(null);
+    setReverseError(null);
+    clearWeeklyCache();
     setCurrentUser(null);
   };
 
   const isReverse = clientFilter === REVERSE_CLIENT;
+  const reverseKey = `${currentUser?.email}:${getVietnamBusinessDay()}:${reverseAttempt}`;
+  const reversePending = isReverse && !currentUser?.localPreview && reverseLoadedKey !== reverseKey;
+  const retryReverse = () => { clearWeeklyCache(); setReverseAttempt(attempt => attempt + 1); };
   useEffect(() => {
-    if (!isReverse || reverseRows || !currentUser) return undefined;
+    if (!isReverse || reverseLoadedKey === reverseKey || !currentUser || currentUser.localPreview) return undefined;
     let cancelled = false;
     // Match the Pick/Deli snapshot window: D-14 through D-1 in Vietnam.
     const to = addDays(getVietnamBusinessDay(), -1);
     fetchDailyRangeRows(supabase, 'reverse', addDays(to, -13), to)
-      .then(({ rows }) => { if (!cancelled) setReverseRows(rows); })
+      .then(({ rows }) => { if (!cancelled) { setReverseRows(rows); setReverseError(null); setReverseLoadedKey(reverseKey); } })
       .catch(() => {
         if (cancelled) return;
-        setReverseRows([]);
-        showToast('Không tải được dữ liệu Shopee Reverse. Chọn lại client để thử lại.', { tone: 'warning' });
+        setReverseError(reverseKey);
+        setReverseLoadedKey(reverseKey);
       });
     return () => { cancelled = true; };
-  }, [isReverse, reverseRows, currentUser, showToast]);
-  useEffect(() => { if (!isReverse && reverseRows?.length === 0) setReverseRows(null); }, [isReverse, reverseRows]);
+  }, [isReverse, reverseLoadedKey, reverseKey, currentUser]);
 
   // Reverse chỉ có Pick: dòng Deli/FD của SPB-SPE không áp dụng cho client này.
   const activePickRows = isReverse ? (reverseRows || []) : pickRows;
@@ -843,7 +856,8 @@ export default function App() {
       density,
       isFullscreen,
       setIsFullscreen,
-      onRetryData: handleSyncLiveSheet,
+      onRetryData: isReverse ? retryReverse : handleSyncLiveSheet,
+      sourceError: isReverse && reverseError === reverseKey,
       onOpenSummary: () => setIsSummaryOpen(true),
       focusTarget: report1FocusTarget,
       onClearFocusTarget: () => setReport1FocusTarget(null)
@@ -903,12 +917,16 @@ export default function App() {
     weatherProps: { selectedRegions, userKey: userEmail || 'anonymous',
       active: Boolean(currentUser && !currentUser.localPreview && !introVisible && hasPickedClient),
       localPreview: Boolean(currentUser?.localPreview) } };
-  const sourceRows = { pick: pickRows, deli: deliRows, fd: fdRows, ca1: ca1Rows, leadtime: leadtimeRows };
+  const sourceRows = { pick: pickRows, deli: deliRows, fd: fdRows, ca1: ca1Rows, leadtime: leadtimeRows, reverse: reverseRows };
+  const reportPending = { ...pendingDatasets, reverse: reversePending };
   for (const module of moduleRegistry) {
-    runtimeByModule[module.id].dataLoading = isReportDataLoading(module.requiredDatasets, pendingDatasets, sourceRows);
+    const required = module.requiredDatasetsByClient?.[clientFilter] || module.requiredDatasets;
+    runtimeByModule[module.id].dataLoading = isReportDataLoading(required, reportPending, sourceRows);
   }
   runtimeByModule.report1.loadingDatasets = runtimeByModule.home.loadingDatasets = Object.fromEntries(
-    ['pick', 'deli', 'fd'].map(dataset => [dataset, isReportDataLoading([dataset], pendingDatasets, sourceRows)])
+    ['pick', 'deli', 'fd'].map(dataset => [dataset, isReverse
+      ? dataset === 'pick' && isReportDataLoading(['reverse'], reportPending, sourceRows)
+      : isReportDataLoading([dataset], pendingDatasets, sourceRows)])
   );
   return (
     <RadioProvider started={radioStarted} canManage={Boolean(currentUser?.isDevAdmin)}>
@@ -981,7 +999,7 @@ export default function App() {
             setDensity={setDensity}
             isFullscreen={isFullscreen}
             setIsFullscreen={setIsFullscreen}
-            onRetryData={handleSyncLiveSheet}
+            onRetryData={isReverse ? retryReverse : handleSyncLiveSheet}
             isDataStale={isDataStale}
             canExport={canExport}
             exportContext={exportContext}

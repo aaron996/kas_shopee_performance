@@ -4,6 +4,7 @@ import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchWeeklyRows, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
+import { PUD_NOTE } from '../../utils/pud';
 
 const addDays = (day, n) => {
   const d = new Date(`${day}T00:00:00Z`);
@@ -91,6 +92,7 @@ export default function WeeklyKpiTable({
         {rangeFilter}
       </div>
       {body}
+      {metricKey === 'pud' && <div className="table-legend"><div>{PUD_NOTE}</div></div>}
     </div>
   );
 

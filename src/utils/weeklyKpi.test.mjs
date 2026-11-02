@@ -143,8 +143,8 @@ test('expandCompactRows ghép cột với giá trị, giữ null', () => {
 });
 
 test('mọi chỉ số có bảng nguồn và cột hợp lệ', () => {
-  assert.deepEqual(Object.keys(WEEKLY_METRICS), ['p1st', 'popr', 'd1st', 'dodr', 'fd']);
-  assert.deepEqual(Object.values(WEEKLY_METRICS).map(m => m.dataset), ['pick', 'pick', 'deli', 'deli', 'fd']);
+  assert.deepEqual(Object.keys(WEEKLY_METRICS), ['p1st', 'popr', 'pud', 'd1st', 'dodr', 'fd']);
+  assert.deepEqual(Object.values(WEEKLY_METRICS).map(m => m.dataset), ['pick', 'pick', 'reverse', 'deli', 'deli', 'fd']);
 });
 
 test('khoảng ngày: mỗi ngày một cột, nhãn ngày và gọi RPC get_kas_daily_range_compact', async () => {

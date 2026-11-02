@@ -42,6 +42,7 @@ COD/AI) giữ nguyên; chúng không phải trạng thái chờ dữ liệu củ
 - Module khai báo `requiredDatasets` trong registry. `isReportDataLoading` kiểm tra cờ pending và **dòng nguồn chưa lọc**. `ModuleSurfaceOutlet` hiện skeleton trước cả overlay/empty của module; Tổng quan tự xử lý qua `dataLoading` để thời tiết vẫn tải độc lập. Nguồn chưa về trong báo cáo đã có một phần số dùng `loadingDatasets` để skeleton đúng vùng.
 - Bản cache hoặc dữ liệu cũ đã có vẫn hiển thị khi sync nền. Dữ liệu bị bộ lọc loại hết được báo empty, không biến thành loading vô hạn.
 - Request hoàn tất rỗng mới hiện empty. Request lỗi dừng loading, báo lỗi/cho thử lại; không coi lỗi là bằng chứng nguồn rỗng.
+- SPE Reverse theo dõi nguồn `reverse` riêng qua `requiredDatasetsByClient` trong registry. Pick/Deli tải xong không kết thúc skeleton của Reverse. Đổi ngày/phiên hoặc thử lại tạo request mới; lỗi có nút thử lại và giữ số cũ khi refresh.
 
 ## Kiểm tra hồi quy
 
