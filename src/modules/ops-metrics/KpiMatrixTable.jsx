@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { formattingCellProps } from '../../utils/kpiFormatting';
+import { KpiFormattingLegend } from './KpiFormattingControl';
 import { formatPct, formatVol, getHeatTier, getHigherIsWorseTier } from '../../utils/dataProcessor';
 
 // Bảng Toàn quốc > Miền > Vùng > Hub x cột thời gian (mỗi cột hai ô: % và volume), dùng chung cho
 // "Theo tuần" (cột = tuần) và "Theo ngày" có khoảng ngày (cột = ngày). `matrix` do buildWeeklyMatrix dựng.
-export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhất', showVolume = true, horizontalScroll = false }) {
+export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabel = 'tuần gần nhất', showVolume = true, horizontalScroll = false }) {
   const { metric } = matrix;
   const [expanded, setExpanded] = useState({});
 
@@ -12,6 +14,7 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
     ? getHigherIsWorseTier(pct, 3, matrix.maxPct)
     : getHeatTier(pct, metric.target));
   const heat = (pct, ...extra) => {
+    if (formattingRule) return formattingCellProps(pct, formattingRule, ...extra, 'grp-start');
     const t = tier(pct);
     const className = [...extra, t > 0 && `heat heat-${t}`, 'grp-start'].filter(Boolean).join(' ');
     return { className };
@@ -24,6 +27,7 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
   ));
 
   return (
+    <>
     <div className={`mtx-wrap report1-master-table${horizontalScroll ? ' daily-matrix-scroll' : ''}`}
       role={horizontalScroll ? 'region' : undefined} tabIndex={horizontalScroll ? 0 : undefined}
       aria-label={horizontalScroll ? 'Bảng performance theo ngày, cuộn ngang để xem đầy đủ' : undefined}
@@ -98,5 +102,7 @@ export default function KpiMatrixTable({ matrix, lastLabel = 'tuần gần nhấ
         </tbody>
       </table>
     </div>
+    {formattingRule && <div className="table-legend"><KpiFormattingLegend rule={formattingRule} /></div>}
+    </>
   );
 }

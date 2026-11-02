@@ -1,6 +1,9 @@
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
+import KpiFormattingControl, { KpiFormattingLegend } from './KpiFormattingControl';
+import useKpiFormatting from '../../hooks/useKpiFormatting';
+import { formattingCellProps } from '../../utils/kpiFormatting';
 import WeeklyKpiTable from './WeeklyKpiTable';
 import { pudCounts, PUD_NOTE } from '../../utils/pud';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
@@ -39,6 +42,7 @@ const WEEKLY_TITLES = {
 };
 
 export default function Report1MienVungHub({
+  userEmail = '',
   dataLoading = false,
   loadingDatasets = {},
   sourceError = null,
@@ -68,6 +72,10 @@ export default function Report1MienVungHub({
   weatherProps
 }) {
   const showToast = useToast();
+  const { rules: formattingRules, save: saveFormatting, preview: previewFormatting } = useKpiFormatting(userEmail);
+  const formattingControl = metricKey => metricKey === 'pud' ? null : <KpiFormattingControl key={`${userEmail}:${metricKey}`} metricKey={metricKey}
+    label={{ p1st: '1st Pickup', popr: 'OPR', d1st: '1st Deli', dodr: 'ODR', fd: 'FD' }[metricKey]}
+    rule={formattingRules[metricKey]} onPreview={previewFormatting} onSave={(key, rule) => { saveFormatting(key, rule); showToast('Đã lưu cài đặt tô màu.', { tone: 'success' }); }} />;
   const pickOnly = clientFilter === REVERSE_CLIENT;
   const [expandedRegions, setExpandedRegions] = useState(() => {
     return focusTarget?.region ? { [focusTarget.region]: true } : {};
@@ -974,6 +982,7 @@ export default function Report1MienVungHub({
     // inline style: màu chữ cố định theo từng bậc nên luôn đủ tương phản, và
     // stylesheet thắng được nền !important của dòng Tổng/Toàn quốc ở dark mode.
     const heatCell = (pct, ...classes) => {
+      if (!snapshotMetric && formattingRules[sectionId]) return formattingCellProps(pct, formattingRules[sectionId], ...classes);
       const tier = isFd ? getHigherIsWorseTier(pct, 3, tableMaxPct) : getHeatTier(pct, target);
       const className = [...classes, tier > 0 && `heat heat-${tier}`].filter(Boolean).join(" ");
       return className ? { className } : {};
@@ -1003,6 +1012,7 @@ export default function Report1MienVungHub({
             {target != null && <span className="kpi-badge">Target ≥ {target.toFixed(0)}%</span>}
           </div>
           {!snapshotMetric && dayRangeBounds && <DayRangeFilter range={dayRange} onChange={setDayRange} bounds={dayRangeBounds} />}
+          {!snapshotMetric && formattingControl(sectionId)}
           <button
             onClick={() => handleCopyImage(sectionRef, title)}
             className="btn-secondary"
@@ -1267,7 +1277,7 @@ export default function Report1MienVungHub({
         </div>
 
         <div className="table-legend">
-          {target != null ? (
+          {!snapshotMetric && formattingRules[sectionId] ? <KpiFormattingLegend rule={formattingRules[sectionId]} /> : target != null ? (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Rule màu:</span>
               <div className="legend-item">
@@ -1474,6 +1484,8 @@ export default function Report1MienVungHub({
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
           {activeDayRange ? (
             <DailyRangeKpiTable
+              formattingRule={formattingRules[activeTableTab]}
+              formattingControl={formattingControl(activeTableTab)}
               key={`${dayRange.from}:${dayRange.to}:${dayRange.preset}`}
               metricKey={activeTableTab}
               title={WEEKLY_TITLES[activeTableTab]}
@@ -1485,6 +1497,8 @@ export default function Report1MienVungHub({
             />
           ) : viewMode === 'week' ? (
             <WeeklyKpiTable
+              formattingRule={formattingRules[activeTableTab]}
+              formattingControl={formattingControl(activeTableTab)}
               metricKey={activeTableTab}
               title={WEEKLY_TITLES[activeTableTab]}
               clientFilter={clientFilter}

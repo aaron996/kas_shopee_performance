@@ -39,6 +39,8 @@ export function DayRangeFilter({ range, onChange, bounds }) {
 export default function DailyRangeKpiTable({
   metricKey,
   title,
+  formattingRule = null,
+  formattingControl = null,
   range,
   rangeFilter = null,
   clientFilter = 'ALL',
@@ -84,6 +86,7 @@ export default function DailyRangeKpiTable({
           {!rangeFilter && <span className="kpi-badge weekly-kpi-badge">{range.from.split('-').reverse().join('/')} → {range.to.split('-').reverse().join('/')}</span>}
         </div>
         {rangeFilter}
+        {formattingControl}
         <button type="button" className="btn-secondary daily-volume-toggle" aria-pressed={showVolume}
           onClick={() => setVolumeOverride({ key: selectionKey, show: !showVolume })}>
           Volume
@@ -111,7 +114,7 @@ export default function DailyRangeKpiTable({
   return shell(
     <>
       <p className="daily-matrix-hint">Cuộn ngang để xem đủ ngày · Shift + lăn chuột hoặc vuốt ngang</p>
-      <KpiMatrixTable matrix={matrix} lastLabel="ngày cuối khoảng" showVolume={showVolume} horizontalScroll />
+      <KpiMatrixTable matrix={matrix} formattingRule={formattingRule} lastLabel="ngày cuối khoảng" showVolume={showVolume} horizontalScroll />
       <div className="table-legend">
         <div>* Khoảng ngày đọc từ bảng lịch sử nên không có cột WTD, Tốt nhất 6 tuần và Cùng ngày tháng trước.</div>
       </div>
