@@ -43,6 +43,35 @@ export function cinematicPoliceSubject(police, positions) {
   return positions.get(police.targetId)?.alpha >= .65 ? police.targetId : null;
 }
 
+// Keep the six moving shot directions, but frame the pair as one close scene.
+// Fit both vehicle silhouettes and the walking officer to each moving view;
+// portrait uses its narrower horizontal field of view to avoid cropping either.
+export function cinematicInspectionGoal(vehicle, patrol, seconds, aspect = 1.8) {
+  const frame = { ...vehicle, x: (vehicle.x + patrol.x) / 2,
+    y: (vehicle.y + patrol.y) / 2, z: (vehicle.z + patrol.z) / 2 };
+  const shot = cinematicCameraGoal(frame, seconds, aspect);
+  const offset = shot.position.map((value, i) => value - shot.target[i]);
+  const length = Math.hypot(...offset);
+  const direction = offset.map(value => value / length);
+  const rightLength = Math.hypot(direction[0], direction[2]);
+  const right = [direction[2]/rightLength, 0, -direction[0]/rightLength];
+  const up = [-direction[1]*right[2], direction[2]*right[0]-direction[0]*right[2], direction[1]*right[0]];
+  const tanY = Math.tan(shot.fov * Math.PI / 360) * .85, tanX = tanY * aspect;
+  const dot = (a,b) => a.reduce((sum,value,i)=>sum+value*b[i],0);
+  let distance = 0;
+  for (const actor of [vehicle, patrol]) {
+    const cy = Math.cos(actor.heading), sy = Math.sin(actor.heading);
+    const cp = Math.cos(actor.pitch ?? 0), sp = Math.sin(actor.pitch ?? 0);
+    for (const x of [-1.8,1.8]) for (const y of [0,2.2]) for (const z of [-1.1,1.1]) {
+      const point = [actor.x + cy*(cp*x-sp*y)+sy*z-shot.target[0],
+        actor.y+sp*x+cp*y-shot.target[1], actor.z-sy*(cp*x-sp*y)+cy*z-shot.target[2]];
+      const depth = dot(point,direction);
+      distance = Math.max(distance, depth+.75, depth+Math.abs(dot(point,right))/tanX, depth+Math.abs(dot(point,up))/tanY);
+    }
+  }
+  return { ...shot, position: offset.map((value, i) => shot.target[i] + value / length * distance) };
+}
+
 // Idle is a temporary override, never a mutation of the user's chosen camera.
 export function resolveCameraMode({ chosen, fallback = 'tv', hasSelection, idle, dismissed, busy, touring, reducedMotion }) {
   if (touring) return 'tv';
