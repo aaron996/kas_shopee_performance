@@ -30,4 +30,6 @@ The existing idle traffic scene now includes one Vietnamese traffic-police motor
 
 ## Limits
 
+Cinematic visibility correction: the camera now prioritizes the currently visible patrol target immediately, including Hubs outside the leading three, and widens its shot by 1.5 during that interaction. Previously the random patrol could occur off camera while Cinematic continued filming the leaders. Manual TV/overview/follow modes retain their chosen subject. The focused camera/police suite passes 9/9 after this correction.
+
 The generated character has open gloves, no finger rig or paper handoff, limited shoulder/hip deformation and stylized foot pivots. Camera angle or scenery may occlude part of an inspection, as with other scene actors. Local simulation and IAB checks do not certify exhaustive mesh collision freedom, target-device FPS, authenticated production data or final user art approval. Deployment status is reported separately from source and local verification.
