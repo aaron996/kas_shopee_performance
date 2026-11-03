@@ -35,8 +35,8 @@ def main():
             handblend=ease((t-.15)/.45)
         elif 120<=f<200 or 293<=f<373:
             returning=f>=293;t=(f-(293 if returning else 120))/80;mode='walk';yaw=math.pi if returning else 0
-            start=Vector((.75,-.7375 if returning else .05,-.02));rot=Quaternion((0,0,1),yaw)
-            n=min(3,int(t*4));q=t*4-n;travel=.225
+            start=Vector((.75,-4.825 if returning else .05,-.02));rot=Quaternion((0,0,1),yaw)
+            n=min(7,int(t*8));q=t*8-n;travel=.65
             footys={'L':.074,'R':.074}
             for j in range(n):footys['L' if j%2==0 else 'R']-=travel*2 if j>0 else travel
             moving='L' if n%2==0 else 'R';old=footys[moving];target=old-(travel*2 if n>0 else travel);footys[moving]=old+(target-old)*ease(q)
@@ -47,11 +47,11 @@ def main():
                 feet[suf]=start+rot@Vector((s*.13,footys[suf],z+.02))
                 if t>.85:
                     settle=ease((t-.85)/.15)
-                    endpoint=start+rot@Vector((s*.13,-.7875+.074,.108))
+                    endpoint=start+rot@Vector((s*.13,-4.875+.074,.108))
                     feet[suf]=feet[suf].lerp(endpoint,settle)
             handblend=1
         elif 200<=f<293:
-            mode='inspect' if f<275 else 'turn';offset=Vector((.75,-.7375,-.02));yaw=math.pi*ease((f-275)/18) if f>=275 else 0;handblend=1
+            mode='inspect' if f<275 else 'turn';offset=Vector((.75,-4.825,-.02));yaw=math.pi*ease((f-275)/18) if f>=275 else 0;handblend=1
         elif 373<=f<391:
             mode='turn';offset=Vector((.75,.05,-.02));yaw=math.pi*(1-ease((f-373)/18));handblend=1
         root=rig.pose.bones['root'];root.matrix=Matrix.Translation(offset)@Quaternion((0,0,1),yaw).to_matrix().to_4x4()@root.bone.matrix_local
@@ -100,12 +100,13 @@ def main():
     rig.rotation_euler[2]=math.pi/2;rig.location=(.05,0,.02)
     bpy.ops.import_scene.gltf(filepath=str(P/'motorcycle/csgt-motorcycle-prepared-v1.glb'))
     sc.camera.data.ortho_scale=4.4;sc.render.resolution_x=900;sc.render.resolution_y=700
-    bx_review._look_at(sc.camera,Vector((.3,.3,1)),Vector((1,-2,.65)).normalized(),10)
+    bx_review._look_at(sc.camera,Vector((2.3,.3,1)),Vector((1,-2,.65)).normalized(),14)
+    sc.camera.data.ortho_scale=8
     paths=[];keyframes=[1,60,80,120,160,200,235,285,335,385,430,481]
     for f in keyframes:
         sc.frame_set(f);sc.render.filepath=str(O/f'key-{f:03}.png');bpy.ops.render.render(write_still=True);paths.append(sc.render.filepath)
     bx_review._tile(paths,3,4,str(O/'sequence-sheet.png'),[str(f) for f in keyframes])
-    bx_review._look_at(sc.camera,Vector((.3,.3,1)),Vector((1,2,.55)).normalized(),10)
+    bx_review._look_at(sc.camera,Vector((2.3,.3,1)),Vector((1,2,.55)).normalized(),14)
     paths=[]
     for f in [30,50,70,90,110,120,140,180,200]:
         sc.frame_set(f);sc.render.filepath=str(O/f'contact-{f:03}.png');bpy.ops.render.render(write_still=True);paths.append(sc.render.filepath)

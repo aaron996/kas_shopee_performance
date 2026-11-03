@@ -110,7 +110,7 @@ for (const view of ['best', 'worst']) for (const count of [10, 20, 50]) {
         if (car.ambient) extraVisible = true;
         if (state.mode === 'traffic') {
           if (previous.get(car.id).phase !== 'absent' && car.direction !== -1 && car.phase !== 'turning') assert.ok(car.x - previous.get(car.id).x + CRUISE_SPEED / 60 >= -1e-7, `${car.id} never reverses: dx=${car.x - previous.get(car.id).x}, frame=${frame}, near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
-          if (car.kind === 'rider') assert.ok(car.z > 0, 'motorcycles stay in their own road band');
+          if (car.kind === 'rider' && !car.policeStop) assert.ok(car.z > 0, 'motorcycles stay in their band except controlled police stops');
           if (car.kind === 'truck') assert.ok(car.z < 0, 'trucks stay in their own road band');
           if (previous.get(car.id).phase === 'unloading' && car.phase === 'unloading') {
             assert.ok(Math.abs(car.x - previous.get(car.id).x + CRUISE_SPEED / 60) < 1e-7, `stopped truck ${car.id} fixed to road: dx=${car.x - previous.get(car.id).x} at ${frame}; near=${JSON.stringify([...state.cars.values()].filter(other => Math.abs(other.x - car.x) < 12).map(other => ({id:other.id,x:other.x,z:other.z,phase:other.phase,laneTo:other.laneTo})))}`);
@@ -195,6 +195,7 @@ test('a U-turn follows an arc, rotates the rider, then travels backwards and res
     turnZ: state.lanes.rider, turnRadius: (state.lanes.reverse-state.lanes.rider)/2,
     turnStart: 0, turnDuration: Math.PI*(state.lanes.reverse-state.lanes.rider)/2 });
   state.nextArrival = Infinity;
+  state.police.nextAt = Infinity; // isolate ordinary cruise from random inspections
   for (let i=0;i<100;i++) advanceIdleTraffic(state,1/60,true,random);
   assert.ok(bike.yaw < 0 && bike.yaw > -Math.PI);
   const angle = -bike.yaw;
@@ -217,6 +218,7 @@ test('the original Top 1 has no speed or position privilege and can exit ahead',
   const top = state.cars.get('hub-0');
   Object.assign(top, { phase: 'cruise', alpha: 1, preferredSpeed: 4, speed: 4, nextAction: Infinity });
   state.nextArrival = Infinity;
+  state.police.nextAt = Infinity;
   for (let i = 0; i < 1800 && top.phase !== 'absent'; i++) advanceIdleTraffic(state, 1 / 60, true, random);
   assert.ok(top.x > state.front);
   assert.equal(top.phase, 'absent');

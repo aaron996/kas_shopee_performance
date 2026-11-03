@@ -4,3 +4,9 @@ officer/meshy/meta.json
 officer/meshy/task*.json
 *.blend1
 **/*.blend1
+**/frames/
+animation/key-*.png
+animation/contact-0*.png
+animation/contact-1*.png
+animation/contact-2*.png
+**/*_legend.txt

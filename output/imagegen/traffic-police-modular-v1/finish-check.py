@@ -10,7 +10,7 @@ def main():
     sc=bpy.context.scene;rig=next(o for o in sc.objects if o.type=='ARMATURE');body=next(o for o in sc.objects if o.type=='MESH' and o.parent==rig)
     action=rig.animation_data.action
     bpy.ops.mesh.primitive_cube_add(size=1);paper=bpy.context.object;paper.name='InspectionPaper';paper.dimensions=(.17,.12,.003);bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
-    paper.parent=rig;paper.location=(.75,-1.11,1.04)
+    paper.parent=rig;paper.location=(.75,-5.1975,1.04)
     mat=bpy.data.materials.new('PaperIvory');bs=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED');bs.inputs['Base Color'].default_value=(.88,.86,.78,1);bs.inputs['Roughness'].default_value=.9;paper.data.materials.append(mat)
     paper.animation_data_create();paper.animation_data.action=action;paper.animation_data.action_slot=action.slots.new(id_type='OBJECT',name='InspectionPaper')
     for f,scale in [(1,0),(210,0),(218,1),(260,1),(274,0),(511,0)]:paper.scale=(scale,)*3;paper.keyframe_insert(data_path='scale',frame=f)
@@ -31,9 +31,9 @@ def main():
     bpy.ops.export_scene.gltf(filepath=str(O/'csgt-check-sequence-v1.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='ACTIONS',export_def_bones=False)
     rig.rotation_euler[2]=math.pi/2;rig.location=(.05,0,.02)
     sc.frame_set(235);sc.render.resolution_x=1100;sc.render.resolution_y=800;sc.camera.data.ortho_scale=3.6
-    bx_review._look_at(sc.camera,Vector((.65,.4,1)),Vector((1,2,.6)).normalized(),9)
+    bx_review._look_at(sc.camera,Vector((4.5,.4,1)),Vector((1,2,.6)).normalized(),9)
     sc.render.filepath=str(O/'inspection-paper.png');bpy.ops.render.render(write_still=True)
-    sc.camera.data.ortho_scale=4.4;bx_review._look_at(sc.camera,Vector((.3,.3,1)),Vector((1,2,.55)).normalized(),10)
+    sc.camera.data.ortho_scale=8;bx_review._look_at(sc.camera,Vector((2.3,.3,1)),Vector((1,2,.55)).normalized(),14)
     sc.frame_set(1);bpy.ops.wm.save_as_mainfile(filepath=str(O/'csgt-check-sequence-v1.blend'))
     sc.render.engine='BLENDER_WORKBENCH';sc.display.shading.color_type='TEXTURE';sc.display.shading.light='STUDIO';sc.display.shading.background_type='WORLD';sc.world.color=(.65,.65,.65)
     sc.render.resolution_x=700;sc.render.resolution_y=540
