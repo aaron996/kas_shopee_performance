@@ -1,0 +1,11 @@
+{
+  "model_type": "smart-topology",
+  "ai_model": "meshy-t2",
+  "target_polycount": 10000,
+  "topology": "triangle",
+  "should_texture": true,
+  "enable_pbr": false,
+  "texture_resolution": "2k",
+  "target_formats": ["glb"],
+  "texture_prompt": "Low-poly cartoon Vietnamese traffic police officer wearing warm tan uniform, yellow helmet, white gloves and black boots, riding a white police touring motorcycle with blue CSGT lettering, black tyres and saddle. Preserve flat colors, clean faceted game style; no photorealistic skin, no metallic chrome gloss."
+}

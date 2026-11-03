@@ -1,0 +1,57 @@
+{
+  "removed_officer_component_ids": [
+    0,
+    6,
+    18,
+    21,
+    49,
+    53,
+    78,
+    81,
+    88,
+    89
+  ],
+  "replaced_component_ids": [
+    7,
+    20,
+    29,
+    34,
+    67,
+    74
+  ],
+  "rebuilt_tyres": true,
+  "source_diagnostic_weld": true,
+  "objects": [
+    {
+      "name": "csgt-motorcycle-body",
+      "triangles": 5410,
+      "materials": 9
+    },
+    {
+      "name": "csgt-motorcycle-wheel-rear",
+      "triangles": 700,
+      "materials": 2
+    },
+    {
+      "name": "csgt-motorcycle-wheel-front",
+      "triangles": 768,
+      "materials": 2
+    }
+  ],
+  "pivot_blender_zup": {
+    "rear": [
+      -0.8189212679862976,
+      0.0,
+      0.3180500268936157
+    ],
+    "front": [
+      0.9414536952972412,
+      0.0,
+      0.32028627395629883
+    ]
+  },
+  "wheel_spin_axis_blender": "Y",
+  "wheel_spin_axis_gltf": "Z",
+  "length_units": 2.5,
+  "status": "local prepared derivative pending render review; no runtime integration"
+}
