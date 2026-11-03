@@ -20,7 +20,7 @@ export function cinematicBeat(seconds) {
     progress: (time % CINEMATIC_SHOT_SECONDS) / CINEMATIC_SHOT_SECONDS };
 }
 
-export function cinematicCameraGoal(frame, seconds, aspect = 1.8) {
+export function cinematicCameraGoal(frame, seconds, aspect = 1.8, contextScale = 1) {
   const { shot, progress } = cinematicBeat(seconds);
   let offset;
   if (shot.arc) {
@@ -29,13 +29,18 @@ export function cinematicCameraGoal(frame, seconds, aspect = 1.8) {
   } else offset = shot.from.map((value, i) => mix(value, shot.to[i], progress));
   // Portrait backs off instead of cropping the vehicle/label. No roll, shake
   // or animated FOV: this camera must remain comfortable on a dashboard.
-  const distanceScale = Math.max(1, Math.min(2.8, 1.05 / Math.max(0.3, aspect)));
+  const distanceScale = Math.max(1, Math.min(2.8, 1.05 / Math.max(0.3, aspect))) * contextScale;
   const cy = Math.cos(frame.heading), sy = Math.sin(frame.heading);
   const cp = Math.cos(frame.pitch ?? 0), sp = Math.sin(frame.pitch ?? 0);
   const target = [frame.x, frame.y + 1, frame.z];
   const [along, up, across] = offset.map(value => value * distanceScale);
   return { target, position: [target[0] + cy * (cp * along - sp * up) + sy * across,
     target[1] + sp * along + cp * up, target[2] - sy * (cp * along - sp * up) + cy * across], fov: 52 };
+}
+
+export function cinematicPoliceSubject(police, positions) {
+  if (!police?.targetId || police.alpha <= .1) return null;
+  return positions.get(police.targetId)?.alpha >= .65 ? police.targetId : null;
 }
 
 // Idle is a temporary override, never a mutation of the user's chosen camera.

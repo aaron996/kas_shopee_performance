@@ -1,9 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { cinematicBeat, cinematicCameraGoal, CINEMATIC_SHOTS, CINEMATIC_SHOT_SECONDS, resolveCameraMode } from './sceneCinematic.js';
+import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, CINEMATIC_SHOTS, CINEMATIC_SHOT_SECONDS, resolveCameraMode } from './sceneCinematic.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
 import { RANKING_ROAD_LENGTH } from './rankingViewTour.js';
+
+test('cinematic follows a visible police target outside the leading three vehicles', () => {
+  const positions = new Map([['hub-9', { alpha: 1 }]]);
+  assert.equal(cinematicPoliceSubject({ targetId: 'hub-9', alpha: 1 }, positions), 'hub-9');
+  assert.equal(cinematicPoliceSubject({ targetId: 'hub-9', alpha: 0 }, positions), null);
+  assert.equal(cinematicPoliceSubject({ targetId: 'gone', alpha: 1 }, positions), null);
+  assert.equal(cinematicPoliceSubject(null, positions), null);
+  positions.get('hub-9').alpha = .3;
+  assert.equal(cinematicPoliceSubject({ targetId: 'hub-9', alpha: 1 }, positions), null);
+});
 
 test('six distinct shots loop deterministically without a gap', () => {
   assert.equal(new Set(CINEMATIC_SHOTS.map(shot => shot.id)).size, 6);

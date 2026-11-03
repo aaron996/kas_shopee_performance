@@ -34,7 +34,7 @@ import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
-import { cinematicBeat, cinematicCameraGoal, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
+import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
 import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
@@ -178,7 +178,7 @@ function CanvasSetup({ label }) {
  * or flies to a followed truck. Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd, cinematicItems, cinematicSubjectId, onManualCamera }) {
+function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd, cinematicItems, cinematicSubjectId, onManualCamera, trafficRef }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -341,13 +341,14 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       if (document.hidden || !running) return;
       cinema.elapsed += Math.min(delta, 0.1);
       const beat = cinematicBeat(cinema.elapsed);
+      const policeId = cinematicPoliceSubject(trafficRef?.current?.police, positionsRef.current);
       let subject = positionsRef.current.get(cinema.subjectId);
-      if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65) {
+      if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65 || (policeId && policeId !== cinema.subjectId)) {
         const candidates = cinematicItems.filter(item => {
           const pose = positionsRef.current.get(item.id);
           return !item.ghost && !item.ambient && pose && pose.alpha >= 0.65;
         });
-        const next = candidates.find(item => item.id === cinematicSubjectId) || candidates[beat.index % Math.max(1, Math.min(3, candidates.length))];
+        const next = candidates.find(item => item.id === policeId) || candidates.find(item => item.id === cinematicSubjectId) || candidates[beat.index % Math.max(1, Math.min(3, candidates.length))];
         cinema.subjectId = next?.id;
         subject = positionsRef.current.get(cinema.subjectId);
         cinema.beat = beat.index;
@@ -359,7 +360,7 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       }
       if (!subject) return;
       const shot = cinematicCameraGoal({ x: subject.x, y: subject.lift, z: subject.z,
-        heading: subject.heading, pitch: subject.pitch }, cinema.elapsed, aspectRatio);
+        heading: subject.heading, pitch: subject.pitch }, cinema.elapsed, aspectRatio, policeId ? 1.5 : 1);
       const p = easeInOutCubic(Math.min(1, (cinema.elapsed - cinema.blendStart) / CINEMATIC_BLEND_SECONDS));
       // Translate the source pose with the moving subject during a blend so
       // a fast idle vehicle cannot outrun its framing between two shots.
@@ -865,7 +866,7 @@ export default function RoadScene3D({
         <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} running={running} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
           motion={scene.motion} clockRef={clockRef} tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour}
-          cinematicItems={fleetItems} cinematicSubjectId={selectedHubId} onManualCamera={takeManualCamera} />
+          cinematicItems={fleetItems} cinematicSubjectId={selectedHubId} onManualCamera={takeManualCamera} trafficRef={trafficRef} />
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />
