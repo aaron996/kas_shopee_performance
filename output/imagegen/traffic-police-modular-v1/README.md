@@ -48,6 +48,10 @@ Rebuild: run `repair-motorcycle.py` using Blender 5.2.1 headless with `--factory
 
 ## Status and remaining work
 
+### BXH runtime integration — 2026-11-03
+
+The separate bike and officer are now consumed by `PoliceTraffic.jsx` and the idle traffic state machine. The check sequence was rebuilt with an approximately 4.875-unit approach so the officer reaches the stopped GHN vehicle. See [integration notes](../../../docs/csgt-idle-integration.md) for behavior, verification and remaining art/device limitations. Earlier statuses below describe the asset stages when they were authored.
+
 ### Subsequent motion sequence — 2026-10-29
 
 A complete 17-second motion prototype is now in `animation/`: dismount, walk, inspection gesture with blank paper, return and remount. See `animation/README.md` for acceptance limits and `animation/sequence-preview.gif` for preview. This supersedes the earlier absence of walking/mount/dismount for the new sequence derivative. It is blocking/motion-prototype quality; runtime pursuit/stop coordination is still unimplemented.

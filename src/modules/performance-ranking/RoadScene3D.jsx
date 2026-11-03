@@ -21,6 +21,7 @@ import useSceneIdle from './useSceneIdle.js';
 import { idleModeControl } from '../../utils/sceneIdleMode.js';
 import { createTrafficExtras } from '../../utils/sceneIdle.js';
 import TrafficUnloading from './TrafficUnloading.jsx';
+import PoliceTraffic from './PoliceTraffic.jsx';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { WORLD_REGIONS, worldTheme, initialWorld, createWorldJourney } from '../../utils/sceneWorld.js';
 import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
@@ -511,6 +512,8 @@ export default function RoadScene3D({
 }) {
   const colors = useThemeColors();
   const idle = useSceneIdle(reducedMotion);
+  const [policeRequested, setPoliceRequested] = useState(false);
+  useEffect(() => { if (idle.active) setPoliceRequested(true); }, [idle.active]);
   const idleControl = idleModeControl(idle.mode);
   // UI theme changes label/status colours; the world follows its own solar time.
   const [world, setWorld] = useState(() => {
@@ -846,6 +849,9 @@ export default function RoadScene3D({
           paintMode={paintMode}
         />
         <TrafficUnloading positionsRef={positionsRef} roadLength={roadLength} />
+        <React.Suspense fallback={null}>
+          {policeRequested && <PoliceTraffic trafficRef={trafficRef} clockRef={clockRef} roadLength={roadLength} reducedMotion={reducedMotion} />}
+        </React.Suspense>
         <LeaderTrail items={fleetItems} positionsRef={positionsRef} clockRef={clockRef} roadLength={roadLength}
           journeyRef={journeyRef} compact={compact || lowQuality} reducedMotion={reducedMotion} motion={scene.motion} />
         <TruckRoadLighting key={`lighting-${drawItems.length}`} items={drawItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />

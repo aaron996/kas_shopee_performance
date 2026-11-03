@@ -1,6 +1,7 @@
 import { easeInOutCubic } from './rankingSceneLayout.js';
 import { sceneVehicleKind } from './sceneVehicles.js';
 import { CRUISE_SPEED } from './sceneDriving.js';
+import { createPolice, advancePolice, cancelPolice } from './scenePolice.js';
 
 export const SCENE_IDLE_DELAY_MS = 10_000;
 export const IDLE_STORAGE_KEY = 'ghn-ranking-idle-enabled';
@@ -35,7 +36,7 @@ export function createIdleTraffic(items, roadWidth = 11) {
       alpha: item.ambient ? 0 : 1, phase: item.ambient ? 'absent' : 'rank',
       nextAction: 0, preferredSpeed: CRUISE_SPEED, unloadProgress: 0, steering: 0 });
   }
-  return { cars, lanes, mode: 'rank', active: false, returning: false, time: 0,
+  return { cars, lanes, police: createPolice(), mode: 'rank', active: false, returning: false, time: 0,
     elapsed: 0, anchorX: leader?.x ?? 0, front: (leader?.x ?? 0) + 32,
     rear: (leader?.x ?? 0) - Math.max(80, originals.length * 7 + 12),
     nextArrival: 0, backwards: 0, stats: { passAttempts: 0, overtakes: 0, unloads: 0, merges: 0, arrivals: 0, departures: 0, frontExits: 0, rearExits: 0, turns: 0 } };
@@ -78,9 +79,11 @@ function laneClear(state, car, z, front = 6, back = 7) {
     // Arriving/fading actors still reserve space until they actually leave.
     if (other === car || other.phase === 'absent') continue;
     const clearance = car.kind === 'truck' || other.kind === 'truck' ? 2 : 1.3;
-    const nearLane = Math.abs(other.z - z) < clearance || (other.laneTo !== undefined && Math.abs(other.laneTo - z) < clearance);
+    const nearLane = (car.policeStop && car.kind === 'rider') || Math.abs(other.z - z) < clearance || (other.laneTo !== undefined && Math.abs(other.laneTo - z) < clearance);
     if (nearLane && other.x - car.x < front && car.x - other.x < back) return false;
   }
+  const police = state.police;
+  if (police?.alpha > .1 && car.id !== police.targetId && Math.abs(police.z-z)<1.6 && police.x-car.x<front && car.x-police.x<back) return false;
   return true;
 }
 
@@ -141,6 +144,7 @@ function advanceActions(state, car, random, dt) {
       else if (car.phase === 'lane-in' || car.phase === 'merging') {
         if (car.phase === 'merging') state.stats.merges++;
         car.phase = 'cruise';
+        car.policeStop = false;
         car.roadLane = car.z;
         car.nextAction = state.time + randomBetween(random, 7, 18);
       }
@@ -210,8 +214,8 @@ function driveTraffic(state, dt, random, roadSpeed) {
       if (angle === Math.PI) { car.direction = -1; car.phase = 'reverse'; car.preferredSpeed = randomBetween(random, 2.2, 3.6); state.stats.turns++; }
       continue;
     }
-    const parked = car.phase === 'unloading' || car.phase === 'waiting';
-    let desired = parked || car.phase === 'pulling-in' ? 0 : car.phase === 'turn-approach' ? 0.9 : car.phase === 'passing' || car.phase === 'lane-out' ? 4.7 : car.preferredSpeed;
+    const parked = car.phase === 'unloading' || car.phase === 'waiting' || car.phase === 'police-check';
+    let desired = parked || car.phase === 'pulling-in' || car.phase === 'police-pull' ? 0 : car.phase === 'turn-approach' ? 0.9 : car.phase === 'passing' || car.phase === 'lane-out' ? 4.7 : car.preferredSpeed;
     let ceiling = Infinity, floor = -Infinity;
     for (const ahead of ordered) {
       if (ahead === car || ahead.phase === 'absent' || !occupiesLane(car, ahead)) continue;
@@ -272,6 +276,7 @@ export function advanceIdleTraffic(state, delta, idle, random = Math.random, roa
   state.time += dt;
   if (idle && !state.active) startFormation(state, random);
   if (!idle && state.active) {
+    cancelPolice(state);
     state.mode = 'returning';
     state.elapsed = 0;
     state.returnDuration = 4.8;
@@ -279,6 +284,7 @@ export function advanceIdleTraffic(state, delta, idle, random = Math.random, roa
       car.fromX = car.x; car.fromZ = car.z; car.fromAlpha = car.alpha;
       car.fromYaw = car.yaw;
       delete car.laneTo;
+      car.policeStop = false;
       state.returnDuration = Math.max(state.returnDuration, Math.min(12, Math.abs(car.x - car.home) / 12));
     }
   }
@@ -300,7 +306,10 @@ export function advanceIdleTraffic(state, delta, idle, random = Math.random, roa
       state.mode = 'traffic';
       for (const car of state.cars.values()) if (!car.ambient) { car.phase = 'cruise'; car.speed = roadSpeed; }
     }
-  } else if (state.mode === 'traffic') driveTraffic(state, dt, random, roadSpeed);
+  } else if (state.mode === 'traffic') {
+    driveTraffic(state, dt, random, roadSpeed);
+    advancePolice(state, dt, random, roadSpeed, laneClear, transitionLane);
+  }
   else if (state.mode === 'returning') {
     state.elapsed += dt;
     const t = Math.min(1, state.elapsed / state.returnDuration), e = easeInOutCubic(t);

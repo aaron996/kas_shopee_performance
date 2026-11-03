@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 1–30 | 0–1 s | Seated riding hold |
 | 31–120 | 1–4 s | Release bars, step off and swing right leg over saddle |
-| 121–200 | 4–6.6 s | Four short steps toward inspection position, settle into standing |
+| 121–200 | 4–6.6 s | Eight stylized half steps, approximately 4.875 units forward, settle beside the stopped vehicle |
 | 201–275 | 6.6–9.1 s | Extend hands, lower head, display plain paper prop |
 | 276–293 | 9.1–9.7 s | Pivot to face return direction |
 | 294–373 | 9.7–12.4 s | Walk back |
@@ -24,7 +24,7 @@
 | 392–481 | 13–16 s | Reverse mounting path and return hands/feet to riding pose |
 | 482–511 | 16–17 s | Riding hold matching the beginning |
 
-These are prototype action boundaries, not runtime state implementation. The clip contains root movement relative to the parked motorcycle. A runtime controller must account for that root movement instead of adding an independent walking translation.
+These are clip action boundaries. The clip contains root movement relative to the parked motorcycle; runtime samples it directly without adding another walking translation. The 2026-11-03 runtime derivative extends the original short approach to reach a GHN vehicle five scene units ahead. The exported time range includes the final frame (approximately 17.033 seconds); the simulation uses a 17-second check, ending in the riding hold.
 
 ## Implementation
 
@@ -38,18 +38,18 @@ The paper is a simple blank prop, scaled into view during the inspection gesture
 
 - Viewed twelve key poses, a nine-pose contact sheet from the dismount side, and the final textured paper pose. GIF generated from 171 texture playblast frames at 10 fps; no real-device or runtime playback claim.
 - Reimported the actual GLB in an empty Blender scene; confirmed one sequence clip, one skin and 20 joints. Sampled eleven points across the sequence for finite evaluated character geometry and paper scale behavior; paper visible at frame 235, hidden at frame 1.
-- Sampled skinned boot clearance every five frames in the attached source scene. Minimum sampled boot Z is approximately -0.000606 units: within 1 mm if a scene unit represents one metre. This is sampled ground clearance, not a proof against all interpenetration.
+- Sampled skinned boot clearance every five frames in the attached source scene. Minimum sampled boot Z of the extended-walk derivative is approximately +0.000854 units. This is sampled ground clearance, not a proof against all interpenetration.
 - Automated check verifies start/end imported character bounds agree within 0.001 units, permitting a continuous sequence loop.
 - Original sources and earlier rig/pose-only GLBs preserved. No additional Meshy generation or credits.
 
 ## Current acceptance level
 
-**Motion prototype / blocking. Not final animation or runtime approval.** The full narrative sequence exists, but these limitations remain:
+**Stylized body animation with runtime integration.** See [integration and runtime evidence](../../../../docs/csgt-idle-integration.md). The full narrative sequence exists, but these limitations remain:
 
 - Open gloves do not close around the bars or paper. Shoulder/hip/knee deformation remains limited by the generated mesh and basic skin.
 - Dismount/remount path and saddle/boot clearances were reviewed visually; there is no exhaustive character-versus-motorcycle collision test. Body weight shift and turn foot pivots need another animation polish pass.
 - Contact correction prevents the detected boot sinking at sampled frames; it does not certify zero foot sliding. The final walk settle and planted turns use a stylized approximation.
-- No recipient GHN rider/driver, paperwork handoff, traffic-stop signal, conversation or actual penalty logic.
-- No application changes, pursuit/random target selection, roadside vehicle coordination, idle cancellation/pause integration, deployment or device FPS verification.
+- GHN rider/vehicle is coordinated by the runtime controller. There is no paperwork handoff, conversation or actual penalty logic.
+- Browser checks and simulation tests do not certify target-device FPS or exhaustive character/vehicle collision freedom.
 
 Rebuild sequentially in headless Blender 5.2.1 with factory startup: `../animate-check.py`, then `../finish-check.py`. The second script adds the animated prop, reexports the character GLB and performs importer checks. Convert the final `frames/*.png` playblast sequence to GIF for the preview. Both scripts operate only on local files.
