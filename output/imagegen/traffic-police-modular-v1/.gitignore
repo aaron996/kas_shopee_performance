@@ -1,0 +1,6 @@
+*.local.json
+*.local.log
+officer/meshy/meta.json
+officer/meshy/task*.json
+*.blend1
+**/*.blend1

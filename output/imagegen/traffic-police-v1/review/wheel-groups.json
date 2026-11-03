@@ -1,0 +1,40 @@
+[
+  {
+    "name": "rear",
+    "center": [
+      0.3275685,
+      0,
+      -0.232146
+    ],
+    "radius_limit": 0.142,
+    "parts": [
+      "Part_02",
+      "Part_25",
+      "Part_27",
+      "Part_37",
+      "Part_59",
+      "Part_60"
+    ],
+    "triangles": 794
+  },
+  {
+    "name": "front",
+    "center": [
+      -0.3765815,
+      0,
+      -0.2312515
+    ],
+    "radius_limit": 0.138,
+    "parts": [
+      "Part_03",
+      "Part_24",
+      "Part_28",
+      "Part_35",
+      "Part_40",
+      "Part_55",
+      "Part_58",
+      "Part_68"
+    ],
+    "triangles": 860
+  }
+]
