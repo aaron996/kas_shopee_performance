@@ -1,6 +1,6 @@
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, CalendarDays, CheckCheck, MapPin, UsersRound, Warehouse } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, CheckCheck, Info, MapPin, UsersRound, Warehouse } from 'lucide-react';
 import IconButton from '../../components/ui/IconButton';
 import OverviewTrend from './OverviewTrend';
 import OverviewKpiCards from './OverviewKpiCards';
@@ -16,7 +16,6 @@ const MOBILE_LAYOUT = '(max-width: 600px)';
 const ALL_REGION_COUNT = Object.values(MIEN_REGIONS).flat().length;
 
 const dateLabel = date => date ? formatDateLabel(date).replace('\n', ' ') : 'Chưa có dữ liệu';
-const metricDataset = id => id === 'fd' ? 'fd' : ['d1st', 'dodr'].includes(id) ? 'deli' : 'pick';
 const percentage = value => formatPct(value).replace('.', ',');
 
 // The header filters are icon-only at every width, so the numbers on this tab
@@ -54,11 +53,12 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
   const trendRef = useRef(null);
   const { cards: mtdCards, retry } = useOverviewMtd(cards, mtdFilters, mtdScope);
   const card = cards.find(item => item.id === metric) || cards[0];
-  const commonDate = cards.find(item => item.id === 'p1st')?.historyDates.at(-1) || cards.find(item => item.historyDates.length)?.historyDates.at(-1);
-  const selectedDate = card?.historyDates.at(-1);
-  const metricLoading = loadingDatasets[metricDataset(card?.id)];
-  const hubsLoading = loadingDatasets.pick || loadingDatasets.deli;
-  const displayCards = mtdCards.map(item => ({ ...item, mtdStatus: loadingDatasets[metricDataset(item.id)] ? 'loading' : item.mtdStatus }));
+  const commonDate = cards.find(item => item.reportDate)?.reportDate;
+  const selectedDate = card?.reportDate;
+  const metricLoading = loadingDatasets[card?.dataset];
+  const riskCards = cards.filter(item => item.risk && item.target != null);
+  const hubsLoading = riskCards.some(item => loadingDatasets[item.dataset]);
+  const displayCards = mtdCards.map(item => ({ ...item, mtdStatus: loadingDatasets[item.dataset] ? 'loading' : item.mtdStatus }));
   const hasData = card?.d1?.tot > 0 && Number.isFinite(card?.d1?.pct);
   const selectedStatus = !hasData || card.target == null ? 'neutral' : card.d1.pct >= card.target ? 'good' : 'bad';
   // Every card repeating the heading's own range is noise; only a KPI whose data
@@ -129,10 +129,10 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
 
       <section className="overview-hubs-panel" aria-labelledby="overview-hubs-title">
         <div className="overview-section-heading">
-          <div><h2 id="overview-hubs-title">Hub cần theo dõi</h2><p>1st Pickup / 1st Deli · lượng trễ cao nhất{riskDateText && ` · ${riskDateText}`}</p></div>
+          <div><h2 id="overview-hubs-title">Hub cần theo dõi</h2><p>{riskCards.length ? `${riskCards.map(item => item.title).join(' / ')} · lượng trễ cao nhất${riskDateText ? ` · ${riskDateText}` : ''}` : 'Chưa có target để đánh giá Hub'}</p></div>
           <span className="overview-hub-count"
-            aria-label={hubsLoading ? undefined : riskCapped ? `Hiển thị ${risks.length} trong ${riskTotal} Hub dưới target` : `${risks.length} Hub dưới target`}>
-            {hubsLoading ? <LoadingScreen variant="inline" /> : riskCapped ? `${risks.length}/${riskTotal}` : risks.length}
+            aria-label={hubsLoading ? undefined : !riskCards.length ? 'Chưa áp dụng đánh giá Hub theo target' : riskCapped ? `Hiển thị ${risks.length} trong ${riskTotal} Hub dưới target` : `${risks.length} Hub dưới target`}>
+            {hubsLoading ? <LoadingScreen variant="inline" /> : !riskCards.length ? '—' : riskCapped ? `${risks.length}/${riskTotal}` : risks.length}
           </span>
         </div>
         {hubsLoading ? <LoadingScreen /> : risks.length ? <ol className="overview-hub-list">{risks.map((risk, index) => <li key={`${risk.hub}-${risk.sectionId}-${index}`}>
@@ -141,7 +141,7 @@ export default function OperationsHome({ cards, risks, riskTotal, riskDates, onO
             <span className="overview-hub-meta">{risk.region} · {risk.metric}</span>
             <span className="overview-hub-bottom"><span><strong>{formatVol(risk.late)}</strong> đơn trễ</span><span className="overview-hub-rate">{percentage(risk.pct)} <small>/ {risk.target}%</small></span></span>
           </button>
-        </li>)}</ol> : <div className="overview-hubs-empty"><CheckCheck aria-hidden="true" /><p>Không có Hub dưới target phát sinh đơn trễ trong phạm vi đang chọn.</p></div>}
+        </li>)}</ol> : <div className="overview-hubs-empty">{riskCards.length ? <CheckCheck aria-hidden="true" /> : <Info aria-hidden="true" />}<p>{riskCards.length ? 'Không có Hub dưới target phát sinh đơn trễ trong phạm vi đang chọn.' : 'Client đang chọn chưa có target KPI. Chưa đánh giá Hub đạt hoặc dưới target.'}</p></div>}
       </section>
     </div>}
 

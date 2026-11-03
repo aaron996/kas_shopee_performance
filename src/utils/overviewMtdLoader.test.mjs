@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createOverviewMtdLoader } from './overviewMtdLoader.js';
 import { createResourceCache } from './resourceCache.js';
+import { aggregateOverviewMtd } from './overviewMtd.js';
 
 const ranges = [['pick', '2026-10-26'], ['deli', '2026-10-26'], ['fd', '2026-10-19']];
 const payload = (value, args) => ({ data: { dataset: args.dataset, date_from: args.date_from, date_to: args.date_to,
@@ -88,4 +89,46 @@ test('consumer cancellation suppresses late responses; malformed payloads report
   const invalid = createOverviewMtdLoader({ load: async () => null });
   await invalid.run({ scope: 'a:user', ranges: [ranges[0]], onResult: (...args) => events.push(args), client: { rpc: async () => ({ data: {} }) } });
   assert.deepEqual(events, [['pick', { error: true }]]);
+});
+
+test('Reverse reads full-month history in sequential bounded slices and isolates standard caches', async () => {
+  const calls = [], events = [];
+  let active = 0;
+  const loader = createOverviewMtdLoader({ load: async () => null, save: async () => {} });
+  const client = { rpc: async (name, args) => {
+    assert.equal(active++, 0, 'daily slices must not run concurrently');
+    await tick();
+    calls.push([name, args]);
+    active--;
+    if (name === 'get_kas_mtd_compact') return payload(999, args);
+    assert.equal(args.dataset, 'reverse');
+    return { data: { cols: ['report_date', 'client_name', 'region', 'hub_type', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'pud', 'mau_pud'],
+      rows: [[args.from_date, 'SPE Reverse', 'HCM', 'BC', 100, 60, 50, 1, 10]] } };
+  } };
+  const run = dataset => loader.run({ client, scope: 'a:user', ranges: [[dataset, '2026-10-31']],
+    onResult: (source, result) => events.push([source, result]) });
+  await run('reverse');
+  assert.deepEqual(calls.map(([name, args]) => [name, args.from_date, args.to_date]), [
+    ['get_kas_daily_compact', '2026-10-01', '2026-10-10'],
+    ['get_kas_daily_compact', '2026-10-11', '2026-10-20'],
+    ['get_kas_daily_compact', '2026-10-21', '2026-10-30'],
+    ['get_kas_daily_compact', '2026-10-31', '2026-10-31'],
+  ]);
+  const rows = events.at(-1)[1].rows;
+  assert.equal(aggregateOverviewMtd(rows, 'p1st', '2026-10-31').tot, 400);
+  assert.equal(aggregateOverviewMtd(rows, 'pud', '2026-10-31').pct, 10);
+  await run('reverse');
+  assert.equal(calls.length, 4, 'reuses bounded identity/source/range cache');
+  await run('pick');
+  assert.equal(calls.at(-1)[0], 'get_kas_mtd_compact');
+  assert.equal(calls.length, 5);
+});
+
+test('failure mid-month never publishes a partial MTD as a successful result', async () => {
+  const events = [];
+  const loader = createOverviewMtdLoader({ load: async () => null, save: async () => assert.fail('partial data must not be cached') });
+  await loader.run({ scope: 'a:user', ranges: [['reverse', '2026-10-26']],
+    onResult: (...args) => events.push(args), client: { rpc: async (_name, args) => args.from_date === '2026-10-01'
+      ? { data: { cols: ['mau_pu'], rows: [[100]] } } : { error: Error('offline') } } });
+  assert.deepEqual(events, [['reverse', { error: true }]]);
 });
