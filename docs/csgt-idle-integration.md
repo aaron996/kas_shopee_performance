@@ -30,6 +30,14 @@ The existing idle traffic scene now includes one Vietnamese traffic-police motor
 
 ## Limits
 
+### Idle presentation corrections
+
+- Tags outside the camera frustum or too close to the screen edge are omitted. Cinematic no longer displaces podium tags around the HUD or forces them to stay visible from distant shots; all tags use the near range in Cinematic.
+- Traffic actors spawn only outside a padded camera frustum and retain full opacity until they drive out of view. Simulation boundaries request retirement; they do not remove a still-visible vehicle. Patrol entry starts offscreen and patrol departure stays visible until outside the view. Existing ranking replay/return transitions are unchanged.
+- The directional shadow projection uses extent buckets and a light-space texel-aligned focus instead of continuously rescaling/translating its map with the camera. Patrol materials no longer switch transparent shader variants while moving. Seated/paused officer poses are sampled only when clip time changes.
+- Tests cover edge-label rejection, padded frustum inclusion, a visible vehicle driving beyond simulation bounds without fading, and deferred respawn while the entrance is in view. Device FPS and exhaustive temporal aliasing remain separate from these checks.
+- Validation after corrections: full suite 862/862 passed; build, scoped oxlint and diff check passed. A short local IAB sample of the ten-Hub StrictMode fixture counted 577 rendered frames over approximately 10.97 seconds (about 53 FPS); shader program count stayed at 50. This is a local smoke measurement without a controlled before/after benchmark or target-device guarantee. The user identified road/shadow flicker; final visual acceptance on their device remains necessary.
+
 Cinematic prioritizes the visible patrol target immediately, including Hubs outside the leading three. Pursuit uses the wider view. Pull-over, inspection and release use a close composition centred between the two vehicles, with distance fitted to both silhouettes and the walking officer. The six cinematic shot directions continue moving; the existing three-second blend handles entering/leaving the close view. Portrait fits the narrower horizontal field of view. Manual TV/overview/follow modes retain their chosen subject. The focused camera/police/GLB suite passes 11/11; projection tests cover both vehicles across all shots, several road positions, stop gaps, and portrait/landscape aspects.
 
 The generated character has open gloves, no finger rig or paper handoff, limited shoulder/hip deformation and stylized foot pivots. Camera angle or scenery may occlude part of an inspection, as with other scene actors. Local simulation and IAB checks do not certify exhaustive mesh collision freedom, target-device FPS, authenticated production data or final user art approval. Deployment status is reported separately from source and local verification.
