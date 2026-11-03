@@ -2,6 +2,7 @@ import { easeInOutCubic } from './rankingSceneLayout.js';
 import { sceneVehicleKind } from './sceneVehicles.js';
 import { CRUISE_SPEED } from './sceneDriving.js';
 import { createPolice, advancePolice, cancelPolice } from './scenePolice.js';
+import { trafficInView } from './sceneVisibility.js';
 
 export const SCENE_IDLE_DELAY_MS = 10_000;
 export const IDLE_STORAGE_KEY = 'ghn-ranking-idle-enabled';
@@ -189,8 +190,9 @@ function spawnTraffic(state, random) {
   delete car.laneTo;
   delete car.passId;
   car.unloadProgress = 0;
+  if (trafficInView(state, car.x, car.z)) return;
   if (!laneClear(state, car, car.z, 9, 9)) return;
-  car.alpha = 0;
+  car.alpha = 1;
   car.phase = 'cruise';
   car.bornAt = state.time;
   car.speed = CRUISE_SPEED;
@@ -236,14 +238,9 @@ function driveTraffic(state, dt, random, roadSpeed) {
     const previousX = car.x;
     car.x = parked ? car.x - roadSpeed * dt : car.direction === -1 ? Math.max(floor, car.x - (car.speed + roadSpeed) * dt) : Math.min(ceiling, car.x + (car.speed - roadSpeed) * dt);
     car.speed = parked ? 0 : Math.max(0, car.direction * (roadSpeed + (car.x - previousX) / dt));
-    if (car.bornAt !== undefined) {
-      car.alpha = Math.min(1, (state.time - car.bornAt) / 1.2);
-    }
     // Vehicles leave through either end. Re-entry is an event with
     // a gap check and a new schedule, rather than a repeating animation path.
-    if (car.x < state.rear + 3) car.alpha = Math.max(0, (car.x - state.rear) / 3);
-    if (car.x > state.front - 6) car.alpha = Math.min(car.alpha, Math.max(0, (state.front-car.x)/6));
-    if (car.x > state.front || car.x < state.rear) {
+    if ((car.x > state.front || car.x < state.rear) && !trafficInView(state, car.x, car.z)) {
       car.alpha = 0;
       car.phase = 'absent';
       car.respawnAt = state.time + randomBetween(random, 3, 8);
@@ -259,10 +256,11 @@ function driveTraffic(state, dt, random, roadSpeed) {
     car.roadLane = car.z; car.direction = 1; car.yaw = 0;
     delete car.laneTo;
     delete car.passId;
+    if (trafficInView(state, car.x, car.z)) continue;
     if (!laneClear(state, car, car.z, 9, 9)) continue;
     car.speed = CRUISE_SPEED;
     car.phase = 'cruise';
-    car.alpha = 0;
+    car.alpha = 1;
     car.bornAt = state.time;
     car.nextAction = state.time + randomBetween(random, 6, 12);
   }

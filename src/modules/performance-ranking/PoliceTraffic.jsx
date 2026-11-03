@@ -29,6 +29,7 @@ export default function PoliceTraffic({ trafficRef, clockRef, roadLength, reduce
     const action = asset.mixer.clipAction(officerSource.animations[0]);
     action.setLoop(THREE.LoopOnce, 1); action.clampWhenFinished = true; action.reset().play();
     asset.action = action;
+    asset.sampledTime = -1;
     for (const m of asset.materials) m.material.needsUpdate = true;
     return () => {
       asset.mixer.stopAllAction(); asset.mixer.uncacheRoot(asset.officer);
@@ -46,16 +47,12 @@ export default function PoliceTraffic({ trafficRef, clockRef, roadLength, reduce
     root.current.rotateZ(f.pitch);
     asset.officer.position.set(.05, .02, 0);
     asset.officer.rotation.y = Math.PI / 2;
-    samplePoliceAnimation(asset.mixer, asset.action, p.phase === 'check' ? p.elapsed : 0);
-    for (const wheel of asset.wheels) wheel.rotation.z = -p.wheelTravel / .32;
-    for (const m of asset.materials) {
-      const transparent = m.transparent || p.alpha < .999;
-      if (m.material.transparent !== transparent) {
-        m.material.transparent = transparent;
-        m.material.needsUpdate = true;
-      }
-      m.material.opacity = m.opacity * p.alpha;
+    const clipTime = p.phase === 'check' ? p.elapsed : 0;
+    if (asset.sampledTime !== clipTime) {
+      samplePoliceAnimation(asset.mixer, asset.action, clipTime);
+      asset.sampledTime = clipTime;
     }
+    for (const wheel of asset.wheels) wheel.rotation.z = -p.wheelTravel / .32;
     if (clockRef.current.step) {
       // Beacon lamps use the existing actor materials, no per-frame resources.
       for (const m of asset.materials) if (/Beacon/.test(m.material.name)) {

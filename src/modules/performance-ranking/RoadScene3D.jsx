@@ -826,7 +826,7 @@ export default function RoadScene3D({
         }}
       >
         <DriveClock clockRef={clockRef} items={drawItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate}
-          trafficRef={trafficRef} idleActive={idle.active && !scene.motion && !scene.tour} roadWidth={roadWidth} reducedMotion={reducedMotion} />
+          trafficRef={trafficRef} idleActive={idle.active && !scene.motion && !scene.tour} roadWidth={roadWidth} roadLength={roadLength} reducedMotion={reducedMotion} />
         <TruckEnvironment lightingRef={lightingRef} />
         <WorldEnvironment world={world} journeyRef={journeyRef} roadLength={roadLength} roadWidth={roadWidth} clockRef={clockRef}
           lightingRef={lightingRef} streetlightCount={streetlightCount} castShadow={shadowsOn} compact={compact || lowQuality} running={running}
@@ -870,7 +870,7 @@ export default function RoadScene3D({
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
         )}
 
-        <LabelProjector hudRef={hudRef} labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
+        <LabelProjector cinematic={activeCamMode === 'cinematic'} hudRef={hudRef} labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
         <ContextWatcher onLost={handleContextLost} />
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
