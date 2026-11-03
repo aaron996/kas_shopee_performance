@@ -34,7 +34,7 @@ import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
-import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
+import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, cinematicInspectionGoal, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
 import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
@@ -341,7 +341,10 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       if (document.hidden || !running) return;
       cinema.elapsed += Math.min(delta, 0.1);
       const beat = cinematicBeat(cinema.elapsed);
-      const policeId = cinematicPoliceSubject(trafficRef?.current?.police, positionsRef.current);
+      const police = trafficRef?.current?.police;
+      const policeId = cinematicPoliceSubject(police, positionsRef.current);
+      const inspectionId = policeId && ['pull', 'check', 'release'].includes(police.phase) ? policeId : null;
+      let resetShot = false;
       let subject = positionsRef.current.get(cinema.subjectId);
       if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65 || (policeId && policeId !== cinema.subjectId)) {
         const candidates = cinematicItems.filter(item => {
@@ -352,19 +355,26 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
         cinema.subjectId = next?.id;
         subject = positionsRef.current.get(cinema.subjectId);
         cinema.beat = beat.index;
+        resetShot = true;
+      }
+      if (!subject) return;
+      const frame = { x: subject.x, y: subject.lift, z: subject.z, heading: subject.heading, pitch: subject.pitch };
+      const shot = inspectionId
+        ? cinematicInspectionGoal(frame, sampleRoadFrame(police.x, police.z, roadLength), cinema.elapsed, aspectRatio)
+        : cinematicCameraGoal(frame, cinema.elapsed, aspectRatio, policeId ? 1.5 : 1);
+      const anchor = new THREE.Vector3(shot.target[0], shot.target[1] - 1, shot.target[2]);
+      if (resetShot || cinema.inspectionId !== inspectionId) {
+        cinema.inspectionId = inspectionId;
         cinema.blendStart = cinema.elapsed;
         cinema.startPosition = camera.position.clone();
         cinema.startTarget = controls.target.clone();
         cinema.startFov = camera.fov;
-        cinema.startSubject = subject ? new THREE.Vector3(subject.x, subject.lift, subject.z) : null;
+        cinema.startSubject = anchor.clone();
       }
-      if (!subject) return;
-      const shot = cinematicCameraGoal({ x: subject.x, y: subject.lift, z: subject.z,
-        heading: subject.heading, pitch: subject.pitch }, cinema.elapsed, aspectRatio, policeId ? 1.5 : 1);
       const p = easeInOutCubic(Math.min(1, (cinema.elapsed - cinema.blendStart) / CINEMATIC_BLEND_SECONDS));
       // Translate the source pose with the moving subject during a blend so
       // a fast idle vehicle cannot outrun its framing between two shots.
-      const shift = new THREE.Vector3(subject.x, subject.lift, subject.z).sub(cinema.startSubject);
+      const shift = anchor.sub(cinema.startSubject);
       camera.position.copy(cinema.startPosition).add(shift).lerp(new THREE.Vector3(...shot.position), p);
       controls.target.copy(cinema.startTarget).add(shift).lerp(new THREE.Vector3(...shot.target), p);
       camera.fov = THREE.MathUtils.lerp(cinema.startFov, shot.fov, p);

@@ -1,9 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, CINEMATIC_SHOTS, CINEMATIC_SHOT_SECONDS, resolveCameraMode } from './sceneCinematic.js';
+import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, cinematicInspectionGoal, CINEMATIC_SHOTS, CINEMATIC_SHOT_SECONDS, resolveCameraMode } from './sceneCinematic.js';
 import { sampleRoadFrame } from './sceneRoadCurve.js';
 import { RANKING_ROAD_LENGTH } from './rankingViewTour.js';
+
+test('inspection closeups frame both vehicles through every moving shot in portrait and landscape', () => {
+  for (const x of [-130, 0, 130]) for (const gap of [3.7, 5, 6]) for (const aspect of [390/844, 844/390, 1.8]) {
+    const vehicle = sampleRoadFrame(x, -4.65, RANKING_ROAD_LENGTH);
+    const patrol = sampleRoadFrame(x-gap, -4.65, RANKING_ROAD_LENGTH);
+    for (let seconds=0; seconds<84; seconds+=.5) {
+      const goal = cinematicInspectionGoal(vehicle, patrol, seconds, aspect);
+      assert.ok(Math.abs(goal.target[0] - (vehicle.x+patrol.x)/2) < 1e-8);
+      const camera = new THREE.PerspectiveCamera(goal.fov, aspect, .5, 2000);
+      camera.position.fromArray(goal.position); camera.lookAt(...goal.target); camera.updateMatrixWorld();
+      for (const actor of [vehicle, patrol]) {
+        const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),actor.heading)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),actor.pitch));
+        for (const dx of [-1.55,1.55]) for (const dy of [0,2.1]) for (const dz of [-.85,.85]) {
+          const p = new THREE.Vector3(dx,dy,dz).applyQuaternion(rotation).add(new THREE.Vector3(actor.x,actor.y,actor.z)).project(camera);
+          assert.ok(Math.abs(p.x)<.9 && Math.abs(p.y)<.9 && p.z>-1 && p.z<1, `${gap}/${aspect}/${seconds}: ${p.toArray()}`);
+        }
+      }
+      const later = cinematicInspectionGoal(vehicle,patrol,seconds+.25,aspect);
+      assert.notDeepEqual(later.position,goal.position,'camera keeps moving during the inspection');
+      const wide = cinematicCameraGoal(vehicle, seconds, aspect, 1.5);
+      assert.ok(new THREE.Vector3(...goal.position).distanceTo(new THREE.Vector3(...goal.target)) < new THREE.Vector3(...wide.position).distanceTo(new THREE.Vector3(...wide.target)));
+    }
+  }
+});
 
 test('cinematic follows a visible police target outside the leading three vehicles', () => {
   const positions = new Map([['hub-9', { alpha: 1 }]]);
