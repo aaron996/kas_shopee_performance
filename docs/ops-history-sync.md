@@ -214,6 +214,31 @@ riêng. Luồng chưa móc vào frontend, BOT alert hay `syncOneTab()`; đây l�
 
 ## Overview MTD — 27/10/2026
 
+### Nguồn và card theo client — sửa ngày 03/11/2026
+
+`src/data/overviewMetrics.js` khai báo các nguồn, chỉ số được hỗ trợ và khóa target
+của từng client. Tổng quan dựng card, biểu đồ và cảnh báo Hub từ cấu hình này;
+không dựng cố định năm card hoặc gán target SPE/SPB cho client chưa có target.
+Giá trị target vẫn đọc từ `TARGET_KPIS`, không lặp các ngưỡng trong component.
+Client chưa được cấu hình không tự kế thừa nguồn hoặc target của client khác.
+
+- SPE/SPB giữ nguồn MTD compact và các chỉ số hiện có.
+- SPE Reverse đọc đủ đầu tháng → ngày dữ liệu mới nhất qua
+  `get_kas_daily_compact(dataset='reverse')`, chia lát tuần tự bằng bộ đọc lịch sử
+  hiện có. Card gồm 1st Pickup, OPR và PUD; không có card giao hàng/FD hoặc target.
+  PUD dùng riêng `mau_pud`; nếu còn dòng thiếu mẫu thì không công bố tỷ lệ MTD.
+- Phạm vi ALL dùng các client thực sự có trong nguồn của trang, cùng phạm vi với
+  biểu đồ ngày. Không tự cộng thêm Reverse vào một nguồn chỉ có SPE/SPB.
+- MTD dùng cùng rule vùng chưa xác định của Reverse như báo cáo ngày: giữ trong
+  tổng tất cả vùng, loại khi chọn riêng vùng. Bộ lọc loại Hub vẫn áp dụng bình thường.
+
+Cache tách theo nguồn, khoảng ngày và danh tính/quyền. Đổi nguồn hoặc khoảng ngày
+hiện skeleton ngay; tải lại cùng phạm vi giữ số đã có. Một lát đọc lỗi không được
+công bố thành số MTD một phần. Không cần migration hoặc đổi dữ liệu/sync để dùng
+RPC đã có. Số cột trên desktop theo số card; mobile giữ bố cục hai cột.
+
+### Nguồn compact SPE/SPB
+
 Overview uses `get_kas_mtd_compact(dataset, date_from, date_to)` instead of the
 daily matrix RPC. It sums the month by raw region/hub/type/client, retaining
 `wh_id` for Deli/FD, then runs the existing frontend KA/CK/GXT normalizer.

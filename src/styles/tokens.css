@@ -102,7 +102,7 @@
   --overview-type-metric: clamp(24px, 2.2vw, 32px);
   --overview-type-metric-mobile: 26px;
   --overview-type-summary: 28px;
-  --overview-metric-columns: repeat(5, minmax(0, 1fr));
+  --overview-metric-count: 1;
   --overview-metric-columns-mobile: repeat(2, minmax(0, 1fr));
   --overview-analysis-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
   --overview-analysis-columns-compact: minmax(0, 1.4fr) minmax(280px, 1fr);

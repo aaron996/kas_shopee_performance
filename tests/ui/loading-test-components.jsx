@@ -7,3 +7,5 @@ export { ToastProvider } from '../../src/components/ui/Toast.jsx';
 export { default as daily } from '../../src/modules/ops-metrics/DailyRangeKpiTable.jsx';
 export { default as weekly } from '../../src/modules/ops-metrics/WeeklyKpiTable.jsx';
 export { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
+export { default as overviewCards } from '../../src/modules/ops-metrics/OverviewKpiCards.jsx';
+export { buildOverviewCards, resolveOverviewMtdCard } from '../../src/utils/overviewMtd.js';

@@ -6,15 +6,17 @@ import useKpiFormatting from '../../hooks/useKpiFormatting';
 import { formattingCellProps } from '../../utils/kpiFormatting';
 import WeeklyKpiTable from './WeeklyKpiTable';
 import { pudCounts, PUD_NOTE } from '../../utils/pud';
+import { buildOverviewCards } from '../../utils/overviewMtd';
+import { overviewTarget } from '../../data/overviewMetrics';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
 import { ChevronRight, ArrowUp, X, Copy } from 'lucide-react';
-import { MIEN_REGIONS, MIEN_ORDER, TARGET_KPIS } from '../../data/defaultDataset';
+import { MIEN_REGIONS, MIEN_ORDER } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
-import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getComparisonDateInfo, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getReportWeekLabel, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
+import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getReportWeekLabel, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
@@ -430,7 +432,8 @@ export default function Report1MienVungHub({
         const ont = getRowVal(r, 'ontime_pu_1st');
         const late = tot - ont;
         const pct = tot > 0 ? (ont / tot) * 100 : 100;
-        if (late > 0 && pct < 97) {
+        const target = overviewTarget(r.client_name, 'p1st');
+        if (target != null && late > 0 && pct < target) {
           hubLateList.push({
             hub: r.hub,
             region: r.region,
@@ -438,7 +441,7 @@ export default function Report1MienVungHub({
             pct,
             late,
             tot,
-            target: 97,
+            target,
             ref: refP1st,
             sectionId: 'p1st'
           });
@@ -454,7 +457,8 @@ export default function Report1MienVungHub({
         const ont = getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st');
         const late = tot - ont;
         const pct = tot > 0 ? (ont / tot) * 100 : 100;
-        if (late > 0 && pct < 95) {
+        const target = overviewTarget(r.client_name, 'd1st');
+        if (target != null && late > 0 && pct < target) {
           hubLateList.push({
             hub: r.hub,
             region: r.region,
@@ -462,7 +466,7 @@ export default function Report1MienVungHub({
             pct,
             late,
             tot,
-            target: 95,
+            target,
             ref: refD1st,
             sectionId: 'd1st'
           });
@@ -628,104 +632,10 @@ export default function Report1MienVungHub({
     }
   };
 
-  // KPI Cards Data Calculation
-  const kpiCards = useMemo(() => {
-    if (!pD1 && !dD1 && !fD1) return [];
-
-    const getAgg = (rows, dateStr, isDeli, metricKey) => {
-      let tot = 0, ont = 0;
-      if (!dateStr || !rows.length) return { tot, ont, pct: null };
-      rows.filter(r => r.report_date === dateStr).forEach(r => {
-        let t = 0, o = 0;
-        if (metricKey === 'fd') {
-          t = getRowVal(r, 'mau_fd');
-          o = getRowVal(r, 'fd_hoan_thanh');
-        } else if (isDeli) {
-          t = getRowVal(r, 'mau_deli', 'mau_del');
-          o = (metricKey === '1st' ? getRowVal(r, 'ontime_deli_1st', 'ontime_del_1st') : getRowVal(r, 'ontime_deli_odr', 'ontime_del_odr'));
-        } else {
-          t = getRowVal(r, 'mau_pu');
-          o = (metricKey === '1st' ? getRowVal(r, 'ontime_pu_1st') : getRowVal(r, 'ontime_pu_opr'));
-        }
-        tot += t;
-        ont += o;
-      });
-      return { tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null };
-    };
-
-    const getD8 = (d1Str, datesArr) => {
-      if (!d1Str || !datesArr.length) return null;
-      const p = d1Str.split('-');
-      const d8Obj = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
-      d8Obj.setDate(d8Obj.getDate() - 7);
-
-      const toDateStr = (dt) => {
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      };
-
-      let d8Str = toDateStr(d8Obj);
-      if (!datesArr.includes(d8Str)) {
-        const unpadded = `${d8Obj.getFullYear()}-${d8Obj.getMonth() + 1}-${d8Obj.getDate()}`;
-        if (datesArr.includes(unpadded)) d8Str = unpadded;
-      }
-      return datesArr.includes(d8Str) ? d8Str : null;
-    };
-
-    const pickD8 = getD8(pD1, pickDates);
-    const deliD8 = getD8(dD1, deliDates);
-    const fdD8 = getD8(fD1, fdDates);
-
-    const fdComparison = getComparisonDateInfo(fD1, fdDates, 7);
-    const comparisonNote = (label, comparison) => comparison ? `${label}: ${comparison.d1} vs ${comparison.dComp}` : null;
-
-    const p1stD1 = getAgg(filteredPick, pD1, false, '1st');
-    const poprD1 = getAgg(filteredPick, pD1, false, 'OPR');
-    const d1stD1 = getAgg(filteredDeli, dD1, true, '1st');
-    const dodrD1 = getAgg(filteredDeli, dD1, true, 'ODR');
-    const fdD1 = getAgg(filteredFd, fD1, false, 'fd');
-
-    const p1stD8 = getAgg(filteredPick, pickD8, false, '1st');
-    const poprD8 = getAgg(filteredPick, pickD8, false, 'OPR');
-    const d1stD8 = getAgg(filteredDeli, deliD8, true, '1st');
-    const dodrD8 = getAgg(filteredDeli, deliD8, true, 'ODR');
-    const fdD8Val = getAgg(filteredFd, fdD8, false, 'fd');
-
-    const getHistory = (rows, datesArr, d1Str, isDeli, metricKey) => {
-      if (!d1Str || !datesArr.length) return { vals: [], dates: [] };
-      const d1Idx = datesArr.indexOf(d1Str);
-      const endIdx = d1Idx !== -1 ? d1Idx : datesArr.length - 1;
-      const startIdx = Math.max(0, endIdx - 13);
-      const histDates = datesArr.slice(startIdx, endIdx + 1);
-      const validPoints = [];
-      histDates.forEach(dStr => {
-        const pct = getAgg(rows, dStr, isDeli, metricKey).pct;
-        if (pct !== null && pct !== undefined && !isNaN(pct)) {
-          validPoints.push({ val: pct, date: dStr });
-        }
-      });
-      return {
-        vals: validPoints.map(p => p.val),
-        dates: validPoints.map(p => p.date)
-      };
-    };
-
-    const p1stHist = getHistory(filteredPick, pickDates, pD1, false, '1st');
-    const poprHist = getHistory(filteredPick, pickDates, pD1, false, 'OPR');
-    const d1stHist = getHistory(filteredDeli, deliDates, dD1, true, '1st');
-    const dodrHist = getHistory(filteredDeli, deliDates, dD1, true, 'ODR');
-    const fdHist = getHistory(filteredFd, fdDates, fD1, false, 'fd');
-
-    return [
-      { id: 'p1st', title: '1ST PICKUP', target: TARGET_KPIS['Tỷ lệ lấy hàng đúng giờ (1st Pickup)'] || 97, d1: p1stD1, d8: p1stD8, history: p1stHist.vals, historyDates: p1stHist.dates, ref: refP1st },
-      { id: 'popr', title: 'OPR', target: TARGET_KPIS['Tỷ lệ lấy hàng tổng thể (OPR)'] || 90, d1: poprD1, d8: poprD8, history: poprHist.vals, historyDates: poprHist.dates, ref: refPOpr },
-      { id: 'd1st', title: '1ST DELI', target: TARGET_KPIS['Tỷ lệ giao hàng đúng giờ (1st Deli)'] || 95, d1: d1stD1, d8: d1stD8, history: d1stHist.vals, historyDates: d1stHist.dates, ref: refD1st },
-      { id: 'dodr', title: 'ODR', target: TARGET_KPIS['Tỷ lệ giao hàng tổng thể (ODR)'] || 90, d1: dodrD1, d8: dodrD8, history: dodrHist.vals, historyDates: dodrHist.dates, ref: refDOdr },
-      { id: 'fd', title: 'FD', target: null, d1: fdD1, d8: fdD8Val, compareNote: comparisonNote('So với D-15', fdComparison), history: fdHist.vals, historyDates: fdHist.dates, ref: refFd, subStatLabel: 'hoàn' }
-    ];
-  }, [pD1, dD1, fD1, filteredPick, filteredDeli, filteredFd, pickDates, deliDates, fdDates]);
+  // Card capabilities, sources and targets share the same client configuration.
+  const kpiCards = useMemo(() => buildOverviewCards({
+    pick: filteredPick, deli: filteredDeli, fd: filteredFd,
+  }, clientFilter), [filteredPick, filteredDeli, filteredFd, clientFilter]);
 
   // Render individual matrix table component
   const renderMetricTable = (title, metricKey, isDeli = false, sectionRef = null, sectionId = null) => {
@@ -749,7 +659,7 @@ export default function Report1MienVungHub({
     const weekPrev = isFd ? fWPrev : (isDeli ? dWPrev : pWPrev);
     const weekCur = isFd ? fWCur : (isDeli ? dWCur : pWCur);
     const d1Date = isFd ? fD1 : (isDeli ? dD1 : pD1);
-    const target = isFd || isPud ? null : (TARGET_KPIS[title.replace(/^Mục \d\.\d: (.*?) \(.*\)$/, '$1')] || (isDeli ? (metricKey === '1st' ? 95.0 : 90.0) : (metricKey === '1st' ? 97.0 : 90.0)));
+    const target = kpiCards.find(card => card.id === sectionId)?.target ?? null;
 
     if (!rows.length || !d1Date) {
       return (
@@ -1297,12 +1207,12 @@ export default function Report1MienVungHub({
             </div>
           ) : isPud ? (
             <div>{PUD_NOTE} Mẫu PUD hiển thị ở cột volume của D-1 và WTD.</div>
-          ) : (
+          ) : isFd ? (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
               <span>≤ 3% nền trung tính; &gt; 3% chia 3 bậc đỏ theo mức cao nhất của bảng.</span>
             </div>
-          )}
+          ) : <div>{shortTitle}: chưa có target KPI cho client đang chọn.</div>}
           {hiddenRegionCount > 0 && (
             <div>* Đã ẩn {hiddenRegionCount} vùng không phát sinh sản lượng WTD với loại Hub đang chọn.</div>
           )}

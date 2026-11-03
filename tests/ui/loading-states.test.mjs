@@ -52,6 +52,35 @@ test('overview first render has a skeleton rather than a false empty notice', ()
     dataLoading: true, clientFilter: 'SPB', selectedRegions: [], density: 'comfortable' }));
 });
 
+test('Reverse overview renders only supported metrics, pending MTD and no inherited target or risk', () => {
+  const props = { overview: true, pickRows: [{ report_date: '2026-11-02', region: 'HCM', hub: 'A', hub_type: 'BC',
+    client_name: 'SPE Reverse', mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1, mau_pud: 10 }],
+    deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'], mtdScope: 'test:user' };
+  const html = render(components.report, props);
+  assert.equal((html.match(/class="overview-metric /g) || []).length, 3);
+  assert.match(html, /PUD/);
+  assert.match(html, /loading-skeleton/);
+  assert.doesNotMatch(html, /Chưa có dữ liệu MTD|1ST DELI|ODR|Target MTD|Target ≥|is-bad/);
+  assert.match(html, /chưa có target KPI/);
+});
+
+test('MTD cards distinguish resolved numbers, errors and true empty results', () => {
+  const row = { report_date: '2026-11-02', client_name: 'SPE Reverse', region: 'HCM', hub_type: 'BC',
+    mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1, mau_pud: 10 };
+  const cards = components.buildOverviewCards({ pick: [row] }, 'SPE Reverse');
+  const renderCards = datasets => render(components.overviewCards, { cards: cards.map(card => components.resolveOverviewMtdCard(card, datasets)) });
+  const loaded = renderCards({ reverse: { rows: [row] } });
+  assert.doesNotMatch(loaded, /Chưa có dữ liệu|loading-skeleton|Target MTD|is-bad|is-good/);
+  assert.match(loaded, /100 đơn/);
+  assert.match(loaded, /10 đơn/);
+  const empty = renderCards({ reverse: { rows: [] } });
+  assert.match(empty, /Chưa có dữ liệu MTD/);
+  assert.doesNotMatch(empty, /loading-skeleton/);
+  const failed = renderCards({ reverse: { error: true } });
+  assert.match(failed, /Lỗi tải MTD/);
+  assert.doesNotMatch(failed, /Chưa có dữ liệu MTD|loading-skeleton/);
+});
+
 test('settled empty overview and explicit empty filters remain real empty states', () => {
   const props = { pickRows: [], deliRows: [], overview: true, dataLoading: false, clientFilter: 'SPB' };
   const empty = render(components.report, props);

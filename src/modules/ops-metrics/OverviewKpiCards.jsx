@@ -6,7 +6,7 @@ import { formatPct, formatVol, formatDateLabel } from '../../utils/dataProcessor
 const percentage = value => formatPct(value).replace('.', ',');
 
 export default function OverviewKpiCards({ cards, selectedMetric, onSelect, headingRange }) {
-  return <div className="overview-metrics" role="group" aria-label="Chọn KPI để xem xu hướng">
+  return <div className="overview-metrics" style={{ '--overview-metric-count': cards.length }} role="group" aria-label="Chọn KPI để xem xu hướng">
     {cards.map(card => {
       const hasData = card.mtd?.tot > 0 && Number.isFinite(card.mtd?.pct);
       const hasTarget = card.target != null;
@@ -14,7 +14,7 @@ export default function OverviewKpiCards({ cards, selectedMetric, onSelect, head
       // this KPI's data actually ends on another day.
       const ownRange = card.mtd?.to && (card.mtd.to !== headingRange?.to || card.mtd.from !== headingRange?.from);
       const note = card.mtdStatus === 'loading' ? <LoadingScreen variant="inline" />
-        : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : hasData ? null : 'Chưa có dữ liệu MTD';
+        : card.mtdStatus === 'error' ? 'Lỗi tải MTD' : card.mtd?.incomplete ? 'Chưa đủ dữ liệu MTD' : hasData ? null : 'Chưa có dữ liệu MTD';
       const status = !hasData || !hasTarget ? 'neutral' : card.mtd.pct >= card.target ? 'good' : 'bad';
       return <button type="button" key={card.id}
         className={`overview-metric ${selectedMetric === card.id ? 'is-selected' : ''}`}
