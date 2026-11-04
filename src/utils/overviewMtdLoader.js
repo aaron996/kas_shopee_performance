@@ -1,5 +1,6 @@
 import { createResourceCache } from './resourceCache.js';
-import { expandCompactRows } from './weeklyKpi.js';
+import { expandCompactRows, fetchDailyRows } from './weeklyKpi.js';
+import { OVERVIEW_SOURCES } from '../data/overviewMetrics.js';
 import { normalizeDashboardRows } from './dataProcessor.js';
 import { buildOverviewMtdCacheKey, loadOverviewMtdCache, saveOverviewMtdCache, clearOverviewMtdCache } from './overviewMtdCache.js';
 
@@ -35,6 +36,11 @@ export function createOverviewMtdLoader({ load = loadOverviewMtdCache, save = sa
           let fetched = false;
           const rows = await memory.read(key, async () => {
             fetched = true;
+            const source = OVERVIEW_SOURCES[dataset];
+            if (!source) throw new Error('UNSUPPORTED_MTD_SOURCE');
+            // Read the full month via the authenticated history RPC in bounded
+            // sequential slices. A rolling snapshot cannot establish MTD.
+            if (source.transport === 'daily') return fetchDailyRows(client, dataset, from, to);
             const { data, error } = await client.rpc('get_kas_mtd_compact', { dataset, date_from: from, date_to: to });
             if (error) throw error;
             if (!data || data.dataset !== dataset || data.date_from !== from || data.date_to !== to
