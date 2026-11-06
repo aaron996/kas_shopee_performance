@@ -83,7 +83,7 @@ export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes
 // its per-Miền vùng here (reassignGxtMienRegion): this report keeps the GXT rows
 // filed under the order's region HNO, as before. Only HNO - KA is left out.
 export const HNO_REPORT_REGIONS = ['HNO', 'HNO - CK'];
-export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK'];
+export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK', 'BC KD'];
 
 export function scopeHnoReportRows(rows) {
   const regions = new Set(HNO_REPORT_REGIONS);

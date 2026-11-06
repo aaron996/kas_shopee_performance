@@ -496,6 +496,20 @@ function opsDeltaDayManifest_(columns, rows, dateColumn, md5) {
     hash:md5(groups[day].hashes.sort().join('\n'))}));
   return {days:days,groups:groups};
 }
+// Datajob chưa gắn nhãn BC KD: kho dạng "(XXX) KD ..." / "(XXX) KT ..." được gắn ở đây, trước khi tính
+// hash và gửi RPC, nên delta, history và reverse đều thấy cùng một giá trị. Ahamove, Giao Hàng Nặng và
+// Key Account giữ nhãn cũ (CASE gốc xét chúng trước BC KD).
+function opsHubTypeBcKd_(columns, rows) {
+  const typeIndex = columns.findIndex(c => c.name === 'hub_type');
+  const nameIndex = columns.findIndex(c => c.name === 'hub' || c.name === 'deliverywh');
+  if (typeIndex < 0 || nameIndex < 0) return rows;
+  rows.forEach(row => {
+    const name = String(row[nameIndex] === null || row[nameIndex] === undefined ? '' : row[nameIndex]).trim();
+    if (/^\([^)]*\) (KD|KT) /.test(name) && !/Ahamove|Kho Giao Hàng Nặng|Key Account Warehouse/.test(name)) row[typeIndex] = 'BC KD';
+  });
+  return rows;
+}
+
 function opsDeltaNormalizeRows_(headers, values, columns, timezone) {
   if (headers.some(h => !h) || new Set(headers).size !== headers.length) throw new Error('Header trống hoặc trùng');
   const indexes = columns.map(c => {
@@ -504,7 +518,7 @@ function opsDeltaNormalizeRows_(headers, values, columns, timezone) {
     if (!['date','numeric','text'].includes(c.type)) throw new Error('Unsupported OPS column type: '+c.type);
     return index;
   });
-  return values.filter(row => row.some(cell => cell !== '' && cell !== null)).map(row => columns.map((c,i) => {
+  const rows = values.filter(row => row.some(cell => cell !== '' && cell !== null)).map(row => columns.map((c,i) => {
     const value = indexes[i] < 0 ? null : row[indexes[i]];
     if (c.type === 'date') {
       const raw = value instanceof Date ? Utilities.formatDate(value,timezone,'yyyy-MM-dd') : String(value || '').trim();
@@ -521,6 +535,7 @@ function opsDeltaNormalizeRows_(headers, values, columns, timezone) {
     if (value === null || value === undefined) return null;
     return c.name === 'wh_id' ? (String(value).trim() || null) : String(value);
   }));
+  return opsHubTypeBcKd_(columns, rows);
 }
 function opsDeltaValidateWindow_(tabKey, days, today) {
   const offset = tabKey === 'fd' ? [22,8] : [14,1];
