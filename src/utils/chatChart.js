@@ -1,6 +1,6 @@
 // Shared, bounded presentation contract. Never interpret chart code from model text.
 export const CHAT_CHART_LIMIT = 50;
-export const CHAT_METRIC_LABELS = Object.freeze({ p1st: '1st Pickup', opr: 'OPR', d1st: '1st Delivery', odr: 'ODR' });
+export const CHAT_METRIC_LABELS = Object.freeze({ p1st: '1st Pickup ontime', opr: 'OPR', d1st: '1st Delivery ontime', odr: 'ODR' });
 export const isChartQuestion = question => /biểu\s*đồ|đồ\s*thị|chart|trend|xu\s*hướng|theo\s*(từng\s*)?ngày|diễn\s*biến/i.test(question || '');
 export function preserveChartQuestion(confirmedQuestion, originalQuestion) {
   return isChartQuestion(originalQuestion) ? `${confirmedQuestion}\nYêu cầu ban đầu: ${originalQuestion.slice(0, 2800)}` : confirmedQuestion;
