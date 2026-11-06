@@ -57,6 +57,8 @@ export function getFallbackSuggestions(activeTab = 'report1', context = {}) {
 // from evidence rather than inferred from prose or the current dashboard filters.
 export function buildFollowupSuggestions(message) {
   if (!message || message.interaction || !message.sources?.length) return null;
+  const drivers = [...message.sources].reverse().find(item => item.tool === 'get_metric_change_drivers' && METRICS.includes(item.scope?.metric));
+  if (drivers) return buildDriverFollowups(drivers, message);
   const source = [...message.sources].reverse().find(item => METRICS.includes(item.scope?.metric)
     || ['get_ca1_summary', 'get_leadtime_summary'].includes(item.tool));
   if (!source) return null;
@@ -106,5 +108,34 @@ export function buildFollowupSuggestions(message) {
   return suggestionResult(selectSuggestionItems(candidates.filter(item => item.intent !== askedIntent && (context.client !== 'SPE Reverse' || item.intent !== 'target'))), {
     placeholder: `Ví dụ: ${metric} theo ${unit} trong cùng kỳ?`, context,
     scopeLabel: formatSuggestionScope(context), dataAsOf: source.dataAsOf, basis: 'followup'
+  });
+}
+
+// After a "why did it change" answer, offer the natural next drill-down, not
+// the generic ranking/target prompts.
+function buildDriverFollowups(source, message) {
+  const { metric, client = 'SPB', grain, topDriver, changePp } = source.scope;
+  const label = metric.toUpperCase();
+  const dir = changePp < 0 ? 'giảm' : 'tăng';
+  const regions = source.scope.regions?.length ? source.scope.regions : null;
+  const target = topDriver || regions?.[0] || '';
+  const items = [];
+  if (grain === 'region' && topDriver) {
+    items.push({ id: 'drivers-hub', intent: 'drilldown', score: 95, label: `Hub nào kéo ${label} ${topDriver} ${dir}?`,
+      question: `Vì sao ${label} ${client} của ${topDriver} ${dir} so với kỳ trước? Phân tích theo hub.` });
+  }
+  if (target) {
+    items.push({ id: 'drivers-trend', intent: 'trend', score: 90, label: `Diễn biến ${label} ${target} 7 ngày gần nhất`,
+      question: `Vẽ xu hướng ${label} ${client} của ${target} theo ngày trong 7 ngày dữ liệu mới nhất.` });
+    items.push({ id: 'drivers-target', intent: 'target', score: 80, label: `${label} ${target} còn cách target bao nhiêu?`,
+      question: `So sánh ${label} ${client} của ${target} từ ${source.scope.dateFrom} đến ${source.scope.dateTo} với target.` });
+  }
+  const asked = message.requestQuestion || '';
+  const filtered = items.filter(item => !(item.intent === 'trend' && /xu hướng|theo ngày/i.test(asked))
+    && !(item.intent === 'target' && /target/i.test(asked)) && !(client === 'SPE Reverse' && item.intent === 'target'));
+  if (!filtered.length) return null;
+  return suggestionResult(selectSuggestionItems(filtered), {
+    context: { activeTab: 'report1', client, regions, hubTypes: null }, placeholder: `Ví dụ: ${label} ${target} theo hub?`,
+    scopeLabel: [client, target].filter(Boolean).join(' · '), dataAsOf: source.dataAsOf, basis: 'followup'
   });
 }
