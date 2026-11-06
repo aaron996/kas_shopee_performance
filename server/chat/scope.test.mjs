@@ -152,3 +152,12 @@ test('normalizeToolScope: explicit nationwide question maps rpcRegions to empty 
   assert.deepEqual(normalized.regions, []);
   assert.deepEqual(normalized.rpcRegions, []); // Empty array returns all regions in DB
 });
+
+test('question naming a dashboard region (e.g. GXT - Nam) overrides screenContext regions', async () => {
+  const { detectExplicitRegions, resolveEffectiveScope, normalizeToolScope } = await import('./scope.js');
+  assert.deepEqual(detectExplicitRegions('Vì sao 1st deli của GXT - Nam bị giảm hôm qua?').regions, ['GXT - Nam']);
+  assert.deepEqual(detectExplicitRegions('so sánh HCM - CK và DSH').regions, ['HCM - CK', 'DSH']);
+  const scope = resolveEffectiveScope({ question: 'Vì sao D1ST GXT - Nam giảm', screenContext: { client: 'SPB', regions: ['DSH', 'HNO'], hubTypes: [] } });
+  const args = normalizeToolScope('get_metric_change_drivers', { regions: ['GXT - Nam'] }, scope);
+  assert.deepEqual(args.rpcRegions, ['GXT - Nam']);
+});
