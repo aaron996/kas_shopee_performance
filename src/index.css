@@ -5521,6 +5521,7 @@ button.kpi-card { font: inherit; color: inherit; text-align: left; }
   border-radius: var(--radius-pill); color: var(--text-secondary); background: transparent; cursor: pointer;
 }
 .chat-icon-button:hover { color: var(--text-primary); background: var(--surface-subtle); border-color: var(--border-subtle); }
+.chat-icon-button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 .chat-icon-button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
 
 /* Model selector (Dev Admin only) */
