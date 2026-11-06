@@ -1,5 +1,16 @@
 import { CHAT_CLIENT_CODES, normalizeChatClient } from '../../src/utils/chatClients.js';
+import { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
+
+// Dashboard region names as users type them ("GXT - Nam", "HCM - CK", "DSH").
+// Longest first so "HCM - CK" is consumed before the bare "HCM" legacy pattern.
+const DASHBOARD_REGIONS = [...new Set(Object.values(MIEN_REGIONS).flat())]
+  .map(region => ({
+    region,
+    re: new RegExp(`(?<![\\p{L}\\d])${region.trim().split(/\s*-\s*/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*-\\s*')}(?![\\p{L}\\d])`, 'iu')
+  }))
+  .sort((a, b) => b.region.length - a.region.length);
+
 const REGION_PATTERNS = [
   { re: /\b(hcm\s*-\s*ka)\b/i, region: 'HCM - KA' },
   { re: /\b(hno\s*-\s*ka|hn\s*-\s*ka)\b/i, region: 'HNO - KA' },
@@ -27,6 +38,12 @@ export function detectExplicitRegions(question) {
   if (/\b(toàn quốc|toan quoc|cả nước|ca nuoc)\b/i.test(question)) {
     return { regions: [], isNationwide: true };
   }
+  const named = [];
+  let rest = question;
+  for (const { re, region } of DASHBOARD_REGIONS) {
+    if (re.test(rest)) { named.push(region); rest = rest.replace(re, ' '); }
+  }
+  if (named.length > 0) return { regions: named, isNationwide: false };
   const detected = [];
   for (const { re, region } of REGION_PATTERNS) {
     if (re.test(question)) {
