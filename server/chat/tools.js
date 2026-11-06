@@ -8,6 +8,10 @@ import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
 import { MAX_SCOPE_ITEMS } from './protocol.js';
 import { PUBLIC_SEARCH_TOOL } from './public-search.js';
 import { createHash } from 'node:crypto';
+import { computeDrivers, evidenceIdFor } from './drivers.js';
+
+const DRIVER_GRAINS = new Set(['region', 'hub']);
+const DRIVER_MAX_PAGES = 4;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
@@ -91,6 +95,25 @@ export const CHAT_TOOLS = Object.freeze([
         client: { type: 'string', enum: [...CLIENTS] },
         date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+      },
+    },
+  },
+  {
+    type: 'function', name: 'get_metric_change_drivers', strict: true,
+    description: 'Dùng cho câu hỏi "vì sao KPI tăng/giảm". So sánh hai kỳ (kỳ hiện tại và kỳ trước) của P1ST/OPR/D1ST/ODR và trả về tổng thay đổi (điểm %) cùng danh sách vùng/hub đóng góp nhiều nhất vào thay đổi đó, tách hiệu ứng tỷ lệ (chính nó tốt/xấu đi) và hiệu ứng cơ cấu (tỷ trọng sản lượng dịch chuyển). Kết quả đã tính sẵn, không cần gọi thêm summary/trend; chart không tự vẽ cho tool này.',
+    parameters: {
+      type: 'object', additionalProperties: false,
+      required: ['metric', 'client', 'current_from', 'current_to', 'previous_from', 'previous_to', 'grain', 'regions', 'hub_types'],
+      properties: {
+        metric: { type: 'string', enum: [...METRICS] },
+        client: { type: 'string', enum: [...CLIENTS] },
+        current_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        current_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        previous_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        previous_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        grain: { type: 'string', enum: [...DRIVER_GRAINS], description: 'region để tìm vùng kéo tụt; hub để xuống từng kho.' },
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
       },
@@ -263,6 +286,59 @@ export async function executeChatTool(call, context = {}) {
         evidenceId: `db_${createHash('sha256').update(JSON.stringify(evidenceIds)).digest('hex').slice(0, 16)}`,
         params: { ...params, p_date_from: from, p_date_to: to, p_grain: 'day' },
         data: { metric: params.p_metric, scope: { client: params.p_client, dateFrom: from, dateTo: to, grain: 'day' }, dataAsOf, syncedAt, rows },
+      };
+    }
+    case 'get_metric_change_drivers': {
+      const metric = enumValue(args.metric, METRICS, 'metric');
+      const client = enumValue(args.client, CLIENTS, 'client');
+      const grain = enumValue(args.grain, DRIVER_GRAINS, 'grain');
+      const [curFrom, curTo] = dateRange(args.current_from, args.current_to);
+      const [prevFrom, prevTo] = dateRange(args.previous_from, args.previous_to);
+      if (prevTo >= curFrom) invalid('Kỳ trước phải kết thúc trước khi kỳ hiện tại bắt đầu.');
+      const base = { p_metric: metric, p_client: client,
+        p_regions: textList(args.rpcRegions, 'regions'), p_hub_types: textList(args.rpcHubTypes, 'hub_types') };
+      const scopedClient = { rpc(name, rpcParams) {
+        const request = userClient.rpc(name, rpcParams);
+        return context.signal && typeof request.abortSignal === 'function' ? request.abortSignal(context.signal) : request;
+      } };
+      const evidenceIds = [];
+      let dataAsOf = null, syncedAt = null;
+      const read = async params => {
+        if (context.signal?.aborted) throw new ChatError('CHAT_TIMEOUT', 'Đã dừng tra cứu.', 504);
+        const result = await callDashboardRpc(scopedClient, DASHBOARD_RPCS.metric, params);
+        evidenceIds.push(result.evidenceId);
+        if (result.data?.dataAsOf && (!dataAsOf || result.data.dataAsOf > dataAsOf)) dataAsOf = result.data.dataAsOf;
+        if (result.data?.syncedAt && (!syncedAt || result.data.syncedAt > syncedAt)) syncedAt = result.data.syncedAt;
+        if (!Array.isArray(result.data?.rows)) throw new ChatError('CHAT_DATA_UNAVAILABLE', 'Dữ liệu phân rã chưa đúng định dạng.', 503);
+        return result.data;
+      };
+      const period = async (from, to) => {
+        const total = await read({ ...base, p_date_from: from, p_date_to: to, p_grain: 'nationwide', p_limit: 1, p_offset: 0, p_sort: 'volume_desc' });
+        const rows = [];
+        let complete = true;
+        for (let page = 0; page < DRIVER_MAX_PAGES; page += 1) {
+          const data = await read({ ...base, p_date_from: from, p_date_to: to, p_grain: grain, p_limit: 50, p_offset: page * 50, p_sort: 'volume_desc' });
+          rows.push(...data.rows);
+          if (rows.length >= (data.totalEntities ?? rows.length) || !data.rows.length) break;
+          if (page === DRIVER_MAX_PAGES - 1) complete = false;
+        }
+        return { total: total.rows[0] ?? null, rows, complete };
+      };
+      const previous = await period(prevFrom, prevTo);
+      const current = await period(curFrom, curTo);
+      const analysis = previous.total && current.total
+        ? computeDrivers({ previous: previous.total, current: current.total, previousRows: previous.rows, currentRows: current.rows })
+        : null;
+      return {
+        evidenceId: evidenceIdFor(evidenceIds),
+        queriedAt: new Date().toISOString(),
+        params: { ...base, p_grain: grain, p_date_from: curFrom, p_date_to: curTo, p_previous_from: prevFrom, p_previous_to: prevTo },
+        data: {
+          metric, dataAsOf, syncedAt,
+          scope: { client, dateFrom: curFrom, dateTo: curTo, previousFrom: prevFrom, previousTo: prevTo, grain },
+          partial: !(previous.complete && current.complete),
+          analysis
+        }
       };
     }
     case 'get_data_coverage': {
