@@ -98,3 +98,11 @@ test('Ca 1 and leadtime followups keep dates and lane/route from tool evidence',
     }
   }
 });
+
+test('follow-ups after a driver analysis drill into that entity, not generic ranking', async () => {
+  const { buildFollowupSuggestions } = await import('./chatSuggestions.js');
+  const out = buildFollowupSuggestions({ requestQuestion: 'Vì sao D1ST giảm', sources: [{ tool: 'get_metric_change_drivers', dataAsOf: '2026-11-05',
+    scope: { metric: 'd1st', client: 'SPB', grain: 'region', dateFrom: '2026-11-05', dateTo: '2026-11-05', topDriver: 'GXT - Nam', changePp: -2.14 } }] });
+  assert.match(out.items[0].label, /GXT - Nam/);
+  assert.ok(out.items.every(item => !/Xem D1ST theo/.test(item.label)));
+});

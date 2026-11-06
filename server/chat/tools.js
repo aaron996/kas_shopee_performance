@@ -335,7 +335,8 @@ export async function executeChatTool(call, context = {}) {
         params: { ...base, p_grain: grain, p_date_from: curFrom, p_date_to: curTo, p_previous_from: prevFrom, p_previous_to: prevTo },
         data: {
           metric, dataAsOf, syncedAt,
-          scope: { client, dateFrom: curFrom, dateTo: curTo, previousFrom: prevFrom, previousTo: prevTo, grain },
+          scope: { client, dateFrom: curFrom, dateTo: curTo, previousFrom: prevFrom, previousTo: prevTo, grain,
+            ...(analysis?.drivers[0] ? { topDriver: analysis.drivers[0].entity, changePp: analysis.changePp } : {}) },
           partial: !(previous.complete && current.complete),
           analysis
         }
