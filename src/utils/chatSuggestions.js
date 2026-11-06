@@ -3,6 +3,8 @@ import { buildSuggestionPlanPool } from './suggestionPlans.js';
 
 const TABS = ['report1', 'report5', 'report3', 'report-insight'];
 const METRICS = ['odr', 'd1st', 'opr', 'p1st'];
+// User-facing names; p1st/d1st are internal codes.
+const METRIC_DISPLAY = Object.freeze({ p1st: '1st Pickup ontime', d1st: '1st Delivery ontime', opr: 'OPR', odr: 'ODR' });
 
 // Rank relevance, then diversify intent and metric; never rotate neighboring text.
 export function selectSuggestionItems(candidates, limit = 3) {
@@ -44,7 +46,7 @@ export function buildDynamicSuggestions({ activeTab = 'report1', client = 'SPB',
   const pool = buildSuggestionPlanPool(context, null, seed);
   const placeholder = activeTab === 'report3' ? 'Ví dụ: Leadtime 30 ngày qua tập trung ở chặng nào?'
     : activeTab === 'report5' ? 'Ví dụ: Lane nào cải thiện Ca 1 trong 7 ngày qua?'
-      : `Ví dụ: P1ST và OPR ${context.client} chênh nhau ở đâu?`;
+      : `Ví dụ: 1st Pickup ontime và OPR ${context.client} chênh nhau ở đâu?`;
   return suggestionResult(selectSuggestionItems(pool), { placeholder, context, scopeLabel: formatSuggestionScope(context), basis: 'template', dataAsOf: null });
 }
 export const FALLBACK_SUGGESTIONS = Object.freeze(Object.fromEntries(TABS.map(tab => [tab, buildDynamicSuggestions({ activeTab: tab })])));
@@ -94,19 +96,20 @@ export function buildFollowupSuggestions(message) {
     });
   }
   const metric = scope.metric.toUpperCase();
+  const shown = METRIC_DISPLAY[scope.metric];
   const period = `từ ${scope.dateFrom} đến ${scope.dateTo}`;
   const subject = `${metric} ${context.client}`;
   const unit = scope.grain === 'region' || context.regions?.length === 1 ? 'hub' : 'vùng';
   const candidates = [
-    { id: `${metric}-follow-rank`, intent: 'ranking', metric: scope.metric, score: 90, label: `Xem ${metric} theo ${unit} trong cùng kỳ?`, question: `Xếp hạng ${unit} theo ${subject} ${period}, theo bộ lọc hiện tại.` },
-    { id: `${metric}-follow-trend`, intent: 'comparison', metric: scope.metric, score: 85, label: `So sánh ${metric} với kỳ liền trước?`, question: `So sánh ${subject} ${period} với kỳ liền trước có cùng số ngày, theo bộ lọc hiện tại.` },
-    { id: `${metric}-follow-target`, intent: 'target', metric: scope.metric, score: 80, label: `${metric} trong cùng kỳ còn cách target bao nhiêu?`, question: `So sánh ${subject} ${period} với target, theo bộ lọc hiện tại.` }
+    { id: `${metric}-follow-rank`, intent: 'ranking', metric: scope.metric, score: 90, label: `Xem ${shown} theo ${unit} trong cùng kỳ?`, question: `Xếp hạng ${unit} theo ${subject} ${period}, theo bộ lọc hiện tại.` },
+    { id: `${metric}-follow-trend`, intent: 'comparison', metric: scope.metric, score: 85, label: `So sánh ${shown} với kỳ liền trước?`, question: `So sánh ${subject} ${period} với kỳ liền trước có cùng số ngày, theo bộ lọc hiện tại.` },
+    { id: `${metric}-follow-target`, intent: 'target', metric: scope.metric, score: 80, label: `${shown} trong cùng kỳ còn cách target bao nhiêu?`, question: `So sánh ${subject} ${period} với target, theo bộ lọc hiện tại.` }
   ];
   const previous = message.requestQuestion || '';
   const askedIntent = /so sánh.*(?:kỳ|ngày trước)/i.test(previous) ? 'comparison'
     : /target/i.test(previous) ? 'target' : /xếp hạng/i.test(previous) ? 'ranking' : null;
   return suggestionResult(selectSuggestionItems(candidates.filter(item => item.intent !== askedIntent && (context.client !== 'SPE Reverse' || item.intent !== 'target'))), {
-    placeholder: `Ví dụ: ${metric} theo ${unit} trong cùng kỳ?`, context,
+    placeholder: `Ví dụ: ${shown} theo ${unit} trong cùng kỳ?`, context,
     scopeLabel: formatSuggestionScope(context), dataAsOf: source.dataAsOf, basis: 'followup'
   });
 }
@@ -115,7 +118,7 @@ export function buildFollowupSuggestions(message) {
 // the generic ranking/target prompts.
 function buildDriverFollowups(source, message) {
   const { metric, client = 'SPB', grain, topDriver, changePp } = source.scope;
-  const label = metric.toUpperCase();
+  const label = METRIC_DISPLAY[metric];
   const dir = changePp < 0 ? 'giảm' : 'tăng';
   const regions = source.scope.regions?.length ? source.scope.regions : null;
   const target = topDriver || regions?.[0] || '';
