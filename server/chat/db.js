@@ -18,6 +18,13 @@ export async function callDashboardRpc(userClient, rpcName, params) {
     if (error.code === '57014') {
       throw new ChatError('CHAT_DATA_TIMEOUT', 'Truy vấn dữ liệu mất quá lâu. Vui lòng thử lại hoặc thu hẹp khoảng ngày.', 503, { cause: error });
     }
+    console.error('[chat] dashboard rpc failed', {
+      rpcName,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
     throw new ChatError('CHAT_DATA_UNAVAILABLE', 'Không thể đọc dữ liệu dashboard lúc này.', 503, {
       cause: error
     });
