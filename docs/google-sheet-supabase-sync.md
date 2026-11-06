@@ -48,6 +48,25 @@ tiếp trong phiên 09/10 được ghi riêng trong runbook; merge repo chỉ l�
 và tài liệu. Project dùng Script Property `SUPABASE_SERVICE_ROLE_KEY`;
 không hardcode service key.
 
+## Nhãn `hub_type = 'BC KD'` (06/11/2026)
+
+Datajob quên nhánh `WHEN REGEXP_LIKE(TRIM(pickwh_final), '^\\([^)]*\\) (KD|KT) .*') THEN 'BC KD'`.
+Thay vì chờ sửa query, `opsHubTypeBcKd_` (trong `opsDeltaNormalizeRows_`) gắn nhãn này khi đọc
+Sheet, nên Pick/Deli/FD delta, history, backfill và reverse đều có cùng giá trị. Cột tên kho là
+`hub` (Pick, Deli, Reverse) hoặc `deliverywh` (FD); kho Ahamove, Giao Hàng Nặng, Key Account giữ nhãn
+cũ như thứ tự CASE gốc. Chỉ thêm `BC KD`, các nhãn khác (`Ahamove`, `KA`, `GXT`, `BC`) không đổi.
+
+Không dùng trigger trong Supabase: `sync_ops_kpi_delta` so hash dòng nguồn với dòng trong bảng, trigger
+làm hai bên lệch và bước kiểm tra sau sync sẽ rollback.
+
+Thứ tự triển khai: (1) chạy migration `20261106090000_hub_type_bc_kd_backfill.sql`; (2) dán bản
+Apps Script mới. Làm ngược lại, khoá của bảng history có `hub_type` nên mỗi hub KD/KT sẽ có thêm một
+dòng `BC KD` bên cạnh dòng `BC` cũ, số liệu bị nhân đôi. Khi datajob được sửa đúng, nhãn từ nguồn
+trùng với nhãn script gắn nên không đổi gì thêm.
+
+Phía dashboard, `BC KD` được thêm vào `HNO_REPORT_HUB_TYPES` (báo cáo Telegram HNO) và coi như `BC`
+trong `sceneVehicleKind` (xe máy), để các hub này không biến mất khỏi báo cáo HNO hay đổi thành xe tải.
+
 ## Lịch chạy, retry và cách tổ chức project
 
 BI dự kiến đổ dữ liệu khoảng 08:15; guard OPS không cho sync trước 08:30 theo
