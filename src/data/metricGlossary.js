@@ -65,9 +65,10 @@ export const METRIC_GLOSSARY = Object.freeze({
     label: 'FD',
     dataset: 'fd',
     unit: 'percent',
-    formula: 'fd_hoan_thanh / mau_fd * 100',
-    target: null,
-    description: 'Tỷ lệ hoàn thành FD trên tổng mẫu FD.'
+    formula: 'SUM(fd_hoan_thanh) / SUM(mau_fd) * 100 (mẫu số là mau_fd, không dùng số đơn tạo)',
+    target: 3,
+    direction: 'lower_is_better',
+    description: 'Tỷ lệ Fail Delivery (FD) trên tổng mẫu FD. FD càng thấp càng tốt (ngược chiều P1ST/OPR/D1ST/ODR); KPI Shopee: đạt khi FD <= 3%. Dữ liệu FD có thể lùi hơn Pickup/Delivery nên luôn nêu ngày dữ liệu (as_of_date). Với FD, "hub" là kho giao (deliverywh).'
   }
 });
 

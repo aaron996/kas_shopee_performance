@@ -105,13 +105,35 @@ URL — client tự phát hiện OAuth qua `.well-known` và dẫn người dùn
 
 Giống hệt tham số/schema của các tool cùng tên trong `server/chat/tools.js`:
 
-- `get_metric_trend` — KPI P1ST/OPR/D1ST/ODR theo ngày (tối đa 14 ngày/lượt).
-- `get_data_coverage` — ngày dữ liệu sớm nhất/mới nhất, thời điểm đồng bộ.
+- `get_metric_trend` — KPI P1ST/OPR/D1ST/ODR/FD theo ngày (tối đa 14 ngày/lượt).
+- `get_data_coverage` — ngày dữ liệu sớm nhất/mới nhất, thời điểm đồng bộ (dataset `pick|deli|ca1|leadtime|fd`).
 - `get_metric_summary` / `get_latest_metric_summary` — KPI theo vùng/hub/toàn quốc.
 - `get_ca1_summary` — tỷ lệ đơn về ca 1 theo lane/vùng.
 - `get_leadtime_summary` — leadtime trung bình có trọng số.
 - `get_metric_definition` — định nghĩa/công thức/target một chỉ số.
 - `get_dashboard_help` — giải thích một khu vực của dashboard.
+
+### Chỉ số FD (Fail Delivery)
+
+`metric='fd'` dùng được ở `get_metric_summary`, `get_latest_metric_summary`,
+`get_metric_trend`, `get_metric_change_drivers`; `dataset='fd'` ở
+`get_data_coverage`. FD% = `SUM(fd_hoan_thanh) / SUM(mau_fd)`; **FD càng thấp
+càng tốt**, đạt khi `<= 3%`. Response giữ dạng `{entity, volume, ontime, value}`
+(`volume` = mau_fd, `ontime` = fd_hoan_thanh) và thêm `direction:
+'lower_is_better'`, `kpiTarget`, `meetsKpi` từng dòng, `sort=worst` = FD cao
+nhất, `grain='hub'` = kho giao (`deliverywh`). Change drivers thêm
+`overall`/`effect` (`worsened|improved`): đóng góp dương = FD tăng = xấu.
+
+FD có thể lùi ngày hơn pick/deli: `get_latest_metric_summary(fd)` dùng ngày mới
+nhất của chính FD và trả `as_of_date`; nếu kỳ yêu cầu dài hơn phạm vi có dữ
+liệu thì trả `periodNote` + `scope.actualDateFrom/actualDateTo`; kỳ không có dữ
+liệu trả `noData: true` + `message` (không phải 0%); `mau_fd = 0` cho `value:
+null`.
+
+Cài đặt: `server/chat/fd-data.js` đọc qua RPC compact sẵn có
+(`get_kas_daily_range_compact('fd')`, `get_kas_weekly_compact('fd')`) — không
+cần migration, không sửa `get_ai_chat_metric`. `syncedAt`/`rowCount` của
+coverage FD chỉ có khi client là service role (MCP); chatbot trong app trả null.
 
 ### Phân trang `get_metric_summary` / `get_latest_metric_summary`
 

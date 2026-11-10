@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 const round = (value, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 const num = value => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
-export function computeDrivers({ previous, current, previousRows, currentRows, top = 8 }) {
+export function computeDrivers({ previous, current, previousRows, currentRows, top = 8, lowerIsBetter = false }) {
   const D0 = num(previous.volume), N0 = num(previous.ontime);
   const D1 = num(current.volume), N1 = num(current.ontime);
   if (D0 <= 0 || D1 <= 0) return null;
@@ -35,13 +35,16 @@ export function computeDrivers({ previous, current, previousRows, currentRows, t
       volumePrevious: d0, volumeCurrent: d1,
       contributionPp: round(contribution),
       rateEffectPp: round(rateEffect),
-      mixEffectPp: round(contribution - rateEffect)
+      mixEffectPp: round(contribution - rateEffect),
+      // Lower-is-better metrics (FD): a positive contribution means FD went up = worse.
+      ...(lowerIsBetter ? { effect: contribution === 0 ? 'neutral' : (contribution > 0 ? 'worsened' : 'improved') } : {})
     };
   }).filter(driver => driver.contributionPp !== 0)
     .sort((a, b) => Math.abs(b.contributionPp) - Math.abs(a.contributionPp));
   const explained = drivers.reduce((sum, driver) => sum + driver.contributionPp, 0);
   return {
     ratePrevious: round(R0), rateCurrent: round(R1), changePp: round(R1 - R0),
+    ...(lowerIsBetter ? { direction: 'lower_is_better', overall: R1 === R0 ? 'neutral' : (R1 > R0 ? 'worsened' : 'improved') } : {}),
     volumePrevious: D0, volumeCurrent: D1,
     drivers: drivers.slice(0, top),
     otherPp: round(R1 - R0 - drivers.slice(0, top).reduce((sum, driver) => sum + driver.contributionPp, 0)),
