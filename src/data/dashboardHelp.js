@@ -18,7 +18,7 @@ export const DASHBOARD_HELP = Object.freeze({
   metrics: {
     title: 'Chi tiết Vùng/Hub',
     route: 'report1',
-    description: 'Xem 1st Pickup, OPR, 1st Delivery, ODR và FD theo miền, vùng và tuyến/hub.'
+    description: 'Xem 1st Pickup, OPR, 1st Delivery, ODR và FD theo miền, vùng và tuyến/hub. FD (Fail Delivery) là chỉ số ngược chiều: càng thấp càng tốt, đạt khi <= 3%; chatbot/MCP tra cứu được FD bằng metric=fd (FD có thể có ngày dữ liệu cũ hơn Pickup/Delivery).'
   },
   ca1: {
     title: 'Báo cáo % Ca 1',
