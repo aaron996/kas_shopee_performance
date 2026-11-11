@@ -1358,7 +1358,7 @@ export default function Report1MienVungHub({
             className={`kpi-table-tab ${detailSection === key ? 'active' : ''}`} onClick={() => setDetailSection(key)}>{label}</button>
         ))}
       </div>}
-      {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel /></div> : <div className={`density-${density} kpi-tab-container`}>
+      {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} /></div> : <div className={`density-${density} kpi-tab-container`}>
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
