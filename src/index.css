@@ -2421,6 +2421,7 @@ table.mtx-table th.col-summary {
 }
 
 .detail-subtabs { display: inline-flex; gap: 0.2rem; padding: 0.2rem; margin-bottom: 0.6rem; background: rgba(100, 116, 139, 0.08); border-radius: var(--radius-pill); }
+.ops-workspace .detail-subtabs .kpi-table-tab.active { background: var(--action-primary, #0ea5c4); color: #fff; }
 
 /* Tab Backlog (số đơn tồn tuyệt đối) đứng sau cụm Pickup/OPR/PUD và cách ra một chút. */
 .kpi-tab-group-backlog { margin-left: 0.6rem; }
