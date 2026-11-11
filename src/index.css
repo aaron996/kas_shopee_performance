@@ -2420,6 +2420,9 @@ table.mtx-table th.col-summary {
   border-radius: var(--radius-pill);
 }
 
+/* Backlog là ảnh chụp tồn đọng, đứng sau cụm Pickup và cách ra một chút. */
+.kpi-tab-group-backlog { margin-left: 0.6rem; }
+
 .kpi-table-tab {
   padding: 0.4rem 0.9rem;
   font-family: var(--font-heading);

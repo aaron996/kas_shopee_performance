@@ -3,8 +3,8 @@ import { TARGET_KPIS } from './defaultDataset.js';
 export const METRIC_GLOSSARY = Object.freeze({
   pud: {
     key: 'pud', label: 'PUD', dataset: 'reverse', unit: 'percent',
-    formula: 'sum(pud) / sum(mau_pud) * 100', target: null,
-    description: 'PUD của SPE Reverse dùng mẫu mau_pud riêng; thiếu mẫu hoặc mẫu bằng 0 hiển thị dấu –.'
+    formula: 'sum(pud) / sum(mau_pu) * 100', target: null,
+    description: 'PUD của SPE Reverse lấy pud chia mẫu mau_pu (cùng mẫu 1st Pickup/OPR); thiếu mẫu hoặc mẫu bằng 0 hiển thị dấu –.'
   },
   p1st: {
     key: 'p1st',
