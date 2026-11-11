@@ -14,7 +14,7 @@ export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trướ
 export const WEEKLY_METRICS = {
   p1st: { dataset: 'pick', title: '1ST PICKUP', total: 'mau_pu', ontime: 'ontime_pu_1st', target: 97 },
   popr: { dataset: 'pick', title: 'OPR', total: 'mau_pu', ontime: 'ontime_pu_opr', target: 90 },
-  pud: { dataset: 'reverse', title: 'PUD', total: 'mau_pud', ontime: 'pud', target: null },
+  pud: { dataset: 'reverse', title: 'PUD', total: 'mau_pu', ontime: 'pud', target: null },
   d1st: { dataset: 'deli', title: '1ST DELI', total: 'mau_deli', ontime: 'ontime_deli_1st', target: 95 },
   dodr: { dataset: 'deli', title: 'ODR', total: 'mau_deli', ontime: 'ontime_deli_odr', target: 90 },
   fd: { dataset: 'fd', title: 'FD', total: 'mau_fd', ontime: 'fd_hoan_thanh', target: null, isFd: true }

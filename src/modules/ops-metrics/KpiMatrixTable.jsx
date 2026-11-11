@@ -46,7 +46,7 @@ export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabe
             {matrix.weeks.map(w => (
               <React.Fragment key={w.start}>
                 <th className="grp-start">%</th>
-                {showVolume && <th>{metric.title === 'PUD' ? 'Mẫu PUD' : 'Vol'}</th>}
+                {showVolume && <th>Vol</th>}
               </React.Fragment>
             ))}
           </tr>

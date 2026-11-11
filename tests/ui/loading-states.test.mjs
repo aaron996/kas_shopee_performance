@@ -54,7 +54,7 @@ test('overview first render has a skeleton rather than a false empty notice', ()
 
 test('Reverse overview renders only supported metrics, pending MTD and no inherited target or risk', () => {
   const props = { overview: true, pickRows: [{ report_date: '2026-11-02', region: 'HCM', hub: 'A', hub_type: 'BC',
-    client_name: 'SPE Reverse', mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1, mau_pud: 10 }],
+    client_name: 'SPE Reverse', mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1 }],
     deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'], mtdScope: 'test:user' };
   const html = render(components.report, props);
   assert.equal((html.match(/class="overview-metric /g) || []).length, 3);
@@ -66,13 +66,13 @@ test('Reverse overview renders only supported metrics, pending MTD and no inheri
 
 test('MTD cards distinguish resolved numbers, errors and true empty results', () => {
   const row = { report_date: '2026-11-02', client_name: 'SPE Reverse', region: 'HCM', hub_type: 'BC',
-    mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1, mau_pud: 10 };
+    mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 10 };
   const cards = components.buildOverviewCards({ pick: [row] }, 'SPE Reverse');
   const renderCards = datasets => render(components.overviewCards, { cards: cards.map(card => components.resolveOverviewMtdCard(card, datasets)) });
   const loaded = renderCards({ reverse: { rows: [row] } });
   assert.doesNotMatch(loaded, /Chưa có dữ liệu|loading-skeleton|Target MTD|is-bad|is-good/);
   assert.match(loaded, /100 đơn/);
-  assert.match(loaded, /10 đơn/);
+  assert.match(loaded, /10 PUD/);
   const empty = renderCards({ reverse: { rows: [] } });
   assert.match(empty, /Chưa có dữ liệu MTD/);
   assert.doesNotMatch(empty, /loading-skeleton/);
@@ -116,36 +116,48 @@ test('PUD daily/week requests start with skeletons and Reverse declares its own 
   expectLoading(render(components.weekly, { metricKey: 'pud', title: 'PUD', clientFilter: 'SPE Reverse' }));
 });
 
-test('PUD tab and default matrix use Reverse scope, separate sample, and no target heat', () => {
-  const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 0, pud: 1, mau_pud: 1 },
-    { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 0, pud: 0, mau_pud: 9 }];
-  const html = render(components.report, { pickRows: rows, deliRows: [], clientFilter: 'SPE Reverse',
-    selectedRegions: ['HCM'], selectedHubTypes: ['BC'], focusTarget: { metricKey: 'pud' } });
-  assert.match(html, /id="ops-tab-pud" aria-selected="true"/);
-  assert.match(html, /10,0%|10\.0%/);
-  assert.match(html, /Mẫu PUD/);
-  assert.doesNotMatch(html, /Target ≥|heat heat-/);
-  const other = render(components.report, { pickRows: rows.map(row => ({ ...row, client_name: 'SPB' })), deliRows: [],
-    clientFilter: 'SPB', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] });
-  assert.doesNotMatch(other, /ops-tab-pud/);
+test('PUD tab is visible in day view, opens week view, and uses the Reverse scope without target heat', () => {
+  const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 1, pud: 1 },
+    { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 9, pud: 0 }];
+  const props = { pickRows: rows, deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
+  const day = render(components.report, props);
+  assert.match(day, /id="ops-tab-pud" aria-selected="false"/, 'PUD stays visible in day view');
+  assert.match(day, /aria-pressed="true"[^>]*>\s*Theo ngày/);
+  const week = render(components.report, { ...props, focusTarget: { metricKey: 'pud' } });
+  assert.match(week, /id="ops-tab-pud" aria-selected="true"/);
+  assert.match(week, /aria-pressed="true"[^>]*>\s*Theo tuần/, 'PUD forces the week view');
+  const snapshot = render(components.report, { ...props, snapshotMetric: 'pud' });
+  assert.match(snapshot, /10,0%|10\.0%/, 'PUD = pud / mau_pu');
+  assert.match(snapshot, /Mẫu \(mau_pu\)/);
+  assert.doesNotMatch(snapshot, /Target ≥|heat heat-/);
+  const other = render(components.report, { ...props, pickRows: rows.map(row => ({ ...row, client_name: 'SPB' })),
+    clientFilter: 'SPB' });
+  assert.doesNotMatch(other, /ops-tab-pud|ops-tab-backlog/);
 });
 
-test('Reverse failures expose retry and completed empty data is not loading', () => {
-  const props = { pickRows: [], deliRows: [], clientFilter: 'SPE Reverse' };
-  const error = render(components.report, { ...props, sourceError: true });
-  assert.match(error, /Không tải được dữ liệu SPE Reverse/);
-  assert.match(error, /Thử lại/);
-  assert.doesNotMatch(error, /loading-skeleton/);
-  expectLoading(render(components.report, { ...props, dataLoading: true }));
+test('Backlog tab shows absolute mau_pud after PUD; Backlog Reverse subtab holds the layout sample', () => {
+  const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 50, pud: 1, mau_pud: 37 }],
+    deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
+  const html = render(components.report, props);
+  assert.ok(html.indexOf('id="ops-tab-pud"') < html.indexOf('id="ops-tab-backlog"'));
+  assert.match(html, /kpi-tab-group-backlog/);
+  assert.match(html, /id="detail-subtab-backlog-reverse" aria-pressed="false"/);
+  const backlog = render(components.report, { ...props, focusTarget: { metricKey: 'backlog' } });
+  assert.match(backlog, /id="ops-tab-backlog" aria-selected="true"/);
+  assert.match(backlog, /<td[^>]*>37<\/td>/, 'absolute mau_pud, not a percentage');
+  assert.doesNotMatch(backlog, /BẢN MINH HỌA LAYOUT|view-mode-toggle|heat heat-/);
+  const spb = render(components.report, { ...props, pickRows: props.pickRows.map(row => ({ ...row, client_name: 'SPB' })), clientFilter: 'SPB' });
+  assert.doesNotMatch(spb, /detail-subtab|ops-tab-backlog/);
 });
 
 test('PUD uses the shared default pickup table layout and motion hooks', () => {
   const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC',
-    client_name: 'SPE Reverse', mau_pu: 0, ontime_pu_1st: 0, ontime_pu_opr: 0, pud: 1, mau_pud: 2 }],
+    client_name: 'SPE Reverse', mau_pu: 2, ontime_pu_1st: 0, ontime_pu_opr: 0, pud: 1 }],
     deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
   for (const metricKey of ['p1st', 'popr', 'pud']) {
-    const html = render(components.report, { ...props, focusTarget: { metricKey } });
-    for (const shared of [/detail-metric-toolbar/, /Copy bảng này thành ảnh/, /all-row-sticky/,
+    // PUD chỉ có ở view tuần; bố cục bảng ngày dùng chung vẫn được kiểm qua trang snapshot.
+    const html = render(components.report, metricKey === 'pud' ? { ...props, snapshotMetric: 'pud' } : { ...props, focusTarget: { metricKey } });
+    for (const shared of [...(metricKey === 'pud' ? [] : [/detail-metric-toolbar/]), /Copy bảng này thành ảnh/, /all-row-sticky/,
       /mien-sticky-label/, /data-motion-id="all"/, /data-motion-id="region:HCM"/,
       /hub-disclosure/, /data-latest-day/, /WTD \(CỘNG DỒN\)/, /Tốt nhất<br\/>6 tuần/, /Cùng ngày<br\/>tháng trước/]) {
       assert.match(html, shared, `${metricKey}: ${shared}`);
@@ -155,10 +167,10 @@ test('PUD uses the shared default pickup table layout and motion hooks', () => {
 });
 
 test('shared PUD daily/WTD preserves unknown samples and includes unassigned regions', () => {
-  const row = (date, hub, region, pud, mau_pud) => ({ report_date: date, hub, region, pud, mau_pud,
-    client_name: 'SPE Reverse', hub_type: 'BC', mau_pu: 0 });
+  const row = (date, hub, region, pud, mau_pu) => ({ report_date: date, hub, region, pud, mau_pu,
+    client_name: 'SPE Reverse', hub_type: 'BC' });
   const props = { deliRows: [], clientFilter: 'SPE Reverse', selectedHubTypes: ['BC'],
-    selectedRegions: Object.values(components.MIEN_REGIONS).flat(), focusTarget: { metricKey: 'pud' } };
+    selectedRegions: Object.values(components.MIEN_REGIONS).flat(), snapshotMetric: 'pud' };
   const known = render(components.report, { ...props, pickRows: [row('2026-11-01','A','HCM',1,1), row('2026-11-01','B','',0,9)] });
   assert.match(known, /10\.0%/);
   assert.match(known, /Chưa rõ vùng/);

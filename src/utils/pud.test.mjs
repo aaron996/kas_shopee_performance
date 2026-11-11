@@ -5,8 +5,8 @@ import { buildWeeklyMatrix, WEEKLY_METRICS, datasetFor, dayLabel } from './weekl
 import { MIEN_REGIONS } from '../data/defaultDataset.js';
 import { filterRowsByScope } from './dataProcessor.js';
 
-const row = (hub, pud, mau_pud, extra = {}) => ({ report_date: '2026-11-01', region: 'HCM', hub,
-  hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 0, pud, mau_pud, ...extra });
+const row = (hub, pud, mau_pu, extra = {}) => ({ report_date: '2026-11-01', region: 'HCM', hub,
+  hub_type: 'BC', client_name: 'SPE Reverse', pud, mau_pu, ...extra });
 const matrix = (rows, extra = {}) => buildWeeklyMatrix({ rows, weeks: ['2026-11-01'], metricKey: 'pud', labelFor: dayLabel, ...extra });
 
 test('PUD uses its own population, aggregates counts, and has no target', () => {
@@ -19,10 +19,10 @@ test('PUD uses its own population, aggregates counts, and has no target', () => 
 });
 
 test('missing or invalid samples never turn into zero or a partial percentage', () => {
-  for (const counts of [{ pud: 1 }, { pud: 1, mau_pud: null }, { pud: null, mau_pud: 9 },
-    { pud: 1, mau_pud: '' }, { pud: 2, mau_pud: 1 }, { pud: -1, mau_pud: 1 }]) {
+  for (const counts of [{ pud: 1 }, { pud: 1, mau_pu: null }, { pud: null, mau_pu: 9 },
+    { pud: 1, mau_pu: '' }, { pud: 2, mau_pu: 1 }, { pud: -1, mau_pu: 1 }]) {
     assert.deepEqual(pudCounts(counts), { tot: null, ont: null });
-    const result = matrix([row('A', 1, 10), row('B', counts.pud, counts.mau_pud)]);
+    const result = matrix([row('A', 1, 10), row('B', counts.pud, counts.mau_pu)]);
     assert.deepEqual(result.all[0], { tot: null, ont: null, pct: null });
     assert.equal(result.empty, false);
   }

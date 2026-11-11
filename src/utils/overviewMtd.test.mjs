@@ -31,13 +31,13 @@ test('delivery aliases, FD denominator, month boundaries and empty data', () => 
   assert.equal(aggregateOverviewMtd([], 'fd', null).pct, null);
 });
 
-const reverse = extra => row('2026-11-02', 100, 70, { client_name: 'SPE Reverse', pud: 1, mau_pud: 10, ...extra });
+const reverse = extra => row('2026-11-02', 100, 70, { client_name: 'SPE Reverse', pud: 1, ...extra });
 
 test('client capabilities drive card count, source, targets and PUD population', () => {
   const cards = buildOverviewCards({ pick: [reverse()], deli: [], fd: [] }, 'SPE Reverse');
   assert.deepEqual(cards.map(card => card.id), ['p1st', 'popr', 'pud']);
   assert.ok(cards.every(card => card.target === null && card.sources.join() === 'reverse'));
-  assert.deepEqual(cards.map(card => card.d1.pct), [70, 69, 10]);
+  assert.deepEqual(cards.map(card => card.d1.pct), [70, 69, 1]);
   assert.deepEqual(overviewMtdRanges(cards), [['reverse', '2026-11-02']]);
   for (const client of ['SPE', 'SPB']) {
     const standard = getOverviewMetrics(client);
@@ -57,15 +57,15 @@ test('MTD and daily use the same all-region rule for unmapped Reverse hubs', () 
   assert.equal(aggregateOverviewMtd(rows, 'p1st', '2026-11-02', { selectedRegions: [] }).tot, 0);
 });
 
-test('PUD stays unknown if any matched row lacks its own sample; never uses pickup sample', () => {
-  const cards = buildOverviewCards({ pick: [reverse({ mau_pud: null })] }, 'SPE Reverse');
+test('PUD stays unknown if any matched row lacks pud or mau_pu; shares the pickup sample (mau_pu)', () => {
+  const cards = buildOverviewCards({ pick: [reverse({ pud: null })] }, 'SPE Reverse');
   assert.equal(cards.find(card => card.id === 'pud').d1.pct, null);
   assert.equal(cards.find(card => card.id === 'pud').reportDate, '2026-11-02');
   assert.deepEqual(overviewMtdRanges(cards), [['reverse', '2026-11-02']]);
-  const result = aggregateOverviewMtd([reverse(), reverse({ mau_pud: null })], 'pud', '2026-11-02');
+  const result = aggregateOverviewMtd([reverse(), reverse({ pud: null })], 'pud', '2026-11-02');
   assert.equal(result.pct, null);
   assert.equal(result.incomplete, true);
-  assert.equal(result.tot, 10);
+  assert.equal(result.tot, 100);
 });
 
 test('source/date changes are pending immediately; errors and empty completion are distinct', () => {

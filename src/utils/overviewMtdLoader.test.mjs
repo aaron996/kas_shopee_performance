@@ -102,8 +102,8 @@ test('Reverse reads full-month history in sequential bounded slices and isolates
     active--;
     if (name === 'get_kas_mtd_compact') return payload(999, args);
     assert.equal(args.dataset, 'reverse');
-    return { data: { cols: ['report_date', 'client_name', 'region', 'hub_type', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'pud', 'mau_pud'],
-      rows: [[args.from_date, 'SPE Reverse', 'HCM', 'BC', 100, 60, 50, 1, 10]] } };
+    return { data: { cols: ['report_date', 'client_name', 'region', 'hub_type', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'pud'],
+      rows: [[args.from_date, 'SPE Reverse', 'HCM', 'BC', 100, 60, 50, 1]] } };
   } };
   const run = dataset => loader.run({ client, scope: 'a:user', ranges: [[dataset, '2026-10-31']],
     onResult: (source, result) => events.push([source, result]) });
@@ -116,7 +116,7 @@ test('Reverse reads full-month history in sequential bounded slices and isolates
   ]);
   const rows = events.at(-1)[1].rows;
   assert.equal(aggregateOverviewMtd(rows, 'p1st', '2026-10-31').tot, 400);
-  assert.equal(aggregateOverviewMtd(rows, 'pud', '2026-10-31').pct, 10);
+  assert.equal(aggregateOverviewMtd(rows, 'pud', '2026-10-31').pct, 1);
   await run('reverse');
   assert.equal(calls.length, 4, 'reuses bounded identity/source/range cache');
   await run('pick');

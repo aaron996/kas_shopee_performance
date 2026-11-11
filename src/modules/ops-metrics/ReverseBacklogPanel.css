@@ -1,0 +1,44 @@
+.backlog-panel { --age-0: #8ab8f0; --age-1: #2f7fd8; --age-2: #0f4c95; display: grid; gap: 0.9rem; padding: 1rem; }
+.backlog-head h3 { margin: 0; font: 700 1.1rem var(--font-heading); }
+.backlog-head p { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+.backlog-sample-note, .backlog-definition { padding: 0.5rem 0.75rem; border-radius: var(--radius-control, 10px); font-size: 0.8125rem; border: 1px dashed; }
+.backlog-sample-note { background: #fef3c7; color: #92400e; border-color: #e8c46a; }
+.backlog-definition { background: #fff1ea; color: #7a2e0e; border-color: #f3b999; }
+.backlog-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+.backlog-kpi { display: grid; gap: 0.15rem; padding: 0.7rem 0.9rem; background: #fff; border: 1px solid var(--border-subtle); border-radius: var(--radius-control, 10px); }
+.backlog-kpi span { font-size: 0.75rem; color: var(--text-muted); }
+.backlog-kpi strong { font: 700 1.7rem/1.1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.backlog-kpi em { font-style: normal; font-size: 0.75rem; color: var(--text-muted); }
+.backlog-kpi em.is-up { color: #a13b2a; }
+.backlog-kpi em.is-down { color: #0f6e56; }
+.backlog-section { background: #fff; border: 1px solid var(--border-subtle); border-radius: var(--radius-control, 10px); padding: 0.8rem 1rem; }
+.backlog-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.backlog-section-head h4 { margin: 0; font: 700 0.95rem var(--font-heading); }
+.backlog-section-head span { font-size: 0.8125rem; color: var(--text-muted); }
+.backlog-scroll { overflow-x: auto; }
+.backlog-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.backlog-table th { font-weight: 600; color: var(--text-muted); text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+.backlog-table td { padding: 0.3rem 0.5rem; }
+.backlog-table .num { text-align: right; white-space: nowrap; }
+.backlog-table .strong { font-weight: 700; }
+.backlog-table small { color: var(--text-muted); }
+.backlog-region { width: 3.5rem; font-weight: 700; }
+.backlog-bar-col { width: 38%; }
+.backlog-bar { display: flex; height: 14px; min-width: 2px; border-radius: 2px; overflow: hidden; }
+.backlog-bar span { min-width: 1px; }
+.backlog-table tfoot td { border-top: 1px solid var(--border-subtle); padding-top: 0.5rem; font-weight: 700; }
+.age-0 { background: var(--age-0); }
+.age-1 { background: var(--age-1); }
+.age-2 { background: var(--age-2); }
+.backlog-dot { display: inline-block; width: 8px; height: 8px; margin-right: 0.3rem; border-radius: 2px; }
+@media (max-width: 720px) { .backlog-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .backlog-panel { padding: 0.6rem; } }
+/* Dark mode: cùng bảng màu với .metric-block (nền #131c31, viền #233252, chữ phụ #94a3b8). */
+body.dark-mode .backlog-panel { --age-0: #93c5fd; --age-1: #3b82f6; --age-2: #1d4ed8; color: #f1f5f9; }
+body.dark-mode .backlog-kpi, body.dark-mode .backlog-section { background: #131c31; border-color: #233252; }
+body.dark-mode .backlog-head p, body.dark-mode .backlog-kpi span, body.dark-mode .backlog-kpi em,
+body.dark-mode .backlog-section-head span, body.dark-mode .backlog-table th, body.dark-mode .backlog-table small { color: #94a3b8; }
+body.dark-mode .backlog-kpi em.is-up { color: #f87171; }
+body.dark-mode .backlog-kpi em.is-down { color: #4ade80; }
+body.dark-mode .backlog-table th, body.dark-mode .backlog-table tfoot td { border-color: #233252; }
+body.dark-mode .backlog-sample-note { background: var(--amber-bg); color: var(--amber-text); border-color: rgba(251, 191, 36, 0.4); }
+body.dark-mode .backlog-definition { background: rgba(241, 90, 34, 0.14); color: #fdba74; border-color: rgba(241, 90, 34, 0.4); }
