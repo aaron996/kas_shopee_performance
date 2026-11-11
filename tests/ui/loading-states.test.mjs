@@ -135,17 +135,19 @@ test('PUD tab is visible in day view, opens week view, and uses the Reverse scop
   assert.doesNotMatch(other, /ops-tab-pud|ops-tab-backlog/);
 });
 
-test('Backlog tab follows PUD in its own group and shows the layout sample for Reverse only', () => {
-  const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 1, pud: 1 }],
+test('Backlog tab shows absolute mau_pud after PUD; Backlog Reverse subtab holds the layout sample', () => {
+  const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 50, pud: 1, mau_pud: 37 }],
     deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
   const html = render(components.report, props);
   assert.ok(html.indexOf('id="ops-tab-pud"') < html.indexOf('id="ops-tab-backlog"'));
   assert.match(html, /kpi-tab-group-backlog/);
+  assert.match(html, /id="detail-subtab-backlog-reverse" aria-pressed="false"/);
   const backlog = render(components.report, { ...props, focusTarget: { metricKey: 'backlog' } });
   assert.match(backlog, /id="ops-tab-backlog" aria-selected="true"/);
-  assert.match(backlog, /BẢN MINH HỌA LAYOUT/);
-  assert.match(backlog, /12,228/);
-  assert.doesNotMatch(backlog, /view-mode-toggle/);
+  assert.match(backlog, /<td[^>]*>37<\/td>/, 'absolute mau_pud, not a percentage');
+  assert.doesNotMatch(backlog, /BẢN MINH HỌA LAYOUT|view-mode-toggle|heat heat-/);
+  const spb = render(components.report, { ...props, pickRows: props.pickRows.map(row => ({ ...row, client_name: 'SPB' })), clientFilter: 'SPB' });
+  assert.doesNotMatch(spb, /detail-subtab|ops-tab-backlog/);
 });
 
 test('PUD uses the shared default pickup table layout and motion hooks', () => {

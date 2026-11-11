@@ -1,8 +1,7 @@
 import './ReverseBacklogPanel.css';
 
 // BẢN MINH HỌA LAYOUT — số liệu cố định, chưa nối nguồn dữ liệu backlog thật.
-// Khi có bảng snapshot backlog, thay SAMPLE_* bằng dữ liệu truy vấn (xem docs/reverse-backlog.md
-// hoặc phần "Cột cần có" trong mô tả PR) và bỏ banner minh họa.
+// Khi có bảng snapshot backlog, thay SAMPLE_* bằng dữ liệu truy vấn (cột cần có: snapshot_date, client_name, region, assign_bucket, age_bucket, backlog_orders) và bỏ banner minh họa.
 const AGE_BUCKETS = [
   { key: 'd13', label: 'Tồn 1–3 ngày' },
   { key: 'd47', label: 'Tồn 4–7 ngày' },

@@ -2420,7 +2420,9 @@ table.mtx-table th.col-summary {
   border-radius: var(--radius-pill);
 }
 
-/* Backlog là ảnh chụp tồn đọng, đứng sau cụm Pickup và cách ra một chút. */
+.detail-subtabs { display: inline-flex; gap: 0.2rem; padding: 0.2rem; margin-bottom: 0.6rem; background: rgba(100, 116, 139, 0.08); border-radius: var(--radius-pill); }
+
+/* Tab Backlog (số đơn tồn tuyệt đối) đứng sau cụm Pickup/OPR/PUD và cách ra một chút. */
 .kpi-tab-group-backlog { margin-left: 0.6rem; }
 
 .kpi-table-tab {

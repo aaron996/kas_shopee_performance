@@ -9,6 +9,7 @@ import { pudCounts, PUD_NOTE } from '../../utils/pud';
 import { buildOverviewCards } from '../../utils/overviewMtd';
 import { overviewTarget } from '../../data/overviewMetrics';
 import ReverseBacklogPanel from './ReverseBacklogPanel';
+import ReverseBacklogMatrix from './ReverseBacklogMatrix';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -91,6 +92,9 @@ export default function Report1MienVungHub({
   const activeTableTab = pickOnly
     ? (['p1st', 'popr', 'pud', 'backlog'].includes(requestedTableTab) ? requestedTableTab : 'p1st')
     : (['pud', 'backlog'].includes(requestedTableTab) ? 'p1st' : requestedTableTab);
+  // Subtab của Chi tiết Vùng/Hub: chỉ Reverse có thêm "Backlog Reverse" (bố cục backlog theo số lần gán / tuổi tồn).
+  const [requestedSection, setDetailSection] = useState('metrics');
+  const detailSection = pickOnly ? requestedSection : 'metrics';
   // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
   // PUD chỉ có ở "Theo tuần": mở thẳng từ tiêu điểm PUD thì vào luôn view tuần.
   const [requestedViewMode, setViewMode] = useState(() => focusTarget?.metricKey === 'pud' ? 'week' : 'day');
@@ -1348,7 +1352,13 @@ export default function Report1MienVungHub({
         </div>
       )}
 
-      <div className={`density-${density} kpi-tab-container`}>
+      {pickOnly && <div className="detail-subtabs" role="group" aria-label="Phần chi tiết Vùng/Hub">
+        {[['metrics', 'Chỉ số Vùng/Hub'], ['backlog-reverse', 'Backlog Reverse']].map(([key, label]) => (
+          <button type="button" key={key} id={`detail-subtab-${key}`} aria-pressed={detailSection === key}
+            className={`kpi-table-tab ${detailSection === key ? 'active' : ''}`} onClick={() => setDetailSection(key)}>{label}</button>
+        ))}
+      </div>}
+      {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel /></div> : <div className={`density-${density} kpi-tab-container`}>
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
@@ -1372,7 +1382,7 @@ export default function Report1MienVungHub({
               tabIndex={activeTableTab === 'pud' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'pud' ? 'active' : ''}`}
               onClick={() => selectMetricTab('pud')}>PUD</button>}
           </div>
-          {/* Backlog là ảnh chụp tồn đọng, không phải chỉ số theo ngày/tuần: tách khỏi cụm chỉ số bằng khoảng cách riêng. */}
+          {/* Backlog (số đơn tồn tuyệt đối, mau_pud) tách khỏi cụm chỉ số % bằng khoảng cách riêng; chỉ có view ngày. */}
           {pickOnly && <div className="kpi-tab-group kpi-tab-group-backlog" role="group" aria-label="Backlog">
             <button role="tab" id="ops-tab-backlog" aria-selected={activeTableTab === 'backlog'} aria-controls="ops-metric-panel"
               tabIndex={activeTableTab === 'backlog' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'backlog' ? 'active' : ''}`}
@@ -1405,7 +1415,8 @@ export default function Report1MienVungHub({
           </div>}
         </div>
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
-          {activeTableTab === 'backlog' ? <ReverseBacklogPanel /> : activeDayRange ? (
+          {activeTableTab === 'backlog' ? (loadingDatasets.pick ? <LoadingScreen />
+            : <ReverseBacklogMatrix rows={filteredPick} dates={pickDates} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} />) : activeDayRange ? (
             <DailyRangeKpiTable
               formattingRule={formattingRules[activeTableTab]}
               formattingControl={formattingControl(activeTableTab)}
@@ -1430,7 +1441,7 @@ export default function Report1MienVungHub({
             />
           ) : metricTables[activeTableTab]?.()}
         </div>
-      </div>
+      </div>}
 
       {exportDialog}
 
