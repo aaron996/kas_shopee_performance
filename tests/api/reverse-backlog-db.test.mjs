@@ -72,7 +72,7 @@ const deleted = [], built = [];
 const builder = { timeBased: () => builder, atHour: h => { built.push(['atHour', h]); return builder; }, nearMinute: m => { built.push(['nearMinute', m]); return builder; }, everyDays: n => { built.push(['everyDays', n]); return builder; }, inTimezone: z => { built.push(['tz', z]); return builder; }, create: () => { built.push(['create']); } };
 const ctx = vm.createContext({
   console, Date, Set, Number, JSON, Math, Object, String, Array,
-  Utilities: { formatDate: () => '2026-11-11' },
+  Utilities: { formatDate: (d, tz, fmt) => (fmt === 'yyyy-MM-dd' ? '2026-11-11' : `${d.getDate()}-${d.getMonth() + 1}`) },
   Logger: { log: v => logs.push(v) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] }) },
   SpreadsheetApp: { getActiveSpreadsheet: () => ss },
@@ -94,6 +94,15 @@ assert.equal(calls[0].rpc, 'upsert_kas_reverse_backlog');
 assert.deepEqual(JSON.parse(JSON.stringify(calls[0].rows[0])), { snapshot_date: '2026-11-11', client_name: 'SPE Reverse', region: 'HNO', hub_type: 'BC', assign_bucket: '0', age_bucket: '1-3', backlog_orders: 126 });
 assert.equal(calls[0].rows[1].region, 'N/A', 'N/A giữ nguyên, app tự coi là chưa rõ vùng');
 assert.equal(JSON.parse(logs.at(-1)).total, 130);
+// Sheets đổi "1-3", "4-7", "1-2" thành ngày: script đổi ngược, "8-14", "0", "3+" giữ là chuỗi.
+tabs.reverse_backlog = [header,
+  ['2026-11-11', 'SPE Reverse', 'HNO', 'BC', '0', new Date(2026, 2, 1), 5],
+  ['2026-11-11', 'SPE Reverse', 'HNO', 'BC', new Date(2026, 1, 1), new Date(2026, 6, 4), 6],
+  ['2026-11-11', 'SPE Reverse', 'HNO', 'BC', '3+', '8-14', 7]];
+ctx.syncReverseBacklog();
+assert.deepEqual(calls.at(-1).rows.map(r => [r.assign_bucket, r.age_bucket]).map(x => x.join('|')), ['0|1-3', '1-2|4-7', '3+|8-14']);
+calls.pop();
+tabs.reverse_backlog = [header, ...good];
 // Dữ liệu từ DB nhận được đúng payload của script.
 await upsert(calls[0].rows);
 assert.equal((await db.query(`select sum(backlog_orders) s from public.kas_reverse_backlog where snapshot_date = '2026-11-11'`)).rows[0].s, '130');

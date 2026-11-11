@@ -19,11 +19,21 @@ const REVERSE_BACKLOG_COLUMNS = [
   {name:'assign_bucket',type:'text'},{name:'age_bucket',type:'text'},{name:'backlog_orders',type:'numeric'}
 ];
 
-/** Header đọc từ Sheets: "1-2" và "1-3" dễ bị Sheets đổi thành ngày; chỉ nhận đúng chuỗi bucket đã định nghĩa. */
+/**
+ * Sheets tự đổi ô "1-3", "4-7", "1-2" thành ngày (1/3, 4/7, 1/2) và getValues() trả về Date. Đổi ngược Date thành "d-M"
+ * (ngày-tháng, đúng cách Sheets đã đọc) rồi vẫn kiểm tra bucket phải nằm trong danh sách hợp lệ. "8-14", "0", "3+" giữ là chuỗi.
+ */
+function reverseBacklogBucket_(value, timezone) {
+  return value instanceof Date ? Utilities.formatDate(value,timezone,'d-M') : value;
+}
+
 function reverseBacklogRows_(sheet, timezone) {
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) throw new Error('Tab '+sheet.getName()+' trống hoặc chỉ có header');
-  const rows = opsDeltaNormalizeRows_(values[0].map(h => String(h).trim()),values.slice(1),REVERSE_BACKLOG_COLUMNS,timezone);
+  const headers = values[0].map(h => String(h).trim());
+  const bucketIndexes = ['assign_bucket','age_bucket'].map(name => headers.indexOf(name)).filter(i => i >= 0);
+  const fixed = values.slice(1).map(row => row.map((cell,i) => bucketIndexes.includes(i) ? reverseBacklogBucket_(cell,timezone) : cell));
+  const rows = opsDeltaNormalizeRows_(headers,fixed,REVERSE_BACKLOG_COLUMNS,timezone);
   return rows.map((row,i) => {
     const out = row.slice();
     out[1] = String(row[1]||'').trim(); out[2] = String(row[2]||'').trim() || null; out[3] = String(row[3]||'').trim() || null;
