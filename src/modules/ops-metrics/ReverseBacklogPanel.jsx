@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { supabase } from '../../utils/supabaseClient';
-import { AGE_BUCKETS, buildBacklogModel, clearReverseBacklogCache, fetchReverseBacklog, formatDayMonth, formatFullDate } from '../../utils/reverseBacklogData';
+import { AGE_BUCKETS, buildBacklogModel, clearReverseBacklogCache, fetchReverseBacklog, formatDayMonth } from '../../utils/reverseBacklogData';
 import './ReverseBacklogPanel.css';
 
 const fmt = value => Number(value).toLocaleString('en-US');
@@ -28,23 +28,26 @@ export default function ReverseBacklogPanel({ selectedRegions = null, selectedHu
   const retry = () => { clearReverseBacklogCache(); setAttempt(n => n + 1); };
 
   const header = (
-    <header className="backlog-head">
-      <h3>Backlog L14D theo số lần gán · từng nhóm tuổi tồn</h3>
-      {model && <p>Snapshot {formatFullDate(model.snapshotDate)} · cửa sổ 14 ngày hẹn lấy ({formatDayMonth(model.windowFrom)} – {formatDayMonth(model.snapshotDate)}) · đơn ready_to_pick, không hủy · SPE Reverse</p>}
+    <header className="metric-header backlog-head">
+      <div className="metric-title">
+        <span className="metric-title-text">Backlog L14D theo số lần gán · từng nhóm tuổi tồn</span>
+        <span className="metric-title-short">Backlog L14D</span>
+        {model && <span className="kpi-badge">Cửa sổ 14 ngày hẹn lấy · {formatDayMonth(model.windowFrom)} – {formatDayMonth(model.snapshotDate)}</span>}
+      </div>
     </header>
   );
 
-  if (!state.data && state.status === 'loading') return <div className="backlog-panel">{header}<LoadingScreen /></div>;
+  if (!state.data && state.status === 'loading') return <div className="metric-block backlog-panel">{header}<LoadingScreen /></div>;
   if (!state.data) {
-    return <div className="backlog-panel">{header}<StatusNotice><p>Chưa tải được backlog Reverse. Vui lòng thử lại.</p>
+    return <div className="metric-block backlog-panel">{header}<StatusNotice><p>Chưa tải được backlog Reverse. Vui lòng thử lại.</p>
       <button type="button" className="nav-btn-sleek" onClick={retry}>Thử lại</button></StatusNotice></div>;
   }
   if (!state.data.snapshotDate) {
-    return <div className="backlog-panel">{header}<div className="backlog-note">Chưa có snapshot backlog nào trong hệ thống.</div></div>;
+    return <div className="metric-block backlog-panel">{header}<div className="backlog-note">Chưa có snapshot backlog nào trong hệ thống.</div></div>;
   }
   const { sections, total, maxRow, delta, prevTotal, prevDate, empty } = model;
   return (
-    <div className="backlog-panel">
+    <div className="metric-block backlog-panel">
       {header}
       {state.status === 'error' && <StatusNotice><p>Chưa cập nhật được backlog mới. Đang giữ số liệu đã tải trước đó.</p>
         <button type="button" className="nav-btn-sleek" onClick={retry}>Thử lại</button></StatusNotice>}
@@ -65,7 +68,6 @@ export default function ReverseBacklogPanel({ selectedRegions = null, selectedHu
             </div>
           ))}
         </div>
-        <div className="backlog-definition"><strong>Tổng tồn còn lại (Backlog)</strong> = tổng đơn chưa lấy thành công tính đến cuối ngày, trong cửa sổ 14 ngày hẹn lấy gần nhất.</div>
         {sections.map(section => (
           <section className="backlog-section" key={section.key} aria-label={section.title}>
             <div className="backlog-section-head">
