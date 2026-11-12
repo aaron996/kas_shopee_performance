@@ -20,13 +20,21 @@ test('PUD uses its own population, aggregates counts, and has no target', () => 
 
 test('missing or invalid samples never turn into zero or a partial percentage', () => {
   for (const counts of [{ pud: 1 }, { pud: 1, mau_pu: null }, { pud: null, mau_pu: 9 },
-    { pud: 1, mau_pu: '' }, { pud: 2, mau_pu: 1 }, { pud: -1, mau_pu: 1 }]) {
+    { pud: 1, mau_pu: '' }, { pud: -1, mau_pu: 1 }, { pud: 1, mau_pu: -1 }]) {
     assert.deepEqual(pudCounts(counts), { tot: null, ont: null });
     const result = matrix([row('A', 1, 10), row('B', counts.pud, counts.mau_pu)]);
     assert.deepEqual(result.all[0], { tot: null, ont: null, pct: null });
     assert.equal(result.empty, false);
   }
   assert.deepEqual(matrix([row('A', 0, 0)]).all[0], { tot: 0, ont: 0, pct: null });
+});
+
+test('rows with pud > mau_pu are kept and do not blank the aggregate', () => {
+  assert.deepEqual(pudCounts({ pud: 5, mau_pu: 2 }), { tot: 2, ont: 5 });
+  assert.deepEqual(pudCounts({ pud: 3, mau_pu: 0 }), { tot: 0, ont: 3 });
+  const result = matrix([row('A', 6, 4), row('B', 2, 6)]);
+  assert.deepEqual(result.all[0], { tot: 10, ont: 8, pct: 80 });
+  assert.equal(result.miens[0].regions[0].hubs.find(h => h.hub === 'A').stats[0].pct, 150);
 });
 
 test('unknown regions stay in the national PUD population without a guessed assignment', () => {

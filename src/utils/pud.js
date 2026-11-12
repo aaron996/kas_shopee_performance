@@ -4,7 +4,9 @@ export function pudCounts(row) {
   const numeric = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   if (!numeric(row.mau_pu) || !numeric(row.pud)) return { tot: null, ont: null };
   const tot = Number(row.mau_pu), ont = Number(row.pud);
-  return tot >= 0 && ont >= 0 && ont <= tot ? { tot, ont } : { tot: null, ont: null };
+  // pud không phải tập con của mau_pu (nhiều dòng pud > mau_pu, tỷ lệ hub có thể > 100%),
+  // nên chỉ loại giá trị âm; không ràng buộc pud <= mau_pu.
+  return tot >= 0 && ont >= 0 ? { tot, ont } : { tot: null, ont: null };
 }
 
 export const PUD_NOTE = 'PUD = Tổng pud / Tổng mau_pu × 100%. Chưa có target. Dấu – là không có mẫu hoặc chưa đủ dữ liệu PUD.';
