@@ -3,6 +3,7 @@ import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import KpiFormattingControl, { KpiFormattingLegend } from './KpiFormattingControl';
 import useKpiFormatting from '../../hooks/useKpiFormatting';
+import useBacklogFormatting from '../../hooks/useBacklogFormatting';
 import { formattingCellProps } from '../../utils/kpiFormatting';
 import WeeklyKpiTable from './WeeklyKpiTable';
 import { pudCounts, PUD_NOTE } from '../../utils/pud';
@@ -77,8 +78,9 @@ export default function Report1MienVungHub({
 }) {
   const showToast = useToast();
   const { rules: formattingRules, save: saveFormatting, preview: previewFormatting } = useKpiFormatting(userEmail);
-  const formattingControl = metricKey => metricKey === 'pud' ? null : <KpiFormattingControl key={`${userEmail}:${metricKey}`} metricKey={metricKey}
-    label={{ p1st: '1st Pickup', popr: 'OPR', d1st: '1st Deli', dodr: 'ODR', fd: 'FD' }[metricKey]}
+  const backlogFormatting = useBacklogFormatting(userEmail);
+  const formattingControl = metricKey => <KpiFormattingControl key={`${userEmail}:${metricKey}`} metricKey={metricKey}
+    label={{ p1st: '1st Pickup', popr: 'OPR', d1st: '1st Deli', dodr: 'ODR', fd: 'FD', pud: 'PUD' }[metricKey]}
     rule={formattingRules[metricKey]} onPreview={previewFormatting} onSave={(key, rule) => { saveFormatting(key, rule); showToast('Đã lưu cài đặt tô màu.', { tone: 'success' }); }} />;
   const pickOnly = clientFilter === REVERSE_CLIENT;
   const [expandedRegions, setExpandedRegions] = useState(() => {
@@ -1416,7 +1418,7 @@ export default function Report1MienVungHub({
         </div>
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
           {activeTableTab === 'backlog' ? (loadingDatasets.pick ? <LoadingScreen />
-            : <ReverseBacklogMatrix rows={filteredPick} dates={pickDates} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} />) : activeDayRange ? (
+            : <ReverseBacklogMatrix rows={filteredPick} dates={pickDates} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} formatting={backlogFormatting} />) : activeDayRange ? (
             <DailyRangeKpiTable
               formattingRule={formattingRules[activeTableTab]}
               formattingControl={formattingControl(activeTableTab)}

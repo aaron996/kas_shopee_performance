@@ -17,7 +17,7 @@ Mốc mặc định hiện theo cấu hình bảng: 1st Pickup 97%, OPR 90%, 1st
 
 Cài đặt lưu trong localStorage, khóa `ghn:kpi-formatting:v1:<email đã chuẩn hóa>`, tách riêng từng tài khoản và từng KPI. Tải lại trang và đăng nhập lại cùng tài khoản trên cùng trình duyệt sẽ khôi phục. Thay đổi ở tab khác cùng origin được đồng bộ qua sự kiện storage. Chưa đồng bộ giữa các thiết bị/trình duyệt; xóa dữ liệu trình duyệt sẽ mất cài đặt. Nếu không lưu được, bảng giữ lựa chọn cũ và bộ chỉnh báo lỗi để thử lại.
 
-PUD của SPE Reverse giữ hiển thị trung tính và không có công cụ tô màu vì chưa định nghĩa target.
+PUD của SPE Reverse mặc định vẫn trung tính (chưa có target) nhưng có nút bảng màu như các KPI khác; mốc tô màu mặc định 70% chỉ là mốc hiển thị, không phải target. Tab Backlog (số đơn tuyệt đối) có nút bảng màu riêng: tô cột Δ (tăng/giảm), tô mức tồn theo cấp (nhạt → đậm so với giá trị lớn nhất cùng cấp và cùng ngày), cả hai hoặc không tô; lưu ở khóa `ghn:backlog-formatting:v1:<email>`.
 
 Chức năng chỉ đọc dữ liệu đã có, không gọi DB khi mở/chỉnh/lưu. Trang snapshot tự động dùng quy tắc màu có sẵn, độc lập với lựa chọn cá nhân.
 
