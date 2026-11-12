@@ -180,3 +180,9 @@ test('shared PUD daily/WTD preserves unknown samples and includes unassigned reg
   assert.doesNotMatch(unknown, /heat heat-/);
   assert.match(unknown, /<td[^>]*>–<\/td>/);
 });
+
+test('Backlog Reverse subtab shows a skeleton on first render, never an empty notice', () => {
+  const html = render(components.backlogPanel, { fetchData: () => new Promise(() => {}), client: {} });
+  expectLoading(html);
+  assert.doesNotMatch(html, /Chưa có snapshot|Không có backlog|BẢN MINH HỌA/);
+});
