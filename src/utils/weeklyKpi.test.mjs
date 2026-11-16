@@ -194,3 +194,27 @@ test('normalizeClientFilter nhận mã không phân biệt hoa/thường và t�
   assert.equal(normalizeClientFilter('TTS'), null);
   assert.equal(normalizeClientFilter(undefined), null);
 });
+
+test('Theo tháng: gọi get_kas_monthly_compact, nhãn tháng thiếu ngày và cộng tử mẫu theo tháng', async () => {
+  const { fetchMonthlyRows, monthLabel, monthEnd } = await import('./weeklyKpi.js');
+  clearWeeklyCache();
+  const cols = ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'ontime_pu_1st', 'ontime_pu_opr', 'days'];
+  const payload = {
+    months: ['2026-09-01', '2026-10-01'], cols,
+    rows: [
+      ['2026-09-01', 'HCM', 'Hub A', 'BC', 'SPE', 100, 95, 90, 30],
+      ['2026-10-01', 'HCM', 'Hub A', 'BC', 'SPE', 200, 190, 180, 27]
+    ]
+  };
+  const client = { rpc: async (name, args) => { client.last = { name, args }; return { data: payload, error: null }; } };
+  const result = await fetchMonthlyRows(client, 'pick');
+  assert.deepEqual(client.last, { name: 'get_kas_monthly_compact', args: { dataset: 'pick', months: 6 } });
+  assert.deepEqual(result.weeks, ['2026-09-01', '2026-10-01']);
+  const m = buildWeeklyMatrix({ rows: result.rows, weeks: result.weeks, metricKey: 'p1st', labelFor: monthLabel });
+  assert.equal(m.all[1].tot, 200);
+  assert.equal(m.weeks[0].title, 'Tháng 9/2026');
+  assert.equal(m.weeks[0].note, '');
+  assert.equal(m.weeks[1].note, '27/31 ngày');
+  assert.equal(monthEnd('2026-02-01'), '2026-02-28');
+  assert.equal(monthLabel('2026-08-01', 14).note, '14/31 ngày');
+});

@@ -2,7 +2,7 @@ import LoadingScreen from '../../components/LoadingScreen.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchWeeklyRows, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, fetchMonthlyRows, monthEnd, monthLabel, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 import { PUD_NOTE } from '../../utils/pud';
 
@@ -12,7 +12,9 @@ const addDays = (day, n) => {
   return d.toISOString().slice(0, 10);
 };
 
-// Chế độ "Theo tuần" của Chi tiết Vùng/Hub: mỗi tuần hai cột (% và volume), tối đa 9 tuần
+const periodEndOf = (start, isMonth) => (isMonth ? monthEnd(start) : addDays(start, 6));
+
+// Chế độ "Theo tuần" / "Theo tháng" của Chi tiết Vùng/Hub: mỗi tuần hai cột (% và volume), tối đa 9 tuần
 // (tuần hiện tại + 8 tuần nguyên). Dữ liệu từ bảng lịch sử, không phải từ dữ liệu 14 ngày
 // của bảng theo ngày, nên không có cột "Tốt nhất 6 tuần" / "Cùng ngày tháng trước".
 export default function WeeklyKpiTable({
@@ -23,47 +25,52 @@ export default function WeeklyKpiTable({
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
-  fetchRows = fetchWeeklyRows,
+  period = 'week',
+  fetchRows = period === 'month' ? fetchMonthlyRows : fetchWeeklyRows,
   client = supabase
 }) {
+  const isMonth = period === 'month';
+  const unit = isMonth ? 'tháng' : 'tuần';
   const metric = WEEKLY_METRICS[metricKey];
   const dataset = datasetFor(metric, clientFilter);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
-  const requestKey = `${dataset}:${attempt}`;
+  const requestKey = `${period}:${dataset}:${attempt}`;
 
   useEffect(() => {
     let cancelled = false;
-    setState(prev => ({ key: requestKey, status: 'loading', data: prev.data && prev.data.dataset === dataset ? prev.data : null, error: null }));
+    setState(prev => ({ key: requestKey, status: 'loading', data: prev.data && prev.data.dataset === dataset && prev.data.period === period ? prev.data : null, error: null }));
     fetchRows(client, dataset)
-      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset }, error: null }); })
+      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset, period }, error: null }); })
       .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [requestKey, dataset, attempt, fetchRows, client]);
+  }, [requestKey, dataset, period, attempt, fetchRows, client]);
 
   // Khoảng ngày: dữ liệu theo tuần nên khoảng được hiểu là "các tuần có ngày nằm trong khoảng".
   const [range, setRange] = useState({ from: '', to: '' });
   const allWeeks = state.key === requestKey ? state.data?.weeks : null;
   const bounds = useMemo(() => (allWeeks?.length
-    ? { min: allWeeks[0], max: addDays(allWeeks[allWeeks.length - 1], 6) }
-    : null), [allWeeks]);
+    ? { min: allWeeks[0], max: periodEndOf(allWeeks[allWeeks.length - 1], isMonth) }
+    : null), [allWeeks, isMonth]);
   const rangeInvalid = Boolean(range.from && range.to && range.from > range.to);
   const visibleWeeks = useMemo(() => {
     if (!allWeeks) return null;
     if (rangeInvalid) return allWeeks;
-    return allWeeks.filter(w => (!range.from || addDays(w, 6) >= range.from) && (!range.to || w <= range.to));
-  }, [allWeeks, range, rangeInvalid]);
+    return allWeeks.filter(w => (!range.from || periodEndOf(w, isMonth) >= range.from) && (!range.to || w <= range.to));
+  }, [allWeeks, range, rangeInvalid, isMonth]);
   const isFiltered = Boolean(allWeeks && visibleWeeks && !rangeInvalid && visibleWeeks.length < allWeeks.length);
 
   const matrix = useMemo(() => {
     if (state.key !== requestKey || state.status !== 'ready') return null;
     return buildWeeklyMatrix({
-      rows: state.data.rows, weeks: visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes
+      rows: state.data.rows, weeks: visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes,
+      ...(isMonth ? { labelFor: monthLabel } : {})
     });
-  }, [state, requestKey, visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes]);
+  }, [state, requestKey, visibleWeeks, metricKey, clientFilter, selectedRegions, selectedHubTypes, isMonth]);
 
-  const presets = allWeeks?.length ? [4, 8].filter(n => n < allWeeks.length).map(n => ({
-    label: `${n} tuần gần nhất`, from: allWeeks[allWeeks.length - n], to: bounds.max
+  const presetCounts = isMonth ? [3] : [4, 8];
+  const presets = allWeeks?.length ? presetCounts.filter(n => n < allWeeks.length).map(n => ({
+    label: `${n} ${unit} gần nhất`, from: allWeeks[allWeeks.length - n], to: bounds.max
   })).concat([{ label: 'Tất cả', from: '', to: '' }]) : [];
 
   const rangeFilter = bounds && (
@@ -77,7 +84,7 @@ export default function WeeklyKpiTable({
         ))}
       </div>
       {rangeInvalid && <p className="export-filter-error" role="alert">Ngày bắt đầu phải trước ngày kết thúc.</p>}
-      {!rangeInvalid && visibleWeeks?.length === 0 && <p className="export-filter-error" role="alert">Không có tuần nào trong khoảng này.</p>}
+      {!rangeInvalid && visibleWeeks?.length === 0 && <p className="export-filter-error" role="alert">Không có {unit} nào trong khoảng này.</p>}
     </div>
   );
 
@@ -88,8 +95,8 @@ export default function WeeklyKpiTable({
           <span className="metric-title-text">{title}</span>
           <span className="metric-title-short">{metric.title}</span>
           {metric.target != null && <span className="kpi-badge">Target ≥ {metric.target.toFixed(0)}%</span>}
-          <span className="kpi-badge weekly-kpi-badge">Theo tuần</span>
-          {isFiltered && <span className="kpi-badge weekly-kpi-badge">{visibleWeeks.length}/{allWeeks.length} tuần</span>}
+          <span className="kpi-badge weekly-kpi-badge">Theo {unit}</span>
+          {isFiltered && <span className="kpi-badge weekly-kpi-badge">{visibleWeeks.length}/{allWeeks.length} {unit}</span>}
         </div>
         {rangeFilter}
         {formattingControl}
@@ -105,13 +112,13 @@ export default function WeeklyKpiTable({
   if (state.status === 'error') {
     return shell(
       <div className="weekly-kpi-note" role="alert">
-        Không tải được số liệu theo tuần.{' '}
+        Không tải được số liệu theo {unit}.{' '}
         <button type="button" className="btn-secondary" onClick={() => { clearWeeklyCache(); setAttempt(n => n + 1); }}>Thử lại</button>
       </div>
     );
   }
   if (!matrix || matrix.empty) {
-    return shell(<div className="weekly-kpi-note">Chưa có dữ liệu theo tuần cho chỉ số này trong phạm vi đang chọn.</div>);
+    return shell(<div className="weekly-kpi-note">Chưa có dữ liệu theo {unit} cho chỉ số này trong phạm vi đang chọn.</div>);
   }
 
   return shell(<KpiMatrixTable matrix={matrix} formattingRule={formattingRule} />);
