@@ -20,7 +20,17 @@ export const BACKLOG_WINDOW_DAYS = 14;
 let cache = null;
 export const clearReverseBacklogCache = () => { cache = null; };
 
-const expand = (cols, rows) => rows.map(values => Object.fromEntries(cols.map((col, i) => [col, values[i]])));
+// Bảng backlog do BI đổ dùng mã ngắn; bộ lọc "Loại Hub" của app dùng tên của bảng reverse. Quy về một bộ tên để lọc khớp.
+export const BACKLOG_HUB_TYPE_NAMES = { KD: 'BC KD', AHM: 'Ahamove', KHL: 'KHL', KA: 'KHL' };
+export const backlogHubType = raw => {
+  const value = String(raw ?? '').trim();
+  return BACKLOG_HUB_TYPE_NAMES[value.toUpperCase()] ?? value;
+};
+
+const expand = (cols, rows) => rows.map(values => {
+  const row = Object.fromEntries(cols.map((col, i) => [col, values[i]]));
+  return { ...row, hub_type: backlogHubType(row.hub_type) || null };
+});
 
 export function fetchReverseBacklog(client) {
   if (!cache) {

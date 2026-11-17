@@ -104,7 +104,19 @@ export function reassignGxtMienRegion(rows) {
 }
 
 // What every dashboard view runs the raw sheet rows through.
-export const normalizeDashboardRows = (rows) => reassignGxtMienRegion(reassignKaRegion(rows));
+// Reverse gọi nhóm Key Account là "KHL" (SPB/SPE vẫn là "KA"). Chạy sau reassignKaRegion/reassignGxtMienRegion vì hai bước đó
+// còn nhận diện loại KA; vùng "HCM - KA" giữ nguyên. Chỉ đổi dòng của client SPE Reverse.
+export const REVERSE_KA_HUB_TYPE = 'KHL';
+export function renameReverseHubTypes(rows) {
+  if (!rows) return rows;
+  return rows.map(r => {
+    if (!r || r.client_name !== 'SPE Reverse' || String(getHubType(r)).trim().toUpperCase() !== 'KA') return r;
+    const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
+    return { ...r, [typeKey]: REVERSE_KA_HUB_TYPE };
+  });
+}
+
+export const normalizeDashboardRows = (rows) => renameReverseHubTypes(reassignGxtMienRegion(reassignKaRegion(rows)));
 
 // The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
 // `vung_giao` instead of `region`.

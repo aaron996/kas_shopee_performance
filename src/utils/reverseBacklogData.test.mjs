@@ -63,3 +63,18 @@ test('fetch validates the payload, caches, and retries after an error', async ()
   assert.equal(empty.snapshotDate, null, 'chưa có snapshot được phân biệt với backlog bằng 0');
   clearReverseBacklogCache();
 });
+
+test('backlog hub types are renamed to the names used by the Loại Hub filter, so every type can be filtered', async () => {
+  clearReverseBacklogCache();
+  const payload = { snapshot_date: '2026-11-11', prev_snapshot_date: null, cols, prev_rows: [], rows: [
+    ['HNO', 'BC', '0', '1-3', 100], ['HNO', 'KD', '0', '1-3', 20], ['HNO', 'AHM', '0', '1-3', 7], ['HNO', 'KHL', '0', '1-3', 3], ['HNO', 'GXT', '0', '1-3', 1], ['HNO', null, '0', '1-3', 2]
+  ] };
+  const result = await fetchReverseBacklog({ rpc: async () => ({ data: payload, error: null }) });
+  assert.deepEqual(result.rows.map(r => r.hub_type), ['BC', 'BC KD', 'Ahamove', 'KHL', 'GXT', null]);
+  const filterTypes = ['BC', 'GXT', 'BC KD', 'KHL', 'Ahamove', 'Unknown'];
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: filterTypes }).total, 133, 'chọn tất cả không mất dòng nào');
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['BC KD'] }).total, 20);
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['Ahamove'] }).total, 7);
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['KHL'] }).total, 3);
+  clearReverseBacklogCache();
+});
