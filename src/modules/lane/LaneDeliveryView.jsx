@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import StatusNotice from '../../components/ui/StatusNotice.jsx';
-import { formatPct, formatVol, formatDateLabel, getContinuousColorStyle } from '../../utils/dataProcessor';
+import { getHubType, formatPct, formatVol, formatDateLabel, getContinuousColorStyle } from '../../utils/dataProcessor';
 import { CLIENT_LABELS } from '../../utils/clientLabels.js';
 import { LANE_DELIVERY_CLIENTS, LANE_DELIVERY_METRICS, buildLaneDeliveryTable } from '../../utils/laneDelivery.js';
 import useLaneDelivery from './useLaneDelivery.js';
@@ -49,8 +49,10 @@ function MetricTable({ rows, client, metric }) {
   );
 }
 
-export default function LaneDeliveryView({ density }) {
-  const { status, rows, error, retry } = useLaneDelivery();
+export default function LaneDeliveryView({ density, selectedHubTypes }) {
+  const { status, rows: allRows, error, retry } = useLaneDelivery();
+  // Nguồn không có region nên chỉ áp bộ lọc Loại Hub của header.
+  const rows = useMemo(() => selectedHubTypes ? allRows.filter(r => selectedHubTypes.includes(getHubType(r))) : allRows, [allRows, selectedHubTypes]);
   const [client, setClient] = useState(LANE_DELIVERY_CLIENTS[0]);
 
   if (status === 'loading') return <LoadingScreen variant="page" />;
