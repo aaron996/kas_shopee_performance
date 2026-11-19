@@ -115,6 +115,7 @@ export default function Header({
 
       {activeTab === 'guide' && <span className="compact-header-page-title">Hướng dẫn</span>}
       {activeTab === 'report1' && <h1 className="compact-header-page-title">Chi tiết Vùng/Hub</h1>}
+      {activeTab === 'report5' && <h1 className="compact-header-page-title">Lane</h1>}
       {activeTab === 'ranking' ? <div id="ranking-header-controls" /> : <div className="compact-header-actions">
         {/* Phones reload with the browser's own pull-to-refresh; the stale-data
             alert is what tells people a new sync is worth doing. */}

@@ -74,3 +74,13 @@ Lưu ý khi nạp dữ liệu từ Superset: API xuất CSV và token CSRF bị 
 
 Chưa có trigger tự động: bảng chỉ được làm mới khi chạy lại `syncLaneDeli()` sau khi datajob #1022 (khi được duyệt) ghi tab `lane_deli_tmp`.
 
+## Giao diện tab Lane (thiết kế lại)
+
+Bản đầu dùng bảng riêng và nút mặc định, không có Theo ngày / Theo tuần. Bản mới dùng chung với Chi tiết Vùng/Hub (Shared KPI Table Rule trong `DESIGN.md`):
+
+- Thanh tab `kpi-table-tabs`: 1st Deli, ODR, % Ca 1; nhóm dịch vụ (Shopee Bulky / Express, khởi tạo theo dịch vụ đang chọn ở app; chọn ngay trong tab vì header ẩn chip Client ở tab này, dữ liệu Ca 1 không chia client); nhóm Theo ngày / Theo tuần.
+- Bảng `KpiMatrixTable`: Toàn quốc > Lane > Loại hub, mỗi kỳ hai cột % và Vol, tô màu theo target hoặc cài đặt tô màu của người dùng (dùng chung khoá `d1st` / `dodr` với Chi tiết Vùng/Hub).
+- Theo ngày: mặc định 14 ngày gần nhất, bộ lọc khoảng ngày + chọn nhanh, nút Volume (khoảng ≤ 7 ngày tự hiện Volume), cuộn ngang. Theo tuần: tuần thứ Hai–Chủ nhật gom từ dữ liệu ngày, tuần chưa đủ ngày ghi "n ngày", chọn nhanh 4/8 tuần.
+- Chờ dữ liệu dùng `LoadingScreen` trong khung bảng; lỗi báo kèm Thử lại và giữ số cũ khi có; rỗng chỉ báo sau khi tải xong. Header có tiêu đề "Lane".
+- Chưa có Theo tháng: bảng lane mới có khoảng 9 tuần dữ liệu.
+
