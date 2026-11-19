@@ -72,7 +72,11 @@ Lưu ý khi nạp dữ liệu từ Superset: API xuất CSV và token CSRF bị 
 | SPE | 452 | 15.469.703 | 14.865.381 | 13.793.978 |
 | SPB | 675 | 4.213.217 | 3.989.951 | 3.716.750 |
 
-Chưa có trigger tự động: bảng chỉ được làm mới khi chạy lại `syncLaneDeli()` sau khi datajob #1022 (khi được duyệt) ghi tab `lane_deli_tmp`.
+### Trigger tự động
+
+Đã cài và tạo trigger trong Apps Script `auto` ngày 2026-11-19. `syncLaneDeliDaily()` chạy hằng ngày khoảng 09:45 (giờ của Sheet, sau sync ops 08:30 và Reverse backlog 09:15) qua `createLaneDeliDailyTrigger()`. Hàm chỉ ghi khi tab `lane_deli_tmp` đã có ngày hôm qua; tab cũ thì báo lỗi và không ghi gì. Chạy lại an toàn (RPC no-op khi số không đổi).
+
+Datajob #1022 hiện cron trống và đang chờ duyệt: trước khi trigger có tác dụng, cần đặt cron cho #1022 chạy trước 09:45, nếu không trigger chỉ báo lỗi "datajob chưa chạy" mỗi ngày.
 
 ## Giao diện tab Lane (thiết kế lại)
 

@@ -121,3 +121,34 @@ function syncLaneDeli() {
   }
   Logger.log(JSON.stringify({partial:false,weeks:done.length,rows:data.rows.length}));
 }
+
+const LANE_DELI_TRIGGER_HOUR = 9;
+const LANE_DELI_TRIGGER_MINUTE = 45;
+
+/**
+ * Hàm chạy theo trigger: chỉ ghi khi tab lane_deli_tmp đã được datajob làm mới (ngày mới nhất >= hôm qua).
+ * Tab cũ thì ném lỗi (Apps Script gửi mail lỗi) và không ghi gì, để biết datajob chưa chạy.
+ */
+function syncLaneDeliDaily() {
+  const data = laneDeliLoad_();
+  const latest = data.rows.reduce((max, r) => (r[0] > max ? r[0] : max), '');
+  if (latest < data.hi) {
+    throw new Error('Tab '+LANE_DELI_TAB+' mới tới '+latest+', cần tới '+data.hi+' (datajob chưa chạy?); không ghi gì');
+  }
+  syncLaneDeli();
+}
+
+/** Chạy một lần: đặt trigger hằng ngày cho syncLaneDeliDaily (xoá trigger cũ của hàm này, không đụng trigger khác). */
+function createLaneDeliDailyTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'syncLaneDeliDaily')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('syncLaneDeliDaily')
+    .timeBased()
+    .atHour(LANE_DELI_TRIGGER_HOUR)
+    .nearMinute(LANE_DELI_TRIGGER_MINUTE)
+    .everyDays(1)
+    .inTimezone(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
+    .create();
+  Logger.log('Đã đặt trigger syncLaneDeliDaily hằng ngày khoảng '+LANE_DELI_TRIGGER_HOUR+':'+LANE_DELI_TRIGGER_MINUTE);
+}
