@@ -37,3 +37,9 @@ Query lane ra 241 dòng (SPE, 4 loại hub) và 353 dòng (SPB, 3 loại hub).
 `scripts/apps-script/lane-deli-sync.gs`: đọc tab `lane_deli_tmp`, kiểm cửa sổ ngày, lane/client hợp lệ, khoá không trùng, rồi gửi từng tuần vào `upsert_kas_deli_lane_daily`. Có `dryRunLaneDeli()` chỉ log tổng theo client/tuần để đối chiếu. Không dùng lại `opsHistoryUpsert_` vì RPC lane trả `{received, changed}`.
 
 Chưa chạy migration `20261118090000_kas_deli_lane_daily.sql` và chưa ghi gì lên Supabase.
+
+## Datajob trên AI Portal
+
+Đã gửi 2026-11-19: `data_job_kas_deli_lane` (#1022), Starrocks → Google Sheets, trạng thái "In review" (chờ approver). SQL = `docs/sql/deli_lane_daily_8w.sql` (cửa sổ cuộn 8 tuần, cùng cửa sổ với query tuần và script sync). Target: OPS Sheet, `lane_deli_tmp!A:G`, `tag_alert` `@Vinlug96`. Cron để trống (chỉ chạy tay) như job #1004, vì script sync lane chưa được duyệt và chưa cài vào Apps Script.
+
+Còn thiếu trước khi chạy: tab `lane_deli_tmp` chưa có trong OPS Sheet (lúc kiểm tra gồm Pick, Deli, FD, Ca1, leadtime, reverse, reverse_backlog, goi_dau_COD…). SQL cuộn chưa được chạy riêng trên Superset; các phần của nó đã chạy ở dạng query tháng 10.
