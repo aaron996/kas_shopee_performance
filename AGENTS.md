@@ -18,3 +18,8 @@
 - Hộp thoại export (`ExportFilterModal` và mọi chức năng tải tương tự về sau) chỉ hiện bộ lọc trước. **Không truy vấn DB khi mở hộp thoại hay khi đổi bộ lọc**; danh sách lựa chọn dựng từ dữ liệu đã có sẵn trong trang.
 - Chỉ khi người dùng bấm nút tải thì mới truy vấn DB (chỉ lấy các bảng/chỉ số đã chọn, tải lần lượt, không bắn song song), rồi tạo file. Nút ở trạng thái đang tải; lỗi hoặc không có dòng thì giữ hộp thoại và báo rõ.
 - Vì chưa truy vấn nên không hiện số dòng sẽ tải với dữ liệu lấy từ DB (`countRows = null`); dữ liệu đã nằm sẵn trong trang (vd. "Theo ngày") vẫn đếm được.
+
+# Bộ lọc phạm vi (Client / Vùng / Loại Hub)
+
+- Chỉ đặt ở header (`Header.jsx`), giống Chi tiết Vùng/Hub. Module/tab mới không tự vẽ bộ chọn Client, Vùng, Loại Hub hay nút xuất CSV riêng; nhận `clientFilter`, `selectedRegions`, `selectedHubTypes` từ `App.jsx`.
+- Màn hình không áp dụng được bộ lọc nào thì khai báo trong `src/utils/scopeSupport.js` để header ẩn, và ghi chú ở legend. Đọc `DESIGN.md` mục “Scope filters live in the header” trước khi thêm tab/subtab. Tab mới bắt đầu từ cách Chi tiết Vùng/Hub làm, trừ khi người dùng yêu cầu khác.
