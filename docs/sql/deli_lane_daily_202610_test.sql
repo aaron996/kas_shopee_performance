@@ -2,8 +2,11 @@
 -- Cùng định nghĩa với docs/sql/deli_weekly_60d_test.sql (mẫu = đơn đã lấy xong, có hạn giao
 -- deadline_delivery_sla_new; 1st = giao lần đầu hợp lệ <= hạn; ODR = delivered, giao xong <= hạn),
 -- chỉ đổi grain: bỏ region / wh_id / hub, thêm lane (ExternalLane_New).
--- Partition: Dtm_KA_Shopee partition theo LoadDate -> luôn có cận dưới LoadDate. Cận dưới = đầu kỳ - 7 ngày
--- (cùng biên 7 ngày với query Deli gốc). Không đặt cận trên: đơn load trễ sau hạn giao vẫn phải được tính.
+-- Partition: Dtm_KA_Shopee partition theo LoadDate -> luôn có cận dưới LoadDate. Cận dưới = đầu kỳ - 17 ngày
+-- (2026-09-14, bằng cận của deli_weekly_60d_test.sql chạy ngày 2026-11-19: tuần bắt đầu 21/9 - 7 ngày).
+-- Đã chạy thử cận 7 ngày (24/9): thiếu 829 đơn SPE + 324 đơn SPB (~0,01%) so với query tuần, vì có đơn
+-- nạp trong 14-23/9 nhưng hạn giao thuộc tháng 10. Cận 17 ngày khớp query tuần.
+-- Không đặt cận trên: đơn load trễ sau hạn giao vẫn phải được tính.
 -- Kỳ test: deadline giao từ 2026-10-01 đến 2026-10-31. Cuối kỳ là literal để dễ audit, không dùng CTE ngày.
 WITH Raw_Deli AS (
     SELECT
@@ -28,7 +31,7 @@ WITH Raw_Deli AS (
         B.first_valid_delivery_time
     FROM sr_ghn_reporting.ka.`Dtm_KA_Shopee` B
     WHERE
-        B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '7' DAY
+        B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '17' DAY
         AND (B.`ClientID` LIKE '18692%' OR B.`ClientID` LIKE '3892833%')
 )
 

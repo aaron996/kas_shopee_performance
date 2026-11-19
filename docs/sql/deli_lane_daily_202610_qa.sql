@@ -13,7 +13,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN B.`CurrentStatus` = 'delivered' AND B.`EndDeliveryTime` IS NOT NULL
         AND DATE(B.`EndDeliveryTime`) <= DATE(B.deadline_delivery_sla_new) THEN B.`OrderCode` END) AS ontime_deli_odr
 FROM sr_ghn_reporting.ka.`Dtm_KA_Shopee` B
-WHERE B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '7' DAY
+WHERE B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '17' DAY
   AND (B.`ClientID` LIKE '18692%' OR B.`ClientID` LIKE '3892833%')
   AND B.`EndPickTime` IS NOT NULL
   AND B.deadline_delivery_sla_new IS NOT NULL
@@ -25,7 +25,7 @@ GROUP BY 1;
 -- QA2: các giá trị lane thực tế (xác nhận tên cột ExternalLane_New và nhãn "Cross Metro*").
 SELECT TRIM(B.`ExternalLane_New`) AS lane, COUNT(DISTINCT B.`OrderCode`) AS so_don
 FROM sr_ghn_reporting.ka.`Dtm_KA_Shopee` B
-WHERE B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '7' DAY
+WHERE B.`LoadDate` >= DATE '2026-10-01' - INTERVAL '17' DAY
   AND (B.`ClientID` LIKE '18692%' OR B.`ClientID` LIKE '3892833%')
   AND DATE(B.deadline_delivery_sla_new) >= DATE '2026-10-01'
   AND DATE(B.deadline_delivery_sla_new) <= DATE '2026-10-31'
