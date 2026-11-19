@@ -4,22 +4,19 @@ import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import { useToast } from '../../components/ui/Toast';
 import KpiFormattingControl from '../ops-metrics/KpiFormattingControl';
 import useKpiFormatting from '../../hooks/useKpiFormatting';
-import { CLIENT_LABELS } from '../../utils/clientLabels';
+import { LANE_VIEWS } from '../../utils/scopeSupport';
 import LaneKpiTable from './LaneKpiTable.jsx';
 import useLaneDelivery from './useLaneDelivery.js';
 
 const METRIC_LABELS = { d1st: '1st Deli', dodr: 'ODR' };
-const LANE_CLIENTS = ['SPB', 'SPE'];
 
-// Tab "Lane" (KAS-314): gom mọi chỉ số theo lane. Id module vẫn là `report5` để không
-// vỡ URL, trạng thái đã lưu, snapshot và chat. Khung tab, chế độ xem Ngày/Tuần, bộ lọc khoảng ngày
-// và cài đặt tô màu dùng chung với Chi tiết Vùng/Hub.
+// Tab "Báo cáo theo Lane" (KAS-314). Id module vẫn là `report5` để không vỡ URL, trạng thái đã lưu,
+// snapshot và chat. Hai subtab: "Deli performance" (1st Deli / ODR theo lane) và "% Ca 1".
+// Client chọn ở header như Chi tiết Vùng/Hub (`clientFilter`); subtab Ca 1 không chia client nên header ẩn chip đó.
+// Subtab đang chọn do App giữ (`view`) để header biết khi nào ẩn Client / nút Xuất CSV.
 export default function LaneReport(props) {
-  const { density = 'comfortable', clientFilter = 'ALL', userEmail = '' } = props;
-  // Header ẩn chip Client ở tab này (Ca 1 không chia client) nên dịch vụ chọn ngay trong thanh tab;
-  // khởi tạo theo dịch vụ đang chọn ở app, ALL/Reverse (không có giao hàng theo lane) về SPB.
-  const [client, setClient] = useState(LANE_CLIENTS.includes(clientFilter) ? clientFilter : 'SPB');
-  const [activeTab, setActiveTab] = useState('d1st');
+  const { density = 'comfortable', clientFilter = 'ALL', userEmail = '', view = 'deli', onViewChange = () => {} } = props;
+  const [metric, setMetric] = useState('d1st');
   const [viewMode, setViewMode] = useState('day');
   const showToast = useToast();
   const lane = useLaneDelivery();
@@ -29,7 +26,6 @@ export default function LaneReport(props) {
       rule={formattingRules[metricKey]} onPreview={previewFormatting}
       onSave={(key, rule) => { saveFormatting(key, rule); showToast('Đã lưu cài đặt tô màu.', { tone: 'success' }); }} />
   );
-  const isDelivery = activeTab !== 'ca1';
 
   const onTabKeyDown = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -41,39 +37,42 @@ export default function LaneReport(props) {
     tabs[next].focus(); tabs[next].click();
   };
 
-  const tab = key => (
-    <button role="tab" id={`lane-tab-${key}`} aria-selected={activeTab === key} aria-controls="lane-metric-panel"
-      tabIndex={activeTab === key ? 0 : -1} className={`kpi-table-tab ${activeTab === key ? 'active' : ''}`}
-      onClick={() => setActiveTab(key)}>{METRIC_LABELS[key] || '% Ca 1'}</button>
+  const subtab = key => (
+    <button role="tab" id={`lane-view-${key}`} aria-selected={view === key} aria-controls="lane-view-panel"
+      tabIndex={view === key ? 0 : -1} className={`kpi-table-tab ${view === key ? 'active' : ''}`}
+      onClick={() => onViewChange(key)}>{LANE_VIEWS[key]}</button>
+  );
+  const metricTab = key => (
+    <button role="tab" id={`lane-tab-${key}`} aria-selected={metric === key} aria-controls="lane-metric-panel"
+      tabIndex={metric === key ? 0 : -1} className={`kpi-table-tab ${metric === key ? 'active' : ''}`}
+      onClick={() => setMetric(key)}>{METRIC_LABELS[key]}</button>
   );
 
   return (
     <div className={`density-${density} kpi-tab-container`}>
-      <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số theo lane" onKeyDown={onTabKeyDown}>
-        <SelectionIndicator value={activeTab} selector='[aria-selected="true"]' />
-        <div className="kpi-tab-group" role="group" aria-label="Nhóm giao hàng">{tab('d1st')}{tab('dodr')}</div>
-        <div className="kpi-tab-group" role="group" aria-label="Ca 1">{tab('ca1')}</div>
-        {isDelivery && (
-          <div className="kpi-tab-group" role="group" aria-label="Dịch vụ" style={{ marginLeft: 'auto' }}>
-            {LANE_CLIENTS.map(c => (
-              <button key={c} type="button" aria-pressed={client === c} className={`kpi-table-tab ${client === c ? 'active' : ''}`}
-                onClick={() => setClient(c)}>{CLIENT_LABELS[c] || c}</button>
-            ))}
-          </div>
-        )}
-        {isDelivery && (
-          <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem">
-            <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={() => setViewMode('day')}>Theo ngày</button>
-            <button type="button" aria-pressed={viewMode === 'week'} className={`kpi-table-tab ${viewMode === 'week' ? 'active' : ''}`} onClick={() => setViewMode('week')}>Theo tuần</button>
-          </div>
-        )}
+      <div className="kpi-table-tabs" role="tablist" aria-label="Chọn báo cáo theo lane" onKeyDown={onTabKeyDown}>
+        <SelectionIndicator value={view} selector='[aria-selected="true"]' />
+        <div className="kpi-tab-group" role="group" aria-label="Báo cáo">{subtab('deli')}{subtab('ca1')}</div>
       </div>
-      <div className="kpi-table-content" role="tabpanel" id="lane-metric-panel" aria-labelledby={`lane-tab-${activeTab}`}>
-        {activeTab === 'ca1' ? <Report5LaneCa1 {...props} />
-          : <LaneKpiTable key={`${activeTab}:${viewMode}`} metricKey={activeTab} mode={viewMode} rows={lane.rows} status={lane.status}
-              error={lane.error} onRetry={lane.retry} clientFilter={client}
-              selectedHubTypes={props.selectedHubTypes} isHubTypeFiltered={props.isHubTypeFiltered}
-              formattingRule={formattingRules[activeTab]} formattingControl={formattingControl(activeTab)} />}
+      <div role="tabpanel" id="lane-view-panel" aria-labelledby={`lane-view-${view}`}>
+        {view === 'ca1' ? <Report5LaneCa1 {...props} /> : (
+          <>
+            <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số theo lane" onKeyDown={onTabKeyDown}>
+              <SelectionIndicator value={metric} selector='[aria-selected="true"]' />
+              <div className="kpi-tab-group" role="group" aria-label="Chỉ số giao hàng">{metricTab('d1st')}{metricTab('dodr')}</div>
+              <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem" style={{ marginLeft: 'auto' }}>
+                <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={() => setViewMode('day')}>Theo ngày</button>
+                <button type="button" aria-pressed={viewMode === 'week'} className={`kpi-table-tab ${viewMode === 'week' ? 'active' : ''}`} onClick={() => setViewMode('week')}>Theo tuần</button>
+              </div>
+            </div>
+            <div className="kpi-table-content" role="tabpanel" id="lane-metric-panel" aria-labelledby={`lane-tab-${metric}`}>
+              <LaneKpiTable key={`${metric}:${viewMode}`} metricKey={metric} mode={viewMode} rows={lane.rows} status={lane.status}
+                error={lane.error} onRetry={lane.retry} clientFilter={clientFilter}
+                selectedHubTypes={props.selectedHubTypes} isHubTypeFiltered={props.isHubTypeFiltered}
+                formattingRule={formattingRules[metric]} formattingControl={formattingControl(metric)} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
