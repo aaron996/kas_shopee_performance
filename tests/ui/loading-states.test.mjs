@@ -13,7 +13,10 @@ before(async () => {
   // The existing responsive overview reads matchMedia during its first render.
   globalThis.window = { matchMedia: () => ({ matches: false }) };
   outputDirectory = mkdtempSync(resolve('node_modules/.loading-tests-'));
-  await build({ logLevel: 'error', build: { ssr: 'tests/ui/loading-test-components.jsx',
+  // Build SSR bản production nên cần env giả; supabaseClient báo lỗi khi thiếu.
+  await build({ logLevel: 'error',
+    define: { 'import.meta.env.VITE_SUPABASE_URL': '"http://localhost.invalid"', 'import.meta.env.VITE_SUPABASE_ANON_KEY': '"test-anon-key"' },
+    build: { ssr: 'tests/ui/loading-test-components.jsx',
     outDir: outputDirectory, minify: false } });
   components = await import(pathToFileURL(resolve(outputDirectory, 'loading-test-components.js')).href);
   registry = components.moduleRegistry;
