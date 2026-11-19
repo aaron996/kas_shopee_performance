@@ -42,4 +42,15 @@ Migration `20261118090000_kas_deli_lane_daily.sql` đã áp lên Supabase (proje
 
 Đã gửi 2026-11-19: `data_job_kas_deli_lane` (#1022), Starrocks → Google Sheets, trạng thái "In review" (chờ approver). SQL = `docs/sql/deli_lane_daily_8w.sql` (cửa sổ cuộn 8 tuần, cùng cửa sổ với query tuần và script sync). Target: OPS Sheet, `lane_deli_tmp!A:G`, `tag_alert` `@Vinlug96`. Cron để trống (chỉ chạy tay) như job #1004, vì script sync lane chưa được duyệt và chưa cài vào Apps Script.
 
-Còn thiếu trước khi chạy: tab `lane_deli_tmp` chưa có trong OPS Sheet (lúc kiểm tra gồm Pick, Deli, FD, Ca1, leadtime, reverse, reverse_backlog, goi_dau_COD…). SQL cuộn chưa được chạy riêng trên Superset; các phần của nó đã chạy ở dạng query tháng 10.
+Tab `lane_deli_tmp` đã được tạo (trống) trong OPS Sheet ngày 2026-11-19, nằm sau tab `Pick`.
+
+### Kiểm chứng SQL cuộn (2026-11-19, Superset)
+
+Chạy `deli_lane_daily_8w.sql` (bọc cộng theo client) và đối chiếu với `deli_weekly_60d_test.sql` (giữ nguyên CTE `Hub_Day`, cộng theo client) trong cùng cửa sổ deadline 2026-09-21 → 2026-11-18. Khớp tuyệt đối:
+
+| Client | mau_deli | ontime_deli_1st | ontime_deli_odr | Số dòng lane / hub-day |
+|---|---|---|---|---|
+| SPE | 15.469.703 | 14.865.381 | 13.793.978 | 452 / 63.698 |
+| SPB | 4.213.217 | 3.989.951 | 3.716.750 | 675 / 68.076 |
+
+Lane rỗng = 0. SPE có 5 lane và 5 loại hub, SPB có 5 lane và 4 loại hub. Query lane chạy 41 giây, query tuần 1 phút 19 giây (mỗi query chạy một lần). Kết quả 452 + 675 = 1.127 dòng, nằm trong giới hạn 20.000 dòng/lô của RPC.
