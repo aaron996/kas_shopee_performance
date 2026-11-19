@@ -10,9 +10,9 @@ export const GXT_REGION_BY_MIEN = {
 };
 
 export const MIEN_REGIONS = {
-  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KA', 'HNO - CK', GXT_REGION_BY_MIEN['Miền Bắc']],
+  'Miền Bắc': ['DBB', 'TBB', 'XBG', 'TNT', 'DSH', 'HNO', 'HNO - KHL', 'HNO - CK', GXT_REGION_BY_MIEN['Miền Bắc']],
   'Miền Trung': ['BTB', 'TTB', 'TNG', 'NTB', GXT_REGION_BY_MIEN['Miền Trung']],
-  'Miền Nam': ['DNB', 'HCM', 'HCM - KA', 'HCM - CK', 'ĐCL', 'TNB', GXT_REGION_BY_MIEN['Miền Nam']]
+  'Miền Nam': ['DNB', 'HCM', 'HCM - KHL', 'HCM - CK', 'ĐCL', 'TNB', GXT_REGION_BY_MIEN['Miền Nam']]
 };
 
 export const MIEN_ORDER = ['Miền Bắc', 'Miền Trung', 'Miền Nam'];
@@ -98,7 +98,7 @@ export function createDefaultPickDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = region.endsWith(' - KA') ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region.endsWith(' - KHL') ? 'KHL' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
@@ -159,7 +159,7 @@ export function createDefaultDeliDataset() {
           ['SPB', 'SPE'].forEach(client_name => {
             const ratio = client_name === 'SPB' ? 0.7 : 0.3;
             const hubTypes = ['Hub LM', 'Mega Hub', 'Hub Tỉnh'];
-            const hub_type = region.endsWith(' - KA') ? 'KA' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
+            const hub_type = region.endsWith(' - KHL') ? 'KHL' : hubTypes[Math.floor(Math.random() * hubTypes.length)];
             rows.push({
               report_date,
               region,
@@ -192,7 +192,7 @@ export function createDefaultCa1Dataset() {
   const rows = [];
 
   lanes.forEach(lane => {
-    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - KA', 'DBB', 'TTB', 'TNB', 'DNB'];
+    const regions = lane.includes('Metro') ? ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Bình Dương'] : ['HNO', 'HCM', 'HCM - KHL', 'DBB', 'TTB', 'TNB', 'DNB'];
     regions.forEach(vung_giao => {
       dates.forEach(ngay => {
         const tong_don = 1200 + Math.floor(Math.random() * 1500);

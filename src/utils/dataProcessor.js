@@ -17,12 +17,12 @@ const HUB_TYPE_KEYS = ['hub type', 'Hub Type', 'hub_type', 'Hub_Type', 'hubType'
 // Account Warehouse Ha Noi" and still arrives as hub_type = BC.
 // Keep in sync with public.get_ai_chat_metric (AI chat backend).
 const KA_HUB_REGIONS = {
-  'key account warehouse ho chi minh': 'HCM - KA',
-  '(hno) lh long biên': 'HNO - KA',
+  'key account warehouse ho chi minh': 'HCM - KHL',
+  '(hno) lh long biên': 'HNO - KHL',
 };
 
 // Fallback for a KA hub not listed above: keep it next to its city.
-const KA_REGION_BY_REGION = { HCM: 'HCM - KA', HNO: 'HNO - KA' };
+const KA_REGION_BY_REGION = { HCM: 'HCM - KHL', HNO: 'HNO - KHL' };
 
 const normalizeHubName = (name) => String(name || '').normalize('NFC').trim().toLowerCase();
 
@@ -134,7 +134,7 @@ export const canonicalHubType = raw => {
   return HUB_TYPE_ALIASES[value.toUpperCase()] ?? value;
 };
 
-// Chạy cuối cùng, sau reassignKaRegion/reassignGxtMienRegion (hai bước đó còn nhận diện loại "KA"; vùng "HCM - KA" giữ nguyên).
+// Chạy cuối cùng, sau reassignKaRegion/reassignGxtMienRegion (hai bước đó còn nhận diện loại "KA"; vùng "HCM - KHL" giữ nguyên).
 export function applyHubTypeRules(rows) {
   if (!rows) return rows;
   return rows.map(r => {

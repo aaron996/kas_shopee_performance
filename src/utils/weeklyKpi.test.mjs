@@ -112,7 +112,7 @@ test('dòng đi qua normalizeDashboardRows: KA và CK về đúng vùng riêng, 
   assert.deepEqual(client.last, { name: 'get_kas_weekly_compact', args: { dataset: 'pick', weeks: 9 } });
   const m = buildWeeklyMatrix({ rows: result.rows, weeks: result.weeks, metricKey: 'p1st' });
   const names = m.miens.flatMap(x => x.regions.map(r => r.region)).sort();
-  assert.deepEqual(names, ['HCM', 'HCM - CK', 'HCM - KA']);
+  assert.deepEqual(names, ['HCM', 'HCM - CK', 'HCM - KHL']);
   const types = result.rows.map(r => r.hub_type).sort();
   assert.deepEqual(types, ['BC', 'CK', 'KHL']);
 });

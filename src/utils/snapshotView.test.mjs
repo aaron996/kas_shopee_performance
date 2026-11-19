@@ -35,7 +35,7 @@ test('scopeSnapshotRows moves KA hubs into their vùng and drops excluded hub ty
     { region: 'Không rõ', hub: 'X', hub_type: 'BC' }
   ], SNAPSHOT_VIEWS['pick:1st'], ['ahamove']);
 
-  assert.deepEqual(rows.map(r => r.region), ['HCM - KA', 'HNO - KA', 'HCM']);
+  assert.deepEqual(rows.map(r => r.region), ['HCM - KHL', 'HNO - KHL', 'HCM']);
   assert.equal(isHubTypeFiltered, true);
 });
 

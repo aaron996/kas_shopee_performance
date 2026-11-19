@@ -6,7 +6,7 @@ import { distanceKm, suggestWeatherPoint, readWeatherPreference, writeWeatherPre
 test('weather scope is independent of KPI rows and never treats an unknown region as all', () => {
   assert.deepEqual(weatherLocationsInScope([]), []);
   assert.deepEqual(weatherLocationsInScope(['NTB']), []);
-  assert.deepEqual(weatherLocationsInScope(['HCM', 'HCM - KA']).map(l => l.id), ['hcm-city']);
+  assert.deepEqual(weatherLocationsInScope(['HCM', 'HCM - KHL']).map(l => l.id), ['hcm-city']);
   assert.deepEqual(weatherLocationsInScope(['HNO - CK']).map(l => l.id), ['hanoi-city']);
   assert.deepEqual(unmappedWeatherRegions(['HNO', 'GXT - Bắc', 'NTB']), ['GXT - Bắc', 'NTB']);
 });

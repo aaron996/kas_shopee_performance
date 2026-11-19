@@ -337,10 +337,10 @@ export default function App() {
   const [selectedRegions, setSelectedRegions] = useState(() => {
     if (initialView.regions === null) return allRegions;
     const saved = initialView.regions.filter(r => allRegions.includes(r));
-    // Sessions saved before the "HNO - KA" / "HCM - CK" / "HNO - CK" / "GXT - …"
+    // Sessions saved before the "HCM - KHL" / "HNO - KHL" / "HCM - CK" / "HNO - CK" / "GXT - …"
     // vùng existed stored the full list explicitly; treat "every region except
     // the new ones" as "Tất cả vùng".
-    const NEWER_REGIONS = ['HNO - KA', 'HCM - CK', 'HNO - CK', ...Object.values(GXT_REGION_BY_MIEN)];
+    const NEWER_REGIONS = ['HCM - KHL', 'HNO - KHL', 'HCM - CK', 'HNO - CK', ...Object.values(GXT_REGION_BY_MIEN)];
     const missing = allRegions.filter(r => !saved.includes(r));
     return missing.length > 0 && missing.every(r => NEWER_REGIONS.includes(r)) ? allRegions : saved;
   });

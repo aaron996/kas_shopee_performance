@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import { reassignKaRegion, reassignGxtMienRegion, normalizeDashboardRows, getHubType } from './dataProcessor.js';
 import { mienFromHubName } from '../data/provinceMien.js';
 
-test('KA warehouse HCM moves to HCM - KA', () => {
+test('KA warehouse HCM moves to HCM - KHL', () => {
   const [row] = reassignKaRegion([{ region: 'HCM', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'KA' }]);
-  assert.equal(row.region, 'HCM - KA');
+  assert.equal(row.region, 'HCM - KHL');
 });
 
-test('(HNO) LH Long Biên is tagged KA and moves to HNO - KA', () => {
+test('(HNO) LH Long Biên is tagged KA and moves to HNO - KHL', () => {
   const [pick, fd] = reassignKaRegion([
     { region: 'HNO', hub: '(HNO) LH Long Biên', hub_type: 'BC' },
     { region: 'HNO', deliverywh: '(HNO) LH Long Biên', hub_type: 'BC' },
   ]);
   assert.equal(getHubType(pick), 'KA');
-  assert.equal(pick.region, 'HNO - KA');
+  assert.equal(pick.region, 'HNO - KHL');
   assert.equal(getHubType(fd), 'KA');
-  assert.equal(fd.region, 'HNO - KA');
+  assert.equal(fd.region, 'HNO - KHL');
 });
 
 test('KA warehouses become their own vùng whatever region the row came from', () => {
@@ -26,9 +26,9 @@ test('KA warehouses become their own vùng whatever region the row came from', (
     { region: '', hub: 'Key Account Warehouse Ho Chi Minh', hub_type: 'KA' },
   ]);
   assert.equal(getHubType(lb), 'KA');
-  assert.equal(lb.region, 'HNO - KA');
-  assert.equal(hcm.region, 'HCM - KA');
-  assert.equal(blank.region, 'HCM - KA');
+  assert.equal(lb.region, 'HNO - KHL');
+  assert.equal(hcm.region, 'HCM - KHL');
+  assert.equal(blank.region, 'HCM - KHL');
 });
 
 test('other Long Biên post offices are untouched', () => {
@@ -51,7 +51,7 @@ test('CK hubs are tagged hub type CK by name or wh_id; HCM / HNO ones move to th
   assert.equal(byId.region, 'HNO - CK');
   assert.equal(fd.region, 'DNB');
   assert.equal(other.region, 'HCM');
-  assert.equal(ka.region, 'HCM - KA');
+  assert.equal(ka.region, 'HCM - KHL');
   assert.equal(getHubType(byId), 'CK');
   assert.equal(getHubType(byIdStr), 'CK');
   assert.equal(getHubType(fd), 'CK');
@@ -99,7 +99,7 @@ test('only GXT rows move: other hub types and KA / CK hubs keep their vùng', ()
     { region: 'HCM', hub: 'BC CK Thủ Đức - HCM', hub_type: 'BC' },
     gxt('HCM', 'Kho Giao Hàng Nặng - Thủ Đức - HCM'),
   ]);
-  assert.deepEqual(rows.map(r => r.region), ['HNO', 'HCM - KA', 'HCM - CK', 'GXT - Nam']);
+  assert.deepEqual(rows.map(r => r.region), ['HNO', 'HCM - KHL', 'HCM - CK', 'GXT - Nam']);
 });
 
 test('province lookup matches whole words at the end of the name, accents and "đ" aside', () => {
