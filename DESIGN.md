@@ -161,6 +161,8 @@ Partial corners are valid only when the shape expresses containment or attachmen
 
 **Shared KPI Table Rule.** A new metric beside an existing metric must use the same renderer/component for the same view mode, including toolbar actions, sticky rows/columns, disclosure controls, motion hooks and reduced-motion behavior. Parameterize numerator, denominator and target; do not introduce a parallel table for a new KPI. A targetless metric stays neutral and unavailable benchmarks display a dash. Verify the new metric beside its existing peers in both layout and interaction before shipping.
 
+The Lane tab applies this rule: `buildLaneMatrix` (`src/utils/laneDelivery.js`) produces the same matrix shape as `buildWeeklyMatrix` with Lane > hub type rows, and `KpiMatrixTable` renders it (`rowHeader`, `expanderNoun`, and an unnamed group that omits the group row). Default "Theo ngày" uses the benchmark layout of Chi tiết Vùng/Hub (`matrix.groups`: W-1 and current-week day columns, D-1 with volume, WTD, Tốt nhất 6 tuần, Cùng ngày tháng trước); picking a date range falls back to the plain per-day matrix with the Volume toggle. It reuses the `kpi-table-tabs` bar, the Theo ngày / Theo tuần toggle, `DayRangeFilter`, the Volume toggle and per-user KPI colors (`d1st` / `dodr` keys).
+
 ### Loading, empty and error states — mandatory
 
 **The Data Readiness Rule.** A pending data request must show the shared table-shaped skeleton (`src/components/LoadingScreen.jsx`). Never render “Chưa có dữ liệu”, “Không có dữ liệu”, zero totals, an empty chart or a retry CTA as a loading placeholder. Initialize request state as loading before the first render; when the request scope changes, treat the new scope as pending immediately, before its effect runs.
