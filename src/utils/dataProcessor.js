@@ -104,19 +104,49 @@ export function reassignGxtMienRegion(rows) {
 }
 
 // What every dashboard view runs the raw sheet rows through.
-// Reverse gọi nhóm Key Account là "KHL" (SPB/SPE vẫn là "KA"). Chạy sau reassignKaRegion/reassignGxtMienRegion vì hai bước đó
-// còn nhận diện loại KA; vùng "HCM - KA" giữ nguyên. Chỉ đổi dòng của client SPE Reverse.
-export const REVERSE_KA_HUB_TYPE = 'KHL';
-export function renameReverseHubTypes(rows) {
+// KHL (Key Account / khách hàng lớn, trước đây là "KA") là loại Hub do app tự phân theo mã kho, không dựa vào nhãn BI (nhãn BC/KA
+// hay đổi). Kho chưa có mã thì nhận theo tên. Áp dụng cho mọi client (SPB, SPE, Reverse) và mọi nguồn dữ liệu.
+// Muốn thêm/bớt kho KHL: sửa hai danh sách dưới đây (giữ cùng một kho ở cả mã và tên).
+export const KHL_HUB_TYPE = 'KHL';
+export const KHL_WAREHOUSE_IDS = new Set([
+  '1327', // Key Account Warehouse Ho Chi Minh
+  '23013000', // (HNO) LH Long Biên
+  '23142000', // (LAN) LH Đức Lập
+  '23142001', // (HCM) LH Củ Chi
+  '23142002', // (HCM) ĐL Nhuận Đức
+  '23142003', // (HCM) ĐL Xuân Thới Sơn 1
+  '23142004' // (HCM) ĐL Bình Hưng Hòa
+]);
+const KHL_HUB_NAMES = new Set([
+  'key account warehouse ho chi minh', '(hno) lh long biên', '(lan) lh đức lập', '(hcm) lh củ chi',
+  '(hcm) đl nhuận đức', '(hcm) đl xuân thới sơn 1', '(hcm) đl bình hưng hòa'
+]);
+
+export const isKhlWarehouse = ({ wh_id: whId, hub, deliverywh } = {}) => {
+  const id = String(whId ?? '').trim();
+  return id ? KHL_WAREHOUSE_IDS.has(id) : KHL_HUB_NAMES.has(normalizeHubName(hub ?? deliverywh));
+};
+
+// Nhãn viết tắt của bảng backlog Reverse (BI đổ riêng) quy về tên của bộ lọc "Loại Hub".
+export const HUB_TYPE_ALIASES = { KD: 'BC KD', AHM: 'Ahamove', KA: KHL_HUB_TYPE, KHL: KHL_HUB_TYPE };
+export const canonicalHubType = raw => {
+  const value = String(raw ?? '').trim();
+  return HUB_TYPE_ALIASES[value.toUpperCase()] ?? value;
+};
+
+// Chạy cuối cùng, sau reassignKaRegion/reassignGxtMienRegion (hai bước đó còn nhận diện loại "KA"; vùng "HCM - KA" giữ nguyên).
+export function applyHubTypeRules(rows) {
   if (!rows) return rows;
   return rows.map(r => {
-    if (!r || r.client_name !== 'SPE Reverse' || String(getHubType(r)).trim().toUpperCase() !== 'KA') return r;
+    if (!r) return r;
+    const khl = isKhlWarehouse(r) || String(getHubType(r)).trim().toUpperCase() === 'KA';
+    if (!khl) return r;
     const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
-    return { ...r, [typeKey]: REVERSE_KA_HUB_TYPE };
+    return r[typeKey] === KHL_HUB_TYPE ? r : { ...r, [typeKey]: KHL_HUB_TYPE };
   });
 }
 
-export const normalizeDashboardRows = (rows) => renameReverseHubTypes(reassignGxtMienRegion(reassignKaRegion(rows)));
+export const normalizeDashboardRows = (rows) => applyHubTypeRules(reassignGxtMienRegion(reassignKaRegion(rows)));
 
 // The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
 // `vung_giao` instead of `region`.

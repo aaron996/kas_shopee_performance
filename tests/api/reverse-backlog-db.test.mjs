@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 const db = new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role;');
 await db.exec(readFileSync('supabase/migrations/20261111090000_kas_reverse_backlog.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/20261119090000_kas_reverse_backlog_wh_id.sql', 'utf8'));
 const rejects = (promise, pattern) => assert.rejects(promise, pattern);
 const upsert = async rows => (await db.query('select public.upsert_kas_reverse_backlog($1::jsonb) r', [JSON.stringify(rows)])).rows[0].r;
 const count = async () => Number((await db.query('select count(*) n from public.kas_reverse_backlog')).rows[0].n);
@@ -43,7 +44,7 @@ let read = (await db.query('select public.get_kas_reverse_backlog() r')).rows[0]
 assert.equal(read.snapshot_date, '2026-11-11');
 assert.equal(read.prev_snapshot_date, '2026-11-04');
 assert.equal(read.rows.length, 1);
-assert.deepEqual(read.rows[0], ['HNO', 'BC', '0', '1-3', 8]);
+assert.deepEqual(read.rows[0], ['HNO', 'BC', null, '0', '1-3', 8]);
 assert.equal(read.prev_rows.length, 2);
 read = (await db.query(`select public.get_kas_reverse_backlog('SPE Reverse', 8) r`)).rows[0].r;
 assert.equal(read.prev_snapshot_date, null, 'chưa có snapshot đủ cũ');
@@ -91,9 +92,13 @@ tabs.reverse_backlog = [header, ...good];
 ctx.syncReverseBacklog();
 assert.equal(calls.length, 1);
 assert.equal(calls[0].rpc, 'upsert_kas_reverse_backlog');
-assert.deepEqual(JSON.parse(JSON.stringify(calls[0].rows[0])), { snapshot_date: '2026-11-11', client_name: 'SPE Reverse', region: 'HNO', hub_type: 'BC', assign_bucket: '0', age_bucket: '1-3', backlog_orders: 126 });
+assert.deepEqual(JSON.parse(JSON.stringify(calls[0].rows[0])), { snapshot_date: '2026-11-11', client_name: 'SPE Reverse', region: 'HNO', hub_type: 'BC', assign_bucket: '0', age_bucket: '1-3', backlog_orders: 126, wh_id: null });
 assert.equal(calls[0].rows[1].region, 'N/A', 'N/A giữ nguyên, app tự coi là chưa rõ vùng');
 assert.equal(JSON.parse(logs.at(-1)).total, 130);
+tabs.reverse_backlog = [[...header, 'wh_id'], ['2026-11-11', 'SPE Reverse', 'HCM', 'BC', '0', '1-3', 6, 23142001], ['2026-11-11', 'SPE Reverse', 'HCM', 'BC', '0', '1-3', 2, ' ']];
+ctx.syncReverseBacklog();
+assert.deepEqual(calls.pop().rows.map(r => r.wh_id), ['23142001', null], 'wh_id đọc từ sheet (số -> chuỗi); ô trống là null');
+tabs.reverse_backlog = [header, ...good];
 // Sheets đổi "1-3", "4-7", "1-2" thành ngày: script đổi ngược, "8-14", "0", "3+" giữ là chuỗi.
 tabs.reverse_backlog = [header,
   ['2026-11-11', 'SPE Reverse', 'HNO', 'BC', '0', new Date(2026, 2, 1), 5],
@@ -106,6 +111,14 @@ tabs.reverse_backlog = [header, ...good];
 // Dữ liệu từ DB nhận được đúng payload của script.
 await upsert(calls[0].rows);
 assert.equal((await db.query(`select sum(backlog_orders) s from public.kas_reverse_backlog where snapshot_date = '2026-11-11'`)).rows[0].s, '130');
+
+// Hai kho khác nhau cùng ngày/vùng/nhãn/bucket không bị coi là trùng khoá khi có wh_id; cùng wh_id mới trùng.
+await upsert([row('2026-11-12', 'HCM', '0', '1-3', 6, { wh_id: '23142001' }), row('2026-11-12', 'HCM', '0', '1-3', 2, { wh_id: '23142002' })]);
+await rejects(upsert([row('2026-11-12', 'HCM', '0', '1-3', 6, { wh_id: '1' }), row('2026-11-12', 'HCM', '0', '1-3', 2, { wh_id: '1' })]), /Duplicate key/);
+const rpcCols = (await db.query(`select public.get_kas_reverse_backlog('SPE Reverse', 7) r`)).rows[0].r;
+assert.deepEqual(rpcCols.cols, ['region', 'hub_type', 'wh_id', 'assign_bucket', 'age_bucket', 'backlog_orders']);
+assert.deepEqual(rpcCols.rows.map(r => r[2]).sort(), ['23142001', '23142002']);
+await db.query(`delete from public.kas_reverse_backlog where snapshot_date = '2026-11-12'`);
 
 // Từ chối: không gọi RPC.
 const reject = (rows, pattern, h = header) => { tabs.reverse_backlog = [h, ...rows]; assert.throws(() => ctx.syncReverseBacklog(), pattern); };

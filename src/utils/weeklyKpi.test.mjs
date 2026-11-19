@@ -114,7 +114,7 @@ test('dòng đi qua normalizeDashboardRows: KA và CK về đúng vùng riêng, 
   const names = m.miens.flatMap(x => x.regions.map(r => r.region)).sort();
   assert.deepEqual(names, ['HCM', 'HCM - CK', 'HCM - KA']);
   const types = result.rows.map(r => r.hub_type).sort();
-  assert.deepEqual(types, ['BC', 'CK', 'KA']);
+  assert.deepEqual(types, ['BC', 'CK', 'KHL']);
 });
 
 test('fetchWeeklyRows nhớ kết quả theo bảng, báo lỗi RPC và thử lại sau lỗi', async () => {

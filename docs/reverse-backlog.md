@@ -4,7 +4,7 @@ Subtab **Backlog Reverse** (Chi tiết Vùng/Hub, chỉ khi chọn SPE Reverse) 
 
 ## Luồng dữ liệu
 
-1. BI đổ một ảnh backlog hằng ngày vào tab `reverse_backlog` của sheet OPS. Header: `snapshot_date, client_name, region, hub_type, assign_bucket (0 | 1-2 | 3+), age_bucket (1-3 | 4-7 | 8-14), backlog_orders`. Tổ hợp không có đơn có thể vắng mặt (= 0).
+1. BI đổ một ảnh backlog hằng ngày vào tab `reverse_backlog` của sheet OPS. Header: `snapshot_date, client_name, region, hub_type, assign_bucket (0 | 1-2 | 3+), age_bucket (1-3 | 4-7 | 8-14), backlog_orders, wh_id` (mã kho; snapshot cũ có thể thiếu). Tổ hợp không có đơn có thể vắng mặt (= 0).
 2. `scripts/apps-script/reverse-backlog-sync.gs` → `syncReverseBacklog()` ghi vào `public.kas_reverse_backlog` qua RPC `upsert_kas_reverse_backlog` (service role). Mỗi `snapshot_date` được thay trọn vẹn, ngày khác giữ nguyên để có snapshot tuần trước.
    - Tab phải có đúng một `snapshot_date` là hôm nay hoặc hôm qua, `client_name` là `SPE Reverse`, bucket hợp lệ và `backlog_orders >= 0`; sai thì không ghi gì.
    - Đặt trigger hằng ngày (~09:15, sau lúc BI đổ và sau sync Reverse 09:00) bằng cách chạy một lần `createReverseBacklogDailyTrigger()`. Script dùng chung `opsDeltaNormalizeRows_`, `opsDeltaRpc_`, `opsHistoryKey_`, `opsHistoryShift_` nên cần thêm sau `ops-incremental-sync.gs` và `ops-history-sync.gs`.
@@ -12,6 +12,8 @@ Subtab **Backlog Reverse** (Chi tiết Vùng/Hub, chỉ khi chọn SPE Reverse) 
 
 ## App
 
+- Loại Hub của dòng backlog khớp với bộ lọc "Loại Hub": kho KHL nhận theo `wh_id` (danh sách `KHL_WAREHOUSE_IDS` trong `src/utils/dataProcessor.js`, không phụ thuộc nhãn BI), nhãn viết tắt `KD`→`BC KD`, `AHM`→`Ahamove`, `KA`→`KHL`. Snapshot chưa có `wh_id` dùng nhãn `hub_type`.
+- KHL (trước là KA) áp dụng cho cả SPB, SPE và Reverse trên mọi màn hình; thêm/bớt kho KHL chỉ cần sửa danh sách mã (và tên) trong `dataProcessor.js`. Migration `20261119090000_kas_reverse_backlog_wh_id.sql` phải chạy trước khi dán Apps Script mới.
 - Lọc theo vùng và loại Hub đang chọn. Vùng trống hoặc `N/A` hiện là "Chưa rõ vùng" và chỉ vào khi chọn tất cả vùng.
 - Chưa có snapshot nào hiện thông báo riêng, khác với backlog bằng 0.
 - Loading/lỗi/thử lại theo `docs/loading-states.md`; refresh giữ số đã có.
