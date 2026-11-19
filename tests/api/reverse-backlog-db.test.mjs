@@ -7,6 +7,7 @@ const db = new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role;');
 await db.exec(readFileSync('supabase/migrations/20261111090000_kas_reverse_backlog.sql', 'utf8'));
 await db.exec(readFileSync('supabase/migrations/20261119090000_kas_reverse_backlog_wh_id.sql', 'utf8'));
+await db.exec(readFileSync('supabase/migrations/20261119150000_kas_reverse_backlog_limit.sql', 'utf8'));
 const rejects = (promise, pattern) => assert.rejects(promise, pattern);
 const upsert = async rows => (await db.query('select public.upsert_kas_reverse_backlog($1::jsonb) r', [JSON.stringify(rows)])).rows[0].r;
 const count = async () => Number((await db.query('select count(*) n from public.kas_reverse_backlog')).rows[0].n);
@@ -35,7 +36,10 @@ await rejects(upsert([row('2026-11-11', 'HNO', '0', '1-3', null)]), /missing/);
 await rejects(upsert([row(null, 'HNO', '0', '1-3', 1)]), /missing/);
 await rejects(upsert([row('2026-11-11', 'HNO', '0', '1-3', 1), row('2026-11-11', 'HNO', '0', '1-3', 2)]), /Duplicate key/);
 await rejects(upsert(['2026-11-08', '2026-11-09', '2026-11-10', '2026-11-12'].map(d => row(d, 'HNO', '0', '1-3', 1))), /Too many snapshot dates/);
-await rejects(upsert(Array.from({ length: 5001 }, (_, i) => row('2026-11-11', 'r' + i, '0', '1-3', 1))), /too large/);
+await rejects(upsert(Array.from({ length: 10001 }, (_, i) => row('2026-11-11', 'r' + i, '0', '1-3', 1))), /too large/);
+const bigBatch = await upsert(Array.from({ length: 6000 }, (_, i) => row('2026-11-20', 'r' + i, '0', '1-3', 1)));
+assert.equal(bigBatch.inserted, 6000, 'lô trên 5.000 dòng được nhận (giới hạn mới 10.000)');
+await db.query(`delete from public.kas_reverse_backlog where snapshot_date = '2026-11-20'`);
 assert.equal(await count(), before, 'lệnh lỗi không đổi dữ liệu');
 
 // Đọc: snapshot mới nhất + snapshot cách ít nhất 7 ngày.
