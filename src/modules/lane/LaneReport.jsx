@@ -19,7 +19,7 @@ export default function LaneReport(props) {
             className={view === v.id ? 'btn-primary' : 'btn-secondary'} onClick={() => setView(v.id)}>{v.label}</button>
         ))}
       </div>
-      {view === 'ca1' ? <Report5LaneCa1 {...props} /> : <LaneDeliveryView density={props.density} selectedHubTypes={props.selectedHubTypes} />}
+      {view === 'ca1' ? <Report5LaneCa1 {...props} /> : <LaneDeliveryView density={props.density} selectedHubTypes={props.selectedHubTypes} isHubTypeFiltered={props.isHubTypeFiltered} />}
     </div>
   );
 }

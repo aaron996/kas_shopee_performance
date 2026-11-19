@@ -30,3 +30,15 @@ test('empty input yields empty table', () => {
   assert.deepEqual([t.dates, t.lanes], [[], []]);
   assert.equal(t.all.period.pct, null);
 });
+
+import { scopeLaneRowsByHubType } from './laneDelivery.js';
+
+test('hub type filter only applies when the user narrowed the selection', () => {
+  const data = [{ hub_type: 'BC' }, { hub_type: 'BC KD' }, { hub_type: 'KA' }];
+  // Mặc định "tất cả": danh sách có thể rỗng/thiếu loại, không được làm mất dòng.
+  assert.equal(scopeLaneRowsByHubType(data, [], false).length, 3);
+  assert.equal(scopeLaneRowsByHubType(data, ['BC'], false).length, 3);
+  // Người dùng thu hẹp: lọc đúng theo lựa chọn; bỏ hết thì rỗng.
+  assert.deepEqual(scopeLaneRowsByHubType(data, ['BC', 'KA'], true).map(r => r.hub_type), ['BC', 'KA']);
+  assert.equal(scopeLaneRowsByHubType(data, [], true).length, 0);
+});

@@ -49,3 +49,14 @@ export function buildLaneDeliveryTable(rows, { client, metric, days = LANE_DELIV
   };
   return { dates, lanes, all };
 }
+
+/**
+ * Áp bộ lọc Loại Hub của header. `selectedHubTypes` mặc định là hợp các loại hub có trong
+ * Pick/Deli/Ca1/FD/Reverse; bảng lane có thể có loại mà các nguồn đó chưa có (hoặc các nguồn đó chưa tải
+ * xong -> danh sách rỗng). Vì vậy chỉ lọc khi người dùng thật sự thu hẹp lựa chọn (`isHubTypeFiltered`);
+ * mặc định "tất cả" giữ nguyên mọi dòng để tổng lane khớp query nguồn.
+ */
+export function scopeLaneRowsByHubType(rows, selectedHubTypes, isHubTypeFiltered) {
+  if (!isHubTypeFiltered || !Array.isArray(selectedHubTypes)) return rows;
+  return rows.filter(r => selectedHubTypes.includes(r.hub_type || 'Unknown'));
+}

@@ -877,6 +877,7 @@ export default function App() {
     report5: {
       ca1Rows: filteredCa1Rows,
       selectedHubTypes,
+      isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
       density,
       isFullscreen,
       setIsFullscreen
