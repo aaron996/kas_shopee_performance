@@ -236,7 +236,9 @@ export function buildWeeklyMatrix({
         if (!typesByName.has(info.hub)) typesByName.set(info.hub, new Set());
         if (info.hubType) typesByName.get(info.hub).add(info.hubType);
       });
+      // Hub không có mẫu ở tuần/ngày nào đang xem thì ẩn (không chiếm chỗ top và không tính vào hubCount).
       const hubs = infos
+        .filter(info => hubStats.get(info.id).some(stat => stat.tot > 0 || stat.incomplete))
         .map(info => ({
           ...info,
           name: (typesByName.get(info.hub)?.size || 0) > 1 && info.hubType ? `${info.hub} (${info.hubType})` : info.hub,

@@ -19,6 +19,7 @@ import { ChevronRight, ArrowUp, X, Copy } from 'lucide-react';
 import { MIEN_REGIONS, MIEN_ORDER } from '../../data/defaultDataset';
 import StatusNotice from '../../components/ui/StatusNotice';
 import { appendCsvContext, csvCell } from '../../utils/dashboardState';
+import { hasVolumeInDates } from '../../utils/hubRows';
 import { formatPct, formatVol, formatDiff, formatDateLabel, groupDatesByWeek, getTrailingDateRange, getHeatTier, getHigherIsWorseTier, HEAT_TIER_STEPS, getWeekNumber, getReportWeekLabel, getHubType, matchesRegionScope } from '../../utils/dataProcessor';
 import { getHubIdentityKey } from '../../utils/performanceRanking';
 import { useToast } from '../../components/ui/Toast';
@@ -856,8 +857,12 @@ export default function Report1MienVungHub({
         item.displayName = hasCollidingNames && item.hubType ? `${item.hub} (${item.hubType})` : item.hub;
       });
 
+      // Dòng không có số trong các ngày đang hiển thị (và trong phạm vi lọc hiện tại) thì ẩn, không chiếm chỗ top 10.
+      // Hub đang xem từ BXH vẫn được thêm lại bên dưới.
+      const shownDates = [...weekPrev, ...weekCur];
       // Sort by late volume descending on D-1 and take top 10
       const topItems = Array.from(compMap.values())
+        .filter(item => hasVolumeInDates(dateEntityMap, item.statKey, shownDates))
         .sort((a, b) => b.lateVol - a.lateVol)
         .slice(0, 10);
 

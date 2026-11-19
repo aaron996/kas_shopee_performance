@@ -218,3 +218,16 @@ test('Theo tháng: gọi get_kas_monthly_compact, nhãn tháng thiếu ngày và
   assert.equal(monthEnd('2026-02-01'), '2026-02-28');
   assert.equal(monthLabel('2026-08-01', 14).note, '14/31 ngày');
 });
+
+test('hub không có mẫu trong các tuần đang xem thì ẩn, và không tính vào hubCount', () => {
+  const data = [
+    pickRow(W1, 'HCM', 'Hub A', 100, 95, 90),
+    pickRow(W1, 'HCM', 'Hub Rỗng', 0, 0, 0),
+    pickRow(W2, 'HCM', 'Hub Rỗng', 0, 0, 0),
+    pickRow(W2, 'HCM', 'Hub Muộn', 20, 20, 20)
+  ];
+  const m = buildWeeklyMatrix({ rows: data, weeks, metricKey: 'p1st' });
+  const hcm = m.miens.flatMap(x => x.regions).find(r => r.region === 'HCM');
+  assert.deepEqual(hcm.hubs.map(h => h.name).sort(), ['Hub A', 'Hub Muộn']);
+  assert.equal(hcm.hubCount, 2);
+});
