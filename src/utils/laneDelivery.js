@@ -1,13 +1,13 @@
 // KAS-314: 1st Deli / ODR theo lane. Logic thuần (không React, không mạng) để test được.
+// Dựng ma trận cùng hình dạng với buildWeeklyMatrix (weeklyKpi.js) để dùng chung KpiMatrixTable:
+// Toàn quốc > Lane > Loại hub, mỗi cột là một ngày hoặc một tuần (thứ Hai - Chủ nhật).
 import { getLanesFromRows, normalizeLane } from './laneTaxonomy.js';
+import { WEEKLY_METRICS, weekLabel, dayLabel, addDays } from './weeklyKpi.js';
 
-export const LANE_DELIVERY_CLIENTS = ['SPB', 'SPE'];
-export const LANE_DELIVERY_DAYS = 7;
-// Mốc điều hành (xem GHN_KAS_knowledge_base.md mục chỉ số): 1st Deli 95%, ODR 90%.
-export const LANE_DELIVERY_METRICS = [
-  { key: 'first', label: '1st Deli', col: 'ontime_deli_1st', target: 95 },
-  { key: 'odr', label: 'ODR', col: 'ontime_deli_odr', target: 90 }
-];
+// Cùng khoá chỉ số với Chi tiết Vùng/Hub để dùng chung mốc target và cài đặt tô màu của người dùng.
+export const LANE_DELIVERY_METRIC_KEYS = ['d1st', 'dodr'];
+export const LANE_DELIVERY_DEFAULT_DAYS = 14;
+export const LANE_ROW_HEADER = 'Lane / Loại hub';
 
 const num = value => Number(value) || 0;
 
@@ -17,37 +17,77 @@ export function normalizeLaneDeliveryRows(rows) {
     .map(r => ({ ...r, mau_deli: num(r.mau_deli), ontime_deli_1st: num(r.ontime_deli_1st), ontime_deli_odr: num(r.ontime_deli_odr) }));
 }
 
-function pct(rows, col) {
-  let total = 0, ontime = 0;
-  for (const r of rows) { total += num(r.mau_deli); ontime += num(r[col]); }
-  return { total, ontime, pct: total > 0 ? (ontime / total) * 100 : null };
+/** Thứ Hai của tuần chứa ~day~ (khớp date_trunc('week') của các bảng tuần). */
+export function mondayOf(day) {
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+  return addDays(day, -((weekday + 6) % 7));
 }
 
-/**
- * Bảng lane x ngày cho một client và một chỉ số.
- * Dòng "Toàn quốc" gộp mọi lane; cột "Kỳ" là tổng cộng dồn của các ngày đang hiển thị.
- * Ô không có mẫu số trả pct = null (hiển thị "–"), không bao giờ là 0.
- */
-export function buildLaneDeliveryTable(rows, { client, metric, days = LANE_DELIVERY_DAYS }) {
-  const scoped = rows.filter(r => r.client_name === client);
-  const dates = [...new Set(scoped.map(r => r.report_date))].sort().slice(-days);
-  const inRange = scoped.filter(r => dates.includes(r.report_date));
-  const cell = subset => pct(subset, metric.col);
+const periodOf = (day, mode) => (mode === 'week' ? mondayOf(day) : day);
 
-  const lanes = getLanesFromRows(inRange, 'lane').map(({ key, label }) => {
-    const laneRows = inRange.filter(r => normalizeLane(r.lane) === key);
-    return {
-      key, label,
-      byDate: Object.fromEntries(dates.map(d => [d, cell(laneRows.filter(r => r.report_date === d))])),
-      period: cell(laneRows)
-    };
+/** Các kỳ (ngày hoặc thứ Hai) có dữ liệu của client, tăng dần. */
+export function laneDeliveryPeriods(rows, { client = 'ALL', mode = 'day' } = {}) {
+  const set = new Set();
+  rows.forEach(r => { if (client === 'ALL' || r.client_name === client) set.add(periodOf(r.report_date, mode)); });
+  return [...set].sort();
+}
+
+const toStat = ({ tot, ont }) => ({ tot, ont, pct: tot > 0 ? (ont / tot) * 100 : null });
+
+/**
+ * Ma trận Toàn quốc > Lane > Loại hub x kỳ. `periods` là danh sách kỳ hiển thị (ngày hoặc thứ Hai).
+ * Hình dạng giống buildWeeklyMatrix: `miens` chỉ có một nhóm không tên (KpiMatrixTable bỏ hàng nhóm),
+ * mỗi lane là một `region` mở rộng được, loại hub là `hubs`.
+ */
+export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day', periods }) {
+  const metric = WEEKLY_METRICS[metricKey];
+  if (!metric || !LANE_DELIVERY_METRIC_KEYS.includes(metricKey)) throw new Error(`Unknown lane metric: ${metricKey}`);
+  const index = new Map(periods.map((period, i) => [period, i]));
+  const blank = () => periods.map(() => ({ tot: 0, ont: 0 }));
+  const bucket = (map, key) => { if (!map.has(key)) map.set(key, blank()); return map.get(key); };
+
+  const scoped = rows.filter(r => client === 'ALL' || r.client_name === client);
+  const laneList = getLanesFromRows(scoped, 'lane');
+  const all = blank();
+  const laneStats = new Map();
+  const hubStats = new Map();
+  const hubNames = new Map();
+  const daysInPeriod = periods.map(() => new Set());
+
+  scoped.forEach(r => {
+    const i = index.get(periodOf(r.report_date, mode));
+    if (i === undefined) return;
+    const tot = num(r[metric.total]), ont = num(r[metric.ontime]);
+    const laneKey = normalizeLane(r.lane);
+    const hub = r.hub_type || 'Chưa rõ';
+    daysInPeriod[i].add(r.report_date);
+    all[i].tot += tot; all[i].ont += ont;
+    const l = bucket(laneStats, laneKey)[i]; l.tot += tot; l.ont += ont;
+    const hubKey = `${laneKey}::${hub}`;
+    if (!hubNames.has(hubKey)) hubNames.set(hubKey, { id: hubKey, laneKey, name: hub });
+    const h = bucket(hubStats, hubKey)[i]; h.tot += tot; h.ont += ont;
   });
-  const all = {
-    key: '__all__', label: 'Toàn quốc',
-    byDate: Object.fromEntries(dates.map(d => [d, cell(inRange.filter(r => r.report_date === d))])),
-    period: cell(inRange)
+
+  const volume = stats => stats.reduce((sum, s) => sum + s.tot, 0);
+  const regions = laneList.filter(({ key }) => laneStats.has(key)).map(({ key, label }) => {
+    const hubs = [...hubNames.values()].filter(h => h.laneKey === key)
+      .map(h => ({ id: h.id, name: h.name, stats: hubStats.get(h.id).map(toStat), vol: volume(hubStats.get(h.id)) }))
+      .sort((a, b) => b.vol - a.vol);
+    return { region: label, stats: laneStats.get(key).map(toStat), hubs, hubCount: hubs.length };
+  });
+
+  const allStats = all.map(toStat);
+  return {
+    metric,
+    weeks: periods.map((start, i) => ({
+      start, days: daysInPeriod[i].size,
+      ...(mode === 'week' ? weekLabel(start, daysInPeriod[i].size) : dayLabel(start))
+    })),
+    all: allStats,
+    miens: regions.length ? [{ mien: null, stats: allStats, regions }] : [],
+    maxPct: 0,
+    empty: allStats.every(s => s.tot === 0)
   };
-  return { dates, lanes, all };
 }
 
 /**

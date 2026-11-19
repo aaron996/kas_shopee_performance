@@ -6,7 +6,7 @@ import { formatPct, formatVol, getHeatTier, getHigherIsWorseTier } from '../../u
 
 // Bảng Toàn quốc > Miền > Vùng > Hub x cột thời gian (mỗi cột hai ô: % và volume), dùng chung cho
 // "Theo tuần" (cột = tuần) và "Theo ngày" có khoảng ngày (cột = ngày). `matrix` do buildWeeklyMatrix dựng.
-export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabel = 'tuần gần nhất', showVolume = true, horizontalScroll = false }) {
+export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabel = 'tuần gần nhất', showVolume = true, horizontalScroll = false, rowHeader = null, expanderNoun = null }) {
   const { metric } = matrix;
   const [expanded, setExpanded] = useState({});
 
@@ -35,7 +35,7 @@ export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabe
       <table className="mtx-table weekly-kpi-table">
         <thead>
           <tr>
-            <th rowSpan="2" className="lbl">{metric.isFd ? 'Vùng / Kho giao' : 'Vùng / Hub'}</th>
+            <th rowSpan="2" className="lbl">{rowHeader || (metric.isFd ? 'Vùng / Kho giao' : 'Vùng / Hub')}</th>
             {matrix.weeks.map(w => (
               <th key={w.start} colSpan={showVolume ? 2 : 1} className="grp-start">
                 {w.title}{'\n'}{w.range}{w.note ? ` · ${w.note}` : ''}
@@ -58,10 +58,11 @@ export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabe
           </tr>
           {matrix.miens.map(m => (
             <React.Fragment key={m.mien}>
-              <tr className="grp-row">
+              {/* Nhóm không tên (bảng lane) không có hàng nhóm: dòng con nằm ngay dưới TOÀN QUỐC. */}
+              {m.mien && <tr className="grp-row">
                 <td className="lbl grp-total-label">{m.mien}</td>
                 {cells(m.stats)}
-              </tr>
+              </tr>}
               {m.regions.map(reg => {
                 const open = !!expanded[reg.region];
                 return (
@@ -72,7 +73,7 @@ export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabe
                           type="button"
                           className="weekly-kpi-expander"
                           aria-expanded={open}
-                          aria-label={`${open ? 'Thu gọn' : 'Mở'} ${metric.isFd ? 'kho giao' : 'hub'} của ${reg.region}`}
+                          aria-label={`${open ? 'Thu gọn' : 'Mở'} ${expanderNoun || (metric.isFd ? 'kho giao' : 'hub')} của ${reg.region}`}
                           onClick={() => setExpanded(prev => ({ ...prev, [reg.region]: !prev[reg.region] }))}
                         >
                           <ChevronRight size={14} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />

@@ -878,6 +878,8 @@ export default function App() {
       ca1Rows: filteredCa1Rows,
       selectedHubTypes,
       isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
+      clientFilter,
+      userEmail,
       density,
       isFullscreen,
       setIsFullscreen
