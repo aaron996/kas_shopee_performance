@@ -80,5 +80,6 @@ test('backlog hub types match the Loại Hub filter names: KHL by warehouse id, 
   assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['Ahamove'] }).total, 7);
   assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['KHL'] }).total, 12);
   assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['BC'] }).total, 102);
+  assert.deepEqual(result.rows.filter(r => r.hub_type === 'KHL' && r.wh_id).map(r => r.region), ['HNO - KHL', 'HCM - KHL'], 'kho KHL có mã về vùng KHL riêng');
   clearReverseBacklogCache();
 });

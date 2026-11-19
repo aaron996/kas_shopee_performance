@@ -12,8 +12,8 @@ Subtab **Backlog Reverse** (Chi tiết Vùng/Hub, chỉ khi chọn SPE Reverse) 
 
 ## App
 
-- Loại Hub của dòng backlog khớp với bộ lọc "Loại Hub": kho KHL nhận theo `wh_id` (danh sách `KHL_WAREHOUSE_IDS` trong `src/utils/dataProcessor.js`, không phụ thuộc nhãn BI), nhãn viết tắt `KD`→`BC KD`, `AHM`→`Ahamove`, `KA`→`KHL`. Snapshot chưa có `wh_id` dùng nhãn `hub_type`.
-- KHL (trước là KA) áp dụng cho cả SPB, SPE và Reverse trên mọi màn hình; thêm/bớt kho KHL chỉ cần sửa danh sách mã (và tên) trong `dataProcessor.js`. Migration `20261119090000_kas_reverse_backlog_wh_id.sql` phải chạy trước khi dán Apps Script mới.
+- Loại Hub của dòng backlog khớp với bộ lọc "Loại Hub": kho KHL nhận theo `wh_id` (danh sách `KHL_HUBS` trong `src/utils/dataProcessor.js`, không phụ thuộc nhãn BI) và về vùng `HCM - KHL` / `HNO - KHL`, nhãn viết tắt `KD`→`BC KD`, `AHM`→`Ahamove`, `KA`→`KHL`. Snapshot chưa có `wh_id` dùng nhãn `hub_type`.
+- KHL (trước là KA) áp dụng cho cả SPB, SPE và Reverse trên mọi màn hình; thêm/bớt kho KHL chỉ cần sửa `KHL_HUBS` trong `dataProcessor.js` (mã, tên, vùng) và danh sách tên trong migration `chat_metric_khl`. Migration `20261119090000_kas_reverse_backlog_wh_id.sql` phải chạy trước khi dán Apps Script mới.
 - Lọc theo vùng và loại Hub đang chọn. Vùng trống hoặc `N/A` hiện là "Chưa rõ vùng" và chỉ vào khi chọn tất cả vùng.
 - Chưa có snapshot nào hiện thông báo riêng, khác với backlog bằng 0.
 - Loading/lỗi/thử lại theo `docs/loading-states.md`; refresh giữ số đã có.

@@ -1,7 +1,7 @@
 -- Đồng bộ get_ai_chat_metric với app: loại Hub KA đổi tên KHL (Key Account / khách hàng lớn) và vùng "HCM - KA" / "HNO - KA" đổi tên
 -- "HCM - KHL" / "HNO - KHL". Bảng nguồn (kas_pick_history, kas_deli_history) không có wh_id trong metric_rows nên KHL nhận theo tên kho
--- (cùng danh sách với KHL_HUB_NAMES trong src/utils/dataProcessor.js) hoặc nhãn KA/KHL của nguồn. Vùng chỉ đổi cho hai kho Key Account
--- đã có vùng riêng và dòng nhãn KA, giống app; năm kho KHL mới giữ vùng gốc. Bộ lọc cũ 'KA' / 'HCM - KA' / 'HNO - KA' vẫn được hiểu.
+-- (cùng danh sách với KHL_HUBS trong src/utils/dataProcessor.js) hoặc nhãn KA/KHL của nguồn. Kho KHL về vùng "HCM - KHL" / "HNO - KHL"
+-- (kể cả (LAN) LH Đức Lập, giống app); dòng nhãn KA ở vùng HCM/HNO cũng vào vùng KHL tương ứng. Bộ lọc cũ 'KA' / 'HCM - KA' / 'HNO - KA' vẫn được hiểu.
 -- Không đổi chữ ký hàm nên quyền thực thi giữ nguyên.
 create or replace function public.get_ai_chat_metric(
   p_metric text, p_client text, p_date_from date, p_date_to date, p_grain text,
@@ -27,8 +27,10 @@ begin
   ), normalized as materialized (
     select hub, raw_region, raw_hub_type,
       case
-        when lower(btrim(hub)) = 'key account warehouse ho chi minh' then 'HCM - KHL'
-        when lower(btrim(hub)) = '(hno) lh long biên' then 'HNO - KHL'
+        when lower(normalize(btrim(hub), NFC)) = '(hno) lh long biên' then 'HNO - KHL'
+        when lower(normalize(btrim(hub), NFC)) in (
+          'key account warehouse ho chi minh', '(lan) lh đức lập', '(hcm) lh củ chi',
+          '(hcm) đl nhuận đức', '(hcm) đl xuân thới sơn 1', '(hcm) đl bình hưng hòa') then 'HCM - KHL'
         when upper(raw_hub_type) = 'KA' and upper(raw_region) = 'HCM' then 'HCM - KHL'
         when upper(raw_hub_type) = 'KA' and upper(raw_region) = 'HNO' then 'HNO - KHL'
         when upper(raw_hub_type) <> 'KA' and strpos(hub, 'CK') > 0 and upper(raw_region) = 'HCM' then 'HCM - CK'

@@ -38,10 +38,10 @@ test('KHL: hub type and vùng follow the app (KA renamed, KHL hubs by name, old 
     const volumes = async (grain, regions, hubTypes) => Object.fromEntries((await query(grain, regions, hubTypes)).rows.map(r => [r.entity, r.volume]));
 
     const regions = await volumes('region');
-    assert.equal(regions['HCM - KHL'], 10 + 30, 'kho Key Account HCM và hub nhãn KA về vùng HCM - KHL');
+    assert.equal(regions['HCM - KHL'], 10 + 30 + 40 + 50, 'kho Key Account HCM, hub nhãn KA và các kho KHL mới (kể cả Đức Lập) về vùng HCM - KHL');
     assert.equal(regions['HNO - KHL'], 20, 'LH Long Biên về vùng HNO - KHL');
-    assert.equal(regions['HCM'], 40 + 70, 'kho KHL mới giữ vùng gốc (giống app)');
-    assert.equal(regions['LAN'], 50);
+    assert.equal(regions['HCM'], 70, 'hub thường không đổi');
+    assert.equal(regions['LAN'], undefined, 'Đức Lập đã sang vùng HCM - KHL');
     assert.equal(regions['HCM - CK'], 60);
     assert.ok(!Object.keys(regions).some(r => r.endsWith(' - KA')), 'không còn vùng - KA');
 

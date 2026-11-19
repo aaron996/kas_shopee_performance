@@ -13,7 +13,11 @@ test('KHL is decided by warehouse id (or name when there is no id) for every cli
     { client_name: 'SPE', region: 'HNO', hub: '(HNO) KD Đông Anh', hub_type: 'BC KD', wh_id: '1' },
     { client_name: 'SPE', region: 'HNO', hub: 'Hub thường', hub_type: 'BC', wh_id: '22370000' }
   ];
-  assert.deepEqual(normalizeDashboardRows(rows).map(getHubType), ['KHL', 'KHL', 'KHL', 'KHL', 'KHL', 'KHL', 'BC KD', 'BC']);
+  const out = normalizeDashboardRows(rows);
+  assert.deepEqual(out.map(getHubType), ['KHL', 'KHL', 'KHL', 'KHL', 'KHL', 'KHL', 'BC KD', 'BC']);
+  assert.deepEqual(out.map(r => r.region), ['HCM - KHL', 'HCM - KHL', 'HNO - KHL', 'HCM - KHL', 'HCM - KHL', 'HNO - KHL', 'HNO', 'HNO'],
+    'kho KHL về vùng KHL (kể cả Đức Lập); hub nhãn KA ở HNO vào HNO - KHL; hub khác giữ vùng');
+  assert.deepEqual(normalizeDashboardRows(out).map(r => r.region), out.map(r => r.region), 'chạy lại không đổi kết quả');
 });
 
 test('an id wins over a name; a wrong id is not rescued by the name', () => {
