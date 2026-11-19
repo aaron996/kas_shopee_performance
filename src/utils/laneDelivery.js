@@ -3,6 +3,7 @@
 // Toàn quốc > Lane > Loại hub, mỗi cột là một ngày hoặc một tuần (thứ Hai - Chủ nhật).
 import { getLanesFromRows, normalizeLane } from './laneTaxonomy.js';
 import { WEEKLY_METRICS, weekLabel, dayLabel, addDays } from './weeklyKpi.js';
+import { getReportWeekLabel } from './dataProcessor.js';
 
 // Cùng khoá chỉ số với Chi tiết Vùng/Hub để dùng chung mốc target và cài đặt tô màu của người dùng.
 export const LANE_DELIVERY_METRIC_KEYS = ['d1st', 'dodr'];
@@ -23,6 +24,13 @@ export function mondayOf(day) {
   return addDays(day, -((weekday + 6) % 7));
 }
 
+/** Cùng ngày (hoặc ngày cuối tháng nếu tháng trước ngắn hơn) của tháng trước. */
+export function sameDayLastMonth(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  const lastOfPrev = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m - 2, Math.min(d, lastOfPrev))).toISOString().slice(0, 10);
+}
+
 const periodOf = (day, mode) => (mode === 'week' ? mondayOf(day) : day);
 
 /** Các kỳ (ngày hoặc thứ Hai) có dữ liệu của client, tăng dần. */
@@ -39,7 +47,7 @@ const toStat = ({ tot, ont }) => ({ tot, ont, pct: tot > 0 ? (ont / tot) * 100 :
  * Hình dạng giống buildWeeklyMatrix: `miens` chỉ có một nhóm không tên (KpiMatrixTable bỏ hàng nhóm),
  * mỗi lane là một `region` mở rộng được, loại hub là `hubs`.
  */
-export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day', periods }) {
+export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day', periods, benchmark = false }) {
   const metric = WEEKLY_METRICS[metricKey];
   if (!metric || !LANE_DELIVERY_METRIC_KEYS.includes(metricKey)) throw new Error(`Unknown lane metric: ${metricKey}`);
   const index = new Map(periods.map((period, i) => [period, i]));
@@ -53,13 +61,23 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
   const hubStats = new Map();
   const hubNames = new Map();
   const daysInPeriod = periods.map(() => new Set());
+  // Chuỗi theo ngày của từng dòng (kể cả ngày ngoài `periods`) để tính WTD / Tốt nhất 6 tuần / Cùng ngày tháng trước.
+  const useBench = benchmark && mode === 'day' && periods.length > 0;
+  const series = new Map();
+  const addDay = (key, date, tot, ont) => {
+    if (!series.has(key)) series.set(key, new Map());
+    const m = series.get(key);
+    const cur = m.get(date) || { tot: 0, ont: 0 };
+    cur.tot += tot; cur.ont += ont; m.set(date, cur);
+  };
 
   scoped.forEach(r => {
-    const i = index.get(periodOf(r.report_date, mode));
-    if (i === undefined) return;
     const tot = num(r[metric.total]), ont = num(r[metric.ontime]);
     const laneKey = normalizeLane(r.lane);
     const hub = r.hub_type || 'Chưa rõ';
+    if (useBench) { addDay('all', r.report_date, tot, ont); addDay(`l:${laneKey}`, r.report_date, tot, ont); addDay(`h:${laneKey}::${hub}`, r.report_date, tot, ont); }
+    const i = index.get(periodOf(r.report_date, mode));
+    if (i === undefined) return;
     daysInPeriod[i].add(r.report_date);
     all[i].tot += tot; all[i].ont += ont;
     const l = bucket(laneStats, laneKey)[i]; l.tot += tot; l.ont += ont;
@@ -73,10 +91,40 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
     const hubs = [...hubNames.values()].filter(h => h.laneKey === key)
       .map(h => ({ id: h.id, name: h.name, stats: hubStats.get(h.id).map(toStat), vol: volume(hubStats.get(h.id)) }))
       .sort((a, b) => b.vol - a.vol);
-    return { region: label, stats: laneStats.get(key).map(toStat), hubs, hubCount: hubs.length };
+    return { region: label, laneKey: key, stats: laneStats.get(key).map(toStat), hubs, hubCount: hubs.length };
   });
 
   const allStats = all.map(toStat);
+
+  // So sánh của ngày mới nhất: WTD (thứ Hai -> ngày mới nhất), chênh so với ngày tốt nhất trong 6 tuần trước
+  // (cùng thứ) và so với cùng ngày tháng trước. Thiếu mẫu số thì null, không coi là 0.
+  const latest = periods[periods.length - 1];
+  const bench = key => {
+    const m = series.get(key) || new Map();
+    const pctOn = day => { const v = m.get(day); return v && v.tot > 0 ? (v.ont / v.tot) * 100 : null; };
+    const wtd = { tot: 0, ont: 0 };
+    for (let d = mondayOf(latest); d <= latest; d = addDays(d, 1)) { const v = m.get(d); if (v) { wtd.tot += v.tot; wtd.ont += v.ont; } }
+    const cur = pctOn(latest);
+    const prior = [1, 2, 3, 4, 5, 6].map(k => pctOn(addDays(latest, -7 * k))).filter(v => v !== null);
+    const best = prior.length ? Math.max(...prior) : null;
+    const same = pctOn(sameDayLastMonth(latest));
+    return { wtd: toStat(wtd), diffBest: cur !== null && best !== null ? cur - best : null, diffSame: cur !== null && same !== null ? cur - same : null };
+  };
+  if (useBench) {
+    regions.forEach(reg => {
+      reg.bench = bench(`l:${reg.laneKey}`);
+      reg.hubs.forEach(h => { h.bench = bench(`h:${h.id}`); });
+    });
+  }
+  const groups = [];
+  if (useBench) {
+    periods.forEach(p => {
+      const monday = mondayOf(p);
+      const last = groups[groups.length - 1];
+      if (last && last.key === monday) last.span += 1;
+      else groups.push({ key: monday, span: 1, title: getReportWeekLabel(monday) });
+    });
+  }
   return {
     metric,
     weeks: periods.map((start, i) => ({
@@ -85,6 +133,7 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
     })),
     all: allStats,
     miens: regions.length ? [{ mien: null, stats: allStats, regions }] : [],
+    ...(useBench ? { groups, allBench: bench('all') } : {}),
     maxPct: 0,
     empty: allStats.every(s => s.tot === 0)
   };

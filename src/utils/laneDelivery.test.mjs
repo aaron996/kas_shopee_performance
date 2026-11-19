@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildLaneMatrix, laneDeliveryPeriods, mondayOf, normalizeLaneDeliveryRows, scopeLaneRowsByHubType
+  buildLaneMatrix, laneDeliveryPeriods, mondayOf, normalizeLaneDeliveryRows, sameDayLastMonth, scopeLaneRowsByHubType
 } from './laneDelivery.js';
 
 const rows = normalizeLaneDeliveryRows([
@@ -81,4 +81,35 @@ test('hub type filter only applies when the user narrowed the selection', () => 
   // Người dùng thu hẹp: lọc đúng theo lựa chọn; bỏ hết thì rỗng.
   assert.deepEqual(scopeLaneRowsByHubType(data, ['BC', 'KA'], true).map(r => r.hub_type), ['BC', 'KA']);
   assert.equal(scopeLaneRowsByHubType(data, [], true).length, 0);
+});
+
+test('sameDayLastMonth clamps to the last day of a shorter month', () => {
+  assert.equal(sameDayLastMonth('2026-11-18'), '2026-10-18');
+  assert.equal(sameDayLastMonth('2026-03-31'), '2026-02-28');
+  assert.equal(sameDayLastMonth('2026-01-15'), '2025-12-15');
+});
+
+test('benchmark layout: week groups, WTD, best of 6 same weekdays, same day last month', () => {
+  // Mỗi ngày từ 18/10 đến 18/11/2026 (T4); % 1st = 50 + (số ngày kể từ 18/10) -> tăng dần, mẫu 100/ngày.
+  const data = [];
+  for (let i = 0; i <= 31; i++) {
+    const date = new Date(Date.UTC(2026, 9, 18 + i)).toISOString().slice(0, 10);
+    data.push({ report_date: date, lane: 'Intra city', client_name: 'SPB', hub_type: 'BC', mau_deli: 100, ontime_deli_1st: 50 + i, ontime_deli_odr: 40 });
+  }
+  const all = normalizeLaneDeliveryRows(data);
+  const dates = laneDeliveryPeriods(all, { client: 'SPB', mode: 'day' });
+  const periods = dates.filter(d => d >= '2026-11-09');
+  const m = buildLaneMatrix({ rows: all, metricKey: 'd1st', client: 'SPB', mode: 'day', periods, benchmark: true });
+  assert.deepEqual(m.groups.map(g => [g.key, g.span]), [['2026-11-09', 7], ['2026-11-16', 3]]);
+  assert.match(m.groups[0].title, /Tuần 46/);
+  const lane = m.miens[0].regions[0];
+  assert.equal(lane.bench.wtd.tot, 300); // 16, 17, 18/11
+  assert.equal(lane.bench.wtd.ont, 50 + 29 + 50 + 30 + 50 + 31);
+  // 18/11 = 81%; cùng thứ 11/11 (74), 4/11 (67), 28/10 (60), 21/10 (53) -> tốt nhất 74.
+  assert.equal(lane.bench.diffBest, 81 - 74);
+  assert.equal(lane.bench.diffSame, 81 - 50 - 0); // 18/10 = 50%
+  assert.equal(lane.hubs[0].bench.diffBest, 7);
+  assert.equal(m.allBench.diffBest, 7);
+  // Không bật benchmark thì không có nhóm/so sánh.
+  assert.equal(buildLaneMatrix({ rows: all, metricKey: 'd1st', client: 'SPB', mode: 'day', periods }).groups, undefined);
 });
