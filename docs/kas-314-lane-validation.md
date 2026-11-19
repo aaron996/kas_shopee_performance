@@ -84,3 +84,15 @@ Bản đầu dùng bảng riêng và nút mặc định, không có Theo ngày /
 - Chờ dữ liệu dùng `LoadingScreen` trong khung bảng; lỗi báo kèm Thử lại và giữ số cũ khi có; rỗng chỉ báo sau khi tải xong. Header có tiêu đề "Lane".
 - Chưa có Theo tháng: bảng lane mới có khoảng 9 tuần dữ liệu.
 
+### Theo ngày: bố cục giống Chi tiết Vùng/Hub
+
+Mặc định (chưa chọn khoảng ngày) bảng hiện tuần trước (W-1) và tuần hiện tại theo từng ngày, ngày mới nhất có thêm Vol,
+rồi cột WTD (cộng dồn từ thứ Hai), Tốt nhất 6 tuần và Cùng ngày tháng trước. Chọn khoảng ngày thì quay về bảng theo ngày
+thường có nút Volume, giống Chi tiết Vùng/Hub.
+
+Bảng lane chỉ có dữ liệu ngày nên hai cột so sánh tự tính, không có cột benchmark của DB:
+- **Tốt nhất 6 tuần** = % ngày mới nhất trừ % cao nhất trong 6 lần cùng thứ trước đó (D-1 − 7k, k = 1..6, bỏ ngày không có mẫu).
+- **Cùng ngày tháng trước** = % ngày mới nhất trừ % cùng ngày dương lịch tháng trước (tháng ngắn hơn lấy ngày cuối tháng).
+- Thiếu mẫu số ở ngày so sánh thì hiện `–`, không coi là 0. Cần đủ 8 tuần dữ liệu để các mốc nằm trong bảng.
+- Định nghĩa này là giả định; `best_l6w_*` của Chi tiết Vùng/Hub do query nguồn tính (46 ngày) nên có thể lệch nhẹ về cách chọn ngày.
+
