@@ -54,3 +54,11 @@ Chạy `deli_lane_daily_8w.sql` (bọc cộng theo client) và đối chiếu v�
 | SPB | 4.213.217 | 3.989.951 | 3.716.750 | 675 / 68.076 |
 
 Lane rỗng = 0. SPE có 5 lane và 5 loại hub, SPB có 5 lane và 4 loại hub. Query lane chạy 41 giây, query tuần 1 phút 19 giây (mỗi query chạy một lần). Kết quả 452 + 675 = 1.127 dòng, nằm trong giới hạn 20.000 dòng/lô của RPC.
+
+### Cài script và dryRun (2026-11-19)
+
+`lane-deli-sync.gs` đã được thêm vào project Apps Script `auto` (file `lane-deli-sync.gs`, các file khác không đổi). Tab `lane_deli_tmp` được nạp thử bằng kết quả SQL cuộn (1.127 dòng, lấy từ Superset qua một ô `group_concat` rồi dán vào A1); job #1022 khi chạy sẽ ghi đè tab này.
+
+`dryRunLaneDeli()` chạy xong, không lỗi, không gọi Supabase: 1.127 dòng, cửa sổ 2026-09-21..2026-11-18 (9 tuần), tổng theo client khớp query tuần (SPE 15.469.703 / 14.865.381 / 13.793.978; SPB 4.213.217 / 3.989.951 / 3.716.750). `syncLaneDeli()` chưa chạy, bảng `kas_deli_lane_daily` vẫn rỗng.
+
+Lưu ý khi nạp dữ liệu từ Superset: API xuất CSV và token CSRF bị chặn với script, nút Export tải file về máy; `group_concat` trong StarRocks dùng dấu phân cách mặc định `,` (tham số thứ hai chỉ nối thêm vào chuỗi), nên mỗi dòng sau dòng đầu có thêm dấu `,` ở đầu cần bỏ.
