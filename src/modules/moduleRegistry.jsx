@@ -44,13 +44,13 @@ export const moduleRegistry = Object.freeze([
     id: 'report5',
     requiredDatasets: ['ca1'],
     motionIcon: 'ArrowRightLeft',
-    description: 'Ca 1 theo lane vận hành',
-    label: '% Ca 1 theo lane',
-    mobileLabel: '% Ca 1',
+    description: '1st Deli, ODR và % Ca 1 theo lane vận hành',
+    label: 'Lane',
+    mobileLabel: 'Lane',
     icon: ArrowRightLeft,
     group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
-    surface: startupSurface(() => import('../components/Report5LaneCa1.jsx'))
+    surface: startupSurface(() => import('./lane/LaneReport.jsx'))
   },
   {
     id: 'report3',
