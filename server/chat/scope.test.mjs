@@ -90,7 +90,7 @@ test('normalizeToolScope: injects screenContext when tool call lacks scope in op
   const effectiveScope = resolveEffectiveScope({
     question: 'Tình hình P1ST thế nào?',
     query: null,
-    screenContext: { client: 'SPE', regions: ['HCM - KA'], hubTypes: ['LM'] }
+    screenContext: { client: 'SPE', regions: ['HCM - KHL'], hubTypes: ['LM'] }
   });
 
   // Open-ended tool call with missing client, regions, hub_types, grain, limit, sort
@@ -98,8 +98,8 @@ test('normalizeToolScope: injects screenContext when tool call lacks scope in op
 
   assert.equal(normalized.metric, 'p1st');
   assert.equal(normalized.client, 'SPE');
-  assert.deepEqual(normalized.regions, ['HCM - KA']);
-  assert.deepEqual(normalized.rpcRegions, ['HCM - KA']);
+  assert.deepEqual(normalized.regions, ['HCM - KHL']);
+  assert.deepEqual(normalized.rpcRegions, ['HCM - KHL']);
   assert.deepEqual(normalized.hub_types, ['LM']);
   assert.deepEqual(normalized.rpcHubTypes, ['LM']);
   assert.equal(normalized.grain, 'nationwide');

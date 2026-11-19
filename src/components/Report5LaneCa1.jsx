@@ -101,9 +101,9 @@ export default function Report5LaneCa1({ ca1Rows = [], density, isFullscreen, se
   const getProvinceMap = (reg) => {
     const map = {
       'HCM': 'Hồ Chí Minh',
-      'HCM - KA': 'Hồ Chí Minh',
+      'HCM - KHL': 'Hồ Chí Minh',
       'HNO': 'Hà Nội',
-      'HNO - KA': 'Hà Nội',
+      'HNO - KHL': 'Hà Nội',
       'TTB': 'Đà Nẵng',
       'DBB': 'Hải Phòng',
       'DNB': 'Đồng Nai',

@@ -4,7 +4,7 @@
  * opsHistoryShift_ của ops-history-sync.gs).
  *
  * BI ghi một ảnh backlog hằng ngày vào tab reverse_backlog với header: snapshot_date, client_name, region, hub_type,
- * assign_bucket (0 | 1-2 | 3+), age_bucket (1-3 | 4-7 | 8-14), backlog_orders. Tổ hợp không có đơn có thể vắng mặt (= 0).
+ * assign_bucket (0 | 1-2 | 3+), age_bucket (1-3 | 4-7 | 8-14), backlog_orders, wh_id (mã kho, có thể thiếu ở snapshot cũ). Tổ hợp không có đơn có thể vắng mặt (= 0).
  * Chạy syncReverseBacklog() sau khi BI đổ tab (trigger hằng ngày bằng createReverseBacklogDailyTrigger()).
  * Mỗi snapshot_date trong tab được thay trọn vẹn; các ngày snapshot khác trong bảng giữ nguyên để so sánh tuần trước.
  * Tab phải có đúng một snapshot_date là hôm nay hoặc hôm qua, nếu không thì không ghi gì.
@@ -16,7 +16,7 @@ const REVERSE_BACKLOG_ASSIGN = ['0', '1-2', '3+'];
 const REVERSE_BACKLOG_AGE = ['1-3', '4-7', '8-14'];
 const REVERSE_BACKLOG_COLUMNS = [
   {name:'snapshot_date',type:'date'},{name:'client_name',type:'text'},{name:'region',type:'text'},{name:'hub_type',type:'text'},
-  {name:'assign_bucket',type:'text'},{name:'age_bucket',type:'text'},{name:'backlog_orders',type:'numeric'}
+  {name:'assign_bucket',type:'text'},{name:'age_bucket',type:'text'},{name:'backlog_orders',type:'numeric'},{name:'wh_id',type:'text'}
 ];
 
 /**

@@ -1,7 +1,7 @@
 // Backlog L14D của SPE Reverse: ảnh chụp theo ngày, chia theo số lần gán x tuổi tồn x vùng.
 // Nguồn: RPC get_kas_reverse_backlog (bảng kas_reverse_backlog, nuôi từ tab reverse_backlog của sheet OPS).
 // Dòng vắng mặt trong một ảnh nghĩa là 0 đơn của tổ hợp đó; chưa có ảnh nào là "chưa có dữ liệu", không phải 0.
-import { matchesRegionScope, getHubType } from './dataProcessor.js';
+import { matchesRegionScope, getHubType, khlRegionOf, canonicalHubType, KHL_HUB_TYPE } from './dataProcessor.js';
 import { REVERSE_CLIENT } from './clientLabels.js';
 
 export const ASSIGN_SEGMENTS = [
@@ -20,7 +20,13 @@ export const BACKLOG_WINDOW_DAYS = 14;
 let cache = null;
 export const clearReverseBacklogCache = () => { cache = null; };
 
-const expand = (cols, rows) => rows.map(values => Object.fromEntries(cols.map((col, i) => [col, values[i]])));
+// Loại Hub và vùng của dòng backlog: kho KHL nhận theo mã kho (wh_id, nếu snapshot đã có) và về vùng KHL riêng; còn lại đổi nhãn viết tắt
+// của BI (KD, AHM, KA) sang tên của bộ lọc "Loại Hub", để lọc khớp với các bảng khác.
+const expand = (cols, rows) => rows.map(values => {
+  const row = Object.fromEntries(cols.map((col, i) => [col, values[i]]));
+  const khlRegion = khlRegionOf({ wh_id: row.wh_id });
+  return khlRegion ? { ...row, hub_type: KHL_HUB_TYPE, region: khlRegion } : { ...row, hub_type: canonicalHubType(row.hub_type) || null };
+});
 
 export function fetchReverseBacklog(client) {
   if (!cache) {

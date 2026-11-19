@@ -63,3 +63,23 @@ test('fetch validates the payload, caches, and retries after an error', async ()
   assert.equal(empty.snapshotDate, null, 'chưa có snapshot được phân biệt với backlog bằng 0');
   clearReverseBacklogCache();
 });
+
+test('backlog hub types match the Loại Hub filter names: KHL by warehouse id, other labels renamed', async () => {
+  clearReverseBacklogCache();
+  const withId = ['region', 'hub_type', 'wh_id', 'assign_bucket', 'age_bucket', 'backlog_orders'];
+  const payload = { snapshot_date: '2026-11-19', prev_snapshot_date: null, cols: withId, prev_rows: [], rows: [
+    ['HNO', 'BC', '1124', '0', '1-3', 100], ['HNO', 'KD', '2001', '0', '1-3', 20], ['HNO', 'AHM', '3001', '0', '1-3', 7],
+    ['HNO', 'KHL', '23013000', '0', '1-3', 3], ['HCM', 'BC', '23142001', '0', '1-3', 5], ['HNO', 'GXT', '4001', '0', '1-3', 1],
+    ['HNO', 'BC', null, '0', '1-3', 2], ['HNO', 'KA', null, '0', '1-3', 4]
+  ] };
+  const result = await fetchReverseBacklog({ rpc: async () => ({ data: payload, error: null }) });
+  assert.deepEqual(result.rows.map(r => r.hub_type), ['BC', 'BC KD', 'Ahamove', 'KHL', 'KHL', 'GXT', 'BC', 'KHL'], 'BI gắn BC cho kho 23142001 nhưng app vẫn xếp KHL theo mã kho');
+  const types = ['BC', 'GXT', 'BC KD', 'KHL', 'Ahamove'];
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: types }).total, 142, 'chọn tất cả không mất dòng nào');
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['BC KD'] }).total, 20);
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['Ahamove'] }).total, 7);
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['KHL'] }).total, 12);
+  assert.equal(buildBacklogModel({ data: result, selectedRegions: all, selectedHubTypes: ['BC'] }).total, 102);
+  assert.deepEqual(result.rows.filter(r => r.hub_type === 'KHL' && r.wh_id).map(r => r.region), ['HNO - KHL', 'HCM - KHL'], 'kho KHL có mã về vùng KHL riêng');
+  clearReverseBacklogCache();
+});

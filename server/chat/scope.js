@@ -12,8 +12,8 @@ const DASHBOARD_REGIONS = [...new Set(Object.values(MIEN_REGIONS).flat())]
   .sort((a, b) => b.region.length - a.region.length);
 
 const REGION_PATTERNS = [
-  { re: /\b(hcm\s*-\s*ka)\b/i, region: 'HCM - KA' },
-  { re: /\b(hno\s*-\s*ka|hn\s*-\s*ka)\b/i, region: 'HNO - KA' },
+  { re: /\b(hcm\s*-\s*(?:khl|ka))\b/i, region: 'HCM - KHL' },
+  { re: /\b((?:hno|hn)\s*-\s*(?:khl|ka))\b/i, region: 'HNO - KHL' },
   { re: /\b(hcm|hồ chí minh|tp\.?\s*hcm)\b/i, region: 'HCM' },
   { re: /\b(hà nội|ha noi|hni|hno|hn)\b/i, region: 'HN' },
   { re: /\b(đnb|dnb|đông nam bộ|dong nam bo)\b/i, region: 'ĐNB' },

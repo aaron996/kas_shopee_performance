@@ -16,15 +16,32 @@ const HUB_TYPE_KEYS = ['hub type', 'Hub Type', 'hub_type', 'Hub_Type', 'hubType'
 // is decided by the hub itself. "(HNO) LH Long Biên" is the renamed "Key
 // Account Warehouse Ha Noi" and still arrives as hub_type = BC.
 // Keep in sync with public.get_ai_chat_metric (AI chat backend).
-const KA_HUB_REGIONS = {
-  'key account warehouse ho chi minh': 'HCM - KA',
-  '(hno) lh long biên': 'HNO - KA',
+// Danh sách kho KHL (Key Account / khách hàng lớn, trước đây là "KA") — một nguồn duy nhất cho mã kho, tên và vùng. App phân loại KHL
+// theo mã kho, không dựa vào nhãn BI (nhãn BC/KA hay đổi); kho chưa có mã thì nhận theo tên. Áp dụng cho mọi client (SPB, SPE,
+// Reverse) và mọi nguồn dữ liệu. Muốn thêm/bớt kho KHL: sửa danh sách này và danh sách tên trong supabase/migrations/…chat_metric_khl.sql.
+export const KHL_HUB_TYPE = 'KHL';
+export const KHL_HUBS = [
+  { id: '1327', name: 'Key Account Warehouse Ho Chi Minh', region: 'HCM - KHL' },
+  { id: '23013000', name: '(HNO) LH Long Biên', region: 'HNO - KHL' },
+  { id: '23142000', name: '(LAN) LH Đức Lập', region: 'HCM - KHL' },
+  { id: '23142001', name: '(HCM) LH Củ Chi', region: 'HCM - KHL' },
+  { id: '23142002', name: '(HCM) ĐL Nhuận Đức', region: 'HCM - KHL' },
+  { id: '23142003', name: '(HCM) ĐL Xuân Thới Sơn 1', region: 'HCM - KHL' },
+  { id: '23142004', name: '(HCM) ĐL Bình Hưng Hòa', region: 'HCM - KHL' }
+];
+export const KHL_WAREHOUSE_IDS = new Set(KHL_HUBS.map(hub => hub.id));
+const KHL_REGION_BY_ID = new Map(KHL_HUBS.map(hub => [hub.id, hub.region]));
+const KHL_REGION_BY_NAME = new Map(KHL_HUBS.map(hub => [hub.name.normalize('NFC').toLowerCase(), hub.region]));
+
+// Vùng riêng của kho KHL: theo mã kho nếu dòng có mã, không thì theo tên; undefined nếu không phải kho KHL.
+export const khlRegionOf = ({ wh_id: whId, hub, deliverywh } = {}) => {
+  const id = String(whId ?? '').trim();
+  return id ? KHL_REGION_BY_ID.get(id) : KHL_REGION_BY_NAME.get(String(hub ?? deliverywh ?? '').normalize('NFC').trim().toLowerCase());
 };
 
 // Fallback for a KA hub not listed above: keep it next to its city.
-const KA_REGION_BY_REGION = { HCM: 'HCM - KA', HNO: 'HNO - KA' };
+const KA_REGION_BY_REGION = { HCM: 'HCM - KHL', HNO: 'HNO - KHL' };
 
-const normalizeHubName = (name) => String(name || '').normalize('NFC').trim().toLowerCase();
 
 // "CK" hubs, reported as their own Loại Hub (hub type) and, in HCM / HNO, as
 // their own vùng ("HCM - CK" / "HNO - CK", like the KA vùng) — same rule as the
@@ -61,7 +78,7 @@ export function reassignKaRegion(rows) {
   if (!rows) return rows;
   return rows.map(r => {
     if (!r) return r;
-    const kaHubRegion = KA_HUB_REGIONS[normalizeHubName(r.hub ?? r.deliverywh)];
+    const kaHubRegion = khlRegionOf(r);
     if (kaHubRegion) {
       const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
       return { ...r, [typeKey]: 'KA', region: kaHubRegion };
@@ -104,7 +121,28 @@ export function reassignGxtMienRegion(rows) {
 }
 
 // What every dashboard view runs the raw sheet rows through.
-export const normalizeDashboardRows = (rows) => reassignGxtMienRegion(reassignKaRegion(rows));
+export const isKhlWarehouse = row => khlRegionOf(row) !== undefined;
+
+// Nhãn viết tắt của bảng backlog Reverse (BI đổ riêng) quy về tên của bộ lọc "Loại Hub".
+export const HUB_TYPE_ALIASES = { KD: 'BC KD', AHM: 'Ahamove', KA: KHL_HUB_TYPE, KHL: KHL_HUB_TYPE };
+export const canonicalHubType = raw => {
+  const value = String(raw ?? '').trim();
+  return HUB_TYPE_ALIASES[value.toUpperCase()] ?? value;
+};
+
+// Chạy cuối cùng, sau reassignKaRegion/reassignGxtMienRegion (hai bước đó còn nhận diện loại "KA" và đặt vùng KHL).
+export function applyHubTypeRules(rows) {
+  if (!rows) return rows;
+  return rows.map(r => {
+    if (!r) return r;
+    const khl = isKhlWarehouse(r) || String(getHubType(r)).trim().toUpperCase() === 'KA';
+    if (!khl) return r;
+    const typeKey = HUB_TYPE_KEYS.find(k => r[k]) || 'hub_type';
+    return r[typeKey] === KHL_HUB_TYPE ? r : { ...r, [typeKey]: KHL_HUB_TYPE };
+  });
+}
+
+export const normalizeDashboardRows = (rows) => applyHubTypeRules(reassignGxtMienRegion(reassignKaRegion(rows)));
 
 // The dashboard's Vùng / Loại Hub filter. Ca1 rows carry their vùng in
 // `vung_giao` instead of `region`.
