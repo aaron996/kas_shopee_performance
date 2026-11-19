@@ -32,7 +32,7 @@ Query lane ra 241 dòng (SPE, 4 loại hub) và 353 dòng (SPB, 3 loại hub).
 - Cùng loại query, cận 14/9: 2 phút 37 giây (một lần chạy, chưa lặp lại nên chưa tách được ảnh hưởng của cache).
 - Query lane đầy đủ (bọc cộng theo client), cận 17 ngày: 1 phút 38 giây.
 
-## Script sync (đề xuất, chưa chạy)
+## Script sync
 
 `scripts/apps-script/lane-deli-sync.gs`: đọc tab `lane_deli_tmp`, kiểm cửa sổ ngày, lane/client hợp lệ, khoá không trùng, rồi gửi từng tuần vào `upsert_kas_deli_lane_daily`. Có `dryRunLaneDeli()` chỉ log tổng theo client/tuần để đối chiếu. Không dùng lại `opsHistoryUpsert_` vì RPC lane trả `{received, changed}`.
 
@@ -59,6 +59,18 @@ Lane rỗng = 0. SPE có 5 lane và 5 loại hub, SPB có 5 lane và 4 loại hu
 
 `lane-deli-sync.gs` đã được thêm vào project Apps Script `auto` (file `lane-deli-sync.gs`, các file khác không đổi). Tab `lane_deli_tmp` được nạp thử bằng kết quả SQL cuộn (1.127 dòng, lấy từ Superset qua một ô `group_concat` rồi dán vào A1); job #1022 khi chạy sẽ ghi đè tab này.
 
-`dryRunLaneDeli()` chạy xong, không lỗi, không gọi Supabase: 1.127 dòng, cửa sổ 2026-09-21..2026-11-18 (9 tuần), tổng theo client khớp query tuần (SPE 15.469.703 / 14.865.381 / 13.793.978; SPB 4.213.217 / 3.989.951 / 3.716.750). `syncLaneDeli()` chưa chạy, bảng `kas_deli_lane_daily` vẫn rỗng.
+`dryRunLaneDeli()` chạy xong, không lỗi, không gọi Supabase: 1.127 dòng, cửa sổ 2026-09-21..2026-11-18 (9 tuần), tổng theo client khớp query tuần (SPE 15.469.703 / 14.865.381 / 13.793.978; SPB 4.213.217 / 3.989.951 / 3.716.750). Sau đó `syncLaneDeli()` đã chạy (xem mục dưới).
 
 Lưu ý khi nạp dữ liệu từ Superset: API xuất CSV và token CSRF bị chặn với script, nút Export tải file về máy; `group_concat` trong StarRocks dùng dấu phân cách mặc định `,` (tham số thứ hai chỉ nối thêm vào chuỗi), nên mỗi dòng sau dòng đầu có thêm dấu `,` ở đầu cần bỏ.
+
+### Đẩy dữ liệu vào Supabase (2026-11-19)
+
+`syncLaneDeli()` chạy xong không lỗi: 9 lô theo tuần (125–133 dòng/lô), mỗi lô RPC nhận và đổi đủ số dòng gửi lên. Truy vấn lại `kas_deli_lane_daily` sau khi chạy khớp nguồn từng chỉ số, lane rỗng = 0:
+
+| Client | Số dòng | mau_deli | ontime_deli_1st | ontime_deli_odr |
+|---|---|---|---|---|
+| SPE | 452 | 15.469.703 | 14.865.381 | 13.793.978 |
+| SPB | 675 | 4.213.217 | 3.989.951 | 3.716.750 |
+
+Chưa có trigger tự động: bảng chỉ được làm mới khi chạy lại `syncLaneDeli()` sau khi datajob #1022 (khi được duyệt) ghi tab `lane_deli_tmp`.
+
