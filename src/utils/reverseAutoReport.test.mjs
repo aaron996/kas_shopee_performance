@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReverseSheet, buildPudTables, buildBacklogTable, hubNamesByWhId, pudRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
+import { buildReverseSheet, buildOprTables, buildBacklogTable, hubNamesByWhId, oprRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
 
-const hist = (report_date, region, hub, hub_type, mau_pu, pud, wh_id = null) => ({ report_date, region, hub, hub_type, client_name: 'SPE Reverse', mau_pu, pud, wh_id });
+const hist = (report_date, region, hub, hub_type, mau_pu, opr, wh_id = null) => ({ report_date, region, hub, hub_type, client_name: 'SPE Reverse', mau_pu, ontime_pu_opr: opr, pud: 999, wh_id });
 const day = n => `2026-11-${String(n).padStart(2, '0')}`;
 
-test('% PUD is pud / mau_pu, not capped at 100%, and null when there is no sample', () => {
-  assert.equal(pudRateOf(100, 85), 85);
-  assert.equal(pudRateOf(20, 24), 120, 'không chặn 100%');
-  assert.equal(pudRateOf(0, 5), null);
+test('% OPR is ontime_pu_opr / mau_pu and null when there is no sample', () => {
+  assert.equal(oprRateOf(100, 85), 85);
+  assert.equal(oprRateOf(0, 5), null);
 });
 
 test('province comes from the code in the hub name (BDU joins HCM, VPH joins Phú Thọ, unknown codes stay visible)', () => {
@@ -35,7 +34,7 @@ test('three sections: by hub type, BC KD by province, by region; each Tổng cou
     hist(day(1), 'HCM', '(HCM) A', 'BC', 40, 30),
     hist(day(2), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 0, 0)
   ];
-  const t = buildPudTables(rows);
+  const t = buildOprTables(rows);
   assert.deepEqual(t.dates, [day(1), day(2)]);
   assert.deepEqual(t.sections.map(s => s.key), ['partner', 'province', 'region']);
 
@@ -46,7 +45,7 @@ test('three sections: by hub type, BC KD by province, by region; each Tổng cou
   assert.equal(partner.rows[2].vol7, 15, 'vol7 = tổng đơn mới cả cửa sổ');
   assert.equal(partner.total.vol7, 105);
   assert.equal(partner.total.cells[0].vol, 105);
-  assert.equal(partner.total.cells[0].pud, 74);
+  assert.equal(partner.total.cells[0].opr, 74);
 
   const province = section(t, 'province');
   assert.deepEqual(province.rows.map(r => r.label), ['Hà Nội', 'Hồ Chí Minh'], 'tỉnh theo vol giảm dần');
@@ -66,7 +65,7 @@ test('regions follow the dashboard normalisation; KHL, GXT and unknown regions f
     hist(day(1), 'N/A', 'C', 'BC', 2, 1),
     hist(day(1), 'TNG', 'D', 'BC', 0, 0)
   ];
-  const t = buildPudTables(rows);
+  const t = buildOprTables(rows);
   const region = section(t, 'region');
   assert.deepEqual(region.rows.map(r => r.label), ['HNO', 'Khác']);
   assert.equal(region.rows[1].cells[0].vol, 7);
@@ -104,6 +103,13 @@ test('a hub whose only backlog is older than 7 days is not listed', () => {
   assert.deepEqual(table.rows.map(r => r.whId), ['1']);
   assert.equal(table.hubCount, 1);
   assert.equal(table.total.total, 3);
+});
+
+test('backlog rows are sorted by Gán 0 descending, ties by total', () => {
+  const b = (wh_id, assign_bucket, backlog_orders) =>
+    ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type: 'KD', assign_bucket, age_bucket: '1-3', backlog_orders, wh_id });
+  const table = buildBacklogTable([b('A', '0', 5), b('A', '3+', 50), b('B', '0', 9), b('C', '0', 5), b('C', '3+', 60), b('D', '1-2', 99)], []);
+  assert.deepEqual(table.rows.map(r => r.whId), ['B', 'C', 'A', 'D'], 'g0: B 9, C 5 (total 65), A 5 (total 55), D 0');
 });
 
 test('hubNamesByWhId takes the latest name per wh_id', () => {

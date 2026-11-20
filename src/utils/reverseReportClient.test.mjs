@@ -9,7 +9,7 @@ test('empty payload yields no tables and no backlog (shown as real empty states)
 });
 
 test('history payload builds the % PUD / vol tables', () => {
-  const columns = ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'pud', 'wh_id'];
+  const columns = ['report_date', 'region', 'hub', 'hub_type', 'client_name', 'mau_pu', 'ontime_pu_opr', 'wh_id'];
   const model = buildReverseReportModel({
     history: { columns, rows: [['2026-11-19', 'HCM', 'Kho A', 'BC KD', 'SPE Reverse', 10, 8, '1']] },
     backlog: { columns: [], rows: [] }

@@ -1,5 +1,5 @@
 // Báo cáo tự động SPE Reverse (gửi Telegram bằng ảnh chụp của /snapshot, xem docs/reverse-auto-report.md).
-// Hai nguồn: kas_reverse_history (% PUD, vol theo ngày) và kas_reverse_backlog (ảnh backlog hằng ngày). Logic nằm ở đây,
+// Hai nguồn: kas_reverse_history (% OPR, vol theo ngày) và kas_reverse_backlog (ảnh backlog hằng ngày). Logic nằm ở đây,
 // thuần hàm, để /snapshot và tab "Báo cáo tự động" dùng chung và test được.
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset.js';
 import { normalizeDashboardRows, getHubType, canonicalHubType, khlRegionOf, KHL_HUB_TYPE } from './dataProcessor.js';
@@ -19,9 +19,9 @@ const regionOf = row => {
   return !region || region.toUpperCase() === 'N/A' ? '' : region;
 };
 
-// % PUD (pickup done) = pud / mau_pu, cùng định nghĩa PUD của app (src/data/metricGlossary.js, #265). Không chặn 100%:
-// pud gồm cả đơn tồn từ ngày trước được lấy trong ngày nên có thể vượt mẫu; mẫu bằng 0 thì không có tỷ lệ (null, hiện "–").
-export const pudRateOf = (vol, pud) => (vol > 0 ? (pud / vol) * 100 : null);
+// % OPR = ontime_pu_opr / mau_pu, cùng định nghĩa OPR của app (src/data/metricGlossary.js). Đúng chỉ số của file mẫu KA
+// ("Ontime Success"): tổng 05/11 ra 42,45% so với 42,48% của KA. Không vượt 100%; mẫu bằng 0 thì không có tỷ lệ (null, hiện "–").
+export const oprRateOf = (vol, opr) => (vol > 0 ? (opr / vol) * 100 : null);
 
 // Mã tỉnh trong tên kho BC KD, ví dụ "(HNO) KD Cầu Giấy" → Hà Nội. Theo địa giới sau sáp nhập: Bình Dương → TP.HCM,
 // Vĩnh Phúc → Phú Thọ. Mã lạ thì hiện nguyên mã để người xem thấy và bổ sung vào đây.
@@ -39,8 +39,8 @@ export const provinceOfHub = hub => {
 const PARTNER_ORDER = ['AHM', 'BC', 'BC KD', 'GXT', KHL_HUB_TYPE];
 const partnerLabel = type => (type === AHM_HUB_TYPE ? 'AHM' : type);
 
-const emptyCell = () => ({ vol: 0, pud: 0 });
-const addTo = (cell, row) => { cell.vol += num(row.mau_pu); cell.pud += num(row.pud); };
+const emptyCell = () => ({ vol: 0, opr: 0 });
+const addTo = (cell, row) => { cell.vol += num(row.mau_pu); cell.opr += num(row.ontime_pu_opr); };
 
 /** 7 ngày gần nhất có trong dữ liệu (dữ liệu đã tính đến D-1). */
 export function reportDates(historyRows, days = REPORT_DAYS) {
@@ -48,11 +48,11 @@ export function reportDates(historyRows, days = REPORT_DAYS) {
 }
 
 /**
- * % PUD và vol theo ngày, cùng cấu trúc báo cáo KA yêu cầu: (1) theo loại Hub, (2) BC KD theo tỉnh, (3) Nationwide theo vùng.
+ * % OPR và vol theo ngày, cùng cấu trúc báo cáo KA yêu cầu: (1) theo loại Hub, (2) BC KD theo tỉnh, (3) Nationwide theo vùng.
  * Mỗi mục có dòng Tổng cộng từ chính các dòng nguồn của mục đó. Vùng và loại Hub đi qua bước chuẩn hoá của dashboard
  * (KHL, CK, GXT theo miền); vùng con của KHL/CK/GXT và đơn chưa rõ vùng gộp vào dòng "Khác" của mục vùng để dòng Tổng khớp.
  */
-export function buildPudTables(historyRows, { days = REPORT_DAYS } = {}) {
+export function buildOprTables(historyRows, { days = REPORT_DAYS } = {}) {
   const dates = reportDates(historyRows, days);
   const inWindow = new Set(dates);
   const rows = normalizeDashboardRows(historyRows.filter(row => inWindow.has(row.report_date)));
@@ -77,8 +77,8 @@ export function buildPudTables(historyRows, { days = REPORT_DAYS } = {}) {
   });
 
   const volOf = group => group.cells.reduce((acc, cell) => acc + cell.vol, 0);
-  // vol7: tổng đơn mới cả cửa sổ, hiện ở cột "Vol 7N" cạnh % PUD.
-  const finish = group => ({ ...group, vol7: volOf(group), cells: group.cells.map(cell => ({ ...cell, rate: pudRateOf(cell.vol, cell.pud) })) });
+  // vol7: tổng đơn mới cả cửa sổ, hiện ở cột "Vol 7N" cạnh % OPR.
+  const finish = group => ({ ...group, vol7: volOf(group), cells: group.cells.map(cell => ({ ...cell, rate: oprRateOf(cell.vol, cell.opr) })) });
   const rank = (order, label) => { const i = order.indexOf(label); return i < 0 ? order.length : i; };
   const finishSection = (section, sorter, totalLabel) => ({
     key: section.key,
@@ -117,7 +117,7 @@ export function hubNamesByWhId(historyRows) {
 /**
  * Gán lấy BC KD của snapshot mới nhất: đơn chưa lấy thành công có tuổi tồn ≤ 7 ngày (1-3 và 4-7), chia theo số lần gán lấy
  * (0 / 1-2 / 3+ của job backlog); `total` = cộng ba nhóm = backlog tuyệt đối của kho. Kho chỉ còn đơn tồn quá 7 ngày không hiện.
- * Mặc định liệt kê mọi kho (xếp theo total giảm dần); `top` chỉ cắt danh sách hiển thị, dòng Tổng luôn là của mọi kho BC KD.
+ * Mặc định liệt kê mọi kho (xếp theo Gán 0 giảm dần, cùng g0 thì theo total); `top` chỉ cắt danh sách hiển thị, dòng Tổng luôn là của mọi kho BC KD.
  */
 export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG_TOP } = {}) {
   const snapshotDate = backlogRows.reduce((latest, row) => (String(row.snapshot_date) > latest ? String(row.snapshot_date) : latest), '');
@@ -146,13 +146,13 @@ export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG
     whId,
     name: whId ? (names.has(whId) ? shortHubName(names.get(whId)) : `Kho ${whId}`) : 'Chưa rõ kho',
     ...values
-  })).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'vi'));
+  })).sort((a, b) => b.g0 - a.g0 || b.total - a.total || a.name.localeCompare(b.name, 'vi'));
   return { snapshotDate, rows: list.slice(0, top), hubCount: list.length, total };
 }
 
-/** Mô hình của tấm hình báo cáo: bảng % PUD (null khi chưa có lịch sử) và bảng gán lấy (null khi chưa có snapshot backlog). */
+/** Mô hình của tấm hình báo cáo: bảng % OPR (null khi chưa có lịch sử) và bảng gán lấy (null khi chưa có snapshot backlog). */
 export function buildReverseSheet(historyRows, backlogRows) {
-  const tables = buildPudTables(historyRows);
+  const tables = buildOprTables(historyRows);
   return {
     tables: tables.dates.length ? tables : null,
     backlog: buildBacklogTable(backlogRows, historyRows)

@@ -2,16 +2,16 @@ import React from 'react';
 import { formatPct, formatVol } from '../../utils/dataProcessor.js';
 import './reverseReport.css';
 
-// Báo cáo tự động SPE Reverse: MỘT tấm hình như file mẫu KA. Cột trái là ba bảng % PUD theo ngày (loại Hub, BC KD theo tỉnh,
+// Báo cáo tự động SPE Reverse: MỘT tấm hình như file mẫu KA. Cột trái là ba bảng % OPR theo ngày (loại Hub, BC KD theo tỉnh,
 // vùng), cột phải là "Gán lấy" theo từng kho BC KD. Dùng chung cho ảnh /snapshot (n8n gửi Telegram) và tab "Báo cáo tự động".
-// Dữ liệu dựng ở src/utils/reverseAutoReport.js; component này chỉ vẽ. % PUD không chặn 100% (xem pudRateOf).
+// Dữ liệu dựng ở src/utils/reverseAutoReport.js; component này chỉ vẽ. % OPR = ontime_pu_opr / mau_pu (xem oprRateOf).
 const dayLabel = day => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 const fullDate = day => `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
 
 const SECTION_TITLES = {
-  partner: 'Pickup done · Loại Hub',
-  province: 'Pickup done · BC KD theo tỉnh',
-  region: 'Pickup done · Nationwide theo vùng'
+  partner: 'OPR · Loại Hub',
+  province: 'OPR · BC KD theo tỉnh',
+  region: 'OPR · Nationwide theo vùng'
 };
 
 function PudSection({ section, dates }) {
@@ -121,13 +121,12 @@ export function ReverseReportSheet({ tables, backlog }) {
         <div className="rar-left">
           {tables
             ? tables.sections.map(section => <PudSection key={section.key} section={section} dates={tables.dates} />)
-            : <section className="rar-panel"><h2 className="rar-bar">Pickup done</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
+            : <section className="rar-panel"><h2 className="rar-bar">OPR</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
         </div>
         <BacklogPanel table={backlog} />
       </div>
       <p className="rar-note">
-        SPE Reverse{range && ` · ${range}`}. % PUD = đơn lấy thành công / đơn mới trong ngày, có thể vượt 100% vì gồm cả đơn tồn từ ngày trước;
-        Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần,
+        SPE Reverse{range && ` · ${range}`}. % OPR = đơn lấy đúng hạn / đơn mới trong ngày; Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần,
         Tổng = cộng ba cột, chỉ tính đơn tồn ≤ 7 ngày.
       </p>
     </article>

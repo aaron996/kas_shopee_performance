@@ -3,9 +3,9 @@
 Báo cáo hằng ngày cho team KA, gửi vào group Telegram bằng ảnh chụp của trang `/snapshot` (cùng luồng với
 [n8n-snapshot.md](n8n-snapshot.md)). **Một tấm hình** giống file mẫu KA, kiểu dáng theo design system của app (token, thẻ metric-block, đầu bảng như mtx-table):
 
-- Cột trái, % Pickup done (PUD) 7 ngày gần nhất + cột Vol 7N (tổng đơn mới 7 ngày): theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh,
+- Cột trái, % OPR (lấy hàng đúng hạn) 7 ngày gần nhất + cột Vol 7N (tổng đơn mới 7 ngày): theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh,
   Nationwide theo vùng; mỗi bảng có dòng Tổng.
-- Cột phải, **Gán lấy** BC KD theo kho (đội pick): đủ mọi kho chia hai nửa cạnh nhau, cột Gán 0 / 1–2 / ≥3 lần và Tổng (cộng ba cột = backlog tuyệt đối), chỉ tính đơn tồn ≤ 7 ngày; kho chỉ còn đơn tồn quá 7 ngày không hiện;
+- Cột phải, **Gán lấy** BC KD theo kho (đội pick): đủ mọi kho chia hai nửa cạnh nhau, xếp theo cột Gán 0 giảm dần, cột Gán 0 / 1–2 / ≥3 lần và Tổng (cộng ba cột = backlog tuyệt đối), chỉ tính đơn tồn ≤ 7 ngày; kho chỉ còn đơn tồn quá 7 ngày không hiện;
   dòng Tổng BC KD nằm ngay dưới tiêu đề.
 
 ```
@@ -17,12 +17,12 @@ với viewport ≥ 1.500 px và chụp full page (chiều cao khoảng 1.050 px)
 
 ## Nguồn và cách tính
 
-- **% PUD / vol**: bảng `kas_reverse_history` (datajob `data_job_daily_reverse`, tab `reverse` → Apps Script `syncReverseHistory`).
-  % PUD = `pud / mau_pu` (định nghĩa PUD của app, #265), **không chặn 100%**: `pud` gồm cả đơn tồn từ ngày trước được lấy trong ngày.
+- **% OPR / vol**: bảng `kas_reverse_history` (datajob `data_job_daily_reverse`, tab `reverse` → Apps Script `syncReverseHistory`).
+  % OPR = `ontime_pu_opr / mau_pu` (định nghĩa OPR của app). Đúng chỉ số cột % của file mẫu KA ("Ontime Success"): tổng 05/11 ra 42,45% so với 42,48% của KA.
   Vol = `mau_pu`. Dữ liệu tính đến D-1; ảnh lấy 7 ngày mới nhất có trong bảng.
 - **Backlog BCKD**: snapshot mới nhất của `kas_reverse_backlog` (datajob `data_job_daily_reverse_backlog`, tab `reverse_backlog` →
   `syncReverseBacklog`). Bucket gán lấy giữ nguyên của job: `0 / 1-2 / 3+`. Chỉ lấy tuổi tồn `1-3` + `4-7` (≤ 7 ngày); nhóm `8-14` không dùng. Mẫu KA không có cột tuổi tồn.
-- Mỗi bảng % PUD/vol có Tổng riêng từ các dòng nguồn của bảng đó. Vùng, KHL, CK, GXT đi qua
+- Mỗi bảng % OPR/vol có Tổng riêng từ các dòng nguồn của bảng đó. Vùng, KHL, CK, GXT đi qua
   `normalizeDashboardRows` như dashboard; GXT, KHL và đơn chưa rõ vùng gộp vào dòng "Khác" của bảng vùng. Tỉnh của BC KD lấy từ mã trong tên kho (`(HNO) KD …` → Hà Nội, `PROVINCE_BY_CODE`), mã lạ hiện nguyên mã. BCKD của backlog nhận theo `hub_type = KD` (job tự gắn), kho KHL theo `wh_id`.
 - **Tên kho**: backlog chỉ có `wh_id`; tên lấy từ `kas_reverse_history.hub` theo `wh_id` (cột mới, migration
   `20261120090000_kas_reverse_history_wh_id.sql`). Chưa có tên thì hiện `Kho <wh_id>`.
@@ -71,6 +71,5 @@ Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn ngh
 
 ## Khác biệt so với file mẫu KA (chưa xử lý được)
 
-- **Con số**: % PUD của mẫu (khoảng 30–45% giai đoạn 30/10–05/11) không tái hiện được từ `kas_reverse_history`: `pud/mau_pu` ra 58–85%,
-  `pud/mau_pud` ra 15–22% cùng ngày. Báo cáo dùng định nghĩa PUD hiện hành của app (`pud/mau_pu`). Cần xác nhận mẫu số với KA.
 - **Gán lấy**: job backlog chỉ có nhóm `0 / 1-2 / 3+`, mẫu của KA tách 0 / 1 / 2 / 3.
+- Chỉ số % của mẫu là OPR (không phải PUD): đối chiếu 30/10–05/11 với `kas_reverse_history` lệch dưới 1 điểm % (dữ liệu job được ghi lại sau đó).
