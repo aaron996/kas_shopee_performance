@@ -11,7 +11,7 @@ export const SNAPSHOT_TABLES = {
   fd: { table: 'kas_fd_data', byClient: true },
   // The Ca1 source has no client split (see Report5 / App.jsx exportContext).
   ca1: { table: 'kas_ca1_data', byClient: false },
-  // Báo cáo tự động Reverse: hai bảng (lịch sử LTC/vol + snapshot backlog), xem fetchReverseSnapshot. Client cố định SPE Reverse.
+  // Báo cáo tự động Reverse: hai bảng (lịch sử % PUD/vol + snapshot backlog), xem fetchReverseSnapshot. Client cố định SPE Reverse.
   reverse: { table: 'kas_reverse_history', composite: true }
 };
 

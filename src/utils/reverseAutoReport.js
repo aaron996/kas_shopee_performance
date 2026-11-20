@@ -1,25 +1,43 @@
 // Báo cáo tự động SPE Reverse (gửi Telegram bằng ảnh chụp của /snapshot, xem docs/reverse-auto-report.md).
-// Hai nguồn: kas_reverse_history (LTC, vol theo ngày) và kas_reverse_backlog (ảnh backlog hằng ngày). Logic nằm ở đây,
+// Hai nguồn: kas_reverse_history (% PUD, vol theo ngày) và kas_reverse_backlog (ảnh backlog hằng ngày). Logic nằm ở đây,
 // thuần hàm, để /snapshot và tab "Báo cáo tự động" dùng chung và test được.
 import { MIEN_REGIONS, MIEN_ORDER } from '../data/defaultDataset.js';
 import { normalizeDashboardRows, getHubType, canonicalHubType, khlRegionOf, KHL_HUB_TYPE } from './dataProcessor.js';
 
 export const REPORT_DAYS = 7;
-export const BACKLOG_TOP = 10;
+// Gán lấy theo đội pick: liệt kê đủ mọi kho BC KD (KA không cắt top).
+export const BACKLOG_TOP = Infinity;
 export const UNKNOWN_REGION = 'Chưa rõ vùng';
 export const AHM_HUB_TYPE = 'Ahamove';
 export const BCKD_HUB_TYPE = 'BC KD';
 
-const MIEN_FLAT = MIEN_ORDER.flatMap(mien => MIEN_REGIONS[mien]);
+// Vùng thường theo thứ tự Miền. Vùng con của loại Hub riêng ("HNO - KHL", "HNO - CK", "GXT - Bắc"…) có " - " và gộp vào "Khác".
+const MIEN_FLAT = MIEN_ORDER.flatMap(mien => MIEN_REGIONS[mien]).filter(region => !region.includes(' - '));
 const num = value => Number(value) || 0;
 const regionOf = row => {
   const region = String(row.region ?? '').trim();
   return !region || region.toUpperCase() === 'N/A' ? '' : region;
 };
 
-// LTC = lấy thành công (pud) / đơn mới (mau_pu), cùng định nghĩa PUD của app (src/data/metricGlossary.js). Không chặn 100%:
+// % PUD (pickup done) = pud / mau_pu, cùng định nghĩa PUD của app (src/data/metricGlossary.js, #265). Không chặn 100%:
 // pud gồm cả đơn tồn từ ngày trước được lấy trong ngày nên có thể vượt mẫu; mẫu bằng 0 thì không có tỷ lệ (null, hiện "–").
-export const ltcOf = (vol, pud) => (vol > 0 ? (pud / vol) * 100 : null);
+export const pudRateOf = (vol, pud) => (vol > 0 ? (pud / vol) * 100 : null);
+
+// Mã tỉnh trong tên kho BC KD, ví dụ "(HNO) KD Cầu Giấy" → Hà Nội. Theo địa giới sau sáp nhập: Bình Dương → TP.HCM,
+// Vĩnh Phúc → Phú Thọ. Mã lạ thì hiện nguyên mã để người xem thấy và bổ sung vào đây.
+export const PROVINCE_BY_CODE = Object.freeze({
+  HCM: 'Hồ Chí Minh', BDU: 'Hồ Chí Minh', HNO: 'Hà Nội', HYE: 'Hưng Yên', NAN: 'Nghệ An',
+  THO: 'Thanh Hóa', NBI: 'Ninh Bình', VPH: 'Phú Thọ', PTH: 'Phú Thọ'
+});
+export const UNKNOWN_PROVINCE = 'Chưa rõ tỉnh';
+export const OTHER_REGION = 'Khác';
+export const provinceOfHub = hub => {
+  const code = /^\(([^)]+)\)/.exec(String(hub ?? '').trim())?.[1]?.trim().toUpperCase();
+  return code ? (PROVINCE_BY_CODE[code] ?? code) : UNKNOWN_PROVINCE;
+};
+
+const PARTNER_ORDER = ['AHM', 'BC', 'BC KD', 'GXT', KHL_HUB_TYPE];
+const partnerLabel = type => (type === AHM_HUB_TYPE ? 'AHM' : type);
 
 const emptyCell = () => ({ vol: 0, pud: 0 });
 const addTo = (cell, row) => { cell.vol += num(row.mau_pu); cell.pud += num(row.pud); };
@@ -30,44 +48,52 @@ export function reportDates(historyRows, days = REPORT_DAYS) {
 }
 
 /**
- * LTC và vol theo ngày cho AHM, BCKD và từng vùng (sau khi qua cùng bước chuẩn hoá vùng/loại hub của dashboard:
- * KHL, CK, GXT theo miền). AHM và BCKD là hai nhóm theo loại hub nằm TRONG các vùng, nên dòng Tổng cộng theo từng dòng nguồn,
- * không cộng các dòng hiển thị.
+ * % PUD và vol theo ngày, cùng cấu trúc báo cáo KA yêu cầu: (1) theo loại Hub, (2) BC KD theo tỉnh, (3) Nationwide theo vùng.
+ * Mỗi mục có dòng Tổng cộng từ chính các dòng nguồn của mục đó. Vùng và loại Hub đi qua bước chuẩn hoá của dashboard
+ * (KHL, CK, GXT theo miền); vùng con của KHL/CK/GXT và đơn chưa rõ vùng gộp vào dòng "Khác" của mục vùng để dòng Tổng khớp.
  */
-export function buildLtcVolTables(historyRows, { days = REPORT_DAYS } = {}) {
+export function buildPudTables(historyRows, { days = REPORT_DAYS } = {}) {
   const dates = reportDates(historyRows, days);
   const inWindow = new Set(dates);
   const rows = normalizeDashboardRows(historyRows.filter(row => inWindow.has(row.report_date)));
-  const groups = new Map();
-  const cellsOf = (key, label, kind) => {
-    if (!groups.has(key)) groups.set(key, { key, label, kind, cells: dates.map(emptyCell) });
-    return groups.get(key).cells;
+  const makeSection = (key, title, rowHeader) => ({ key, title, rowHeader, groups: new Map(), total: dates.map(emptyCell) });
+  const sections = {
+    partner: makeSection('partner', 'Loại Hub', 'Loại Hub'),
+    province: makeSection('province', 'BC KD theo tỉnh', 'Tỉnh'),
+    region: makeSection('region', 'Nationwide theo vùng', 'Vùng')
   };
-  const total = dates.map(emptyCell);
+  const add = (section, label, index, row) => {
+    if (!section.groups.has(label)) section.groups.set(label, { key: `${section.key}:${label}`, label, cells: dates.map(emptyCell) });
+    addTo(section.groups.get(label).cells[index], row);
+    addTo(section.total[index], row);
+  };
   rows.forEach(row => {
     const index = dates.indexOf(row.report_date);
-    addTo(total[index], row);
     const hubType = String(getHubType(row)).trim();
-    if (hubType === AHM_HUB_TYPE) addTo(cellsOf('ahm', 'AHM', 'ahm')[index], row);
-    if (hubType === BCKD_HUB_TYPE) addTo(cellsOf('bckd', 'BCKD', 'bckd')[index], row);
-    const region = regionOf(row) || UNKNOWN_REGION;
-    addTo(cellsOf(`region:${region}`, region, 'region')[index], row);
+    add(sections.partner, partnerLabel(hubType) || 'Khác', index, row);
+    if (hubType === BCKD_HUB_TYPE) add(sections.province, provinceOfHub(row.hub), index, row);
+    const region = regionOf(row);
+    add(sections.region, MIEN_FLAT.includes(region) ? region : OTHER_REGION, index, row);
   });
 
   const volOf = group => group.cells.reduce((acc, cell) => acc + cell.vol, 0);
-  const regionOrder = label => {
-    const index = MIEN_FLAT.indexOf(label);
-    if (label === UNKNOWN_REGION) return Number.MAX_SAFE_INTEGER;
-    return index < 0 ? MIEN_FLAT.length : index;
-  };
-  const regionGroups = [...groups.values()].filter(group => group.kind === 'region' && volOf(group) > 0)
-    .sort((a, b) => regionOrder(a.label) - regionOrder(b.label) || a.label.localeCompare(b.label));
-  const lead = ['ahm', 'bckd'].map(key => groups.get(key)).filter(Boolean);
-  const finish = group => ({ ...group, cells: group.cells.map(cell => ({ ...cell, ltc: ltcOf(cell.vol, cell.pud) })) });
+  const finish = group => ({ ...group, cells: group.cells.map(cell => ({ ...cell, rate: pudRateOf(cell.vol, cell.pud) })) });
+  const rank = (order, label) => { const i = order.indexOf(label); return i < 0 ? order.length : i; };
+  const finishSection = (section, sorter, totalLabel) => ({
+    key: section.key,
+    title: section.title,
+    rowHeader: section.rowHeader,
+    rows: [...section.groups.values()].filter(group => volOf(group) > 0).sort(sorter).map(finish),
+    total: finish({ key: `${section.key}:total`, label: totalLabel, kind: 'total', cells: section.total })
+  });
+  const byVolume = (a, b) => volOf(b) - volOf(a) || a.label.localeCompare(b.label, 'vi');
   return {
     dates,
-    rows: [...lead, ...regionGroups].map(finish),
-    total: finish({ key: 'total', label: 'Tổng', kind: 'total', cells: total })
+    sections: [
+      finishSection(sections.partner, (a, b) => rank(PARTNER_ORDER, a.label) - rank(PARTNER_ORDER, b.label) || a.label.localeCompare(b.label), 'Tổng'),
+      finishSection(sections.province, byVolume, 'Tổng BC KD'),
+      finishSection(sections.region, (a, b) => rank([...MIEN_FLAT, OTHER_REGION], a.label) - rank([...MIEN_FLAT, OTHER_REGION], b.label), 'Tổng')
+    ]
   };
 }
 
@@ -89,7 +115,7 @@ export function hubNamesByWhId(historyRows) {
 
 /**
  * Backlog BCKD của snapshot mới nhất: tồn theo số lần gán lấy (0 / 1-2 / 3+) cho đơn tồn ≤ 7 ngày (L7D), và backlog tuyệt đối
- * của cả cửa sổ 14 ngày (L14D). Chọn `top` kho tồn nhiều nhất; dòng Tổng là của mọi kho BCKD.
+ * của cả cửa sổ 14 ngày (L14D). Mặc định liệt kê mọi kho (xếp theo L14D giảm dần); `top` chỉ cắt danh sách hiển thị, dòng Tổng luôn là của mọi kho BCKD.
  */
 export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG_TOP } = {}) {
   const snapshotDate = backlogRows.reduce((latest, row) => (String(row.snapshot_date) > latest ? String(row.snapshot_date) : latest), '');

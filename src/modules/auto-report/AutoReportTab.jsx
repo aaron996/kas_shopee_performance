@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import LoadingScreen from '../../components/LoadingScreen.jsx';
 import { fetchReverseReport } from '../../utils/reverseReportClient.js';
-import { ReverseLtcTable, ReverseVolTable, ReverseBacklogTable } from './ReverseReportTables.jsx';
+import { ReversePudTable, ReverseVolTable, ReverseBacklogTable } from './ReverseReportTables.jsx';
 import './reverseReport.css';
 
-// Tab "Báo cáo tự động": xem lại đúng ba bảng được gửi vào group Telegram (SPE Reverse). Không có bộ lọc riêng —
+// Tab "Báo cáo tự động": xem lại đúng các bảng được gửi vào group Telegram (SPE Reverse). Không có bộ lọc riêng —
 // client cố định, header không hiện Client/Vùng/Loại Hub (scopeSupport.js). docs/reverse-auto-report.md.
 // Trạng thái chờ khởi tạo từ render đầu; refresh giữ dữ liệu cũ; lỗi cho thử lại.
 export default function AutoReportTab({ dataEnabled = true }) {
@@ -44,9 +44,9 @@ export default function AutoReportTab({ dataEnabled = true }) {
           <button type="button" className="popover-text-action" onClick={retry}>Thử lại</button>
         </div>
       )}
-      <p className="rar-tab-intro">SPE Reverse · ba bảng gửi vào group Telegram mỗi ngày.</p>
+      <p className="rar-tab-intro">SPE Reverse · các bảng gửi vào group Telegram mỗi ngày: % PUD, vol và gán lấy BC KD.</p>
       {model?.tables
-        ? <><div className="rar-scroll"><ReverseLtcTable tables={model.tables} /></div><div className="rar-scroll"><ReverseVolTable tables={model.tables} /></div></>
+        ? <><div className="rar-scroll"><ReversePudTable tables={model.tables} /></div><div className="rar-scroll"><ReverseVolTable tables={model.tables} /></div></>
         : <p className="rar-state">Chưa có lịch sử Reverse trong 10 ngày gần nhất.</p>}
       {model?.backlog
         ? <div className="rar-scroll"><ReverseBacklogTable table={model.backlog} /></div>

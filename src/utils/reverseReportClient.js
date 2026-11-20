@@ -1,12 +1,12 @@
 import { supabase } from './supabaseClient.js';
 import { unpackRows } from './snapshotView.js';
-import { buildLtcVolTables, buildBacklogTable } from './reverseAutoReport.js';
+import { buildPudTables, buildBacklogTable } from './reverseAutoReport.js';
 
 // Dữ liệu của tab "Báo cáo tự động": cùng payload với ảnh /snapshot (history + backlog), đọc qua
 // /api/snapshot-summary?view=reverse-report bằng phiên đăng nhập. Bảng gốc không có quyền SELECT cho authenticated.
 export function buildReverseReportModel(payload) {
   const history = unpackRows(payload?.history);
-  const tables = buildLtcVolTables(history);
+  const tables = buildPudTables(history);
   const backlog = buildBacklogTable(unpackRows(payload?.backlog), history);
   return { tables: tables.dates.length ? tables : null, backlog: backlog || null };
 }

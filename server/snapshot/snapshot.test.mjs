@@ -313,7 +313,7 @@ test('reverse report goes through fetchSnapshotRows and packSnapshotPayload as t
 });
 
 test('reverse views are addressable by report + table and need no client', () => {
-  for (const table of ['ltc', 'vol', 'backlog']) {
+  for (const table of ['pud', 'vol', 'backlog']) {
     const parsed = parseSnapshotParams(`?report=reverse&table=${table}&token=t`);
     assert.equal(parsed.error, undefined, table);
     assert.deepEqual([parsed.view.module, parsed.view.table], ['reverse', table]);

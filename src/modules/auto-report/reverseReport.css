@@ -1,7 +1,8 @@
 /* Báo cáo tự động SPE Reverse: ba bảng dùng chung cho ảnh /snapshot và tab. Chỉ dùng token ngữ nghĩa (sáng/tối theo tokens.css). */
 .rar-card {
-  width: max-content;
-  min-width: 640px;
+  width: 720px;
+  max-width: 100%;
+  box-sizing: border-box;
   margin: 0 0 16px;
   padding: 16px 18px 12px;
   border: 1px solid var(--border);
@@ -79,3 +80,5 @@
 .rar-scroll { max-width: 100%; overflow-x: auto; }
 .rar-state { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); }
 .rar-state p { margin: 0 0 8px; }
+
+.rar-note-page { margin: 0 0 16px 4px; }

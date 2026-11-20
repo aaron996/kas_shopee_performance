@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Report1MienVungHub from '../modules/ops-metrics/Report1MienVungHub.jsx';
 import Report5LaneCa1 from '../components/Report5LaneCa1.jsx';
-import { ReverseLtcTable, ReverseVolTable, ReverseBacklogTable } from '../modules/auto-report/ReverseReportTables.jsx';
-import { buildLtcVolTables, buildBacklogTable } from '../utils/reverseAutoReport';
+import { ReversePudTable, ReverseVolTable, ReverseBacklogTable } from '../modules/auto-report/ReverseReportTables.jsx';
+import { buildPudTables, buildBacklogTable } from '../utils/reverseAutoReport';
 import { groupDatesByWeek } from '../utils/dataProcessor';
 import { parseSnapshotParams, unpackRows, scopeSnapshotRows, SNAPSHOT_CLIENT_LABELS } from '../utils/snapshotView';
 import './snapshot.css';
@@ -34,7 +34,7 @@ function toReverseState(payload, params) {
     const table = buildBacklogTable(unpackRows(payload.backlog), history);
     return table ? { status: 'ready', table } : { status: 'error', message: 'Chưa có snapshot backlog Reverse.' };
   }
-  const tables = buildLtcVolTables(history);
+  const tables = buildPudTables(history);
   return tables.dates.length ? { status: 'ready', tables } : { status: 'error', message: 'Chưa có dữ liệu lịch sử Reverse.' };
 }
 
@@ -74,7 +74,7 @@ export default function SnapshotPage() {
   if (view.module === 'reverse') {
     return (
       <div className="snapshot-root">
-        {view.table === 'ltc' && <ReverseLtcTable tables={state.tables} />}
+        {view.table === 'pud' && <ReversePudTable tables={state.tables} />}
         {view.table === 'vol' && <ReverseVolTable tables={state.tables} />}
         {view.table === 'backlog' && <ReverseBacklogTable table={state.table} />}
       </div>

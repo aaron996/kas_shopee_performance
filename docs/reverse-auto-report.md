@@ -1,29 +1,29 @@
 # Báo cáo tự động SPE Reverse (Telegram)
 
 Báo cáo hằng ngày cho team KA, gửi vào group Telegram bằng ảnh chụp của trang `/snapshot` (cùng luồng với
-[n8n-snapshot.md](n8n-snapshot.md)). Ba ảnh:
+[n8n-snapshot.md](n8n-snapshot.md)). Cấu trúc theo file mẫu KA gửi (4 bảng, % PUD theo ngày + gán lấy theo kho BC KD), chia thành 3 ảnh:
 
 | `report=reverse&table=` | Nội dung |
 | --- | --- |
-| `ltc` | LTC (lấy thành công, %) 7 ngày gần nhất: AHM, BCKD, từng vùng, Tổng |
-| `vol` | Vol (đơn mới/ngày) 7 ngày gần nhất, cùng các dòng |
-| `backlog` | BCKD: tồn theo số lần gán lấy (0 / 1–2 / ≥3, đơn tồn ≤ 7 ngày = L7D) và backlog tuyệt đối L14D của top 10 kho + Tổng |
+| `pud` | **% Pickup done (PUD)** 7 ngày gần nhất, 3 bảng: theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh, Nationwide theo vùng; mỗi bảng có dòng Tổng |
+| `vol` | Vol (đơn mới/ngày) 7 ngày gần nhất, cùng 3 bảng |
+| `backlog` | **Gán lấy** BC KD theo kho (đội pick): đủ mọi kho, cột 0 / 1–2 / ≥3 lần gán (đơn tồn ≤ 7 ngày = L7D), L7D và L14D, dòng Tổng |
 
 ```
-https://kas-shopee-performance.vercel.app/snapshot?report=reverse&table=ltc&token=<token>
+https://kas-shopee-performance.vercel.app/snapshot?report=reverse&table=pud&token=<token>
 ```
 
 Token lấy ở `POST /api/snapshot-token` như các ảnh khác. Không cần `client`: Reverse luôn là `SPE Reverse`.
 
 ## Nguồn và cách tính
 
-- **LTC / vol**: bảng `kas_reverse_history` (datajob `data_job_daily_reverse`, tab `reverse` → Apps Script `syncReverseHistory`).
-  LTC = `pud / mau_pu` (định nghĩa PUD của app), **không chặn 100%**: `pud` gồm cả đơn tồn từ ngày trước được lấy trong ngày.
+- **% PUD / vol**: bảng `kas_reverse_history` (datajob `data_job_daily_reverse`, tab `reverse` → Apps Script `syncReverseHistory`).
+  % PUD = `pud / mau_pu` (định nghĩa PUD của app, #265), **không chặn 100%**: `pud` gồm cả đơn tồn từ ngày trước được lấy trong ngày.
   Vol = `mau_pu`. Dữ liệu tính đến D-1; ảnh lấy 7 ngày mới nhất có trong bảng.
 - **Backlog BCKD**: snapshot mới nhất của `kas_reverse_backlog` (datajob `data_job_daily_reverse_backlog`, tab `reverse_backlog` →
   `syncReverseBacklog`). Bucket gán lấy giữ nguyên của job: `0 / 1-2 / 3+`. L7D = tuổi tồn `1-3` + `4-7`; L14D = cả cửa sổ.
-- **BCKD / AHM** là nhóm theo loại hub nằm *trong* các vùng, nên dòng Tổng không cộng đôi. Vùng, KHL, CK, GXT đi qua
-  `normalizeDashboardRows` như dashboard. BCKD của backlog nhận theo `hub_type = KD` (job tự gắn), kho KHL theo `wh_id`.
+- Mỗi bảng % PUD/vol có Tổng riêng từ các dòng nguồn của bảng đó. Vùng, KHL, CK, GXT đi qua
+  `normalizeDashboardRows` như dashboard; GXT, KHL và đơn chưa rõ vùng gộp vào dòng "Khác" của bảng vùng. Tỉnh của BC KD lấy từ mã trong tên kho (`(HNO) KD …` → Hà Nội, `PROVINCE_BY_CODE`), mã lạ hiện nguyên mã. BCKD của backlog nhận theo `hub_type = KD` (job tự gắn), kho KHL theo `wh_id`.
 - **Tên kho**: backlog chỉ có `wh_id`; tên lấy từ `kas_reverse_history.hub` theo `wh_id` (cột mới, migration
   `20261120090000_kas_reverse_history_wh_id.sql`). Chưa có tên thì hiện `Kho <wh_id>`.
 - Logic nằm ở `src/utils/reverseAutoReport.js` (test: `reverseAutoReport.test.mjs`), vẽ ở `src/modules/auto-report/`,
@@ -68,3 +68,9 @@ Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn ngh
 - Không có `requiredDatasets` (không dùng dataset chung); tab tự giữ trạng thái chờ: skeleton `LoadingScreen` ngay từ render đầu, giữ dữ liệu cũ khi tải lại,
   báo lỗi + "Thử lại". Chỉ hiện "Chưa có …" sau khi tải xong mà thật sự rỗng.
 - Header ẩn Client/Vùng/Loại Hub và CSV qua `scopeSupport.js` (`SCOPE_FILTERLESS_TABS`). Bảng riêng, không dùng `KpiMatrixTable`: xem ngoại lệ trong `DESIGN.md`.
+
+## Khác biệt so với file mẫu KA (chưa xử lý được)
+
+- **Con số**: % PUD của mẫu (khoảng 30–45% giai đoạn 30/10–05/11) không tái hiện được từ `kas_reverse_history`: `pud/mau_pu` ra 58–85%,
+  `pud/mau_pud` ra 15–22% cùng ngày. Báo cáo dùng định nghĩa PUD hiện hành của app (`pud/mau_pu`). Cần xác nhận mẫu số với KA.
+- **Gán lấy**: job backlog chỉ có nhóm `0 / 1-2 / 3+`, mẫu của KA tách 0 / 1 / 2 / 3.

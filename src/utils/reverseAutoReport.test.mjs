@@ -1,14 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLtcVolTables, buildBacklogTable, hubNamesByWhId, ltcOf, reportDates } from './reverseAutoReport.js';
+import { buildPudTables, buildBacklogTable, hubNamesByWhId, pudRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
 
 const hist = (report_date, region, hub, hub_type, mau_pu, pud, wh_id = null) => ({ report_date, region, hub, hub_type, client_name: 'SPE Reverse', mau_pu, pud, wh_id });
 const day = n => `2026-11-${String(n).padStart(2, '0')}`;
 
-test('LTC is pud / mau_pu, not capped at 100%, and null when there is no sample', () => {
-  assert.equal(ltcOf(100, 85), 85);
-  assert.equal(ltcOf(20, 24), 120, 'không chặn 100%');
-  assert.equal(ltcOf(0, 5), null);
+test('% PUD is pud / mau_pu, not capped at 100%, and null when there is no sample', () => {
+  assert.equal(pudRateOf(100, 85), 85);
+  assert.equal(pudRateOf(20, 24), 120, 'không chặn 100%');
+  assert.equal(pudRateOf(0, 5), null);
+});
+
+test('province comes from the code in the hub name (BDU joins HCM, VPH joins Phú Thọ, unknown codes stay visible)', () => {
+  assert.equal(provinceOfHub('(HNO) KD Cầu Giấy'), 'Hà Nội');
+  assert.equal(provinceOfHub('(BDU) KT Thuận Giao'), 'Hồ Chí Minh');
+  assert.equal(provinceOfHub('(VPH) KD Vĩnh Phúc'), 'Phú Thọ');
+  assert.equal(provinceOfHub('(XYZ) KD Lạ'), 'XYZ');
+  assert.equal(provinceOfHub('Kho không mã'), 'Chưa rõ tỉnh');
 });
 
 test('reportDates keeps the latest 7 distinct days', () => {
@@ -16,35 +24,52 @@ test('reportDates keeps the latest 7 distinct days', () => {
   assert.deepEqual(reportDates(rows), [4, 5, 6, 7, 8, 9, 10].map(day));
 });
 
-test('AHM and BCKD are hub-type groups inside the regions; Tổng counts every source row once', () => {
+const section = (tables, key) => tables.sections.find(item => item.key === key);
+
+test('three sections: by hub type, BC KD by province, by region; each Tổng counts its own source rows once', () => {
   const rows = [
     hist(day(1), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 10, 6),
+    hist(day(1), 'HCM', '(BDU) KT Thuận Giao', 'BC KD', 5, 5),
     hist(day(1), 'HNO', 'Bưu cục X', 'BC', 30, 15),
     hist(day(1), 'HNO', 'Kho lấy hàng Ahamove Hà Nội', 'Ahamove', 20, 18),
     hist(day(1), 'HCM', '(HCM) A', 'BC', 40, 30),
     hist(day(2), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 0, 0)
   ];
-  const t = buildLtcVolTables(rows);
+  const t = buildPudTables(rows);
   assert.deepEqual(t.dates, [day(1), day(2)]);
-  const byKey = Object.fromEntries(t.rows.map(r => [r.key, r]));
-  assert.deepEqual(t.rows.map(r => r.key), ['ahm', 'bckd', 'region:HNO', 'region:HCM'].filter(k => byKey[k]), 'AHM, BCKD rồi vùng theo thứ tự Miền');
-  assert.equal(byKey.ahm.cells[0].vol, 20);
-  assert.equal(byKey.bckd.cells[0].ltc, 60);
-  assert.equal(byKey['region:HNO'].cells[0].vol, 60, 'vùng gồm cả BC KD và AHM');
-  assert.equal(t.total.cells[0].vol, 100, 'Tổng không cộng đôi AHM/BCKD');
-  assert.equal(t.total.cells[0].pud, 69);
-  assert.equal(byKey.bckd.cells[1].ltc, null, 'ngày không có mẫu → null');
+  assert.deepEqual(t.sections.map(s => s.key), ['partner', 'province', 'region']);
+
+  const partner = section(t, 'partner');
+  assert.deepEqual(partner.rows.map(r => r.label), ['AHM', 'BC', 'BC KD'], 'AHM, BC, BC KD theo thứ tự cố định');
+  assert.equal(partner.rows[2].cells[0].rate, (11 / 15) * 100);
+  assert.equal(partner.rows[2].cells[1].rate, null, 'ngày không có mẫu → null');
+  assert.equal(partner.total.cells[0].vol, 105);
+  assert.equal(partner.total.cells[0].pud, 74);
+
+  const province = section(t, 'province');
+  assert.deepEqual(province.rows.map(r => r.label), ['Hà Nội', 'Hồ Chí Minh'], 'tỉnh theo vol giảm dần');
+  assert.equal(province.total.label, 'Tổng BC KD');
+  assert.equal(province.total.cells[0].vol, 15, 'chỉ BC KD');
+
+  const region = section(t, 'region');
+  assert.deepEqual(region.rows.map(r => r.label), ['HNO', 'HCM']);
+  assert.equal(region.rows[0].cells[0].vol, 60, 'vùng gồm cả BC KD và AHM');
+  assert.equal(region.total.cells[0].vol, 105);
 });
 
-test('regions follow the dashboard normalisation (KHL region, N/A bucket last) and drop empty regions', () => {
+test('regions follow the dashboard normalisation; KHL, GXT and unknown regions fold into "Khác" so the total still adds up', () => {
   const rows = [
     hist(day(1), 'HNO', '(HNO) LH Long Biên', 'KA', 5, 5, '23013000'),
     hist(day(1), 'HNO', 'B', 'BC', 10, 5),
     hist(day(1), 'N/A', 'C', 'BC', 2, 1),
     hist(day(1), 'TNG', 'D', 'BC', 0, 0)
   ];
-  const labels = buildLtcVolTables(rows).rows.map(r => r.label);
-  assert.deepEqual(labels, ['HNO', 'HNO - KHL', 'Chưa rõ vùng']);
+  const t = buildPudTables(rows);
+  const region = section(t, 'region');
+  assert.deepEqual(region.rows.map(r => r.label), ['HNO', 'Khác']);
+  assert.equal(region.rows[1].cells[0].vol, 7);
+  assert.equal(region.total.cells[0].vol, 17);
+  assert.deepEqual(section(t, 'partner').rows.map(r => r.label), ['BC', 'KHL']);
 });
 
 test('backlog table: L7D buckets, L14D absolute, KD and KHL by wh_id, names from history, top-N with total over all hubs', () => {

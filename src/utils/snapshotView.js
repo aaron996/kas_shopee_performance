@@ -18,7 +18,7 @@ export const SNAPSHOT_VIEWS = {
   'ca1:cross_metro': { data: 'ca1', module: 'report5', lane: 'Cross Metro' },
   'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' },
   // Báo cáo tự động SPE Reverse (docs/reverse-auto-report.md): client cố định, không qua bộ lọc Vùng / Loại Hub của dashboard.
-  'reverse:ltc': { data: 'reverse', module: 'reverse', table: 'ltc' },
+  'reverse:pud': { data: 'reverse', module: 'reverse', table: 'pud' },
   'reverse:vol': { data: 'reverse', module: 'reverse', table: 'vol' },
   'reverse:backlog': { data: 'reverse', module: 'reverse', table: 'backlog' }
 };
