@@ -73,3 +73,10 @@ Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn ngh
 
 - **Gán lấy**: job backlog chỉ có nhóm `0 / 1-2 / 3+`, mẫu của KA tách 0 / 1 / 2 / 3.
 - Chỉ số % của mẫu là OPR (không phải PUD): đối chiếu 30/10–05/11 với `kas_reverse_history` lệch dưới 1 điểm % (dữ liệu job được ghi lại sau đó).
+
+## n8n
+
+Workflow riêng `[KAS] vinhlt - Daily Report - SPE Reverse to Telegram` (id `kVzMdQtbqo9r0Wo6`), tách khỏi workflow Pick/Deli/Ca1 để chọn group nhận độc lập.
+Cron `40 9 * * *` (≥ 09:30, sau khi Apps Script ghi `reverse` ~09:00 và `reverse_backlog` ~09:15), múi giờ Asia/Ho_Chi_Minh:
+`Get Snapshot Token` → `Tao URL anh` (`report=reverse&table=all`) → `Fetch Screenshot` (`ws.ahamove.com/pptraas`, viewport 1500, full page) → `Send To Telegram`
+(bot `@kaghnbot`). Tạo ở trạng thái tắt, chat nhận đang là chat thử `-5157432621`; đổi `CHAT_ID` ở node `Tao URL anh` khi chốt group KA rồi mới bật.
