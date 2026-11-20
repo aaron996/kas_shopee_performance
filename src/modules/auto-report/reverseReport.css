@@ -174,9 +174,15 @@
   color: var(--text-muted);
 }
 
+/* Tô màu ô % OPR: thang min → max của từng bảng (mặc định) hoặc cách tô cá nhân, xem reverseReportFormatting.js. */
+.rar-sheet .rar-table td.kpi-custom-color { background-color: var(--kpi-cell-bg); color: var(--kpi-cell-fg); font-weight: 600; }
+.rar-scale-bar { display: inline-block; width: 120px; height: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); vertical-align: middle; }
+.rar-sheet .table-legend { margin: var(--space-3) 0 0; padding: 0; }
+
 /* Tab "Báo cáo tự động" (không áp dụng cho ảnh /snapshot). */
 .rar-tab { padding: var(--space-4); }
-.rar-tab-intro { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--type-body); }
+.rar-tab-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: 0 0 var(--space-3); }
+.rar-tab-intro { margin: 0; color: var(--text-muted); font-size: var(--type-body); }
 .rar-scroll { max-width: 100%; overflow-x: auto; }
 .rar-state {
   margin: 0 0 var(--space-4);

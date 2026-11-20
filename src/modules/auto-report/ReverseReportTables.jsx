@@ -1,5 +1,7 @@
 import React from 'react';
 import { formatPct, formatVol } from '../../utils/dataProcessor.js';
+import { oprCellProps, oprScale, OPR_SCALE_COLORS } from '../../utils/reverseReportFormatting.js';
+import { KpiFormattingLegend } from '../ops-metrics/KpiFormattingControl.jsx';
 import './reverseReport.css';
 
 // Báo cáo tự động SPE Reverse: MỘT tấm hình như file mẫu KA. Cột trái là ba bảng % OPR theo ngày (loại Hub, BC KD theo tỉnh,
@@ -14,10 +16,13 @@ const SECTION_TITLES = {
   region: 'OPR · Nationwide theo vùng'
 };
 
-function PudSection({ section, dates }) {
+function PudSection({ section, dates, rule }) {
+  // Thang màu mặc định lấy min/max từ chính các ô % của bảng này (cả dòng Tổng).
+  const scale = oprScale([...section.rows, section.total].flatMap(row => row.cells.map(cell => cell.rate)));
+  const colors = { rule, scale };
   return (
     <section className="rar-panel" aria-label={SECTION_TITLES[section.key]}>
-      <h2 className="rar-bar">{SECTION_TITLES[section.key]}</h2>
+      <h2 className="rar-bar">{SECTION_TITLES[section.key]}{!rule && scale && <span className="rar-bar-meta">thang màu {formatPct(scale.min)} → {formatPct(scale.max)}</span>}</h2>
       <table className="rar-table">
         <thead>
           <tr>
@@ -30,7 +35,7 @@ function PudSection({ section, dates }) {
           {section.rows.map(row => (
             <tr key={row.key}>
               <th scope="row" className="rar-name">{row.label}</th>
-              {row.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{formatPct(cell.rate)}</td>)}
+              {row.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, colors, 'rar-num')}>{formatPct(cell.rate)}</td>)}
               <td className="rar-num rar-volcol">{formatVol(row.vol7)}</td>
             </tr>
           ))}
@@ -38,7 +43,7 @@ function PudSection({ section, dates }) {
         <tfoot>
           <tr className="rar-total">
             <th scope="row" className="rar-name">{section.total.label}</th>
-            {section.total.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{formatPct(cell.rate)}</td>)}
+            {section.total.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, colors, 'rar-num')}>{formatPct(cell.rate)}</td>)}
             <td className="rar-num rar-volcol">{formatVol(section.total.vol7)}</td>
           </tr>
         </tfoot>
@@ -113,18 +118,34 @@ function BacklogPanel({ table }) {
   );
 }
 
-export function ReverseReportSheet({ tables, backlog }) {
+// Chú giải: cách tô cá nhân nếu có, không thì thang min → max mặc định (giá trị min/max ghi ở thanh tiêu đề từng bảng).
+function OprLegend({ rule }) {
+  if (rule) return <div className="table-legend"><KpiFormattingLegend rule={rule} /></div>;
+  return (
+    <div className="table-legend">
+      <div className="legend-items">
+        <span className="legend-title">Rule màu OPR:</span>
+        <span className="legend-item">thấp nhất của bảng</span>
+        <span className="rar-scale-bar" aria-hidden="true" style={{ background: `linear-gradient(to right, ${OPR_SCALE_COLORS.low}, ${OPR_SCALE_COLORS.high})` }} />
+        <span className="legend-item">cao nhất của bảng</span>
+      </div>
+    </div>
+  );
+}
+
+export function ReverseReportSheet({ tables, backlog, formattingRule = null }) {
   const range = tables ? `${dayLabel(tables.dates[0])} → ${fullDate(tables.dates[tables.dates.length - 1])}` : '';
   return (
     <article className="rar-sheet" aria-label="Báo cáo tự động SPE Reverse">
       <div className="rar-sheet-grid">
         <div className="rar-left">
           {tables
-            ? tables.sections.map(section => <PudSection key={section.key} section={section} dates={tables.dates} />)
+            ? tables.sections.map(section => <PudSection key={section.key} section={section} dates={tables.dates} rule={formattingRule} />)
             : <section className="rar-panel"><h2 className="rar-bar">OPR</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
         </div>
         <BacklogPanel table={backlog} />
       </div>
+      {tables && <OprLegend rule={formattingRule} />}
       <p className="rar-note">
         SPE Reverse{range && ` · ${range}`}. % OPR = đơn lấy đúng hạn / đơn mới trong ngày; Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần,
         Tổng = cộng ba cột, chỉ tính đơn tồn ≤ 7 ngày.

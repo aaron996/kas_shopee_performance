@@ -67,6 +67,7 @@ Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn ngh
   Gộp vào `snapshot-summary` để giữ `api/` dưới giới hạn 12 function của Vercel Hobby.
 - Không có `requiredDatasets` (không dùng dataset chung); tab tự giữ trạng thái chờ: skeleton `LoadingScreen` ngay từ render đầu, giữ dữ liệu cũ khi tải lại,
   báo lỗi + "Thử lại". Chỉ hiện "Chưa có …" sau khi tải xong mà thật sự rỗng.
+- Nút bảng màu (cạnh phần giới thiệu) tô các ô % OPR, dùng chung cài đặt `popr` với Chi tiết Vùng/Hub; mặc định tô theo thang min → max của từng bảng, xem [kpi-conditional-formatting.md](kpi-conditional-formatting.md). Ảnh gửi Telegram dùng thang mặc định.
 - Header ẩn Client/Vùng/Loại Hub và CSV qua `scopeSupport.js` (`SCOPE_FILTERLESS_TABS`). Bảng riêng, không dùng `KpiMatrixTable`: xem ngoại lệ trong `DESIGN.md`.
 
 ## Khác biệt so với file mẫu KA (chưa xử lý được)
