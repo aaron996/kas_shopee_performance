@@ -95,7 +95,7 @@ export default function ReverseBacklogPanel({ selectedRegions = null, selectedHu
                         </div>
                       </td>
                       <td className="num strong">{fmt(row.total)}</td>
-                      {row.buckets.map((value, i) => <td className="num" key={i}>{fmt(value)} <small>({pct(value, row.total)})</small></td>)}
+                      {row.buckets.map((value, i) => <td className="num" key={i}>{fmt(value)}<small>{pct(value, row.total)}</small></td>)}
                     </tr>
                   ))}
                 </tbody>
@@ -103,7 +103,7 @@ export default function ReverseBacklogPanel({ selectedRegions = null, selectedHu
                   <tr>
                     <td className="backlog-region">Tổng</td><td />
                     <td className="num strong">{fmt(section.total)}</td>
-                    {section.buckets.map((value, i) => <td className="num strong" key={i}>{fmt(value)} <small>({pct(value, section.total)})</small></td>)}
+                    {section.buckets.map((value, i) => <td className="num strong" key={i}>{fmt(value)}<small>{pct(value, section.total)}</small></td>)}
                   </tr>
                 </tfoot>
               </table>

@@ -13,7 +13,7 @@ export default function ReverseBacklogMatrix({ rows, dates, selectedRegions, sel
   const shown = useMemo(() => dates.slice(-BACKLOG_DAYS), [dates]);
   const matrix = useMemo(() => buildBacklogMatrix({ rows, dates: shown, selectedRegions, selectedHubTypes }), [rows, shown, selectedRegions, selectedHubTypes]);
   if (matrix.empty) {
-    return <div className="metric-block"><div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+    return <div className="metric-block"><div className="backlog-empty">
       Chưa có dữ liệu backlog trong phạm vi đang chọn.</div></div>;
   }
   const last = shown.length - 1;
