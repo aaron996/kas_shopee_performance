@@ -191,15 +191,20 @@ test('Báo cáo tự động starts as a skeleton, never a false empty notice', 
   expectLoading(render(components.autoReport, { dataEnabled: true }));
 });
 
-test('Báo cáo tự động: OPR cells are uncoloured by default and follow a saved personal rule', () => {
-  const rows = [{ key: 'partner:BC', label: 'BC', vol7: 10, cells: [{ vol: 10, opr: 4, rate: 40 }] }];
+test('Báo cáo tự động: OPR cells use a min→max scale by default and follow a saved personal rule', () => {
+  const cell = rate => ({ vol: 10, opr: rate / 10, rate });
+  const rows = [20, 60].map((rate, i) => ({ key: `partner:${i}`, label: `R${i}`, vol7: 10, cells: [cell(rate)] }));
   const tables = { dates: ['2026-11-19'], sections: ['partner', 'province', 'region'].map(key => ({
-    key, title: key, rowHeader: key, rows, total: { key: `${key}:total`, label: 'Tổng', vol7: 10, cells: [{ vol: 10, opr: 4, rate: 40 }] }
+    key, title: key, rowHeader: key, rows, total: { key: `${key}:total`, label: 'Tổng', vol7: 20, cells: [cell(40)] }
   })) };
-  const plain = render(components.reverseSheet, { tables, backlog: null });
-  assert.doesNotMatch(plain, /kpi-custom-color|heat-\d/);
+  const byDefault = render(components.reverseSheet, { tables, backlog: null });
+  assert.match(byDefault, /kpi-custom-color/);
+  assert.match(byDefault, /thang màu 20.0% → 60.0%/);
+  assert.match(byDefault, /thấp nhất của bảng/);
   const rule = { mode: 'below', threshold: 90, spread: 5, lowColor: '#ef9184', midColor: '#ffffff', highColor: '#ffffff' };
   const painted = render(components.reverseSheet, { tables, backlog: null, formattingRule: rule });
-  assert.match(painted, /kpi-custom-color/);
   assert.match(painted, /kpi-format-legend/);
+  assert.doesNotMatch(painted, /thang màu/);
+  const off = render(components.reverseSheet, { tables, backlog: null, formattingRule: { ...rule, mode: 'off' } });
+  assert.doesNotMatch(off, /kpi-custom-color/);
 });

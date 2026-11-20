@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatPct, formatVol } from '../../utils/dataProcessor.js';
-import { oprCellProps } from '../../utils/reverseReportFormatting.js';
+import { oprCellProps, oprScale, OPR_SCALE_COLORS } from '../../utils/reverseReportFormatting.js';
 import { KpiFormattingLegend } from '../ops-metrics/KpiFormattingControl.jsx';
 import './reverseReport.css';
 
@@ -17,9 +17,12 @@ const SECTION_TITLES = {
 };
 
 function PudSection({ section, dates, rule }) {
+  // Thang màu mặc định lấy min/max từ chính các ô % của bảng này (cả dòng Tổng).
+  const scale = oprScale([...section.rows, section.total].flatMap(row => row.cells.map(cell => cell.rate)));
+  const colors = { rule, scale };
   return (
     <section className="rar-panel" aria-label={SECTION_TITLES[section.key]}>
-      <h2 className="rar-bar">{SECTION_TITLES[section.key]}</h2>
+      <h2 className="rar-bar">{SECTION_TITLES[section.key]}{!rule && scale && <span className="rar-bar-meta">thang màu {formatPct(scale.min)} → {formatPct(scale.max)}</span>}</h2>
       <table className="rar-table">
         <thead>
           <tr>
@@ -32,7 +35,7 @@ function PudSection({ section, dates, rule }) {
           {section.rows.map(row => (
             <tr key={row.key}>
               <th scope="row" className="rar-name">{row.label}</th>
-              {row.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, rule, 'rar-num')}>{formatPct(cell.rate)}</td>)}
+              {row.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, colors, 'rar-num')}>{formatPct(cell.rate)}</td>)}
               <td className="rar-num rar-volcol">{formatVol(row.vol7)}</td>
             </tr>
           ))}
@@ -40,7 +43,7 @@ function PudSection({ section, dates, rule }) {
         <tfoot>
           <tr className="rar-total">
             <th scope="row" className="rar-name">{section.total.label}</th>
-            {section.total.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, rule, 'rar-num')}>{formatPct(cell.rate)}</td>)}
+            {section.total.cells.map((cell, i) => <td key={dates[i]} {...oprCellProps(cell.rate, colors, 'rar-num')}>{formatPct(cell.rate)}</td>)}
             <td className="rar-num rar-volcol">{formatVol(section.total.vol7)}</td>
           </tr>
         </tfoot>
@@ -115,9 +118,19 @@ function BacklogPanel({ table }) {
   );
 }
 
-// Chú giải chỉ hiện khi người dùng đã chọn cách tô; mặc định không tô nên không có gì để chú giải.
+// Chú giải: cách tô cá nhân nếu có, không thì thang min → max mặc định (giá trị min/max ghi ở thanh tiêu đề từng bảng).
 function OprLegend({ rule }) {
-  return rule ? <div className="table-legend"><KpiFormattingLegend rule={rule} /></div> : null;
+  if (rule) return <div className="table-legend"><KpiFormattingLegend rule={rule} /></div>;
+  return (
+    <div className="table-legend">
+      <div className="legend-items">
+        <span className="legend-title">Rule màu OPR:</span>
+        <span className="legend-item">thấp nhất của bảng</span>
+        <span className="rar-scale-bar" aria-hidden="true" style={{ background: `linear-gradient(to right, ${OPR_SCALE_COLORS.low}, ${OPR_SCALE_COLORS.high})` }} />
+        <span className="legend-item">cao nhất của bảng</span>
+      </div>
+    </div>
+  );
 }
 
 export function ReverseReportSheet({ tables, backlog, formattingRule = null }) {
