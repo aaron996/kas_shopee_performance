@@ -16,7 +16,9 @@ export const SNAPSHOT_VIEWS = {
   'ca1:intra_region': { data: 'ca1', module: 'report5', lane: 'Intra Region' },
   'ca1:cross_region': { data: 'ca1', module: 'report5', lane: 'Cross Region' },
   'ca1:cross_metro': { data: 'ca1', module: 'report5', lane: 'Cross Metro' },
-  'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' }
+  'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' },
+  // Báo cáo tự động SPE Reverse (docs/reverse-auto-report.md): client cố định, không qua bộ lọc Vùng / Loại Hub của dashboard.
+  'reverse:all': { data: 'reverse', module: 'reverse', table: 'all' }
 };
 
 export const SNAPSHOT_CLIENT_LABELS = CLIENT_LABELS;

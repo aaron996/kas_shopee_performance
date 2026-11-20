@@ -45,3 +45,27 @@ test('Reverse upsert overwrites matching keys, retains absent rows and is idempo
     }
   } finally { await db.close(); }
 });
+
+test('Reverse upsert stores wh_id, backfills it on unchanged rows and never erases it from an old writer', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec('create role anon; create role authenticated; create role service_role;');
+    for (const file of ['20261019090000_kas_reverse_history.sql', '20261102035351_reverse_pud_denominator.sql', '20261102043310_reverse_history_upsert.sql', '20261120090000_kas_reverse_history_wh_id.sql']) {
+      await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
+    }
+    const row = (hub, extra = {}) => ({ report_date: '2026-11-01', hub, region: 'HNO', hub_type: 'BC KD', client_name: 'SPE Reverse', mau_pu: 1, ontime_pu_1st: 1, ontime_pu_opr: 1, pud: 1, mau_pud: 2, ...extra });
+    const write = async rows => (await db.query(`select public.upsert_kas_reverse_history('2026-10-19','2026-11-01',$1::jsonb) r`, [JSON.stringify(rows)])).rows[0].r;
+    const whOf = async hub => (await db.query('select wh_id from public.kas_reverse_history where hub = $1', [hub])).rows[0].wh_id;
+
+    assert.equal((await write([row('A')])).written, 1, 'old writer without wh_id still works');
+    assert.equal(await whOf('A'), null);
+    const filled = await write([row('A', { wh_id: '22781000' })]);
+    assert.equal(filled.written, 1, 'same numbers but new wh_id counts as a change');
+    assert.equal(await whOf('A'), '22781000');
+    assert.equal((await write([row('A', { wh_id: '22781000' })])).unchanged, 1, 'idempotent once wh_id is stored');
+    await write([row('A', { mau_pu: 5 })]);
+    assert.equal(await whOf('A'), '22781000', 'a writer that omits wh_id keeps the stored one');
+    await write([row('A', { wh_id: '99999000' })]);
+    assert.equal(await whOf('A'), '99999000', 'a new wh_id overwrites');
+  } finally { await db.close(); }
+});

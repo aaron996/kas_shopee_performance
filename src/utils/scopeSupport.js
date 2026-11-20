@@ -13,4 +13,11 @@ export const showsClientFilter = (activeTab, laneView) => !isLaneCa1(activeTab, 
 export const supportsExport = (activeTab, laneView) =>
   activeTab === 'home' || activeTab === 'report1' || isLaneCa1(activeTab, laneView);
 
+/** Tab cố định client và không lọc theo Vùng/Loại Hub: header ẩn cả cụm bộ lọc phạm vi. */
+export const SCOPE_FILTERLESS_TABS = Object.freeze(['cod-suspicion', 'guide', 'auto-report']);
+export const showsScopeFilters = activeTab => !SCOPE_FILTERLESS_TABS.includes(activeTab);
+
+/** Các tab có Client nhưng không áp dụng Vùng/Loại Hub. */
+export const hidesRegionHubFilters = activeTab => ['report3', 'report-insight'].includes(activeTab) || !showsScopeFilters(activeTab);
+
 export const usesCa1Source = isLaneCa1;

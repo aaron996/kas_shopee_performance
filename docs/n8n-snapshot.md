@@ -65,7 +65,7 @@ handful of orders must not outrank the big ones.
 
 | param | values |
 | --- | --- |
-| `report` + `table` | `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
+| `report` + `table` | `reverse` + `all` (một ảnh) (báo cáo tự động SPE Reverse, xem [reverse-auto-report.md](reverse-auto-report.md)), `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
 | `client` | `SPB` (default) or `SPE`; ignored for Ca1 (source has no client split) |
 | `excludeHubTypes` | optional comma list, same as unticking those types in "Loại Hub" (the Telegram report does not use it) |
 | `hubTypes` | optional comma list, the opposite: keep ONLY these types (`hubTypes=CK` for the CK-only pictures: `pick`/`deli` × `1st`/`opr`/`odr`). Wins over `excludeHubTypes` |

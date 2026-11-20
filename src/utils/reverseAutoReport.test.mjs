@@ -1,0 +1,125 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildReverseSheet, buildOprTables, buildBacklogTable, hubNamesByWhId, oprRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
+
+const hist = (report_date, region, hub, hub_type, mau_pu, opr, wh_id = null) => ({ report_date, region, hub, hub_type, client_name: 'SPE Reverse', mau_pu, ontime_pu_opr: opr, pud: 999, wh_id });
+const day = n => `2026-11-${String(n).padStart(2, '0')}`;
+
+test('% OPR is ontime_pu_opr / mau_pu and null when there is no sample', () => {
+  assert.equal(oprRateOf(100, 85), 85);
+  assert.equal(oprRateOf(0, 5), null);
+});
+
+test('province comes from the code in the hub name (BDU joins HCM, VPH joins Phú Thọ, unknown codes stay visible)', () => {
+  assert.equal(provinceOfHub('(HNO) KD Cầu Giấy'), 'Hà Nội');
+  assert.equal(provinceOfHub('(BDU) KT Thuận Giao'), 'Hồ Chí Minh');
+  assert.equal(provinceOfHub('(VPH) KD Vĩnh Phúc'), 'Phú Thọ');
+  assert.equal(provinceOfHub('(XYZ) KD Lạ'), 'XYZ');
+  assert.equal(provinceOfHub('Kho không mã'), 'Chưa rõ tỉnh');
+});
+
+test('reportDates keeps the latest 7 distinct days', () => {
+  const rows = Array.from({ length: 10 }, (_, i) => hist(day(i + 1), 'HNO', 'A', 'BC', 1, 1));
+  assert.deepEqual(reportDates(rows), [4, 5, 6, 7, 8, 9, 10].map(day));
+});
+
+const section = (tables, key) => tables.sections.find(item => item.key === key);
+
+test('three sections: by hub type, BC KD by province, by region; each Tổng counts its own source rows once', () => {
+  const rows = [
+    hist(day(1), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 10, 6),
+    hist(day(1), 'HCM', '(BDU) KT Thuận Giao', 'BC KD', 5, 5),
+    hist(day(1), 'HNO', 'Bưu cục X', 'BC', 30, 15),
+    hist(day(1), 'HNO', 'Kho lấy hàng Ahamove Hà Nội', 'Ahamove', 20, 18),
+    hist(day(1), 'HCM', '(HCM) A', 'BC', 40, 30),
+    hist(day(2), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 0, 0)
+  ];
+  const t = buildOprTables(rows);
+  assert.deepEqual(t.dates, [day(1), day(2)]);
+  assert.deepEqual(t.sections.map(s => s.key), ['partner', 'province', 'region']);
+
+  const partner = section(t, 'partner');
+  assert.deepEqual(partner.rows.map(r => r.label), ['AHM', 'BC', 'BC KD'], 'AHM, BC, BC KD theo thứ tự cố định');
+  assert.equal(partner.rows[2].cells[0].rate, (11 / 15) * 100);
+  assert.equal(partner.rows[2].cells[1].rate, null, 'ngày không có mẫu → null');
+  assert.equal(partner.rows[2].vol7, 15, 'vol7 = tổng đơn mới cả cửa sổ');
+  assert.equal(partner.total.vol7, 105);
+  assert.equal(partner.total.cells[0].vol, 105);
+  assert.equal(partner.total.cells[0].opr, 74);
+
+  const province = section(t, 'province');
+  assert.deepEqual(province.rows.map(r => r.label), ['Hà Nội', 'Hồ Chí Minh'], 'tỉnh theo vol giảm dần');
+  assert.equal(province.total.label, 'Tổng BC KD');
+  assert.equal(province.total.cells[0].vol, 15, 'chỉ BC KD');
+
+  const region = section(t, 'region');
+  assert.deepEqual(region.rows.map(r => r.label), ['HNO', 'HCM']);
+  assert.equal(region.rows[0].cells[0].vol, 60, 'vùng gồm cả BC KD và AHM');
+  assert.equal(region.total.cells[0].vol, 105);
+});
+
+test('regions follow the dashboard normalisation; KHL, GXT and unknown regions fold into "Khác" so the total still adds up', () => {
+  const rows = [
+    hist(day(1), 'HNO', '(HNO) LH Long Biên', 'KA', 5, 5, '23013000'),
+    hist(day(1), 'HNO', 'B', 'BC', 10, 5),
+    hist(day(1), 'N/A', 'C', 'BC', 2, 1),
+    hist(day(1), 'TNG', 'D', 'BC', 0, 0)
+  ];
+  const t = buildOprTables(rows);
+  const region = section(t, 'region');
+  assert.deepEqual(region.rows.map(r => r.label), ['HNO', 'Khác']);
+  assert.equal(region.rows[1].cells[0].vol, 7);
+  assert.equal(region.total.cells[0].vol, 17);
+  assert.deepEqual(section(t, 'partner').rows.map(r => r.label), ['BC', 'KHL']);
+});
+
+test('backlog table: assign buckets for backlog ≤ 7 days, total = sum of buckets, KD and KHL by wh_id, names from history, top-N with total over all hubs', () => {
+  const b = (wh_id, hub_type, assign_bucket, age_bucket, backlog_orders) =>
+    ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type, assign_bucket, age_bucket, backlog_orders, wh_id });
+  const backlog = [
+    b('22781000', 'KD', '0', '1-3', 4), b('22781000', 'KD', '1-2', '4-7', 6), b('22781000', 'KD', '3+', '4-7', 10), b('22781000', 'KD', '3+', '8-14', 7),
+    b('23156000', 'KD', '3+', '1-3', 5),
+    b('23013000', 'KA', '0', '1-3', 99), b('11111111', 'BC', '0', '1-3', 50),
+    { ...b('22781000', 'KD', '0', '1-3', 1000), snapshot_date: '2026-11-19' }
+  ];
+  const history = [hist(day(18), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 1, 1, '22781000'), hist(day(19), 'HNO', '(HNO) KD Dương Nội', 'BC KD', 1, 1, '22781000')];
+  const table = buildBacklogTable(backlog, history, { top: 1 });
+  assert.equal(table.snapshotDate, '2026-11-20');
+  assert.equal(table.hubCount, 2, 'KHL và BC không tính');
+  assert.deepEqual(table.rows.map(r => r.name), ['HNO KD Dương Nội']);
+  assert.deepEqual(
+    (({ g0, g12, g3, total }) => ({ g0, g12, g3, total }))(table.rows[0]),
+    { g0: 4, g12: 6, g3: 10, total: 20 }
+  );
+  assert.deepEqual(table.total, { g0: 4, g12: 6, g3: 15, total: 25 }, 'Tổng là của mọi kho BCKD, kể cả kho ngoài top');
+  assert.equal(buildBacklogTable(backlog, [], { top: 5 }).rows[1].name, 'Kho 23156000', 'chưa có tên thì hiện mã kho');
+  assert.equal(buildBacklogTable([], history), null, 'chưa có snapshot → null, không phải bảng 0');
+});
+
+test('a hub whose only backlog is older than 7 days is not listed', () => {
+  const b = (wh_id, age_bucket, backlog_orders) =>
+    ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type: 'KD', assign_bucket: '3+', age_bucket, backlog_orders, wh_id });
+  const table = buildBacklogTable([b('1', '1-3', 3), b('2', '8-14', 9)], []);
+  assert.deepEqual(table.rows.map(r => r.whId), ['1']);
+  assert.equal(table.hubCount, 1);
+  assert.equal(table.total.total, 3);
+});
+
+test('backlog rows are sorted by Gán 0 descending, ties by total', () => {
+  const b = (wh_id, assign_bucket, backlog_orders) =>
+    ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type: 'KD', assign_bucket, age_bucket: '1-3', backlog_orders, wh_id });
+  const table = buildBacklogTable([b('A', '0', 5), b('A', '3+', 50), b('B', '0', 9), b('C', '0', 5), b('C', '3+', 60), b('D', '1-2', 99)], []);
+  assert.deepEqual(table.rows.map(r => r.whId), ['B', 'C', 'A', 'D'], 'g0: B 9, C 5 (total 65), A 5 (total 55), D 0');
+});
+
+test('hubNamesByWhId takes the latest name per wh_id', () => {
+  const names = hubNamesByWhId([hist(day(2), 'HNO', 'Tên mới', 'BC', 1, 1, '1'), hist(day(1), 'HNO', 'Tên cũ', 'BC', 1, 1, '1')]);
+  assert.equal(names.get('1'), 'Tên mới');
+});
+
+test('buildReverseSheet keeps each half independent: no history → no tables, no snapshot → no backlog', () => {
+  assert.deepEqual(buildReverseSheet([], []), { tables: null, backlog: null });
+  const only = buildReverseSheet([hist(day(1), 'HNO', 'B', 'BC', 10, 5)], []);
+  assert.ok(only.tables);
+  assert.equal(only.backlog, null);
+});

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Report1MienVungHub from '../modules/ops-metrics/Report1MienVungHub.jsx';
 import Report5LaneCa1 from '../components/Report5LaneCa1.jsx';
+import { ReverseReportSheet } from '../modules/auto-report/ReverseReportTables.jsx';
+import { buildReverseSheet } from '../utils/reverseAutoReport';
 import { groupDatesByWeek } from '../utils/dataProcessor';
 import { parseSnapshotParams, unpackRows, scopeSnapshotRows, SNAPSHOT_CLIENT_LABELS } from '../utils/snapshotView';
 import './snapshot.css';
@@ -25,8 +27,15 @@ function readEmbeddedPayload() {
   }
 }
 
+// Reverse: payload là { history, backlog }, mỗi nguồn một mảng cột-gói. Dựng mô hình bảng ngay ở đây (không qua bộ lọc dashboard).
+function toReverseState(payload) {
+  const { tables, backlog } = buildReverseSheet(unpackRows(payload.history), unpackRows(payload.backlog));
+  return tables || backlog ? { status: 'ready', tables, backlog } : { status: 'error', message: 'Chưa có dữ liệu Reverse.' };
+}
+
 function toState(payload, params) {
   if (payload?.error) return { status: 'error', message: payload.error };
+  if (params.view.module === 'reverse') return toReverseState(payload);
   return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes, params.onlyHubTypes) };
 }
 
@@ -57,6 +66,13 @@ export default function SnapshotPage() {
   }
 
   const { view, client, excludeHubTypes, onlyHubTypes } = params;
+  if (view.module === 'reverse') {
+    return (
+      <div className="snapshot-root">
+        <ReverseReportSheet tables={state.tables} backlog={state.backlog} />
+      </div>
+    );
+  }
   const isCa1 = view.data === 'ca1';
   const dates = [...new Set(state.rows.map(r => (isCa1 ? r.ngay : r.report_date)))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(dates);

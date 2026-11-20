@@ -1,0 +1,188 @@
+/* Báo cáo tự động SPE Reverse: một tấm hình, bố cục theo file mẫu KA (cột trái ba bảng % PUD, cột phải Gán lấy theo kho) nhưng
+   toàn bộ kiểu dáng theo design system của app: token ngữ nghĩa (tokens.css), thẻ như .metric-block, đầu bảng như table.mtx-table,
+   phông Outfit / IBM Plex. Không có màu cố định riêng, nên sáng/tối tự theo theme và ảnh /snapshot giống tab trong app. */
+.rar-sheet {
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+}
+
+.rar-sheet-grid {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.rar-left {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Thẻ dữ liệu: cùng dạng .metric-block. */
+.rar-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+/* Tiêu đề vùng dữ liệu: cùng dạng .metric-header / .metric-title. */
+.rar-bar {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-heading);
+  font-size: var(--type-section);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  color: var(--ghn-blue-dark);
+}
+
+.rar-bar-meta {
+  margin-left: var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-meta);
+  font-weight: var(--weight-medium);
+}
+
+.rar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.rar-table th,
+.rar-table td {
+  padding: 0.22rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rar-table tbody tr:last-child th,
+.rar-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Hàng đầu bảng: cùng dạng table.mtx-table thead th. */
+.rar-table thead th {
+  background: var(--ghn-blue);
+  color: var(--text-on-brand);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-caption);
+  text-align: right;
+  border-bottom: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.rar-table thead th.rar-name { text-align: left; }
+
+.rar-name {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+}
+
+.rar-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rar-strong { font-weight: 700; }
+
+/* Cột Vol 7N: số lượng, tách khỏi các cột tỷ lệ bằng nền nhẹ và một đường dọc. */
+.rar-table tbody .rar-volcol,
+.rar-table tfoot .rar-volcol {
+  background: var(--surface-subtle);
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* Dòng Tổng: nhấn bằng nền nhẹ + đường kẻ trên, không dùng màu trạng thái. */
+.rar-total th,
+.rar-total td {
+  background: var(--surface-subtle);
+  border-top: 2px solid var(--border-strong);
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.rar-backlog-cols {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 0 var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Tổng BC KD nằm ngay dưới tiêu đề, dạng thẻ nhỏ: thấy tổng trước rồi mới xuống từng kho. Chiều cao cố định theo nội dung,
+   không kéo giãn bảng bên dưới. */
+.rar-backlog-sum {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2-5);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.rar-backlog-sum div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+.rar-backlog-sum dt {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  font-weight: var(--weight-medium);
+}
+
+.rar-backlog-sum dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-metric);
+  color: var(--text-main);
+}
+
+/* Thẻ tổng cuối (cộng ba cột) nhấn bằng màu tiêu đề, như giá trị chính của một KPI. */
+.rar-backlog-sum div:last-child dd { color: var(--ghn-blue-dark); }
+
+.rar-empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--type-meta);
+}
+
+.rar-note {
+  width: 0;
+  min-width: 100%;
+  margin: var(--space-3) 0 0;
+  font-size: var(--type-caption);
+  line-height: var(--leading-normal);
+  color: var(--text-muted);
+}
+
+/* Tab "Báo cáo tự động" (không áp dụng cho ảnh /snapshot). */
+.rar-tab { padding: var(--space-4); }
+.rar-tab-intro { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--type-body); }
+.rar-scroll { max-width: 100%; overflow-x: auto; }
+.rar-state {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-main);
+}
+.rar-state p { margin: 0 0 var(--space-2); }
