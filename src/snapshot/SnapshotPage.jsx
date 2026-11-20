@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Report1MienVungHub from '../modules/ops-metrics/Report1MienVungHub.jsx';
 import Report5LaneCa1 from '../components/Report5LaneCa1.jsx';
-import { ReversePudTable, ReverseVolTable, ReverseBacklogTable } from '../modules/auto-report/ReverseReportTables.jsx';
-import { buildPudTables, buildBacklogTable } from '../utils/reverseAutoReport';
+import { ReverseReportSheet } from '../modules/auto-report/ReverseReportTables.jsx';
+import { buildReverseSheet } from '../utils/reverseAutoReport';
 import { groupDatesByWeek } from '../utils/dataProcessor';
 import { parseSnapshotParams, unpackRows, scopeSnapshotRows, SNAPSHOT_CLIENT_LABELS } from '../utils/snapshotView';
 import './snapshot.css';
@@ -28,19 +28,14 @@ function readEmbeddedPayload() {
 }
 
 // Reverse: payload là { history, backlog }, mỗi nguồn một mảng cột-gói. Dựng mô hình bảng ngay ở đây (không qua bộ lọc dashboard).
-function toReverseState(payload, params) {
-  const history = unpackRows(payload.history);
-  if (params.view.table === 'backlog') {
-    const table = buildBacklogTable(unpackRows(payload.backlog), history);
-    return table ? { status: 'ready', table } : { status: 'error', message: 'Chưa có snapshot backlog Reverse.' };
-  }
-  const tables = buildPudTables(history);
-  return tables.dates.length ? { status: 'ready', tables } : { status: 'error', message: 'Chưa có dữ liệu lịch sử Reverse.' };
+function toReverseState(payload) {
+  const { tables, backlog } = buildReverseSheet(unpackRows(payload.history), unpackRows(payload.backlog));
+  return tables || backlog ? { status: 'ready', tables, backlog } : { status: 'error', message: 'Chưa có dữ liệu Reverse.' };
 }
 
 function toState(payload, params) {
   if (payload?.error) return { status: 'error', message: payload.error };
-  if (params.view.module === 'reverse') return toReverseState(payload, params);
+  if (params.view.module === 'reverse') return toReverseState(payload);
   return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes, params.onlyHubTypes) };
 }
 
@@ -74,9 +69,7 @@ export default function SnapshotPage() {
   if (view.module === 'reverse') {
     return (
       <div className="snapshot-root">
-        {view.table === 'pud' && <ReversePudTable tables={state.tables} />}
-        {view.table === 'vol' && <ReverseVolTable tables={state.tables} />}
-        {view.table === 'backlog' && <ReverseBacklogTable table={state.table} />}
+        <ReverseReportSheet tables={state.tables} backlog={state.backlog} />
       </div>
     );
   }

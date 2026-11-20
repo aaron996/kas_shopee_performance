@@ -2,34 +2,44 @@ import React from 'react';
 import { formatPct, formatVol } from '../../utils/dataProcessor.js';
 import './reverseReport.css';
 
-// Các bảng của báo cáo tự động SPE Reverse. Dùng chung cho ảnh /snapshot (n8n gửi Telegram) và tab "Báo cáo tự động".
+// Báo cáo tự động SPE Reverse: MỘT tấm hình như file mẫu KA. Cột trái là ba bảng % PUD theo ngày (loại Hub, BC KD theo tỉnh,
+// vùng), cột phải là "Gán lấy" theo từng kho BC KD. Dùng chung cho ảnh /snapshot (n8n gửi Telegram) và tab "Báo cáo tự động".
 // Dữ liệu dựng ở src/utils/reverseAutoReport.js; component này chỉ vẽ. % PUD không chặn 100% (xem pudRateOf).
 const dayLabel = day => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 const fullDate = day => `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
 
-function SectionTable({ section, dates, heading, cellText, ariaLabel }) {
+const SECTION_TITLES = {
+  partner: 'PICKUP DONE · LOẠI HUB',
+  province: 'PICKUP DONE · BC KD THEO TỈNH',
+  region: 'PICKUP DONE · NATIONWIDE THEO VÙNG'
+};
+
+function PudSection({ section, dates }) {
   return (
-    <section className="rar-card" aria-label={`${ariaLabel} ${section.title}`}>
-      <h2 className="rar-title">{heading} · {section.title}</h2>
+    <section className="rar-panel" aria-label={SECTION_TITLES[section.key]}>
+      <h2 className="rar-bar">{SECTION_TITLES[section.key]}</h2>
       <table className="rar-table">
         <thead>
           <tr>
             <th scope="col" className="rar-name">{section.rowHeader}</th>
             {dates.map(day => <th scope="col" key={day} className="rar-num">{dayLabel(day)}</th>)}
+            <th scope="col" className="rar-num rar-volcol">Vol 7N</th>
           </tr>
         </thead>
         <tbody>
           {section.rows.map(row => (
-            <tr key={row.key} className="rar-row">
+            <tr key={row.key}>
               <th scope="row" className="rar-name">{row.label}</th>
-              {row.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{cellText(cell)}</td>)}
+              {row.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{formatPct(cell.rate)}</td>)}
+              <td className="rar-num rar-volcol">{formatVol(row.vol7)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="rar-row rar-total">
+          <tr className="rar-total">
             <th scope="row" className="rar-name">{section.total.label}</th>
-            {section.total.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{cellText(cell)}</td>)}
+            {section.total.cells.map((cell, i) => <td key={dates[i]} className="rar-num">{formatPct(cell.rate)}</td>)}
+            <td className="rar-num rar-volcol">{formatVol(section.total.vol7)}</td>
           </tr>
         </tfoot>
       </table>
@@ -37,68 +47,92 @@ function SectionTable({ section, dates, heading, cellText, ariaLabel }) {
   );
 }
 
-function SectionTables({ tables, heading, note, cellText, ariaLabel }) {
-  const range = `${dayLabel(tables.dates[0])} → ${fullDate(tables.dates[tables.dates.length - 1])}`;
+function BacklogHead() {
+  return (
+    <thead>
+      <tr>
+        <th scope="col" className="rar-name">Kho</th>
+        <th scope="col" className="rar-num">Gán 0</th>
+        <th scope="col" className="rar-num">Gán 1–2</th>
+        <th scope="col" className="rar-num">Gán ≥3</th>
+        <th scope="col" className="rar-num">L7D</th>
+        <th scope="col" className="rar-num">L14D</th>
+      </tr>
+    </thead>
+  );
+}
+
+function BacklogCells({ item }) {
   return (
     <>
-      {tables.sections.map(section => (
-        <SectionTable key={section.key} section={section} dates={tables.dates}
-          heading={heading} cellText={cellText} ariaLabel={ariaLabel} />
-      ))}
-      <p className="rar-note rar-note-page">Dữ liệu {range}. {note}</p>
-    </>
-  );
-}
-
-export function ReversePudTable({ tables }) {
-  return (
-    <SectionTables tables={tables} ariaLabel="% PUD SPE Reverse" heading="% Pickup done (PUD)"
-      note="PUD = đơn lấy thành công / đơn mới trong ngày. Có thể vượt 100% vì số lấy thành công gồm cả đơn tồn từ ngày trước. Vùng Khác gồm GXT, KHL và đơn chưa rõ vùng."
-      cellText={cell => formatPct(cell.rate)} />
-  );
-}
-
-export function ReverseVolTable({ tables }) {
-  return (
-    <SectionTables tables={tables} ariaLabel="Volume SPE Reverse" heading="Vol đơn mới/ngày"
-      note="Vol = số đơn mới trong ngày (mẫu của % PUD). Vùng Khác gồm GXT, KHL và đơn chưa rõ vùng."
-      cellText={cell => formatVol(cell.vol)} />
-  );
-}
-
-export function ReverseBacklogTable({ table }) {
-  const row = (item, className) => (
-    <tr key={item.whId || item.name} className={className}>
-      <th scope="row" className="rar-name">{item.name}</th>
       <td className="rar-num">{formatVol(item.g0)}</td>
       <td className="rar-num">{formatVol(item.g12)}</td>
       <td className="rar-num">{formatVol(item.g3)}</td>
       <td className="rar-num rar-strong">{formatVol(item.l7)}</td>
       <td className="rar-num rar-strong">{formatVol(item.l14)}</td>
-    </tr>
+    </>
   );
-  const rest = table.hubCount - table.rows.length;
+}
+
+function BacklogPanel({ table }) {
+  if (!table) {
+    return (
+      <section className="rar-panel rar-backlog" aria-label="Gán lấy BC KD">
+        <h2 className="rar-bar">GÁN LẤY · BC KD THEO KHO</h2>
+        <p className="rar-empty">Chưa có snapshot backlog Reverse.</p>
+      </section>
+    );
+  }
+  // Danh sách dài nên chia hai nửa cạnh nhau để tấm hình không cao gấp đôi cột trái.
+  const half = Math.ceil(table.rows.length / 2);
+  const columns = [table.rows.slice(0, half), table.rows.slice(half)];
   return (
-    <section className="rar-card" aria-label="Backlog BCKD SPE Reverse">
-      <h2 className="rar-title">Gán lấy BC KD theo kho · snapshot {fullDate(table.snapshotDate)}</h2>
-      <table className="rar-table">
-        <thead>
-          <tr>
-            <th scope="col" className="rar-name">Kho</th>
-            <th scope="col" className="rar-num">0 lần</th>
-            <th scope="col" className="rar-num">1–2 lần</th>
-            <th scope="col" className="rar-num">≥3 lần</th>
-            <th scope="col" className="rar-num">L7D</th>
-            <th scope="col" className="rar-num">L14D</th>
-          </tr>
-        </thead>
-        <tbody>{table.rows.map(item => row(item, 'rar-row'))}</tbody>
-        <tfoot>{row({ name: `Tổng BCKD (${table.hubCount} kho)`, whId: 'total', ...table.total }, 'rar-row rar-total')}</tfoot>
-      </table>
-      <p className="rar-note">
-        Đơn chưa lấy thành công. Cột 0 / 1–2 / ≥3 lần gán và L7D chỉ tính đơn tồn ≤ 7 ngày; L14D là backlog tuyệt đối cả cửa sổ 14 ngày.
-        {rest > 0 && ` Hiện ${table.rows.length} kho tồn nhiều nhất, còn ${rest} kho nằm trong dòng Tổng.`}
-      </p>
+    <section className="rar-panel rar-backlog" aria-label="Gán lấy BC KD">
+      <h2 className="rar-bar">GÁN LẤY · BC KD THEO KHO · snapshot {fullDate(table.snapshotDate)}</h2>
+      <dl className="rar-backlog-sum" aria-label={`Tổng BC KD ${table.hubCount} kho`}>
+        <div><dt>Tổng BC KD</dt><dd>{table.hubCount} kho</dd></div>
+        <div><dt>Gán 0</dt><dd>{formatVol(table.total.g0)}</dd></div>
+        <div><dt>Gán 1–2</dt><dd>{formatVol(table.total.g12)}</dd></div>
+        <div><dt>Gán ≥3</dt><dd>{formatVol(table.total.g3)}</dd></div>
+        <div><dt>L7D</dt><dd>{formatVol(table.total.l7)}</dd></div>
+        <div><dt>L14D</dt><dd>{formatVol(table.total.l14)}</dd></div>
+      </dl>
+      <div className="rar-backlog-cols">
+        {columns.map((rows, index) => (
+          <table className="rar-table" key={index}>
+            <BacklogHead />
+            <tbody>
+              {rows.map(item => (
+                <tr key={item.whId || item.name}>
+                  <th scope="row" className="rar-name">{item.name}</th>
+                  <BacklogCells item={item} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))}
+      </div>
     </section>
+  );
+}
+
+export function ReverseReportSheet({ tables, backlog }) {
+  const range = tables ? `${dayLabel(tables.dates[0])} → ${fullDate(tables.dates[tables.dates.length - 1])}` : '';
+  return (
+    <article className="rar-sheet" aria-label="Báo cáo tự động SPE Reverse">
+      <div className="rar-sheet-grid">
+        <div className="rar-left">
+          {tables
+            ? tables.sections.map(section => <PudSection key={section.key} section={section} dates={tables.dates} />)
+            : <section className="rar-panel"><h2 className="rar-bar">PICKUP DONE</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
+        </div>
+        <BacklogPanel table={backlog} />
+      </div>
+      <p className="rar-note">
+        SPE Reverse{range && ` · ${range}`}. % PUD = đơn lấy thành công / đơn mới trong ngày, có thể vượt 100% vì gồm cả đơn tồn từ ngày trước;
+        Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần và L7D
+        chỉ tính đơn tồn ≤ 7 ngày, L14D là cả cửa sổ 14 ngày.
+      </p>
+    </article>
   );
 }

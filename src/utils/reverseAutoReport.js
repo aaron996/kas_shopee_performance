@@ -77,7 +77,8 @@ export function buildPudTables(historyRows, { days = REPORT_DAYS } = {}) {
   });
 
   const volOf = group => group.cells.reduce((acc, cell) => acc + cell.vol, 0);
-  const finish = group => ({ ...group, cells: group.cells.map(cell => ({ ...cell, rate: pudRateOf(cell.vol, cell.pud) })) });
+  // vol7: tổng đơn mới cả cửa sổ, hiện ở cột "Vol 7N" cạnh % PUD.
+  const finish = group => ({ ...group, vol7: volOf(group), cells: group.cells.map(cell => ({ ...cell, rate: pudRateOf(cell.vol, cell.pud) })) });
   const rank = (order, label) => { const i = order.indexOf(label); return i < 0 ? order.length : i; };
   const finishSection = (section, sorter, totalLabel) => ({
     key: section.key,
@@ -147,4 +148,13 @@ export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG
     ...values
   })).sort((a, b) => b.l14 - a.l14 || a.name.localeCompare(b.name, 'vi'));
   return { snapshotDate, rows: list.slice(0, top), hubCount: list.length, total };
+}
+
+/** Mô hình của tấm hình báo cáo: bảng % PUD (null khi chưa có lịch sử) và bảng gán lấy (null khi chưa có snapshot backlog). */
+export function buildReverseSheet(historyRows, backlogRows) {
+  const tables = buildPudTables(historyRows);
+  return {
+    tables: tables.dates.length ? tables : null,
+    backlog: buildBacklogTable(backlogRows, historyRows)
+  };
 }

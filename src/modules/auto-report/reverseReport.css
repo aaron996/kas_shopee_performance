@@ -1,46 +1,66 @@
-/* Báo cáo tự động SPE Reverse: ba bảng dùng chung cho ảnh /snapshot và tab. Chỉ dùng token ngữ nghĩa (sáng/tối theo tokens.css). */
-.rar-card {
-  width: 720px;
+/* Báo cáo tự động SPE Reverse: một tấm hình giống file mẫu KA (thanh tiêu đề vàng, hàng đầu bảng xanh xám). Bảng màu cố định riêng
+   của tấm hình để ảnh gửi Telegram và tab trong app giống hệt nhau, không đổi theo giao diện sáng/tối. */
+.rar-sheet {
+  --rar-bar: #ffd54f;
+  --rar-bar-text: #2b2100;
+  --rar-head: #6f86a8;
+  --rar-head-text: #fff;
+  --rar-total: #dde5f0;
+  --rar-line: #d6dde8;
+  --rar-vol: #f3f6fa;
+  --rar-text: #16202e;
+  --rar-muted: #5a6779;
+  width: max-content;
   max-width: 100%;
   box-sizing: border-box;
-  margin: 0 0 16px;
-  padding: 16px 18px 12px;
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  background: var(--surface);
-  color: var(--text-main);
+  padding: 14px;
+  border: 1px solid var(--rar-line);
+  background: #fff;
+  color: var(--rar-text);
+  font-family: Outfit, 'IBM Plex Sans', system-ui, sans-serif;
 }
 
-.rar-title {
-  margin: 0 0 10px;
-  font-family: Outfit, 'IBM Plex Sans', system-ui, sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
+.rar-sheet-grid {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 14px;
+  align-items: start;
+}
+
+.rar-left { display: grid; gap: 12px; }
+.rar-left .rar-table { width: 100%; }
+
+.rar-bar {
+  margin: 0;
+  padding: 5px 10px;
+  background: var(--rar-bar);
+  color: var(--rar-bar-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .rar-table {
-  width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .rar-table th,
 .rar-table td {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 3px 7px;
+  border-bottom: 1px solid var(--rar-line);
   white-space: nowrap;
 }
 
 .rar-table thead th {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
+  background: var(--rar-head);
+  color: var(--rar-head-text);
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
-.rar-name {
-  text-align: left;
-  font-weight: 600;
-}
+.rar-name { text-align: left; font-weight: 600; }
 
 .rar-num {
   text-align: right;
@@ -48,30 +68,43 @@
   font-variant-numeric: tabular-nums;
 }
 
-.rar-strong {
-  font-weight: 700;
-}
+.rar-strong { font-weight: 700; }
 
-/* AHM và BCKD là nhóm theo loại hub: tách khỏi các vùng bằng nền nhẹ để không bị đọc nhầm là hai vùng. */
-.rar-ahm th,
-.rar-ahm td,
-.rar-bckd th,
-.rar-bckd td {
-  background: var(--surface-subtle, rgba(20, 60, 100, 0.05));
-}
+.rar-volcol { background: var(--rar-vol); border-left: 1px solid var(--rar-line); }
+.rar-table thead .rar-volcol { background: var(--rar-head); }
 
 .rar-total th,
 .rar-total td {
-  border-top: 2px solid var(--border-strong, var(--border));
+  background: var(--rar-total);
+  border-top: 2px solid var(--rar-head);
   border-bottom: 0;
-  font-weight: 700;
+  font-weight: 800;
 }
 
+.rar-backlog-cols { display: grid; grid-template-columns: max-content max-content; gap: 0 10px; }
+/* Tổng BC KD nằm ngay dưới thanh tiêu đề: người đọc thấy tổng trước rồi mới xuống từng kho. */
+.rar-backlog-sum {
+  display: flex;
+  justify-content: space-around;
+  margin: 0;
+  padding: 4px 8px;
+  background: var(--rar-total);
+  border-bottom: 2px solid var(--rar-head);
+  font-size: 0.8rem;
+}
+.rar-backlog-sum div { display: flex; gap: 6px; align-items: baseline; }
+.rar-backlog-sum dt { color: var(--rar-muted); font-weight: 600; }
+.rar-backlog-sum dd { margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 800; }
+
+.rar-empty { margin: 0; padding: 12px; color: var(--rar-muted); font-size: 0.8rem; }
+
 .rar-note {
-  margin: 8px 0 0;
-  max-width: 62ch;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  margin: 10px 0 0;
+  width: 0;
+  min-width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--rar-muted);
 }
 
 /* Tab "Báo cáo tự động" (không áp dụng cho ảnh /snapshot). */
@@ -80,5 +113,3 @@
 .rar-scroll { max-width: 100%; overflow-x: auto; }
 .rar-state { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); }
 .rar-state p { margin: 0 0 8px; }
-
-.rar-note-page { margin: 0 0 16px 4px; }

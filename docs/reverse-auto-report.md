@@ -1,19 +1,19 @@
 # Báo cáo tự động SPE Reverse (Telegram)
 
 Báo cáo hằng ngày cho team KA, gửi vào group Telegram bằng ảnh chụp của trang `/snapshot` (cùng luồng với
-[n8n-snapshot.md](n8n-snapshot.md)). Cấu trúc theo file mẫu KA gửi (4 bảng, % PUD theo ngày + gán lấy theo kho BC KD), chia thành 3 ảnh:
+[n8n-snapshot.md](n8n-snapshot.md)). **Một tấm hình** giống file mẫu KA (thanh tiêu đề vàng, hàng đầu bảng xanh xám):
 
-| `report=reverse&table=` | Nội dung |
-| --- | --- |
-| `pud` | **% Pickup done (PUD)** 7 ngày gần nhất, 3 bảng: theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh, Nationwide theo vùng; mỗi bảng có dòng Tổng |
-| `vol` | Vol (đơn mới/ngày) 7 ngày gần nhất, cùng 3 bảng |
-| `backlog` | **Gán lấy** BC KD theo kho (đội pick): đủ mọi kho, cột 0 / 1–2 / ≥3 lần gán (đơn tồn ≤ 7 ngày = L7D), L7D và L14D, dòng Tổng |
+- Cột trái, % Pickup done (PUD) 7 ngày gần nhất + cột Vol 7N (tổng đơn mới 7 ngày): theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh,
+  Nationwide theo vùng; mỗi bảng có dòng Tổng.
+- Cột phải, **Gán lấy** BC KD theo kho (đội pick): đủ mọi kho chia hai nửa cạnh nhau, cột Gán 0 / 1–2 / ≥3 lần (đơn tồn ≤ 7 ngày = L7D), L7D, L14D;
+  dòng Tổng BC KD nằm ngay dưới tiêu đề.
 
 ```
-https://kas-shopee-performance.vercel.app/snapshot?report=reverse&table=pud&token=<token>
+https://kas-shopee-performance.vercel.app/snapshot?report=reverse&table=all&token=<token>
 ```
 
-Token lấy ở `POST /api/snapshot-token` như các ảnh khác. Không cần `client`: Reverse luôn là `SPE Reverse`.
+Token lấy ở `POST /api/snapshot-token` như các ảnh khác. Không cần `client`: Reverse luôn là `SPE Reverse`. Ảnh rộng khoảng 1.450 px, chụp
+với viewport ≥ 1.500 px và chụp full page (chiều cao khoảng 1.050 px).
 
 ## Nguồn và cách tính
 
@@ -61,7 +61,7 @@ các kho BC KD lớn lệch dưới 7 đơn. Nguyên nhân còn là giả thuy�
 
 ## Tab "Báo cáo tự động" (app)
 
-Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn nghi vấn COD", `requiresAuth`) hiển thị lại đúng ba bảng của ảnh Telegram.
+Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn nghi vấn COD", `requiresAuth`) hiển thị lại đúng tấm hình gửi Telegram (cùng component `ReverseReportSheet`).
 - Dữ liệu: `GET /api/snapshot-summary?view=reverse-report` với `Authorization: Bearer <phiên đăng nhập>` (không dùng token snapshot). Cùng payload
   `{ history, backlog }` như `/snapshot`; dựng mô hình ở `src/utils/reverseReportClient.js`. Hai bảng gốc chỉ có quyền service_role nên phải qua endpoint.
   Gộp vào `snapshot-summary` để giữ `api/` dưới giới hạn 12 function của Vercel Hobby.

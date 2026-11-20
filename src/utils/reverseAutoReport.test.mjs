@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPudTables, buildBacklogTable, hubNamesByWhId, pudRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
+import { buildReverseSheet, buildPudTables, buildBacklogTable, hubNamesByWhId, pudRateOf, provinceOfHub, reportDates } from './reverseAutoReport.js';
 
 const hist = (report_date, region, hub, hub_type, mau_pu, pud, wh_id = null) => ({ report_date, region, hub, hub_type, client_name: 'SPE Reverse', mau_pu, pud, wh_id });
 const day = n => `2026-11-${String(n).padStart(2, '0')}`;
@@ -43,6 +43,8 @@ test('three sections: by hub type, BC KD by province, by region; each Tổng cou
   assert.deepEqual(partner.rows.map(r => r.label), ['AHM', 'BC', 'BC KD'], 'AHM, BC, BC KD theo thứ tự cố định');
   assert.equal(partner.rows[2].cells[0].rate, (11 / 15) * 100);
   assert.equal(partner.rows[2].cells[1].rate, null, 'ngày không có mẫu → null');
+  assert.equal(partner.rows[2].vol7, 15, 'vol7 = tổng đơn mới cả cửa sổ');
+  assert.equal(partner.total.vol7, 105);
   assert.equal(partner.total.cells[0].vol, 105);
   assert.equal(partner.total.cells[0].pud, 74);
 
@@ -98,4 +100,11 @@ test('backlog table: L7D buckets, L14D absolute, KD and KHL by wh_id, names from
 test('hubNamesByWhId takes the latest name per wh_id', () => {
   const names = hubNamesByWhId([hist(day(2), 'HNO', 'Tên mới', 'BC', 1, 1, '1'), hist(day(1), 'HNO', 'Tên cũ', 'BC', 1, 1, '1')]);
   assert.equal(names.get('1'), 'Tên mới');
+});
+
+test('buildReverseSheet keeps each half independent: no history → no tables, no snapshot → no backlog', () => {
+  assert.deepEqual(buildReverseSheet([], []), { tables: null, backlog: null });
+  const only = buildReverseSheet([hist(day(1), 'HNO', 'B', 'BC', 10, 5)], []);
+  assert.ok(only.tables);
+  assert.equal(only.backlog, null);
 });
