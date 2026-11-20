@@ -4,6 +4,7 @@ export { default as report } from '../../src/modules/ops-metrics/Report1MienVung
 export { default as ai } from '../../src/components/AiOperationsDashboard.jsx';
 export { default as history } from '../../src/components/CodSmsRunHistoryPanel.jsx';
 export { default as autoReport } from '../../src/modules/auto-report/AutoReportTab.jsx';
+export { ReverseReportSheet as reverseSheet } from '../../src/modules/auto-report/ReverseReportTables.jsx';
 export { ToastProvider } from '../../src/components/ui/Toast.jsx';
 export { default as daily } from '../../src/modules/ops-metrics/DailyRangeKpiTable.jsx';
 export { default as weekly } from '../../src/modules/ops-metrics/WeeklyKpiTable.jsx';

@@ -190,3 +190,16 @@ test('Backlog Reverse subtab shows a skeleton on first render, never an empty no
 test('Báo cáo tự động starts as a skeleton, never a false empty notice', () => {
   expectLoading(render(components.autoReport, { dataEnabled: true }));
 });
+
+test('Báo cáo tự động: OPR cells are uncoloured by default and follow a saved personal rule', () => {
+  const rows = [{ key: 'partner:BC', label: 'BC', vol7: 10, cells: [{ vol: 10, opr: 4, rate: 40 }] }];
+  const tables = { dates: ['2026-11-19'], sections: ['partner', 'province', 'region'].map(key => ({
+    key, title: key, rowHeader: key, rows, total: { key: `${key}:total`, label: 'Tổng', vol7: 10, cells: [{ vol: 10, opr: 4, rate: 40 }] }
+  })) };
+  const plain = render(components.reverseSheet, { tables, backlog: null });
+  assert.doesNotMatch(plain, /kpi-custom-color|heat-\d/);
+  const rule = { mode: 'below', threshold: 90, spread: 5, lowColor: '#ef9184', midColor: '#ffffff', highColor: '#ffffff' };
+  const painted = render(components.reverseSheet, { tables, backlog: null, formattingRule: rule });
+  assert.match(painted, /kpi-custom-color/);
+  assert.match(painted, /kpi-format-legend/);
+});

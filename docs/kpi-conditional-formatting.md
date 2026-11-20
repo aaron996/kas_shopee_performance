@@ -19,6 +19,8 @@ Cài đặt lưu trong localStorage, khóa `ghn:kpi-formatting:v1:<email đã ch
 
 PUD của SPE Reverse mặc định vẫn trung tính (chưa có target) nhưng có nút bảng màu như các KPI khác; mốc tô màu mặc định 70% chỉ là mốc hiển thị, không phải target. Tab Backlog (số đơn tuyệt đối) có nút bảng màu riêng: tô cột Δ (tăng/giảm), tô mức tồn theo cấp (nhạt → đậm so với giá trị lớn nhất cùng cấp và cùng ngày), cả hai hoặc không tô; lưu ở khóa `ghn:backlog-formatting:v1:<email>`.
 
+Tab **Báo cáo tự động** (SPE Reverse) cũng có nút bảng màu cho các ô % OPR, dùng chung khoá `popr` với bảng OPR ở Chi tiết Vùng/Hub nên lựa chọn đã lưu áp dụng cho cả hai nơi. Mặc định giống Chi tiết Vùng/Hub khi chọn SPE Reverse: **không tô** (Reverse chưa có target OPR; mốc 90% sẽ tô đỏ đậm mọi ô vì OPR Reverse chỉ khoảng 30–45%). Chọn dải màu thì ô % của cả ba bảng (kể cả dòng Tổng) đổi màu và có chú giải dưới bảng; cột Vol 7N và bảng Gán lấy không tô. Ảnh `/snapshot` luôn dùng cách tô mặc định (không tô) như các ảnh khác.
+
 Chức năng chỉ đọc dữ liệu đã có, không gọi DB khi mở/chỉnh/lưu. Trang snapshot tự động dùng quy tắc màu có sẵn, độc lập với lựa chọn cá nhân.
 
 ## Trạng thái hiện tại

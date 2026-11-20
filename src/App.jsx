@@ -920,7 +920,7 @@ export default function App() {
       onFocusTargetHandled: () => setCodSearchFocus(null),
       onClearSearch: clearCodSearch
     },
-    'auto-report': { dataEnabled: !currentUser?.localPreview },
+    'auto-report': { dataEnabled: !currentUser?.localPreview, userEmail },
     'dev-admin': { onlineUsers, currentUser }
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1,
