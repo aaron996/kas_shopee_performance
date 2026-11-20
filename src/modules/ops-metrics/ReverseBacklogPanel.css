@@ -28,7 +28,7 @@
 .backlog-table thead th.num { text-align: right; }
 .backlog-table .strong { font-weight: 700; }
 .backlog-table small { display: block; font-size: var(--type-caption); color: var(--text-secondary); }
-.backlog-region { width: 3.5rem; font-weight: 700; }
+.backlog-region { width: 6rem; font-weight: 700; white-space: nowrap; }
 .backlog-bar-col { width: 28%; }
 .backlog-bar { display: flex; height: 10px; min-width: 2px; border-radius: var(--radius-pill); overflow: hidden; }
 .backlog-bar span { min-width: 1px; }
