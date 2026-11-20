@@ -9,9 +9,9 @@ const dayLabel = day => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 const fullDate = day => `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
 
 const SECTION_TITLES = {
-  partner: 'PICKUP DONE · LOẠI HUB',
-  province: 'PICKUP DONE · BC KD THEO TỈNH',
-  region: 'PICKUP DONE · NATIONWIDE THEO VÙNG'
+  partner: 'Pickup done · Loại Hub',
+  province: 'Pickup done · BC KD theo tỉnh',
+  region: 'Pickup done · Nationwide theo vùng'
 };
 
 function PudSection({ section, dates }) {
@@ -78,7 +78,7 @@ function BacklogPanel({ table }) {
   if (!table) {
     return (
       <section className="rar-panel rar-backlog" aria-label="Gán lấy BC KD">
-        <h2 className="rar-bar">GÁN LẤY · BC KD THEO KHO</h2>
+        <h2 className="rar-bar">Gán lấy · BC KD theo kho</h2>
         <p className="rar-empty">Chưa có snapshot backlog Reverse.</p>
       </section>
     );
@@ -88,7 +88,7 @@ function BacklogPanel({ table }) {
   const columns = [table.rows.slice(0, half), table.rows.slice(half)];
   return (
     <section className="rar-panel rar-backlog" aria-label="Gán lấy BC KD">
-      <h2 className="rar-bar">GÁN LẤY · BC KD THEO KHO · snapshot {fullDate(table.snapshotDate)}</h2>
+      <h2 className="rar-bar">Gán lấy · BC KD theo kho<span className="rar-bar-meta">snapshot {fullDate(table.snapshotDate)}</span></h2>
       <dl className="rar-backlog-sum" aria-label={`Tổng BC KD ${table.hubCount} kho`}>
         <div><dt>Tổng BC KD</dt><dd>{table.hubCount} kho</dd></div>
         <div><dt>Gán 0</dt><dd>{formatVol(table.total.g0)}</dd></div>
@@ -124,7 +124,7 @@ export function ReverseReportSheet({ tables, backlog }) {
         <div className="rar-left">
           {tables
             ? tables.sections.map(section => <PudSection key={section.key} section={section} dates={tables.dates} />)
-            : <section className="rar-panel"><h2 className="rar-bar">PICKUP DONE</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
+            : <section className="rar-panel"><h2 className="rar-bar">Pickup done</h2><p className="rar-empty">Chưa có lịch sử Reverse.</p></section>}
         </div>
         <BacklogPanel table={backlog} />
       </div>

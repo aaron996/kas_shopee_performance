@@ -1,7 +1,7 @@
 # Báo cáo tự động SPE Reverse (Telegram)
 
 Báo cáo hằng ngày cho team KA, gửi vào group Telegram bằng ảnh chụp của trang `/snapshot` (cùng luồng với
-[n8n-snapshot.md](n8n-snapshot.md)). **Một tấm hình** giống file mẫu KA (thanh tiêu đề vàng, hàng đầu bảng xanh xám):
+[n8n-snapshot.md](n8n-snapshot.md)). **Một tấm hình** giống file mẫu KA, kiểu dáng theo design system của app (token, thẻ metric-block, đầu bảng như mtx-table):
 
 - Cột trái, % Pickup done (PUD) 7 ngày gần nhất + cột Vol 7N (tổng đơn mới 7 ngày): theo loại Hub (AHM, BC, BC KD, GXT, KHL), BC KD theo tỉnh,
   Nationwide theo vùng; mỗi bảng có dòng Tổng.

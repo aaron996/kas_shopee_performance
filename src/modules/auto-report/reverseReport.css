@@ -1,115 +1,178 @@
-/* Báo cáo tự động SPE Reverse: một tấm hình giống file mẫu KA (thanh tiêu đề vàng, hàng đầu bảng xanh xám). Bảng màu cố định riêng
-   của tấm hình để ảnh gửi Telegram và tab trong app giống hệt nhau, không đổi theo giao diện sáng/tối. */
+/* Báo cáo tự động SPE Reverse: một tấm hình, bố cục theo file mẫu KA (cột trái ba bảng % PUD, cột phải Gán lấy theo kho) nhưng
+   toàn bộ kiểu dáng theo design system của app: token ngữ nghĩa (tokens.css), thẻ như .metric-block, đầu bảng như table.mtx-table,
+   phông Outfit / IBM Plex. Không có màu cố định riêng, nên sáng/tối tự theo theme và ảnh /snapshot giống tab trong app. */
 .rar-sheet {
-  --rar-bar: #ffd54f;
-  --rar-bar-text: #2b2100;
-  --rar-head: #6f86a8;
-  --rar-head-text: #fff;
-  --rar-total: #dde5f0;
-  --rar-line: #d6dde8;
-  --rar-vol: #f3f6fa;
-  --rar-text: #16202e;
-  --rar-muted: #5a6779;
   width: max-content;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 14px;
-  border: 1px solid var(--rar-line);
-  background: #fff;
-  color: var(--rar-text);
-  font-family: Outfit, 'IBM Plex Sans', system-ui, sans-serif;
+  color: var(--text-main);
+  font-family: var(--font-sans);
 }
 
 .rar-sheet-grid {
   display: grid;
   grid-template-columns: max-content max-content;
-  gap: 14px;
+  gap: var(--space-4);
   align-items: start;
 }
 
-.rar-left { display: grid; gap: 12px; }
-.rar-left .rar-table { width: 100%; }
+.rar-left {
+  display: grid;
+  gap: var(--space-4);
+}
 
+/* Thẻ dữ liệu: cùng dạng .metric-block. */
+.rar-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+/* Tiêu đề vùng dữ liệu: cùng dạng .metric-header / .metric-title. */
 .rar-bar {
   margin: 0;
-  padding: 5px 10px;
-  background: var(--rar-bar);
-  color: var(--rar-bar-text);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-align: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-heading);
+  font-size: var(--type-section);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  color: var(--ghn-blue-dark);
+}
+
+.rar-bar-meta {
+  margin-left: var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--type-meta);
+  font-weight: var(--weight-medium);
 }
 
 .rar-table {
+  width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .rar-table th,
 .rar-table td {
-  padding: 3px 7px;
-  border-bottom: 1px solid var(--rar-line);
+  padding: 0.22rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
-.rar-table thead th {
-  background: var(--rar-head);
-  color: var(--rar-head-text);
-  font-size: 0.74rem;
-  font-weight: 700;
+.rar-table tbody tr:last-child th,
+.rar-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.rar-name { text-align: left; font-weight: 600; }
+/* Hàng đầu bảng: cùng dạng table.mtx-table thead th. */
+.rar-table thead th {
+  background: var(--ghn-blue);
+  color: var(--text-on-brand);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-caption);
+  text-align: right;
+  border-bottom: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.rar-table thead th.rar-name { text-align: left; }
+
+.rar-name {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+}
 
 .rar-num {
   text-align: right;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .rar-strong { font-weight: 700; }
 
-.rar-volcol { background: var(--rar-vol); border-left: 1px solid var(--rar-line); }
-.rar-table thead .rar-volcol { background: var(--rar-head); }
-
-.rar-total th,
-.rar-total td {
-  background: var(--rar-total);
-  border-top: 2px solid var(--rar-head);
-  border-bottom: 0;
-  font-weight: 800;
+/* Cột Vol 7N: số lượng, tách khỏi các cột tỷ lệ bằng nền nhẹ và một đường dọc. */
+.rar-table tbody .rar-volcol,
+.rar-table tfoot .rar-volcol {
+  background: var(--surface-subtle);
+  border-left: 1px solid var(--border-subtle);
 }
 
-.rar-backlog-cols { display: grid; grid-template-columns: max-content max-content; gap: 0 10px; }
-/* Tổng BC KD nằm ngay dưới thanh tiêu đề: người đọc thấy tổng trước rồi mới xuống từng kho. */
+/* Dòng Tổng: nhấn bằng nền nhẹ + đường kẻ trên, không dùng màu trạng thái. */
+.rar-total th,
+.rar-total td {
+  background: var(--surface-subtle);
+  border-top: 2px solid var(--border-strong);
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.rar-backlog-cols {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 0 var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Tổng BC KD nằm ngay dưới tiêu đề: thấy tổng trước rồi mới xuống từng kho. */
 .rar-backlog-sum {
   display: flex;
   justify-content: space-around;
-  margin: 0;
-  padding: 4px 8px;
-  background: var(--rar-total);
-  border-bottom: 2px solid var(--rar-head);
-  font-size: 0.8rem;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: 0.45rem var(--space-3);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
 }
-.rar-backlog-sum div { display: flex; gap: 6px; align-items: baseline; }
-.rar-backlog-sum dt { color: var(--rar-muted); font-weight: 600; }
-.rar-backlog-sum dd { margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 800; }
 
-.rar-empty { margin: 0; padding: 12px; color: var(--rar-muted); font-size: 0.8rem; }
+.rar-backlog-sum div {
+  display: flex;
+  gap: var(--space-1-5);
+  align-items: baseline;
+}
+
+.rar-backlog-sum dt {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.rar-backlog-sum dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.rar-empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--type-meta);
+}
 
 .rar-note {
-  margin: 10px 0 0;
   width: 0;
   min-width: 100%;
-  font-size: 0.68rem;
-  line-height: 1.4;
-  color: var(--rar-muted);
+  margin: var(--space-3) 0 0;
+  font-size: var(--type-caption);
+  line-height: var(--leading-normal);
+  color: var(--text-muted);
 }
 
 /* Tab "Báo cáo tự động" (không áp dụng cho ảnh /snapshot). */
-.rar-tab { padding: 16px; }
-.rar-tab-intro { margin: 0 0 12px; color: var(--text-muted); font-size: 0.875rem; }
+.rar-tab { padding: var(--space-4); }
+.rar-tab-intro { margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--type-body); }
 .rar-scroll { max-width: 100%; overflow-x: auto; }
-.rar-state { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); }
-.rar-state p { margin: 0 0 8px; }
+.rar-state {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-main);
+}
+.rar-state p { margin: 0 0 var(--space-2); }
