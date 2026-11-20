@@ -1,0 +1,15 @@
+# Cấu hình gitleaks: dùng rule mặc định, chỉ bỏ qua 2 commit cũ chứa Supabase anon key.
+# Anon key là khóa public (role=anon, quyền bị giới hạn bởi RLS), đã được chuyển sang
+# biến môi trường VITE_SUPABASE_ANON_KEY. Không allowlist theo đường dẫn để các secret
+# mới vẫn bị bắt.
+title = "kas-shopee-performance gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Supabase anon key (public) trong lịch sử git"
+commits = [
+  "dc4eda0c4b7d75e3c8ec3badb162a5afc755297e",
+  "ee1c5655cd1dabfcce9b02adea37fc4c91263b66",
+]
