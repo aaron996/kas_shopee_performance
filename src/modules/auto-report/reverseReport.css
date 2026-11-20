@@ -1,0 +1,74 @@
+/* Báo cáo tự động SPE Reverse: ba bảng dùng chung cho ảnh /snapshot và tab. Chỉ dùng token ngữ nghĩa (sáng/tối theo tokens.css). */
+.rar-card {
+  width: max-content;
+  min-width: 640px;
+  margin: 0 0 16px;
+  padding: 16px 18px 12px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text-main);
+}
+
+.rar-title {
+  margin: 0 0 10px;
+  font-family: Outfit, 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.rar-table th,
+.rar-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rar-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rar-name {
+  text-align: left;
+  font-weight: 600;
+}
+
+.rar-num {
+  text-align: right;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.rar-strong {
+  font-weight: 700;
+}
+
+/* AHM và BCKD là nhóm theo loại hub: tách khỏi các vùng bằng nền nhẹ để không bị đọc nhầm là hai vùng. */
+.rar-ahm th,
+.rar-ahm td,
+.rar-bckd th,
+.rar-bckd td {
+  background: var(--surface-subtle, rgba(20, 60, 100, 0.05));
+}
+
+.rar-total th,
+.rar-total td {
+  border-top: 2px solid var(--border-strong, var(--border));
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.rar-note {
+  margin: 8px 0 0;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { issueSnapshotToken, verifySnapshotToken, isSnapshotSecret, SNAPSHOT_TOKEN_TTL_SECONDS } from './token.js';
-import { packRows, fetchSnapshotRows } from './data.js';
+import { packRows, fetchSnapshotRows, fetchReverseSnapshot, packSnapshotPayload } from './data.js';
+import { parseSnapshotParams } from '../../src/utils/snapshotView.js';
 import { createSnapshotTokenHandler } from '../../api/snapshot-token.js';
 import { createSnapshotPageHandler } from '../../api/snapshot-page.js';
 import { createSnapshotSummaryHandler } from '../../api/snapshot-summary.js';
@@ -243,4 +244,78 @@ test('summary endpoint view=hno-rows only serves pick and deli', async () => {
   const res = createResponse();
   await handler({ method: 'GET', url: `/api/snapshot-summary?view=hno-rows&report=ca1&token=${encodeURIComponent(token)}` }, res);
   assert.equal(res.statusCode, 400);
+});
+
+// Fake với đủ eq / gte / order / limit cho fetchReverseSnapshot.
+function fakeReverseSupabase(tables, calls = []) {
+  return {
+    from(table) {
+      const state = { table, eq: {}, gte: {}, head: false, desc: null, limit: null };
+      const query = {
+        select(_columns, options = {}) { state.head = Boolean(options.head); return query; },
+        eq(column, value) { state.eq[column] = value; return query; },
+        gte(column, value) { state.gte[column] = value; return query; },
+        order(column, { ascending } = {}) { if (ascending === false) state.desc = column; return query; },
+        limit(n) { state.limit = n; return query; },
+        range(from, to) { state.from = from; state.to = to; return query; },
+        then(resolve) {
+          calls.push({ ...state });
+          let rows = (tables[table] || []).filter(r => Object.entries(state.eq).every(([k, v]) => r[k] === v)
+            && Object.entries(state.gte).every(([k, v]) => r[k] >= v));
+          if (state.head) return resolve({ count: rows.length, error: null });
+          if (state.desc) rows = [...rows].sort((a, b) => String(b[state.desc]).localeCompare(String(a[state.desc])));
+          if (state.limit !== null) rows = rows.slice(0, state.limit);
+          else if (state.from !== undefined) rows = rows.slice(state.from, state.to + 1);
+          return resolve({ data: rows, error: null });
+        }
+      };
+      return query;
+    }
+  };
+}
+
+test('fetchReverseSnapshot reads recent history and only the latest backlog snapshot of SPE Reverse', async () => {
+  const now = Date.UTC(2026, 10, 20, 3, 0);
+  const tables = {
+    kas_reverse_history: [
+      { id: 1, report_date: '2026-11-01', client_name: 'SPE Reverse' },
+      { id: 2, report_date: '2026-11-15', client_name: 'SPE Reverse' },
+      { id: 3, report_date: '2026-11-19', client_name: 'SPE Reverse' },
+      { id: 4, report_date: '2026-11-19', client_name: 'SPB' }
+    ],
+    kas_reverse_backlog: [
+      { id: 1, snapshot_date: '2026-11-19', client_name: 'SPE Reverse', backlog_orders: 1 },
+      { id: 2, snapshot_date: '2026-11-20', client_name: 'SPE Reverse', backlog_orders: 2 },
+      { id: 3, snapshot_date: '2026-11-20', client_name: 'SPE Reverse', backlog_orders: 3 }
+    ]
+  };
+  const calls = [];
+  const result = await fetchReverseSnapshot(fakeReverseSupabase(tables, calls), now);
+  assert.deepEqual(result.history.map(r => r.id), [2, 3], 'cửa sổ 10 ngày, đúng client');
+  assert.deepEqual(result.backlog.map(r => r.id), [2, 3], 'chỉ snapshot mới nhất');
+  assert.ok(calls.some(c => c.table === 'kas_reverse_history' && c.gte.report_date === '2026-11-10'));
+
+  const empty = await fetchReverseSnapshot(fakeReverseSupabase({ kas_reverse_history: tables.kas_reverse_history, kas_reverse_backlog: [] }), now);
+  assert.deepEqual(empty.backlog, [], 'chưa có snapshot nào → mảng rỗng, không lỗi');
+});
+
+test('reverse report goes through fetchSnapshotRows and packSnapshotPayload as two packed sources', async () => {
+  const tables = {
+    kas_reverse_history: [{ id: 1, report_date: new Date().toISOString().slice(0, 10), client_name: 'SPE Reverse', hub: 'A', synced_at: 'x' }],
+    kas_reverse_backlog: [{ id: 1, snapshot_date: '2026-11-20', client_name: 'SPE Reverse', wh_id: '1', backlog_orders: 2 }]
+  };
+  const fetched = await fetchSnapshotRows(fakeReverseSupabase(tables), { report: 'reverse', clientName: 'SPB' });
+  const payload = packSnapshotPayload('reverse', fetched);
+  assert.deepEqual(payload.history.columns, ['report_date', 'client_name', 'hub']);
+  assert.deepEqual(payload.backlog.columns, ['snapshot_date', 'client_name', 'wh_id', 'backlog_orders']);
+  assert.deepEqual(packSnapshotPayload('pick', [{ id: 1, a: 1 }]), { columns: ['a'], rows: [[1]] }, 'bảng thường vẫn là một mảng gói');
+});
+
+test('reverse views are addressable by report + table and need no client', () => {
+  for (const table of ['ltc', 'vol', 'backlog']) {
+    const parsed = parseSnapshotParams(`?report=reverse&table=${table}&token=t`);
+    assert.equal(parsed.error, undefined, table);
+    assert.deepEqual([parsed.view.module, parsed.view.table], ['reverse', table]);
+  }
+  assert.ok(parseSnapshotParams('?report=reverse&table=nope&token=t').error);
 });

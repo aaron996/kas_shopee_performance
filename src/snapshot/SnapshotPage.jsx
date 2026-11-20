@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Report1MienVungHub from '../modules/ops-metrics/Report1MienVungHub.jsx';
 import Report5LaneCa1 from '../components/Report5LaneCa1.jsx';
+import { ReverseLtcTable, ReverseVolTable, ReverseBacklogTable } from '../modules/auto-report/ReverseReportTables.jsx';
+import { buildLtcVolTables, buildBacklogTable } from '../utils/reverseAutoReport';
 import { groupDatesByWeek } from '../utils/dataProcessor';
 import { parseSnapshotParams, unpackRows, scopeSnapshotRows, SNAPSHOT_CLIENT_LABELS } from '../utils/snapshotView';
 import './snapshot.css';
@@ -25,8 +27,20 @@ function readEmbeddedPayload() {
   }
 }
 
+// Reverse: payload là { history, backlog }, mỗi nguồn một mảng cột-gói. Dựng mô hình bảng ngay ở đây (không qua bộ lọc dashboard).
+function toReverseState(payload, params) {
+  const history = unpackRows(payload.history);
+  if (params.view.table === 'backlog') {
+    const table = buildBacklogTable(unpackRows(payload.backlog), history);
+    return table ? { status: 'ready', table } : { status: 'error', message: 'Chưa có snapshot backlog Reverse.' };
+  }
+  const tables = buildLtcVolTables(history);
+  return tables.dates.length ? { status: 'ready', tables } : { status: 'error', message: 'Chưa có dữ liệu lịch sử Reverse.' };
+}
+
 function toState(payload, params) {
   if (payload?.error) return { status: 'error', message: payload.error };
+  if (params.view.module === 'reverse') return toReverseState(payload, params);
   return { status: 'ready', ...scopeSnapshotRows(unpackRows(payload), params.view, params.excludeHubTypes, params.onlyHubTypes) };
 }
 
@@ -57,6 +71,15 @@ export default function SnapshotPage() {
   }
 
   const { view, client, excludeHubTypes, onlyHubTypes } = params;
+  if (view.module === 'reverse') {
+    return (
+      <div className="snapshot-root">
+        {view.table === 'ltc' && <ReverseLtcTable tables={state.tables} />}
+        {view.table === 'vol' && <ReverseVolTable tables={state.tables} />}
+        {view.table === 'backlog' && <ReverseBacklogTable table={state.table} />}
+      </div>
+    );
+  }
   const isCa1 = view.data === 'ca1';
   const dates = [...new Set(state.rows.map(r => (isCa1 ? r.ngay : r.report_date)))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(dates);
