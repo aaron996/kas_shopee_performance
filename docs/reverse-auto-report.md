@@ -58,3 +58,13 @@ backlog ghi rõ ngày snapshot ở tiêu đề để nhìn là biết có tươi
 So backlog snapshot 20/11 với số đơn chưa lấy (`mau_pud − pud`) của lịch sử ngày 19/11: BC KD 2.334 so với 2.215 (+5%), GXT 15/15, KHL 19/19;
 các kho BC KD lớn lệch dưới 7 đơn. Nguyên nhân còn là giả thuyết (job backlog tính cả `picking`, tính theo `CreatedDate` thay vì
 `loaddate_final`, chụp ngày 20/11 thay vì cuối ngày 19/11). Vì vậy bảng gán lấy và backlog tuyệt đối đều lấy từ job backlog.
+
+## Tab "Báo cáo tự động" (app)
+
+Module `auto-report` (sidebar, nhóm Operation insights, ngay dưới "Đơn nghi vấn COD", `requiresAuth`) hiển thị lại đúng ba bảng của ảnh Telegram.
+- Dữ liệu: `GET /api/snapshot-summary?view=reverse-report` với `Authorization: Bearer <phiên đăng nhập>` (không dùng token snapshot). Cùng payload
+  `{ history, backlog }` như `/snapshot`; dựng mô hình ở `src/utils/reverseReportClient.js`. Hai bảng gốc chỉ có quyền service_role nên phải qua endpoint.
+  Gộp vào `snapshot-summary` để giữ `api/` dưới giới hạn 12 function của Vercel Hobby.
+- Không có `requiredDatasets` (không dùng dataset chung); tab tự giữ trạng thái chờ: skeleton `LoadingScreen` ngay từ render đầu, giữ dữ liệu cũ khi tải lại,
+  báo lỗi + "Thử lại". Chỉ hiện "Chưa có …" sau khi tải xong mà thật sự rỗng.
+- Header ẩn Client/Vùng/Loại Hub và CSV qua `scopeSupport.js` (`SCOPE_FILTERLESS_TABS`). Bảng riêng, không dùng `KpiMatrixTable`: xem ngoại lệ trong `DESIGN.md`.

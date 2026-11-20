@@ -1,4 +1,7 @@
-import { fetchSnapshotRows } from '../server/snapshot/data.js';
+import { fetchSnapshotRows, fetchReverseSnapshot, packSnapshotPayload } from '../server/snapshot/data.js';
+import { authenticateRequest } from '../server/chat/auth.js';
+import { readCodSmsConfig } from '../server/cod-sms/config.js';
+import { ChatError, toPublicError } from '../server/chat/errors.js';
 import { readSnapshotConfig, createSnapshotServiceClient, resolveSnapshotRequest } from '../server/snapshot/request.js';
 import { sendJson } from '../server/chat/sse.js';
 import { scopeSnapshotRows, scopeHnoReportRows, SNAPSHOT_VIEWS } from '../src/utils/snapshotView.js';
@@ -7,6 +10,8 @@ import { buildExecutiveSummary, formatExecutiveSummary, formatExecutiveSummaryMa
 // "Nhận xét D-1" for the n8n daily Telegram report: the same text as the
 // dashboard's ExecutiveSummaryModal, built from the same rows (KA vùng,
 // every vùng and hub type — the dashboard's default scope).
+// `?view=reverse-report` is the same data the /snapshot Reverse pictures embed, for the in-app
+// "Báo cáo tự động" tab; it is gated by the user's login (Bearer), not the snapshot token.
 // `?view=hno-rows&report=pick|deli` instead returns the rows of the HNO Telegram
 // report, scoped like the dashboard (see scopeHnoReportRows). It lives here to
 // stay under Vercel Hobby's 12-function cap.
@@ -19,11 +24,26 @@ export function createSnapshotSummaryHandler(dependencies = {}) {
   const createServiceClient = dependencies.createServiceClient ?? createSnapshotServiceClient;
   const fetchRows = dependencies.fetchRows ?? fetchSnapshotRows;
   const now = dependencies.now ?? Date.now;
+  const authenticate = dependencies.authenticate ?? authenticateRequest;
+  const readUserConfig = dependencies.readUserConfig ?? (() => readCodSmsConfig(process.env, { requireScoring: false }));
+  const fetchReverse = dependencies.fetchReverse ?? fetchReverseSnapshot;
 
   return async (req, res) => {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
       sendJson(res, 405, { error: { code: 'SNAPSHOT_METHOD', message: 'Chỉ hỗ trợ GET.' } });
+      return;
+    }
+    if (new URL(req.url, 'http://localhost').searchParams.get('view') === 'reverse-report') {
+      try {
+        const { serviceClient } = await authenticate(req.headers.authorization, readUserConfig());
+        sendJson(res, 200, packSnapshotPayload('reverse', await fetchReverse(serviceClient, now())));
+      } catch (error) {
+        if (!(error instanceof ChatError)) console.error('Reverse report read failed:', error);
+        const publicError = error instanceof ChatError ? toPublicError(error)
+          : { status: 503, code: 'SNAPSHOT_READ_FAILED', message: 'Không đọc được dữ liệu báo cáo.' };
+        sendJson(res, publicError.status, { error: { code: publicError.code, message: publicError.message } });
+      }
       return;
     }
     const config = getConfig();

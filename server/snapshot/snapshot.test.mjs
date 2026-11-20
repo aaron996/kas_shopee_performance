@@ -7,6 +7,7 @@ import { createSnapshotTokenHandler } from '../../api/snapshot-token.js';
 import { createSnapshotPageHandler } from '../../api/snapshot-page.js';
 import { createSnapshotSummaryHandler } from '../../api/snapshot-summary.js';
 import { embedSnapshotPayload, resolveAppOrigin } from './page.js';
+import { ChatError } from '../chat/errors.js';
 
 const SECRET = 'test-secret';
 const NOW = Date.UTC(2026, 8, 28, 1, 45);
@@ -318,4 +319,27 @@ test('reverse views are addressable by report + table and need no client', () =>
     assert.deepEqual([parsed.view.module, parsed.view.table], ['reverse', table]);
   }
   assert.ok(parseSnapshotParams('?report=reverse&table=nope&token=t').error);
+});
+
+test('summary endpoint view=reverse-report needs a login and returns the packed Reverse payload', async () => {
+  const history = [{ report_date: '2026-11-19', region: 'HCM', hub: 'A', hub_type: 'BC KD', client_name: 'SPE Reverse', mau_pu: 10, pud: 8, wh_id: '1' }];
+  const handler = createSnapshotSummaryHandler({
+    readUserConfig: () => ({}),
+    authenticate: async authHeader => {
+      if (authHeader !== 'Bearer ok') throw new ChatError('CHAT_UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ.', 401);
+      return { serviceClient: {} };
+    },
+    fetchReverse: async () => ({ history, backlog: [] }),
+    now: () => NOW
+  });
+  const denied = createResponse();
+  await handler({ method: 'GET', url: '/api/snapshot-summary?view=reverse-report', headers: {} }, denied);
+  assert.equal(denied.statusCode, 401);
+
+  const res = createResponse();
+  await handler({ method: 'GET', url: '/api/snapshot-summary?view=reverse-report', headers: { authorization: 'Bearer ok' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(Object.keys(res.body), ['history', 'backlog']);
+  assert.equal(res.body.history.rows.length, 1);
+  assert.equal(res.body.backlog.rows.length, 0);
 });

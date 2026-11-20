@@ -186,3 +186,7 @@ test('Backlog Reverse subtab shows a skeleton on first render, never an empty no
   expectLoading(html);
   assert.doesNotMatch(html, /Chưa có snapshot|Không có backlog|BẢN MINH HỌA/);
 });
+
+test('Báo cáo tự động starts as a skeleton, never a false empty notice', () => {
+  expectLoading(render(components.autoReport, { dataEnabled: true }));
+});
