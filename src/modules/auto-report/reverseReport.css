@@ -119,34 +119,44 @@
   padding: 0 var(--space-3) var(--space-3);
 }
 
-/* Tổng BC KD nằm ngay dưới tiêu đề: thấy tổng trước rồi mới xuống từng kho. */
+/* Tổng BC KD nằm ngay dưới tiêu đề, dạng thẻ nhỏ: thấy tổng trước rồi mới xuống từng kho. Chiều cao cố định theo nội dung,
+   không kéo giãn bảng bên dưới. */
 .rar-backlog-sum {
-  display: flex;
-  justify-content: space-around;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-3);
-  padding: 0.45rem var(--space-3);
-  background: var(--surface-subtle);
-  border-bottom: 1px solid var(--border);
-  font-size: 0.82rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2-5);
+  margin: 0;
+  padding: var(--space-3);
 }
 
 .rar-backlog-sum div {
   display: flex;
-  gap: var(--space-1-5);
-  align-items: baseline;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
 }
 
 .rar-backlog-sum dt {
   color: var(--text-muted);
+  font-size: var(--type-caption);
   font-weight: var(--weight-medium);
 }
 
 .rar-backlog-sum dd {
   margin: 0;
   font-family: var(--font-mono);
+  font-size: 1.2rem;
   font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-metric);
+  color: var(--text-main);
 }
+
+/* Thẻ tổng cuối (cộng ba cột) nhấn bằng màu tiêu đề, như giá trị chính của một KPI. */
+.rar-backlog-sum div:last-child dd { color: var(--ghn-blue-dark); }
 
 .rar-empty {
   margin: 0;
