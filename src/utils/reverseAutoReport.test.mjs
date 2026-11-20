@@ -74,7 +74,7 @@ test('regions follow the dashboard normalisation; KHL, GXT and unknown regions f
   assert.deepEqual(section(t, 'partner').rows.map(r => r.label), ['BC', 'KHL']);
 });
 
-test('backlog table: L7D buckets, L14D absolute, KD and KHL by wh_id, names from history, top-N with total over all hubs', () => {
+test('backlog table: assign buckets for backlog ≤ 7 days, total = sum of buckets, KD and KHL by wh_id, names from history, top-N with total over all hubs', () => {
   const b = (wh_id, hub_type, assign_bucket, age_bucket, backlog_orders) =>
     ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type, assign_bucket, age_bucket, backlog_orders, wh_id });
   const backlog = [
@@ -89,12 +89,21 @@ test('backlog table: L7D buckets, L14D absolute, KD and KHL by wh_id, names from
   assert.equal(table.hubCount, 2, 'KHL và BC không tính');
   assert.deepEqual(table.rows.map(r => r.name), ['HNO KD Dương Nội']);
   assert.deepEqual(
-    (({ g0, g12, g3, l7, l14 }) => ({ g0, g12, g3, l7, l14 }))(table.rows[0]),
-    { g0: 4, g12: 6, g3: 10, l7: 20, l14: 27 }
+    (({ g0, g12, g3, total }) => ({ g0, g12, g3, total }))(table.rows[0]),
+    { g0: 4, g12: 6, g3: 10, total: 20 }
   );
-  assert.deepEqual(table.total, { g0: 4, g12: 6, g3: 15, l7: 25, l14: 32 }, 'Tổng là của mọi kho BCKD, kể cả kho ngoài top');
+  assert.deepEqual(table.total, { g0: 4, g12: 6, g3: 15, total: 25 }, 'Tổng là của mọi kho BCKD, kể cả kho ngoài top');
   assert.equal(buildBacklogTable(backlog, [], { top: 5 }).rows[1].name, 'Kho 23156000', 'chưa có tên thì hiện mã kho');
   assert.equal(buildBacklogTable([], history), null, 'chưa có snapshot → null, không phải bảng 0');
+});
+
+test('a hub whose only backlog is older than 7 days is not listed', () => {
+  const b = (wh_id, age_bucket, backlog_orders) =>
+    ({ snapshot_date: '2026-11-20', region: 'HNO', hub_type: 'KD', assign_bucket: '3+', age_bucket, backlog_orders, wh_id });
+  const table = buildBacklogTable([b('1', '1-3', 3), b('2', '8-14', 9)], []);
+  assert.deepEqual(table.rows.map(r => r.whId), ['1']);
+  assert.equal(table.hubCount, 1);
+  assert.equal(table.total.total, 3);
 });
 
 test('hubNamesByWhId takes the latest name per wh_id', () => {

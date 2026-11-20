@@ -115,25 +115,25 @@ export function hubNamesByWhId(historyRows) {
 }
 
 /**
- * Backlog BCKD của snapshot mới nhất: tồn theo số lần gán lấy (0 / 1-2 / 3+) cho đơn tồn ≤ 7 ngày (L7D), và backlog tuyệt đối
- * của cả cửa sổ 14 ngày (L14D). Mặc định liệt kê mọi kho (xếp theo L14D giảm dần); `top` chỉ cắt danh sách hiển thị, dòng Tổng luôn là của mọi kho BCKD.
+ * Gán lấy BC KD của snapshot mới nhất: đơn chưa lấy thành công có tuổi tồn ≤ 7 ngày (1-3 và 4-7), chia theo số lần gán lấy
+ * (0 / 1-2 / 3+ của job backlog); `total` = cộng ba nhóm = backlog tuyệt đối của kho. Kho chỉ còn đơn tồn quá 7 ngày không hiện.
+ * Mặc định liệt kê mọi kho (xếp theo total giảm dần); `top` chỉ cắt danh sách hiển thị, dòng Tổng luôn là của mọi kho BC KD.
  */
 export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG_TOP } = {}) {
   const snapshotDate = backlogRows.reduce((latest, row) => (String(row.snapshot_date) > latest ? String(row.snapshot_date) : latest), '');
   if (!snapshotDate) return null;
   const names = hubNamesByWhId(historyRows);
   const byHub = new Map();
-  const blank = () => ({ g0: 0, g12: 0, g3: 0, l7: 0, l14: 0 });
+  const blank = () => ({ g0: 0, g12: 0, g3: 0, total: 0 });
   const total = blank();
   const bump = (target, row) => {
+    if (!L7_AGES.has(row.age_bucket)) return;
     const orders = num(row.backlog_orders);
-    target.l14 += orders;
-    if (L7_AGES.has(row.age_bucket)) {
-      target.l7 += orders;
-      if (row.assign_bucket === '0') target.g0 += orders;
-      else if (row.assign_bucket === '1-2') target.g12 += orders;
-      else if (row.assign_bucket === '3+') target.g3 += orders;
-    }
+    if (row.assign_bucket === '0') target.g0 += orders;
+    else if (row.assign_bucket === '1-2') target.g12 += orders;
+    else if (row.assign_bucket === '3+') target.g3 += orders;
+    else return;
+    target.total += orders;
   };
   backlogRows.forEach(row => {
     if (String(row.snapshot_date) !== snapshotDate || backlogHubType(row) !== BCKD_HUB_TYPE) return;
@@ -142,11 +142,11 @@ export function buildBacklogTable(backlogRows, historyRows = [], { top = BACKLOG
     bump(byHub.get(whId), row);
     bump(total, row);
   });
-  const list = [...byHub.entries()].map(([whId, values]) => ({
+  const list = [...byHub.entries()].filter(([, values]) => values.total > 0).map(([whId, values]) => ({
     whId,
     name: whId ? (names.has(whId) ? shortHubName(names.get(whId)) : `Kho ${whId}`) : 'Chưa rõ kho',
     ...values
-  })).sort((a, b) => b.l14 - a.l14 || a.name.localeCompare(b.name, 'vi'));
+  })).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'vi'));
   return { snapshotDate, rows: list.slice(0, top), hubCount: list.length, total };
 }
 

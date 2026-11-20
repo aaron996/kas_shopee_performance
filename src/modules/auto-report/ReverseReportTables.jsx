@@ -55,8 +55,7 @@ function BacklogHead() {
         <th scope="col" className="rar-num">Gán 0</th>
         <th scope="col" className="rar-num">Gán 1–2</th>
         <th scope="col" className="rar-num">Gán ≥3</th>
-        <th scope="col" className="rar-num">L7D</th>
-        <th scope="col" className="rar-num">L14D</th>
+        <th scope="col" className="rar-num">Tổng</th>
       </tr>
     </thead>
   );
@@ -68,8 +67,7 @@ function BacklogCells({ item }) {
       <td className="rar-num">{formatVol(item.g0)}</td>
       <td className="rar-num">{formatVol(item.g12)}</td>
       <td className="rar-num">{formatVol(item.g3)}</td>
-      <td className="rar-num rar-strong">{formatVol(item.l7)}</td>
-      <td className="rar-num rar-strong">{formatVol(item.l14)}</td>
+      <td className="rar-num rar-strong">{formatVol(item.total)}</td>
     </>
   );
 }
@@ -94,8 +92,7 @@ function BacklogPanel({ table }) {
         <div><dt>Gán 0</dt><dd>{formatVol(table.total.g0)}</dd></div>
         <div><dt>Gán 1–2</dt><dd>{formatVol(table.total.g12)}</dd></div>
         <div><dt>Gán ≥3</dt><dd>{formatVol(table.total.g3)}</dd></div>
-        <div><dt>L7D</dt><dd>{formatVol(table.total.l7)}</dd></div>
-        <div><dt>L14D</dt><dd>{formatVol(table.total.l14)}</dd></div>
+        <div><dt>Tổng</dt><dd>{formatVol(table.total.total)}</dd></div>
       </dl>
       <div className="rar-backlog-cols">
         {columns.map((rows, index) => (
@@ -130,8 +127,8 @@ export function ReverseReportSheet({ tables, backlog }) {
       </div>
       <p className="rar-note">
         SPE Reverse{range && ` · ${range}`}. % PUD = đơn lấy thành công / đơn mới trong ngày, có thể vượt 100% vì gồm cả đơn tồn từ ngày trước;
-        Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần và L7D
-        chỉ tính đơn tồn ≤ 7 ngày, L14D là cả cửa sổ 14 ngày.
+        Vol 7N = tổng đơn mới trong 7 ngày; Khác = GXT, KHL và đơn chưa rõ vùng. Gán lấy: đơn chưa lấy thành công, cột Gán 0 / 1–2 / ≥3 lần,
+        Tổng = cộng ba cột, chỉ tính đơn tồn ≤ 7 ngày.
       </p>
     </article>
   );
