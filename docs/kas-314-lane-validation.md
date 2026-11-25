@@ -100,3 +100,12 @@ Bảng lane chỉ có dữ liệu ngày nên hai cột so sánh tự tính, khô
 - Thiếu mẫu số ở ngày so sánh thì hiện `–`, không coi là 0. Cần đủ 8 tuần dữ liệu để các mốc nằm trong bảng.
 - Định nghĩa này là giả định; `best_l6w_*` của Chi tiết Vùng/Hub do query nguồn tính (46 ngày) nên có thể lệch nhẹ về cách chọn ngày.
 
+
+## Thêm vùng giao (2026-11-25)
+
+`kas_deli_lane_daily` có thêm cột `vung_giao` (= `Toregion_new`, 13 vùng: HCM, HNO, TTB, DNB, DSH, TNB, ĐCL, TNT, NTB, TNG, XBG, BTB, TBB). Grain mới: ngày x lane x vùng giao x client x loại hub.
+
+- Migration `20261125090000_kas_deli_lane_vung_giao.sql`: thêm cột, đổi khoá duy nhất, cập nhật RPC. RPC xoá dòng cũ chưa có vùng (`vung_giao is null`) của đúng những ngày đang được đẩy lại, nên sau migration chỉ cần chạy `syncLaneDeli()` một lần là đủ, không cộng đôi.
+- Tab `lane_deli_tmp` thêm cột `vung_giao` sau `lane`: `report_date, lane, vung_giao, client_name, hub_type, mau_deli, ontime_deli_1st, ontime_deli_odr` (A:H; cập nhật target job #1022 từ A:G sang A:H và SQL `deli_lane_daily_8w.sql`).
+- `lane-deli-sync.gs` (cần dán lại vào project Apps Script `auto`) kiểm thêm vùng giao không rỗng và đưa vùng vào khoá chống trùng.
+- UI tab Lane đã tải thêm `vung_giao`; số hiện tại vẫn cộng theo lane x loại hub nên không đổi. Chưa có bộ lọc Vùng cho tab Lane.

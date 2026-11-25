@@ -6,8 +6,8 @@
  *
  * Quy trình:
  * 1. BI chạy query lane (docs/sql/deli_lane_daily_202610_test.sql, đổi kỳ sang cửa sổ cần đẩy) và dán
- *    kết quả (header: report_date, lane, client_name, hub_type, mau_deli, ontime_deli_1st,
- *    ontime_deli_odr) vào tab ~lane_deli_tmp~.
+ *    kết quả (header: report_date, lane, vung_giao, client_name, hub_type, mau_deli,
+ *    ontime_deli_1st, ontime_deli_odr) vào tab ~lane_deli_tmp~.
  * 2. Chạy ~dryRunLaneDeli()~: chỉ đọc và kiểm, KHÔNG gọi Supabase; log tổng theo client + theo tuần để
  *    đối chiếu với deli_weekly_60d_test.sql (cùng kỳ phải khớp mau_deli / 1st / ODR theo client).
  * 3. Sau khi được duyệt và migration 20261118090000_kas_deli_lane_daily.sql đã chạy: ~syncLaneDeli()~.
@@ -23,7 +23,7 @@ const LANE_DELI_WEEKS = 8;
 const LANE_DELI_BUDGET_MS = 4.5 * 60 * 1000;
 const LANE_DELI_CLIENTS = ['SPB', 'SPE'];
 const LANE_DELI_COLUMNS = [
-  {name:'report_date',type:'date'},{name:'lane',type:'text'},{name:'client_name',type:'text'},
+  {name:'report_date',type:'date'},{name:'lane',type:'text'},{name:'vung_giao',type:'text'},{name:'client_name',type:'text'},
   {name:'hub_type',type:'text'},
   {name:'mau_deli',type:'numeric'},{name:'ontime_deli_1st',type:'numeric'},{name:'ontime_deli_odr',type:'numeric'}
 ];
@@ -52,17 +52,17 @@ function laneDeliLoad_() {
   if (!rows.length || outside.length) {
     throw new Error('Tab có '+outside.length+' dòng ngoài cửa sổ '+lo+'..'+hi+'; không ghi gì');
   }
-  // lane và client bắt buộc; client chỉ SPB/SPE. Lane rỗng làm RPC bỏ dòng im lặng nên chặn ở đây.
-  const bad = rows.filter(r => !String(r[1]||'').trim() || !LANE_DELI_CLIENTS.includes(r[2]));
-  if (bad.length) throw new Error(bad.length+' dòng thiếu lane hoặc client ngoài SPB/SPE; không ghi gì');
-  // Khoá (ngày, lane, client, hub_type) phải duy nhất, nếu không RPC ghi đè nhau.
+  // lane, vùng giao và client bắt buộc; client chỉ SPB/SPE. Lane rỗng làm RPC bỏ dòng im lặng nên chặn ở đây.
+  const bad = rows.filter(r => !String(r[1]||'').trim() || !String(r[2]||'').trim() || !LANE_DELI_CLIENTS.includes(r[3]));
+  if (bad.length) throw new Error(bad.length+' dòng thiếu lane / vùng giao hoặc client ngoài SPB/SPE; không ghi gì');
+  // Khoá (ngày, lane, vùng giao, client, hub_type) phải duy nhất, nếu không RPC ghi đè nhau.
   const seen = new Set();
   rows.forEach(r => {
-    const k = [r[0],String(r[1]).trim().toLowerCase(),r[2],r[3]].join('|');
+    const k = [r[0],String(r[1]).trim().toLowerCase(),String(r[2]).trim(),r[3],r[4]].join('|');
     if (seen.has(k)) throw new Error('Trùng khoá '+k+'; không ghi gì');
     seen.add(k);
   });
-  rows.forEach(r => {r[1] = String(r[1]).trim();});
+  rows.forEach(r => {r[1] = String(r[1]).trim(); r[2] = String(r[2]).trim();});
   return {rows:rows,today:today,timezone:timezone,lo:lo,hi:hi};
 }
 
@@ -70,10 +70,10 @@ function laneDeliLoad_() {
 function laneDeliSummary_(rows) {
   const byClient = {}, byWeek = {};
   rows.forEach(r => {
-    [[byClient,r[2]],[byWeek,laneDeliMonday_(r[0])+'|'+r[2]]].forEach(pair => {
+    [[byClient,r[3]],[byWeek,laneDeliMonday_(r[0])+'|'+r[3]]].forEach(pair => {
       const bucket = pair[0], key = pair[1];
       const t = bucket[key] = bucket[key] || {rows:0,mau_deli:0,ontime_deli_1st:0,ontime_deli_odr:0};
-      t.rows++; t.mau_deli += r[4]||0; t.ontime_deli_1st += r[5]||0; t.ontime_deli_odr += r[6]||0;
+      t.rows++; t.mau_deli += r[5]||0; t.ontime_deli_1st += r[6]||0; t.ontime_deli_odr += r[7]||0;
     });
   });
   return {byClient:byClient,byWeek:byWeek};
