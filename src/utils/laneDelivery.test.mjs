@@ -113,3 +113,18 @@ test('benchmark layout: week groups, WTD, best of 6 same weekdays, same day last
   // Không bật benchmark thì không có nhóm/so sánh.
   assert.equal(buildLaneMatrix({ rows: all, metricKey: 'd1st', client: 'SPB', mode: 'day', periods }).groups, undefined);
 });
+
+test('hub types nest delivery regions (vung_giao); missing region falls under "Chưa rõ vùng"', () => {
+  const data = normalizeLaneDeliveryRows([
+    { report_date: '2026-11-16', lane: 'Intra city', vung_giao: 'HCM', client_name: 'SPB', hub_type: 'BC', mau_deli: 100, ontime_deli_1st: 90, ontime_deli_odr: 80 },
+    { report_date: '2026-11-16', lane: 'Intra city', vung_giao: 'HNO', client_name: 'SPB', hub_type: 'BC', mau_deli: 300, ontime_deli_1st: 270, ontime_deli_odr: 240 },
+    { report_date: '2026-11-16', lane: 'Intra city', client_name: 'SPB', hub_type: 'BC', mau_deli: 10, ontime_deli_1st: 10, ontime_deli_odr: 10 },
+    { report_date: '2026-11-16', lane: 'Intra city', client_name: 'SPB', hub_type: 'KA', mau_deli: 10, ontime_deli_1st: 10, ontime_deli_odr: 10 }
+  ]);
+  const m = buildLaneMatrix({ rows: data, metricKey: 'd1st', client: 'SPB', mode: 'day', periods: ['2026-11-16'] });
+  const [bc, ka] = m.miens[0].regions[0].hubs;
+  assert.deepEqual(bc.vungs.map(v => v.name), ['HNO', 'HCM', 'Chưa rõ vùng']);
+  assert.equal(bc.vungs[0].stats[0].pct, 90);
+  assert.equal(bc.vungs.reduce((n, v) => n + v.stats[0].tot, 0), bc.stats[0].tot); // vùng cộng lại bằng loại hub
+  assert.deepEqual(ka.vungs, []); // chỉ có "Chưa rõ vùng" thì không có tầng vùng
+});

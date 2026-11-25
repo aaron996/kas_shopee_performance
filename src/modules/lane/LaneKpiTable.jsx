@@ -122,7 +122,7 @@ export default function LaneKpiTable({
       <KpiMatrixTable matrix={matrix} formattingRule={formattingRule} lastLabel="kỳ cuối" showVolume={showVolume}
         horizontalScroll={mode === 'day'} rowHeader={LANE_ROW_HEADER} expanderNoun="loại hub" />
       <div className="table-legend">
-        <div>* Lane theo ExternalLane_New; bấm tên lane để xem theo loại hub. Nguồn lane không có vùng nên bộ lọc Vùng không áp dụng.</div>
+        <div>* Lane theo ExternalLane_New; bấm tên lane để xem theo loại hub, bấm loại hub để xem theo vùng giao (Toregion_new). Bộ lọc Vùng ở header chưa áp dụng cho bảng này.</div>
         {benchmark && <div>* Tốt nhất 6 tuần: chênh lệch của ngày mới nhất so với ngày cao nhất trong 6 lần cùng thứ trước đó; Cùng ngày tháng trước: so với cùng ngày dương lịch của tháng trước. Tính từ dữ liệu 8 tuần gần nhất của bảng lane.</div>}
       </div>
     </>
