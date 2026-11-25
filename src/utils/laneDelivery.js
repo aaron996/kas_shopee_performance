@@ -8,7 +8,8 @@ import { getReportWeekLabel } from './dataProcessor.js';
 // Cùng khoá chỉ số với Chi tiết Vùng/Hub để dùng chung mốc target và cài đặt tô màu của người dùng.
 export const LANE_DELIVERY_METRIC_KEYS = ['d1st', 'dodr'];
 export const LANE_DELIVERY_DEFAULT_DAYS = 14;
-export const LANE_ROW_HEADER = 'Lane / Loại hub';
+export const LANE_ROW_HEADER = 'Lane / Loại hub / Vùng giao';
+export const LANE_NO_VUNG_LABEL = 'Chưa rõ vùng';
 
 const num = value => Number(value) || 0;
 
@@ -60,6 +61,8 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
   const laneStats = new Map();
   const hubStats = new Map();
   const hubNames = new Map();
+  const vungStats = new Map();
+  const vungNames = new Map();
   const daysInPeriod = periods.map(() => new Set());
   // Chuỗi theo ngày của từng dòng (kể cả ngày ngoài `periods`) để tính WTD / Tốt nhất 6 tuần / Cùng ngày tháng trước.
   const useBench = benchmark && mode === 'day' && periods.length > 0;
@@ -75,7 +78,8 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
     const tot = num(r[metric.total]), ont = num(r[metric.ontime]);
     const laneKey = normalizeLane(r.lane);
     const hub = r.hub_type || 'Chưa rõ';
-    if (useBench) { addDay('all', r.report_date, tot, ont); addDay(`l:${laneKey}`, r.report_date, tot, ont); addDay(`h:${laneKey}::${hub}`, r.report_date, tot, ont); }
+    const vung = String(r.vung_giao || '').trim() || LANE_NO_VUNG_LABEL;
+    if (useBench) { addDay('all', r.report_date, tot, ont); addDay(`l:${laneKey}`, r.report_date, tot, ont); addDay(`h:${laneKey}::${hub}`, r.report_date, tot, ont); addDay(`v:${laneKey}::${hub}::${vung}`, r.report_date, tot, ont); }
     const i = index.get(periodOf(r.report_date, mode));
     if (i === undefined) return;
     daysInPeriod[i].add(r.report_date);
@@ -84,12 +88,22 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
     const hubKey = `${laneKey}::${hub}`;
     if (!hubNames.has(hubKey)) hubNames.set(hubKey, { id: hubKey, laneKey, name: hub });
     const h = bucket(hubStats, hubKey)[i]; h.tot += tot; h.ont += ont;
+    const vungKey = `${hubKey}::${vung}`;
+    if (!vungNames.has(vungKey)) vungNames.set(vungKey, { id: vungKey, hubKey, name: vung });
+    const v = bucket(vungStats, vungKey)[i]; v.tot += tot; v.ont += ont;
   });
 
   const volume = stats => stats.reduce((sum, s) => sum + s.tot, 0);
   const regions = laneList.filter(({ key }) => laneStats.has(key)).map(({ key, label }) => {
     const hubs = [...hubNames.values()].filter(h => h.laneKey === key)
-      .map(h => ({ id: h.id, name: h.name, stats: hubStats.get(h.id).map(toStat), vol: volume(hubStats.get(h.id)) }))
+      .map(h => {
+        // Tầng vùng giao dưới loại hub; chỉ mở được khi có ít nhất một vùng thật (không chỉ "Chưa rõ vùng").
+        const vungs = [...vungNames.values()].filter(v => v.hubKey === h.id)
+          .map(v => ({ id: v.id, name: v.name, stats: vungStats.get(v.id).map(toStat), vol: volume(vungStats.get(v.id)) }))
+          .sort((a, b) => (a.name === LANE_NO_VUNG_LABEL) - (b.name === LANE_NO_VUNG_LABEL) || b.vol - a.vol);
+        return { id: h.id, name: h.name, stats: hubStats.get(h.id).map(toStat), vol: volume(hubStats.get(h.id)),
+          vungs: vungs.some(v => v.name !== LANE_NO_VUNG_LABEL) ? vungs : [] };
+      })
       .sort((a, b) => b.vol - a.vol);
     return { region: label, laneKey: key, stats: laneStats.get(key).map(toStat), hubs, hubCount: hubs.length };
   });
@@ -113,7 +127,7 @@ export function buildLaneMatrix({ rows, metricKey, client = 'ALL', mode = 'day',
   if (useBench) {
     regions.forEach(reg => {
       reg.bench = bench(`l:${reg.laneKey}`);
-      reg.hubs.forEach(h => { h.bench = bench(`h:${h.id}`); });
+      reg.hubs.forEach(h => { h.bench = bench(`h:${h.id}`); h.vungs.forEach(v => { v.bench = bench(`v:${v.id}`); }); });
     });
   }
   const groups = [];

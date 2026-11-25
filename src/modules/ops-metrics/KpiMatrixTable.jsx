@@ -133,12 +133,33 @@ export default function KpiMatrixTable({ matrix, formattingRule = null, lastLabe
                       </td>
                       {rowCells(reg.stats, reg.bench)}
                     </tr>
-                    {open && reg.hubs.map(hub => (
-                      <tr key={hub.id} data-hub-row="true">
-                        <td className="lbl weekly-kpi-hub">{hub.name}</td>
-                        {rowCells(hub.stats, hub.bench)}
-                      </tr>
-                    ))}
+                    {open && reg.hubs.map(hub => {
+                      const vungs = hub.vungs || [];
+                      const hubOpen = vungs.length > 0 && !!expanded[hub.id];
+                      return (
+                        <React.Fragment key={hub.id}>
+                          <tr data-hub-row="true">
+                            <td className="lbl weekly-kpi-hub">
+                              {vungs.length ? (
+                                <button type="button" className="weekly-kpi-expander" aria-expanded={hubOpen}
+                                  aria-label={`${hubOpen ? 'Thu gọn' : 'Mở'} vùng giao của ${hub.name} (${reg.region})`}
+                                  onClick={() => setExpanded(prev => ({ ...prev, [hub.id]: !prev[hub.id] }))}>
+                                  <ChevronRight size={12} style={{ transform: hubOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                  {hub.name}
+                                </button>
+                              ) : hub.name}
+                            </td>
+                            {rowCells(hub.stats, hub.bench)}
+                          </tr>
+                          {hubOpen && vungs.map(v => (
+                            <tr key={v.id} data-vung-row="true">
+                              <td className="lbl weekly-kpi-hub weekly-kpi-vung">{v.name}</td>
+                              {rowCells(v.stats, v.bench)}
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
                     {open && reg.hubCount > reg.hubs.length && (
                       <tr>
                         <td className="lbl weekly-kpi-hub weekly-kpi-more" colSpan={colCount}>
