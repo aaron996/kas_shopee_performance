@@ -3,7 +3,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { normalizeLaneDeliveryRows } from '../../utils/laneDelivery';
 
 const PAGE = 1000;
-const COLUMNS = 'report_date,lane,client_name,hub_type,mau_deli,ontime_deli_1st,ontime_deli_odr';
+const COLUMNS = 'report_date,lane,vung_giao,client_name,hub_type,mau_deli,ontime_deli_1st,ontime_deli_odr';
 
 async function fetchLaneDelivery() {
   const rows = [];
