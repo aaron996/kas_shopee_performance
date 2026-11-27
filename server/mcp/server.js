@@ -18,10 +18,17 @@ const MCP_TOOL_NAMES = new Set([
   'get_dashboard_help'
 ]);
 
+// KAS-317: provinces/lanes are required in the chat schema (OpenAI strict mode needs every key) but optional for
+// MCP clients: a missing value means "no filter".
+const OPTIONAL_FOR_MCP = new Set(['provinces', 'lanes']);
+const mcpSchema = parameters => parameters?.required
+  ? { ...parameters, required: parameters.required.filter(key => !OPTIONAL_FOR_MCP.has(key)) }
+  : parameters;
+
 const MCP_TOOLS = CHAT_TOOLS.filter(tool => MCP_TOOL_NAMES.has(tool.name)).map(tool => ({
   name: tool.name,
   description: tool.description,
-  inputSchema: tool.parameters
+  inputSchema: mcpSchema(tool.parameters)
 }));
 
 /**
