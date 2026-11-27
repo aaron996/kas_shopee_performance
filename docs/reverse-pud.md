@@ -61,3 +61,6 @@ Không cộng dồn các số của dòng trùng và không xóa dòng vắng m�
 Các mô tả replace và số dòng xóa ở phần kiểm tra trước đó là kết quả của lần chạy trước khi đổi luồng.
 Mã script trong repo gọi RPC upsert mới. Script đang triển khai vẫn có thể gọi tên RPC cũ;
 wrapper ở database đảm bảo hành vi upsert cho cả hai tên.
+
+## Chatbot trong app và MCP
+`metric = 'pud'` có trong `get_metric_summary`, `get_latest_metric_summary`, `get_metric_trend`, `get_metric_change_drivers`, chỉ cho client SPE Reverse (client khác báo "PUD chỉ có cho client SPE Reverse", không đọc DB). Công thức theo dashboard: `sum(pud) / sum(mau_pu) × 100`, chưa có target, có thể > 100% vì `pud` không là tập con của `mau_pu`. Đọc từ `kas_reverse_history` qua `get_kas_daily_range_compact` (`server/chat/reverse-data.js`). Lọc/nhóm theo Tỉnh thành hoặc Lane chưa hỗ trợ cho PUD (RPC `get_kas_detail_summary` chưa trả cột `pud`). Test: `server/chat/pud-metric.test.mjs`.

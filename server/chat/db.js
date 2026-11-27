@@ -14,6 +14,9 @@ function stableHash(value) {
 export async function callDashboardRpc(userClient, rpcName, params) {
   const startedAt = Date.now();
   const isFd = params.p_metric === 'fd' || params.p_dataset === 'fd';
+  if (params.p_metric === 'pud' && normalizeChatClient(params.p_client) !== REVERSE_CLIENT) {
+    throw new ChatError('CHAT_DATASET_UNSUPPORTED', 'PUD chỉ có cho client SPE Reverse.', 422);
+  }
   // KAS-317: lọc/nhóm theo Tỉnh thành hoặc Lane đọc từ bảng chi tiết (mọi nguồn), không qua RPC hub-level.
   const { data, error } = needsDetail(params)
     ? await callDetailRpc(userClient, rpcName, params)

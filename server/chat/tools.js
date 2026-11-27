@@ -17,12 +17,13 @@ const DRIVER_MAX_PAGES = 4;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
-const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr', 'fd']);
+// pud chỉ có cho SPE Reverse (dashboard: sum(pud) / sum(mau_pu), cùng mẫu 1st Pickup/OPR).
+const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr', 'fd', 'pud']);
 const GRAINS = new Set(['nationwide', 'region', 'hub', 'province', 'lane']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);
 const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime', 'fd']);
 const HELP_TOPICS = new Set(Object.keys(DASHBOARD_HELP));
-const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli', fd: 'fd' });
+const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli', fd: 'fd', pud: 'pick' });
 
 function invalid(message) {
   throw new ChatError('CHAT_TOOL_ARGUMENTS_INVALID', message, 400);
@@ -148,7 +149,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_metric_summary',
-    description: 'Đọc KPI pickup/delivery/FD (metric p1st, opr, d1st, odr, fd) từ database theo client, ngày và cấp tổng hợp. FD = SUM(fd_hoan_thanh)/SUM(mau_fd), càng thấp càng tốt, đạt khi <= 3%; với FD hub là kho giao (deliverywh), sort worst = FD cao nhất; nếu kỳ vượt phạm vi dữ liệu FD thì trả periodNote nêu kỳ thực tế, kỳ không có dữ liệu trả noData (không phải 0%). Kết quả trả về totalEntities (tổng số dòng có thật, trước khi cắt theo limit/offset) và offset đã dùng — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết, giữ nguyên các tham số khác và cùng một sort.',
+    description: 'Đọc KPI pickup/delivery/FD (metric p1st, opr, d1st, odr, fd, pud; pud chỉ có cho client SPE Reverse) từ database theo client, ngày và cấp tổng hợp. FD = SUM(fd_hoan_thanh)/SUM(mau_fd), càng thấp càng tốt, đạt khi <= 3%; với FD hub là kho giao (deliverywh), sort worst = FD cao nhất; nếu kỳ vượt phạm vi dữ liệu FD thì trả periodNote nêu kỳ thực tế, kỳ không có dữ liệu trả noData (không phải 0%). Kết quả trả về totalEntities (tổng số dòng có thật, trước khi cắt theo limit/offset) và offset đã dùng — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết, giữ nguyên các tham số khác và cùng một sort.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
@@ -234,7 +235,7 @@ export const CHAT_TOOLS = Object.freeze([
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false, required: ['metric'],
-      properties: { metric: { type: 'string', enum: ['p1st', 'opr', 'd1st', 'odr', 'ca1', 'fd', 'leadtime'] } }
+      properties: { metric: { type: 'string', enum: ['p1st', 'opr', 'd1st', 'odr', 'ca1', 'fd', 'pud', 'leadtime'] } }
     }
   },
   {

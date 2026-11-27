@@ -30,6 +30,9 @@ export async function callDetailRpc(client, name, args) {
   }
   const { p_metric: metric, p_client: clientCode, p_date_from: from, p_date_to: to, p_grain: grain, p_sort: sort,
     p_limit: limit, p_offset: offset = 0 } = args;
+  if (metric === 'pud') {
+    throw new ChatError('CHAT_DATASET_UNSUPPORTED', 'PUD chưa hỗ trợ lọc/nhóm theo Tỉnh thành hoặc Lane.', 422);
+  }
   const source = SOURCES[metric];
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
   if (!source || !Number.isFinite(days) || days < 0 || days > 90 || !GRAINS.has(grain) || !SORTS.has(sort)
