@@ -96,7 +96,7 @@ const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function', name: 'get_metric_trend', strict: true,
-    description: 'Đọc KPI P1ST/OPR/D1ST/ODR/FD theo từng ngày để vẽ biểu đồ đường. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
+    description: 'Đọc KPI P1ST/OPR/D1ST/ODR/FD, và PUD (chỉ client SPE Reverse, sum(pud)/sum(mau_pu)) theo từng ngày để vẽ biểu đồ đường hoặc lấy bảng từng ngày. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
     parameters: {
       type: 'object', additionalProperties: false,
       required: ['metric', 'client', 'date_from', 'date_to', 'regions', 'hub_types', 'provinces', 'lanes'],
@@ -114,7 +114,7 @@ export const CHAT_TOOLS = Object.freeze([
   },
   {
     type: 'function', name: 'get_metric_change_drivers', strict: true,
-    description: 'Dùng cho câu hỏi "vì sao KPI tăng/giảm". So sánh hai kỳ (kỳ hiện tại và kỳ trước) của P1ST/OPR/D1ST/ODR/FD và trả về tổng thay đổi (điểm %) cùng danh sách vùng/hub đóng góp nhiều nhất vào thay đổi đó, tách hiệu ứng tỷ lệ (chính nó tốt/xấu đi) và hiệu ứng cơ cấu (tỷ trọng sản lượng dịch chuyển). Với FD (càng thấp càng tốt) contributionPp dương = FD tăng = xấu; xem trường effect/overall. Kết quả đã tính sẵn, không cần gọi thêm summary/trend; chart không tự vẽ cho tool này.',
+    description: 'Dùng cho câu hỏi "vì sao KPI tăng/giảm". So sánh hai kỳ (kỳ hiện tại và kỳ trước) của P1ST/OPR/D1ST/ODR/FD (và PUD cho client SPE Reverse) và trả về tổng thay đổi (điểm %) cùng danh sách vùng/hub đóng góp nhiều nhất vào thay đổi đó, tách hiệu ứng tỷ lệ (chính nó tốt/xấu đi) và hiệu ứng cơ cấu (tỷ trọng sản lượng dịch chuyển). Với FD (càng thấp càng tốt) contributionPp dương = FD tăng = xấu; xem trường effect/overall. Kết quả đã tính sẵn, không cần gọi thêm summary/trend; chart không tự vẽ cho tool này.',
     parameters: {
       type: 'object', additionalProperties: false,
       required: ['metric', 'client', 'current_from', 'current_to', 'previous_from', 'previous_to', 'grain', 'regions', 'hub_types', 'provinces', 'lanes'],
@@ -173,7 +173,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_latest_metric_summary',
-    description: 'Đọc KPI pickup/delivery/FD ở ngày mới nhất hiện có trong database (FD dùng ngày mới nhất của chính FD, nêu rõ ở as_of_date). Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn. Kết quả trả về totalEntities và offset — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết.',
+    description: 'Đọc KPI pickup/delivery/FD (và PUD cho client SPE Reverse) ở ngày mới nhất hiện có trong database (FD dùng ngày mới nhất của chính FD, nêu rõ ở as_of_date). Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn. Kết quả trả về totalEntities và offset — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
