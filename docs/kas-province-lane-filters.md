@@ -25,6 +25,13 @@
 - Bật bộ lọc: "Theo ngày" chuyển sang `DailyRangeKpiTable` (mặc định 14 ngày gần nhất), "Theo tuần"/"Theo tháng" sang `WeeklyKpiTable` (grain = `period`), cả hai đọc `get_kas_detail_compact`. Không có benchmark; bảng ghi chú rõ và có huy hiệu `Province:` / `Lane:` (`ScopeBadges`). Tắt bộ lọc: luồng cũ không đổi.
 - Chưa áp dụng cho Tổng quan MTD, xếp hạng 3D, chat AI, export và tab Backlog Reverse.
 
+## Chatbot trong app và MCP
+- `get_metric_summary`, `get_latest_metric_summary`, `get_metric_trend`, `get_metric_change_drivers` có thêm `provinces` và `lanes` (mảng, rỗng = không lọc); `grain` thêm `province` và `lane` (drivers cũng nhận hai grain này).
+- Khi có lọc hoặc grain province/lane, `callDashboardRpc` chuyển sang `server/chat/detail-data.js`: đọc `get_kas_detail_summary` (migration `20261127120000_kas_detail_summary.sql`, gộp theo khoảng ngày, tối đa 20.000 dòng sau gộp) rồi chuẩn hoá vùng KHL/CK/GXT và gộp ở JS, cùng khuôn `fd-data.js`/`reverse-data.js`. Kết quả có `benchmark: 'none'` và `scope.provinces`/`scope.lanes`. Không lọc thì giữ nguyên RPC hub-level cũ (tham số và bằng chứng không đổi).
+- Lane chỉ có ở D1ST, ODR, FD (Pickup/Reverse báo lỗi rõ). `get_latest_metric_summary` lấy ngày mới nhất từ bảng chi tiết (`get_kas_detail_options`).
+- Schema chat là strict (mọi khoá bắt buộc); MCP (`server/mcp/server.js`) bỏ `provinces`/`lanes` khỏi `required` để client MCP không cần truyền.
+- Test: `tests/api/kas-detail-summary-db.test.mjs`.
+
 ## Kiểm tra sau khi áp migration và có dữ liệu
 Tổng bảng chi tiết (không lọc) phải bằng bảng hub-level cùng ngày, sai lệch 0 (đổi `deli` thành `pick`, `fd`, `reverse` và cột tương ứng):
 ```sql

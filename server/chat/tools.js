@@ -2,6 +2,7 @@ import { CHAT_CLIENT_CODES } from '../../src/utils/chatClients.js';
 import { DASHBOARD_HELP, getDashboardHelp } from '../../src/data/dashboardHelp.js';
 import { getMetricDefinition } from '../../src/data/metricGlossary.js';
 import { callDashboardRpc, DASHBOARD_RPCS } from './db.js';
+import { needsDetail, latestDetailDate } from './detail-data.js';
 import { ChatError } from './errors.js';
 import { REQUEST_METRIC_QUERY_TOOL } from './interactions.js';
 import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
@@ -11,13 +12,13 @@ import { createHash } from 'node:crypto';
 import { computeDrivers, evidenceIdFor } from './drivers.js';
 import { FD_KPI_TARGET } from '../../src/data/fdKpi.js';
 
-const DRIVER_GRAINS = new Set(['region', 'hub']);
+const DRIVER_GRAINS = new Set(['region', 'hub', 'province', 'lane']);
 const DRIVER_MAX_PAGES = 4;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
 const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr', 'fd']);
-const GRAINS = new Set(['nationwide', 'region', 'hub']);
+const GRAINS = new Set(['nationwide', 'region', 'hub', 'province', 'lane']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);
 const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime', 'fd']);
 const HELP_TOPICS = new Set(Object.keys(DASHBOARD_HELP));
@@ -62,6 +63,13 @@ function textList(value, name) {
   return [...new Set(value.map(item => item.trim()))];
 }
 
+// KAS-317: provinces/lanes chỉ đi vào RPC khi có giá trị, để các lệnh gọi không lọc giữ nguyên tham số và bằng chứng cũ.
+function detailFilters(args) {
+  const provinces = args.provinces === undefined ? [] : textList(args.provinces, 'provinces');
+  const lanes = args.lanes === undefined ? [] : textList(args.lanes, 'lanes');
+  return { ...(provinces.length ? { p_provinces: provinces } : {}), ...(lanes.length ? { p_lanes: lanes } : {}) };
+}
+
 function limit(value) {
   if (!Number.isInteger(value) || value < 1 || value > 50) invalid('limit phải từ 1 đến 50.');
   return value;
@@ -90,7 +98,7 @@ export const CHAT_TOOLS = Object.freeze([
     description: 'Đọc KPI P1ST/OPR/D1ST/ODR/FD theo từng ngày để vẽ biểu đồ đường. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'date_from', 'date_to', 'regions', 'hub_types'],
+      required: ['metric', 'client', 'date_from', 'date_to', 'regions', 'hub_types', 'provinces', 'lanes'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
@@ -98,6 +106,8 @@ export const CHAT_TOOLS = Object.freeze([
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        provinces: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Tỉnh thành (tên như trong dữ liệu, vd. "Hồ Chí Minh"); mảng rỗng = không lọc. Có lọc thì đọc từ bảng chi tiết, không có benchmark.' },
+        lanes: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Lane; mảng rỗng = không lọc. Chỉ có ở D1ST, ODR, FD (Pickup/Reverse không có lane).' },
       },
     },
   },
@@ -106,7 +116,7 @@ export const CHAT_TOOLS = Object.freeze([
     description: 'Dùng cho câu hỏi "vì sao KPI tăng/giảm". So sánh hai kỳ (kỳ hiện tại và kỳ trước) của P1ST/OPR/D1ST/ODR/FD và trả về tổng thay đổi (điểm %) cùng danh sách vùng/hub đóng góp nhiều nhất vào thay đổi đó, tách hiệu ứng tỷ lệ (chính nó tốt/xấu đi) và hiệu ứng cơ cấu (tỷ trọng sản lượng dịch chuyển). Với FD (càng thấp càng tốt) contributionPp dương = FD tăng = xấu; xem trường effect/overall. Kết quả đã tính sẵn, không cần gọi thêm summary/trend; chart không tự vẽ cho tool này.',
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'current_from', 'current_to', 'previous_from', 'previous_to', 'grain', 'regions', 'hub_types'],
+      required: ['metric', 'client', 'current_from', 'current_to', 'previous_from', 'previous_to', 'grain', 'regions', 'hub_types', 'provinces', 'lanes'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
@@ -114,9 +124,11 @@ export const CHAT_TOOLS = Object.freeze([
         current_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         previous_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         previous_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        grain: { type: 'string', enum: [...DRIVER_GRAINS], description: 'region để tìm vùng kéo tụt; hub để xuống từng kho.' },
+        grain: { type: 'string', enum: [...DRIVER_GRAINS], description: 'region để tìm vùng kéo tụt; hub để xuống từng kho; province/lane để tìm tỉnh thành/lane kéo tụt (lane chỉ có ở D1ST, ODR, FD).' },
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        provinces: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Tỉnh thành (tên như trong dữ liệu, vd. "Hồ Chí Minh"); mảng rỗng = không lọc. Có lọc thì đọc từ bảng chi tiết, không có benchmark.' },
+        lanes: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Lane; mảng rỗng = không lọc. Chỉ có ở D1ST, ODR, FD (Pickup/Reverse không có lane).' },
       },
     },
   },
@@ -140,15 +152,17 @@ export const CHAT_TOOLS = Object.freeze([
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'date_from', 'date_to', 'grain', 'regions', 'hub_types', 'limit', 'offset', 'sort'],
+      required: ['metric', 'client', 'date_from', 'date_to', 'grain', 'regions', 'hub_types', 'provinces', 'lanes', 'limit', 'offset', 'sort'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
         date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
         date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        grain: { type: 'string', enum: [...GRAINS] },
+        grain: { type: 'string', enum: [...GRAINS], description: 'nationwide/region/hub như cũ; province = nhóm theo Tỉnh thành, lane = nhóm theo Lane (lane chỉ có ở D1ST, ODR, FD). province/lane và bộ lọc provinces/lanes đọc bảng chi tiết nên không có benchmark.' },
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        provinces: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Tỉnh thành (tên như trong dữ liệu, vd. "Hồ Chí Minh"); mảng rỗng = không lọc. Có lọc thì đọc từ bảng chi tiết, không có benchmark.' },
+        lanes: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Lane; mảng rỗng = không lọc. Chỉ có ở D1ST, ODR, FD (Pickup/Reverse không có lane).' },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
         offset: { type: 'integer', minimum: 0, maximum: 100000, description: 'Bỏ qua bấy nhiêu dòng đầu (theo cùng thứ tự sort) trước khi lấy limit dòng tiếp theo. 0 cho lần gọi đầu tiên.' },
         sort: { type: 'string', enum: [...SORTS] }
@@ -162,13 +176,15 @@ export const CHAT_TOOLS = Object.freeze([
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
-      required: ['metric', 'client', 'grain', 'regions', 'hub_types', 'limit', 'offset', 'sort'],
+      required: ['metric', 'client', 'grain', 'regions', 'hub_types', 'provinces', 'lanes', 'limit', 'offset', 'sort'],
       properties: {
         metric: { type: 'string', enum: [...METRICS] },
         client: { type: 'string', enum: [...CLIENTS] },
-        grain: { type: 'string', enum: [...GRAINS] },
+        grain: { type: 'string', enum: [...GRAINS], description: 'nationwide/region/hub như cũ; province = nhóm theo Tỉnh thành, lane = nhóm theo Lane (lane chỉ có ở D1ST, ODR, FD). province/lane và bộ lọc provinces/lanes đọc bảng chi tiết nên không có benchmark.' },
         regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
         hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        provinces: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Tỉnh thành (tên như trong dữ liệu, vd. "Hồ Chí Minh"); mảng rỗng = không lọc. Có lọc thì đọc từ bảng chi tiết, không có benchmark.' },
+        lanes: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS, description: 'Lọc theo Lane; mảng rỗng = không lọc. Chỉ có ở D1ST, ODR, FD (Pickup/Reverse không có lane).' },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
         offset: { type: 'integer', minimum: 0, maximum: 100000, description: 'Bỏ qua bấy nhiêu dòng đầu (theo cùng thứ tự sort) trước khi lấy limit dòng tiếp theo. 0 cho lần gọi đầu tiên.' },
         sort: { type: 'string', enum: [...SORTS] }
@@ -259,6 +275,7 @@ export async function executeChatTool(call, context = {}) {
         p_regions: textList(args.rpcRegions, 'regions'),
         p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_grain: 'nationwide', p_limit: 1, p_sort: 'worst',
+        ...detailFilters(args),
       };
       const budget = context.trendBudget ?? { remaining: 14 };
       if (count > budget.remaining) invalid('Lượt hỏi đã đạt giới hạn 14 điểm dữ liệu theo ngày.');
@@ -298,7 +315,8 @@ export async function executeChatTool(call, context = {}) {
       const [prevFrom, prevTo] = dateRange(args.previous_from, args.previous_to);
       if (prevTo >= curFrom) invalid('Kỳ trước phải kết thúc trước khi kỳ hiện tại bắt đầu.');
       const base = { p_metric: metric, p_client: client,
-        p_regions: textList(args.rpcRegions, 'regions'), p_hub_types: textList(args.rpcHubTypes, 'hub_types') };
+        p_regions: textList(args.rpcRegions, 'regions'), p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
+        ...detailFilters(args), ...(grain === 'province' || grain === 'lane' ? { p_source: 'detail' } : {}) };
       const scopedClient = { rpc(name, rpcParams) {
         const request = userClient.rpc(name, rpcParams);
         return context.signal && typeof request.abortSignal === 'function' ? request.abortSignal(context.signal) : request;
@@ -364,17 +382,22 @@ export async function executeChatTool(call, context = {}) {
         p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
         p_offset: offset(args.offset),
-        p_sort: enumValue(args.sort, SORTS, 'sort')
+        p_sort: enumValue(args.sort, SORTS, 'sort'),
+        ...detailFilters(args)
       });
     }
     case 'get_latest_metric_summary': {
       const metric = enumValue(args.metric, METRICS, 'metric');
       const client = enumValue(args.client, CLIENTS, 'client');
-      const coverage = await callDashboardRpc(userClient, DASHBOARD_RPCS.coverage, {
-        p_dataset: METRIC_DATASETS[metric],
-        p_client: client
-      });
-      const dataAsOf = coverage.data?.dataAsOf;
+      const detail = detailFilters(args);
+      const grain = enumValue(args.grain, GRAINS, 'grain');
+      // Lọc/nhóm theo Tỉnh thành hoặc Lane: ngày mới nhất lấy từ chính bảng chi tiết.
+      const dataAsOf = needsDetail({ ...detail, p_grain: grain })
+        ? await latestDetailDate(userClient, metric, client)
+        : (await callDashboardRpc(userClient, DASHBOARD_RPCS.coverage, {
+          p_dataset: METRIC_DATASETS[metric],
+          p_client: client
+        })).data?.dataAsOf;
       if (!dataAsOf) {
         throw new ChatError('CHAT_DATA_EMPTY', 'Database chưa có ngày dữ liệu phù hợp với phạm vi này.', 422);
       }
@@ -384,12 +407,13 @@ export async function executeChatTool(call, context = {}) {
         p_client: client,
         p_date_from: latestDate,
         p_date_to: latestDate,
-        p_grain: enumValue(args.grain, GRAINS, 'grain'),
+        p_grain: grain,
         p_regions: textList(args.rpcRegions, 'regions'),
         p_hub_types: textList(args.rpcHubTypes, 'hub_types'),
         p_limit: limit(args.limit),
         p_offset: offset(args.offset),
-        p_sort: enumValue(args.sort, SORTS, 'sort')
+        p_sort: enumValue(args.sort, SORTS, 'sort'),
+        ...detail
       });
     }
     case 'get_ca1_summary': {

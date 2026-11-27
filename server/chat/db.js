@@ -1,6 +1,7 @@
 import { normalizeChatClient, REVERSE_CLIENT } from '../../src/utils/chatClients.js';
 import { callReverseRpc } from './reverse-data.js';
 import { callFdRpc } from './fd-data.js';
+import { callDetailRpc, needsDetail } from './detail-data.js';
 import { createHash } from 'node:crypto';
 import { ChatError } from './errors.js';
 
@@ -13,7 +14,10 @@ function stableHash(value) {
 export async function callDashboardRpc(userClient, rpcName, params) {
   const startedAt = Date.now();
   const isFd = params.p_metric === 'fd' || params.p_dataset === 'fd';
-  const { data, error } = normalizeChatClient(params.p_client) === REVERSE_CLIENT
+  // KAS-317: lọc/nhóm theo Tỉnh thành hoặc Lane đọc từ bảng chi tiết (mọi nguồn), không qua RPC hub-level.
+  const { data, error } = needsDetail(params)
+    ? await callDetailRpc(userClient, rpcName, params)
+    : normalizeChatClient(params.p_client) === REVERSE_CLIENT
     ? await callReverseRpc(userClient, rpcName, params)
     : isFd ? await callFdRpc(userClient, rpcName, params)
     : await userClient.rpc(rpcName, params);
