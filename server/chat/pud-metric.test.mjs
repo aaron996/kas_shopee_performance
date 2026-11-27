@@ -27,6 +27,12 @@ const args = (extra = {}) => ({ metric: 'pud', client: reverse, date_from: '2026
   regions: [], hub_types: [], provinces: [], lanes: [], limit: 10, offset: 0, sort: 'worst', ...extra });
 const run = (name, extra, db = fakeDb()) => executeChatTool({ name, arguments: args(extra) }, { userClient: db });
 
+test('tool descriptions also mention PUD (models read the text, not only the enum)', () => {
+  for (const name of ['get_metric_summary', 'get_latest_metric_summary', 'get_metric_trend', 'get_metric_change_drivers']) {
+    assert.match(CHAT_TOOLS.find(tool => tool.name === name).description, /PUD/i, name);
+  }
+});
+
 test('pud is a metric of the chat/MCP tools', () => {
   for (const name of ['get_metric_summary', 'get_latest_metric_summary', 'get_metric_trend', 'get_metric_change_drivers']) {
     assert.ok(CHAT_TOOLS.find(tool => tool.name === name).parameters.properties.metric.enum.includes('pud'), name);
