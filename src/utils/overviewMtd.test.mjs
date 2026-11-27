@@ -31,7 +31,7 @@ test('delivery aliases, FD denominator, month boundaries and empty data', () => 
   assert.equal(aggregateOverviewMtd([], 'fd', null).pct, null);
 });
 
-const reverse = extra => row('2026-11-02', 100, 70, { client_name: 'SPE Reverse', pud: 1, ...extra });
+const reverse = extra => row('2026-11-02', 100, 70, { client_name: 'SPE Reverse', pud: 1, mau_pud: 100, ...extra });
 
 test('client capabilities drive card count, source, targets and PUD population', () => {
   const cards = buildOverviewCards({ pick: [reverse()], deli: [], fd: [] }, 'SPE Reverse');
@@ -57,7 +57,7 @@ test('MTD and daily use the same all-region rule for unmapped Reverse hubs', () 
   assert.equal(aggregateOverviewMtd(rows, 'p1st', '2026-11-02', { selectedRegions: [] }).tot, 0);
 });
 
-test('PUD stays unknown if any matched row lacks pud or mau_pu; shares the pickup sample (mau_pu)', () => {
+test('PUD stays unknown if any matched row lacks pud or mau_pu; uses its own sample (mau_pud)', () => {
   const cards = buildOverviewCards({ pick: [reverse({ pud: null })] }, 'SPE Reverse');
   assert.equal(cards.find(card => card.id === 'pud').d1.pct, null);
   assert.equal(cards.find(card => card.id === 'pud').reportDate, '2026-11-02');
