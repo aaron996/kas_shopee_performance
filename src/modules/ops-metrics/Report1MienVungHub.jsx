@@ -101,15 +101,12 @@ export default function Report1MienVungHub({
   const [requestedSection, setDetailSection] = useState('metrics');
   const detailSection = pickOnly ? requestedSection : 'metrics';
   // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
-  // PUD chỉ có ở "Theo tuần": mở thẳng từ tiêu điểm PUD thì vào luôn view tuần.
-  const [requestedViewMode, setViewMode] = useState(() => focusTarget?.metricKey === 'pud' ? 'week' : 'day');
+  const [requestedViewMode, setViewMode] = useState('day');
   // "Theo tháng" đọc kas_*_monthly (Pick/Deli/FD); Reverse và PUD chưa có bảng tháng nên giữ view tuần.
   const monthUnsupported = pickOnly || activeTableTab === 'pud';
-  const viewMode = activeTableTab === 'pud' ? 'week' : (requestedViewMode === 'month' && monthUnsupported ? 'week' : requestedViewMode);
-  // Bấm PUD ở view ngày thì tự chuyển sang view tuần; tab vẫn hiện sẵn ở cả hai view.
-  const selectMetricTab = key => { if (key === 'pud') setViewMode('week'); setActiveTableTab(key); };
-  // Quay về view ngày khi đang ở PUD: PUD không có view ngày nên trở lại 1st Pickup.
-  const selectDayView = () => { if (activeTableTab === 'pud') setActiveTableTab('p1st'); setViewMode('day'); };
+  const viewMode = requestedViewMode === 'month' && monthUnsupported ? 'week' : requestedViewMode;
+  const selectMetricTab = setActiveTableTab;
+  const selectDayView = () => setViewMode('day');
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
   // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
   const [dayRange, setDayRange] = useState({ from: '', to: '', preset: 'Mặc định' });

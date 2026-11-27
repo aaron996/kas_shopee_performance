@@ -116,7 +116,7 @@ test('PUD daily/week requests start with skeletons and Reverse declares its own 
   expectLoading(render(components.weekly, { metricKey: 'pud', title: 'PUD', clientFilter: 'SPE Reverse' }));
 });
 
-test('PUD tab is visible in day view, opens week view, and uses the Reverse scope without target heat', () => {
+test('PUD tab is visible in day view, keeps the day view, and uses the Reverse scope without target heat', () => {
   const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 1, pud: 1 },
     { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 9, pud: 0 }];
   const props = { pickRows: rows, deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
@@ -125,7 +125,7 @@ test('PUD tab is visible in day view, opens week view, and uses the Reverse scop
   assert.match(day, /aria-pressed="true"[^>]*>\s*Theo ngày/);
   const week = render(components.report, { ...props, focusTarget: { metricKey: 'pud' } });
   assert.match(week, /id="ops-tab-pud" aria-selected="true"/);
-  assert.match(week, /aria-pressed="true"[^>]*>\s*Theo tuần/, 'PUD forces the week view');
+  assert.match(week, /aria-pressed="true"[^>]*>\s*Theo ngày/, 'PUD does not force the week view');
   const snapshot = render(components.report, { ...props, snapshotMetric: 'pud' });
   assert.match(snapshot, /10,0%|10\.0%/, 'PUD = pud / mau_pu');
   assert.match(snapshot, /Mẫu \(mau_pu\)/);
