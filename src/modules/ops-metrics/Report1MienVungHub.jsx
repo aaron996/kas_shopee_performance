@@ -3,11 +3,14 @@ import SelectionIndicator from '../../components/ui/SelectionIndicator';
 import OperationsHome from './OperationsHome';
 import KpiFormattingControl, { KpiFormattingLegend } from './KpiFormattingControl';
 import useKpiFormatting from '../../hooks/useKpiFormatting';
+import useBacklogFormatting from '../../hooks/useBacklogFormatting';
 import { formattingCellProps } from '../../utils/kpiFormatting';
 import WeeklyKpiTable from './WeeklyKpiTable';
 import { pudCounts, PUD_NOTE } from '../../utils/pud';
 import { buildOverviewCards } from '../../utils/overviewMtd';
 import { overviewTarget } from '../../data/overviewMetrics';
+import ReverseBacklogPanel from './ReverseBacklogPanel';
+import ReverseBacklogMatrix from './ReverseBacklogMatrix';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
 import DetailScopeFilter from './DetailScopeFilter';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
@@ -76,8 +79,9 @@ export default function Report1MienVungHub({
 }) {
   const showToast = useToast();
   const { rules: formattingRules, save: saveFormatting, preview: previewFormatting } = useKpiFormatting(userEmail);
-  const formattingControl = metricKey => metricKey === 'pud' ? null : <KpiFormattingControl key={`${userEmail}:${metricKey}`} metricKey={metricKey}
-    label={{ p1st: '1st Pickup', popr: 'OPR', d1st: '1st Deli', dodr: 'ODR', fd: 'FD' }[metricKey]}
+  const backlogFormatting = useBacklogFormatting(userEmail);
+  const formattingControl = metricKey => <KpiFormattingControl key={`${userEmail}:${metricKey}`} metricKey={metricKey}
+    label={{ p1st: '1st Pickup', popr: 'OPR', d1st: '1st Deli', dodr: 'ODR', fd: 'FD', pud: 'PUD' }[metricKey]}
     rule={formattingRules[metricKey]} onPreview={previewFormatting} onSave={(key, rule) => { saveFormatting(key, rule); showToast('Đã lưu cài đặt tô màu.', { tone: 'success' }); }} />;
   const pickOnly = clientFilter === REVERSE_CLIENT;
   const [expandedRegions, setExpandedRegions] = useState(() => {
@@ -89,10 +93,21 @@ export default function Report1MienVungHub({
     return focusTarget?.metricKey || 'p1st';
   });
   const activeTableTab = pickOnly
-    ? (['p1st', 'popr', 'pud'].includes(requestedTableTab) ? requestedTableTab : 'p1st')
-    : (requestedTableTab === 'pud' ? 'p1st' : requestedTableTab);
+    ? (['p1st', 'popr', 'pud', 'backlog'].includes(requestedTableTab) ? requestedTableTab : 'p1st')
+    : (['pud', 'backlog'].includes(requestedTableTab) ? 'p1st' : requestedTableTab);
+  // Subtab của Chi tiết Vùng/Hub: chỉ Reverse có thêm "Backlog Reverse" (bố cục backlog theo số lần gán / tuổi tồn).
+  const [requestedSection, setDetailSection] = useState('metrics');
+  const detailSection = pickOnly ? requestedSection : 'metrics';
   // "Theo ngày" là bảng 14 ngày có benchmark; "Theo tuần" đọc bảng lịch sử (9 tuần).
-  const [viewMode, setViewMode] = useState('day');
+  // PUD chỉ có ở "Theo tuần": mở thẳng từ tiêu điểm PUD thì vào luôn view tuần.
+  const [requestedViewMode, setViewMode] = useState(() => focusTarget?.metricKey === 'pud' ? 'week' : 'day');
+  // "Theo tháng" đọc kas_*_monthly (Pick/Deli/FD); Reverse và PUD chưa có bảng tháng nên giữ view tuần.
+  const monthUnsupported = pickOnly || activeTableTab === 'pud';
+  const viewMode = activeTableTab === 'pud' ? 'week' : (requestedViewMode === 'month' && monthUnsupported ? 'week' : requestedViewMode);
+  // Bấm PUD ở view ngày thì tự chuyển sang view tuần; tab vẫn hiện sẵn ở cả hai view.
+  const selectMetricTab = key => { if (key === 'pud') setViewMode('week'); setActiveTableTab(key); };
+  // Quay về view ngày khi đang ở PUD: PUD không có view ngày nên trở lại 1st Pickup.
+  const selectDayView = () => { if (activeTableTab === 'pud') setActiveTableTab('p1st'); setViewMode('day'); };
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
   // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
   const [dayRange, setDayRange] = useState({ from: '', to: '', preset: 'Mặc định' });
@@ -1209,7 +1224,7 @@ export default function Report1MienVungHub({
               ))}
             </div>
           ) : isPud ? (
-            <div>{PUD_NOTE} Mẫu PUD hiển thị ở cột volume của D-1 và WTD.</div>
+            <div>{PUD_NOTE} Mẫu (mau_pu) hiển thị ở cột volume của D-1 và WTD.</div>
           ) : isFd ? (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>
@@ -1220,7 +1235,7 @@ export default function Report1MienVungHub({
             <div>* Đã ẩn {hiddenRegionCount} vùng không phát sinh sản lượng WTD với loại Hub đang chọn.</div>
           )}
           <div>{isFd ? '* Kho giao mặc định ẩn, click ▶ để mở các kho giao phát sinh đơn chưa hoàn thành nhiều nhất.' : isPud
-            ? '* Hubs mặc định ẩn, click ▶ để mở top 10 hub có nhiều đơn thuộc mẫu PUD chưa lấy thành công nhất.'
+            ? '* Hubs mặc định ẩn, click ▶ để mở top 10 hub có nhiều đơn thuộc mẫu chưa lấy thành công nhất.'
             : '* Hubs mặc định ẩn, click ▶ để mở top 10 hub trễ tuyệt đối nhiều nhất.'}</div>
         </div>
       </div>
@@ -1234,8 +1249,10 @@ export default function Report1MienVungHub({
     return max ? { min: addIsoDays(max, -90), max } : null;
   }, [activeTableTab, pickDates, deliDates, fdDates]);
   // Chỉ số đang xem -> bảng chi tiết tương ứng; lane bị bỏ qua với Pick/Reverse.
-  const detailDataset = datasetFor(WEEKLY_METRICS[activeTableTab], clientFilter);
-  const scope = effectiveDetailScope(detailDataset, detailScope);
+  // Tab không phải chỉ số KPI (vd. backlog Reverse) không có bảng chi tiết: không lọc, ẩn bộ lọc.
+  const detailMetric = WEEKLY_METRICS[activeTableTab];
+  const detailDataset = detailMetric ? datasetFor(detailMetric, clientFilter) : null;
+  const scope = effectiveDetailScope(detailDataset, detailMetric ? detailScope : null);
   // Bật bộ lọc ở "Theo ngày" mà chưa chọn khoảng ngày: lấy 14 ngày gần nhất (khớp bảng mặc định).
   const activeDayRange = viewMode === 'day' && dayRangeBounds
     ? (resolveDayRange(dayRange, dayRangeBounds) || (scope.active ? { from: addIsoDays(dayRangeBounds.max, -13), to: dayRangeBounds.max } : null))
@@ -1350,8 +1367,14 @@ export default function Report1MienVungHub({
         </div>
       )}
 
-      <div className={`density-${density} kpi-tab-container`}>
-        <DetailScopeFilter dataset={detailDataset} value={detailScope} onChange={setDetailScope} />
+      {pickOnly && <div className="detail-subtabs" role="group" aria-label="Phần chi tiết Vùng/Hub">
+        {[['metrics', 'Chỉ số Vùng/Hub'], ['backlog-reverse', 'Backlog Reverse']].map(([key, label]) => (
+          <button type="button" key={key} id={`detail-subtab-${key}`} aria-pressed={detailSection === key}
+            className={`kpi-table-tab ${detailSection === key ? 'active' : ''}`} onClick={() => setDetailSection(key)}>{label}</button>
+        ))}
+      </div>}
+      {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} /></div> : <div className={`density-${density} kpi-tab-container`}>
+        {detailDataset && <DetailScopeFilter dataset={detailDataset} value={detailScope} onChange={setDetailScope} />}
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
@@ -1373,8 +1396,14 @@ export default function Report1MienVungHub({
             </button>
             {pickOnly && <button role="tab" id="ops-tab-pud" aria-selected={activeTableTab === 'pud'} aria-controls="ops-metric-panel"
               tabIndex={activeTableTab === 'pud' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'pud' ? 'active' : ''}`}
-              onClick={() => setActiveTableTab('pud')}>PUD</button>}
+              onClick={() => selectMetricTab('pud')}>PUD</button>}
           </div>
+          {/* Backlog (số đơn tồn tuyệt đối, mau_pud) tách khỏi cụm chỉ số % bằng khoảng cách riêng; chỉ có view ngày. */}
+          {pickOnly && <div className="kpi-tab-group kpi-tab-group-backlog" role="group" aria-label="Backlog">
+            <button role="tab" id="ops-tab-backlog" aria-selected={activeTableTab === 'backlog'} aria-controls="ops-metric-panel"
+              tabIndex={activeTableTab === 'backlog' ? 0 : -1} className={`kpi-table-tab ${activeTableTab === 'backlog' ? 'active' : ''}`}
+              onClick={() => selectMetricTab('backlog')}>Backlog</button>
+          </div>}
           {/* Reverse chỉ có dữ liệu Pick: không có nhóm giao hàng và FD. */}
           {!pickOnly && (<>
           <div className="kpi-tab-group" role="group" aria-label="Nhóm giao hàng">
@@ -1392,17 +1421,21 @@ export default function Report1MienVungHub({
           </div>
           </>)}
           {/* Không dùng role="tab": bộ xử lý phím mũi tên ở trên chỉ duyệt các tab chỉ số. */}
-          <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem" style={{ marginLeft: 'auto' }}>
-            <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={() => setViewMode('day')}>
+          {activeTableTab !== 'backlog' && <div className="kpi-tab-group view-mode-toggle" role="group" aria-label="Chế độ xem" style={{ marginLeft: 'auto' }}>
+            <button type="button" aria-pressed={viewMode === 'day'} className={`kpi-table-tab ${viewMode === 'day' ? 'active' : ''}`} onClick={selectDayView}>
               Theo ngày
             </button>
             <button type="button" aria-pressed={viewMode === 'week'} className={`kpi-table-tab ${viewMode === 'week' ? 'active' : ''}`} onClick={() => setViewMode('week')}>
               Theo tuần
             </button>
-          </div>
+            {!monthUnsupported && <button type="button" aria-pressed={viewMode === 'month'} className={`kpi-table-tab ${viewMode === 'month' ? 'active' : ''}`} onClick={() => setViewMode('month')}>
+              Theo tháng
+            </button>}
+          </div>}
         </div>
         <div className="kpi-table-content" role="tabpanel" id="ops-metric-panel" aria-labelledby={`ops-tab-${activeTableTab}`}>
-          {activeDayRange ? (
+          {activeTableTab === 'backlog' ? (loadingDatasets.pick ? <LoadingScreen />
+            : <ReverseBacklogMatrix rows={filteredPick} dates={pickDates} selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} formatting={backlogFormatting} />) : activeDayRange ? (
             <DailyRangeKpiTable
               formattingRule={formattingRules[activeTableTab]}
               formattingControl={formattingControl(activeTableTab)}
@@ -1416,8 +1449,9 @@ export default function Report1MienVungHub({
               selectedHubTypes={selectedHubTypes}
               detailScope={detailScope}
             />
-          ) : viewMode === 'week' ? (
+          ) : viewMode === 'week' || viewMode === 'month' ? (
             <WeeklyKpiTable
+              period={viewMode}
               formattingRule={formattingRules[activeTableTab]}
               formattingControl={formattingControl(activeTableTab)}
               metricKey={activeTableTab}
@@ -1429,7 +1463,7 @@ export default function Report1MienVungHub({
             />
           ) : metricTables[activeTableTab]?.()}
         </div>
-      </div>
+      </div>}
 
       {exportDialog}
 

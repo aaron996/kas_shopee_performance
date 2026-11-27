@@ -3,7 +3,7 @@
 The n8n workflow `[KAS] vinhlt - Daily Report - Pick/Deli/Ca1 to Telegram`
 (`iGVM6IXpZrLrAD6H`) sends one picture per report table every morning. It
 used to build its own HTML from `v_kas_pick_agg` / `v_kas_deli_agg`, which
-meant every dashboard change (new vùng such as `HCM - KA`, region order,
+meant every dashboard change (new vùng such as `HCM - KHL`, region order,
 colours, columns) had to be re-implemented in n8n. It now screenshots the
 dashboard itself, so the picture is whatever the dashboard renders.
 
@@ -65,7 +65,7 @@ handful of orders must not outrank the big ones.
 
 | param | values |
 | --- | --- |
-| `report` + `table` | `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
+| `report` + `table` | `reverse` + `all` (một ảnh) (báo cáo tự động SPE Reverse, xem [reverse-auto-report.md](reverse-auto-report.md)), `pick` + `1st` / `opr`, `deli` + `1st` / `odr`, `fd`, `ca1` + `intra_city` / `intra_region` / `cross_region` / `cross_metro` / `cross_metro_star` |
 | `client` | `SPB` (default) or `SPE`; ignored for Ca1 (source has no client split) |
 | `excludeHubTypes` | optional comma list, same as unticking those types in "Loại Hub" (the Telegram report does not use it) |
 | `hubTypes` | optional comma list, the opposite: keep ONLY these types (`hubTypes=CK` for the CK-only pictures: `pick`/`deli` × `1st`/`opr`/`odr`). Wins over `excludeHubTypes` |
@@ -88,7 +88,7 @@ reach the production domain.
 `reassignKaRegion` (src/utils/dataProcessor.js) re-types a Pick/Deli/FD row as
 hub type `CK` when the hub name contains `CK` or its `wh_id` is on the CK
 warehouse list (same rule as the BI query). In HCM and HNO those rows also move
-into their own vùng, `HCM - CK` / `HNO - CK` (same idea as `HCM - KA`), listed in
+into their own vùng, `HCM - CK` / `HNO - CK` (same idea as `HCM - KHL`), listed in
 `MIEN_REGIONS`, so the normal pictures show them with no n8n change. A CK hub in
 another region only gets the hub type. `hubTypes=CK` still works if a CK-only
 picture is ever wanted.
@@ -104,7 +104,7 @@ tổng hợp chạy qua đây nên thấy 3 vùng mới; job HNO bên dưới th
 n8n `[KAS] vinhlt - Daily Report - HNO to Telegram` (`xh2oJxXZkWnolmSj`) từng đọc
 thẳng `kas_pick_data` / `kas_deli_data` với `region=HNO&hub_type=BC&client_name=SPB`,
 nên lệch số với app: app chạy `reassignKaRegion` (hub KA / CK tách sang
-`HNO - KA` / `HNO - CK`, đổi hub type) rồi mới lọc, còn job HNO thì không, và bỏ
+`HNO - KHL` / `HNO - CK`, đổi hub type) rồi mới lọc, còn job HNO thì không, và bỏ
 sót hub type `GXT`.
 
 Giờ job HNO lấy rows từ app, cùng pipeline với job tổng hợp (token từ
@@ -115,7 +115,7 @@ GET /api/snapshot-summary?view=hno-rows&report=pick|deli&client=SPB&token=<token
 → { rows: [ { report_date, hub, mau_pu, ontime_pu_1st, … } ] }
 ```
 
-Phạm vi: client `SPB`, vùng `HNO` + `HNO - CK` (sau `reassignKaRegion`, CK gộp chung vào HNO, không tách view), hub type `GXT` + `BC` + `CK`; bỏ `HNO - KA`
+Phạm vi: client `SPB`, vùng `HNO` + `HNO - CK` (sau `reassignKaRegion`, CK gộp chung vào HNO, không tách view), hub type `GXT` + `BC` + `CK`; bỏ `HNO - KHL`
 (`scopeHnoReportRows` trong src/utils/snapshotView.js). Endpoint dùng chung file
 `snapshot-summary` để không thêm function (Vercel Hobby cap 12). Node n8n
 `Build HTML HNO` vẫn tự gộp theo hub / tuần như cũ, chỉ đổi nguồn rows.

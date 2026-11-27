@@ -1,0 +1,4 @@
+# Provider responses may contain expiring asset URLs.
+*.local.json
+meshy-t2/meta.json
+meshy-t2/task*.json

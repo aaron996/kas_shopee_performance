@@ -8,6 +8,7 @@ import { toPublicError } from '../chat/errors.js';
 // meaning outside the chat UI turn loop and are left out on purpose.
 const MCP_TOOL_NAMES = new Set([
   'get_metric_trend',
+  'get_metric_change_drivers',
   'get_data_coverage',
   'get_metric_summary',
   'get_latest_metric_summary',

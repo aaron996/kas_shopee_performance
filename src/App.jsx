@@ -15,6 +15,7 @@ import CommandPalette from './components/CommandPalette';
 import ChatPanel from './components/ChatPanel';
 import { MIEN_REGIONS, GXT_REGION_BY_MIEN } from './data/defaultDataset';
 import { readDashboardView, saveDashboardView, dataCoverage, formatCompositeCoverage, getVietnamBusinessDay } from './utils/dashboardState';
+import { usesCa1Source } from './utils/scopeSupport';
 import StatusNotice from './components/ui/StatusNotice';
 import { syncAllGoogleSheetTabs } from './utils/googleSheetsSync';
 import { fetchSupabaseSheetSync } from './utils/supabaseSheetSync';
@@ -147,6 +148,8 @@ export default function App() {
   // instead postMessage into the iframe (see the `message` listener below)
   // — cheaper than mutating iframe.src and re-triggering a full reload.
   const [clientFilter, setClientFilter] = useState(initialView.client);
+  // Subtab của tab Lane (Deli performance | % Ca 1); header cần biết để ẩn Client/Xuất CSV khi ở Ca 1.
+  const [laneView, setLaneView] = useState('deli');
   const [expandAllHubs] = useState(false);
 
   // A saved filter does not acknowledge today's/build's client prompt.
@@ -337,10 +340,10 @@ export default function App() {
   const [selectedRegions, setSelectedRegions] = useState(() => {
     if (initialView.regions === null) return allRegions;
     const saved = initialView.regions.filter(r => allRegions.includes(r));
-    // Sessions saved before the "HNO - KA" / "HCM - CK" / "HNO - CK" / "GXT - …"
+    // Sessions saved before the "HCM - KHL" / "HNO - KHL" / "HCM - CK" / "HNO - CK" / "GXT - …"
     // vùng existed stored the full list explicitly; treat "every region except
     // the new ones" as "Tất cả vùng".
-    const NEWER_REGIONS = ['HNO - KA', 'HCM - CK', 'HNO - CK', ...Object.values(GXT_REGION_BY_MIEN)];
+    const NEWER_REGIONS = ['HCM - KHL', 'HNO - KHL', 'HCM - CK', 'HNO - CK', ...Object.values(GXT_REGION_BY_MIEN)];
     const missing = allRegions.filter(r => !saved.includes(r));
     return missing.length > 0 && missing.every(r => NEWER_REGIONS.includes(r)) ? allRegions : saved;
   });
@@ -815,8 +818,9 @@ export default function App() {
   const scopedPick = filteredPickRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedDeli = filteredDeliRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
   const scopedFd = filteredFdRows.filter(r => clientFilter === 'ALL' || r.client_name === clientFilter);
-  const headerRows = activeTab === 'report5' ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...activePickRows, ...activeDeliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
-  const allDates = [...new Set(headerRows.map(r => activeTab === 'report5' ? r.ngay : r.report_date))].filter(Boolean).sort();
+  const onCa1 = usesCa1Source(activeTab, laneView);
+  const headerRows = onCa1 ? filteredCa1Rows : activeTab === 'report3' ? leadtimeRows : activeTab === 'report-insight' ? [...activePickRows, ...activeDeliRows].filter(r => clientFilter === 'ALL' || r.client_name === clientFilter) : [...scopedPick, ...scopedDeli];
+  const allDates = [...new Set(headerRows.map(r => onCa1 ? r.ngay : r.report_date))].filter(Boolean).sort();
   const { d1Date } = groupDatesByWeek(allDates);
   const d1DateFormatted = d1Date ? `${d1Date.slice(8, 10)}/${d1Date.slice(5, 7)}/${d1Date.slice(0, 4)}` : '';
 
@@ -824,18 +828,18 @@ export default function App() {
   const { d1Date: fdD1Date } = groupDatesByWeek(fdDates);
   const fdD1DateFormatted = fdD1Date ? `${fdD1Date.slice(8, 10)}/${fdD1Date.slice(5, 7)}/${fdD1Date.slice(0, 4)}` : '';
 
-  const canExport = ['home', 'report1'].includes(activeTab) ? scopedPick.length + scopedDeli.length + scopedFd.length > 0 : activeTab === 'report5' && filteredCa1Rows.length > 0;
+  const canExport = ['home', 'report1'].includes(activeTab) ? scopedPick.length + scopedDeli.length + scopedFd.length > 0 : onCa1 && filteredCa1Rows.length > 0;
   const compositeCoverage = formatCompositeCoverage({
     opsRows: [...scopedPick, ...scopedDeli],
     fdRows: scopedFd,
     ca1Rows: filteredCa1Rows,
-    activeTab
+    activeTab: onCa1 ? 'report5' : activeTab
   });
   const exportContext = {
-    'Phạm vi Client': activeTab === 'report5' ? 'Không phân tách Client (nguồn Ca 1)' : clientFilter,
+    'Phạm vi Client': onCa1 ? 'Không phân tách Client (nguồn Ca 1)' : clientFilter,
     'Vùng đã chọn': selectedRegions.join(' | ') || 'Không chọn vùng',
     'Loại Hub đã chọn': selectedHubTypes.join(' | ') || 'Không chọn loại Hub',
-    'Nguồn': activeTab === 'report5' ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}; FD: ${dataSources.fd || 'Chưa tải'}`,
+    'Nguồn': onCa1 ? dataSources.ca1 : `Pickup: ${dataSources.pick}; Deli: ${dataSources.deli}; FD: ${dataSources.fd || 'Chưa tải'}`,
     'Khoảng dữ liệu': compositeCoverage,
     ...(['home', 'report1'].includes(activeTab) && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
@@ -875,7 +879,13 @@ export default function App() {
       density
     },
     report5: {
+      view: laneView,
+      onViewChange: setLaneView,
       ca1Rows: filteredCa1Rows,
+      selectedHubTypes,
+      isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
+      clientFilter,
+      userEmail,
       density,
       isFullscreen,
       setIsFullscreen
@@ -910,6 +920,7 @@ export default function App() {
       onFocusTargetHandled: () => setCodSearchFocus(null),
       onClearSearch: clearCodSearch
     },
+    'auto-report': { dataEnabled: !currentUser?.localPreview, userEmail },
     'dev-admin': { onlineUsers, currentUser }
   };
   runtimeByModule.home = { ...runtimeByModule.report1, onOpenOps: handleJumpFromRankingToReport1,
@@ -980,6 +991,7 @@ export default function App() {
           {/* Header Navigation & Filter Bar */}
           <Header
             activeTab={activeTab}
+            laneView={laneView}
             clientFilter={clientFilter}
             setClientFilter={setClientFilter}
             selectedRegions={selectedRegions}

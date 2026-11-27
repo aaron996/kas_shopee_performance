@@ -11,6 +11,7 @@ import { sceneVehicleKind, vehiclePickBounds, RIDER_ROOF } from '../../utils/sce
 import { patchTruckSurface, patchTruckWheelSurface } from '../../utils/sceneTruckSurface.js';
 import { worldTheme } from '../../utils/sceneWorld.js';
 import { createIdleTraffic, advanceIdleTraffic } from '../../utils/sceneIdle.js';
+import { labelAnchorInView } from '../../utils/sceneVisibility.js';
 import { atlasTile, patchRoadAtlas, useWorldAtlas } from './worldSurfaces.js';
 import {
   REPLAY_ARROWS_MS,
@@ -103,8 +104,10 @@ function createTyreSmokeTexture() {
 }
 
 /** Shared simulation time. Runs before geometry/labels and freezes offscreen. */
-export function DriveClock({ clockRef, items, motion, running, playbackRate, trafficRef, idleActive, roadWidth, reducedMotion }) {
+export function DriveClock({ clockRef, items, motion, running, playbackRate, trafficRef, idleActive, roadWidth, roadLength, reducedMotion }) {
   const invalidate = useThree(s => s.invalidate);
+  const camera = useThree(s => s.camera);
+  const view = useMemo(() => ({ matrix: new THREE.Matrix4(), frustum: new THREE.Frustum(), planes: Array.from({length:6},()=>[0,0,0,0]) }), []);
   const motionKey = motion?.key;
   useLayoutEffect(() => {
     clockRef.current.motionElapsed = 0;
@@ -128,6 +131,9 @@ export function DriveClock({ clockRef, items, motion, running, playbackRate, tra
     const traffic = trafficRef?.current;
     if (traffic && !motion && !reducedMotion && clockRef.current.step) {
       const clock = clockRef.current;
+      view.frustum.setFromProjectionMatrix(view.matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      view.frustum.planes.forEach((p,i) => { const out=view.planes[i]; out[0]=p.normal.x;out[1]=p.normal.y;out[2]=p.normal.z;out[3]=p.constant; });
+      traffic.cameraView = { planes: view.planes, roadLength };
       advanceIdleTraffic(traffic, clock.step, idleActive, Math.random, clock.speed);
       // Keep tyres moving forwards during formation/recovery; this happens
       // before scenery, vehicle matrices and labels read the shared clock.
@@ -835,7 +841,7 @@ const DESKTOP_BOTTOM_RESERVED = 84; // ranking tab: 44px camera buttons and the 
  * @param replayRef MutableRefObject<{active: boolean, t: number}> while active, the replay chip is drawn
  * @param replayLabels {from: string, to: string} text of the replay chip ends
  */
-export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, replayLabels, hudRef }) {
+export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, replayLabels, hudRef, cinematic = false }) {
   const invalidate = useThree((s) => s.invalidate);
   const vec = useMemo(() => new THREE.Vector3(), []);
   const order = useMemo(() => [...labels].sort((a, b) => (b.priority || 0) - (a.priority || 0)), [labels]);
@@ -930,7 +936,7 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       else vec.set(...label.position);
       const distance = camera.position.distanceTo(vec);
       vec.project(camera);
-      if (vec.z > 1 || vec.z < -1 || (label.nearOnly && distance > nearRange)) continue;
+      if (!labelAnchorInView(vec.x, vec.y, vec.z) || ((label.nearOnly || cinematic) && distance > nearRange)) continue;
 
       let box = boxes.current.get(label.key);
       if (!box) {
@@ -939,19 +945,21 @@ export function LabelProjector({ labels, overlayRef, positionsRef, replayRef, re
       }
       // keep the label fully inside the canvas
       const half = box.w / 2;
-      const cx = Math.min(Math.max((vec.x * 0.5 + 0.5) * size.width, half + LABEL_PADDING), size.width - half - LABEL_PADDING);
+      const cx = (vec.x * 0.5 + 0.5) * size.width;
+      if (cx-half < LABEL_PADDING || cx+half > size.width-LABEL_PADDING) continue;
       const above = label.anchor !== 'center';
       const rawY = (-vec.y * 0.5 + 0.5) * size.height;
-      const anchorY = above ? Math.max(rawY, box.h + LABEL_PADDING) : Math.max(rawY, box.h / 2 + LABEL_PADDING);
+      const anchorY = rawY;
       let left = cx - half;
       let top = above ? anchorY - box.h : anchorY - box.h / 2;
+      if (top < LABEL_PADDING) continue;
       const collides = h => placed.some(o => h.l < o.r && h.r > o.l && h.t < o.b && h.b > o.t);
       const bounds = (x, y) => ({ l: x - LABEL_PADDING, r: x + box.w + LABEL_PADDING, t: y - LABEL_PADDING, b: y + box.h + LABEL_PADDING });
       let hit = bounds(left, top);
       const originTop = top;
       const emphasized = Boolean(label.spec.medal || label.spec.emphasized);
       const flexible = emphasized || label.spec.mini || (label.spec.state && label.spec.state !== 'rest');
-      if (flexible && collides(hit)) {
+      if (!cinematic && flexible && collides(hit)) {
         // Keep the three emphasized Best/Worst labels legible; stagger the one-row tags upward instead of dropping them.
         const step = box.h + (emphasized ? 8 : 4);
         const dys = emphasized ? [0, -step, -2 * step, box.h + 8] : [0, -step, -2 * step, -3 * step];

@@ -507,7 +507,7 @@ test('open-ended agent tool call flow receives dashboard screenContext via execu
       return {
         data: {
           dataAsOf: '2026-09-17',
-          rows: [{ entity: 'HCM - KA', value: 94.2 }]
+          rows: [{ entity: 'HCM - KHL', value: 94.2 }]
         },
         error: null
       };
@@ -531,7 +531,7 @@ test('open-ended agent tool call flow receives dashboard screenContext via execu
   const finalResponse = { status: 'completed', usage, output: [] };
   const stream = {
     async *[Symbol.asyncIterator]() {
-      yield { type: 'response.output_text.delta', delta: 'P1ST tại HCM - KA là 94.2%.' };
+      yield { type: 'response.output_text.delta', delta: 'P1ST tại HCM - KHL là 94.2%.' };
       yield { type: 'response.completed', response: finalResponse };
     }
   };
@@ -556,7 +556,7 @@ test('open-ended agent tool call flow receives dashboard screenContext via execu
     query: null,
     screenContext: {
       client: 'SPE',
-      regions: ['HCM - KA'],
+      regions: ['HCM - KHL'],
       hubTypes: ['LM']
     }
   };
@@ -578,14 +578,14 @@ test('open-ended agent tool call flow receives dashboard screenContext via execu
   assert.equal(rpcCalls[1].name, 'get_ai_chat_metric');
   assert.equal(rpcCalls[1].params.p_metric, 'p1st');
   assert.equal(rpcCalls[1].params.p_client, 'SPE');
-  assert.deepEqual(rpcCalls[1].params.p_regions, ['HCM - KA']);
+  assert.deepEqual(rpcCalls[1].params.p_regions, ['HCM - KHL']);
   assert.deepEqual(rpcCalls[1].params.p_hub_types, ['LM']);
   assert.equal(rpcCalls[1].params.p_date_from, '2026-09-17');
   assert.equal(rpcCalls[1].params.p_date_to, '2026-09-17');
 
-  assert.deepEqual(deltas, ['P1ST tại HCM - KA là 94.2%.']);
+  assert.deepEqual(deltas, ['P1ST tại HCM - KHL là 94.2%.']);
   assert.equal(sources.length, 1);
-  assert.deepEqual(sources[0].scope.regions, ['HCM - KA']);
+  assert.deepEqual(sources[0].scope.regions, ['HCM - KHL']);
   assert.deepEqual(sources[0].scope.hubTypes, ['LM']);
 });
 

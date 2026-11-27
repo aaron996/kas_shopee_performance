@@ -1,0 +1,265 @@
+{
+  "deliverables": [
+    {
+      "file": "motorcycle\\csgt-motorcycle-prepared-v1.glb",
+      "bytes": 3018052,
+      "sha256": "7d8e7d73369c2c70d882e6d6c0f16b9a76241993ab93b9d01c64ac30b9a86d1e",
+      "triangles": 6878,
+      "meshes": 3,
+      "primitives": 13,
+      "materials": [
+        {
+          "name": "CSGT_Saddle",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "Material_0",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_Windscreen",
+          "alphaMode": "BLEND"
+        },
+        {
+          "name": "CSGT_RedBeacon",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_BlueBeacon",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_Metal",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_Rubber",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_Reflector",
+          "alphaMode": "OPAQUE"
+        },
+        {
+          "name": "CSGT_BodyWhite",
+          "alphaMode": "OPAQUE"
+        }
+      ],
+      "images": 1,
+      "skins": 0,
+      "animations": 0,
+      "external": []
+    },
+    {
+      "file": "officer\\csgt-officer-apose-prepared-v1.glb",
+      "bytes": 2946608,
+      "sha256": "8b4929bf997b7ef3373388cb02f7981779f156cbd1c3a4150829cc2927c25e59",
+      "triangles": 7913,
+      "meshes": 1,
+      "primitives": 1,
+      "materials": [
+        {
+          "name": "Material_0",
+          "alphaMode": "OPAQUE"
+        }
+      ],
+      "images": 1,
+      "skins": 0,
+      "animations": 0,
+      "external": []
+    }
+  ],
+  "wheel_rotation": [
+    {
+      "degrees": 0,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6405725479125977
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6361000537872314
+          ]
+        }
+      ]
+    },
+    {
+      "degrees": 45,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            -4.470348358154297e-08,
+            0.6405724883079529
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            1.4901161193847656e-08,
+            0.6360999941825867
+          ]
+        }
+      ]
+    },
+    {
+      "degrees": 90,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            0.0,
+            0.6405724883079529
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            0.0,
+            0.6360999941825867
+          ]
+        }
+      ]
+    },
+    {
+      "degrees": 180,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            0.0,
+            0.6405724883079529
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            0.0,
+            0.6360999941825867
+          ]
+        }
+      ]
+    },
+    {
+      "degrees": 270,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6405725479125977
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6361000537872314
+          ]
+        }
+      ]
+    },
+    {
+      "degrees": 360,
+      "wheels": [
+        {
+          "name": "csgt-motorcycle-wheel-front",
+          "pivot": [
+            0.9414536952972412,
+            0.0,
+            0.32028627395629883
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6405725479125977
+          ]
+        },
+        {
+          "name": "csgt-motorcycle-wheel-rear",
+          "pivot": [
+            -0.8189212679862976,
+            0.0,
+            0.3180500268936157
+          ],
+          "bounds_z": [
+            5.960464477539063e-08,
+            0.6361000537872314
+          ]
+        }
+      ]
+    }
+  ],
+  "full_rotation_sweep": [
+    {
+      "name": "csgt-motorcycle-wheel-front",
+      "samples": 72,
+      "minimum_ground_z": -4.470348358154297e-08,
+      "maximum_ground_z": 0.001218840479850769,
+      "ground_variation": 0.0012188851833343506
+    },
+    {
+      "name": "csgt-motorcycle-wheel-rear",
+      "samples": 72,
+      "minimum_ground_z": 0.0,
+      "maximum_ground_z": 0.001210331916809082,
+      "ground_variation": 0.001210331916809082
+    }
+  ],
+  "scope": "GLB roundtrip and offline render only, not stage integration or performance validation; no humanoid rig yet"
+}

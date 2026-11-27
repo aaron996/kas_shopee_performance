@@ -6,7 +6,8 @@ export const FORMATTING_MODES = [
   { value: 'three', label: 'Dải 3 màu' },
   { value: 'off', label: 'Không tô màu' }
 ];
-const THRESHOLDS = { p1st: 97, popr: 90, d1st: 95, dodr: 90, fd: 3 };
+// pud: mốc hiển thị mặc định, không phải target (PUD chưa có target).
+const THRESHOLDS = { p1st: 97, popr: 90, d1st: 95, dodr: 90, fd: 3, pud: 70 };
 const validColor = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -60,7 +61,7 @@ export function saveFormatting(storage, userEmail, metricKey, value) {
 }
 
 const channels = color => [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
-function mix(a, b, ratio) {
+export function mix(a, b, ratio) {
   const end = channels(b);
   return `#${channels(a).map((c, i) => Math.round(c + (end[i] - c) * clamp(ratio, 0, 1)).toString(16).padStart(2, '0')).join('')}`;
 }

@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, Check, Copy, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, X } from 'lucide-react';
+import { ArrowDown, Check, Copy, Download, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SendHorizontal, Square, Trash2, X } from 'lucide-react';
 import { ActionBarPrimitive, AssistantRuntimeProvider, ComposerPrimitive, MessagePrimitive, ThreadPrimitive, useExternalStoreRuntime } from '@assistant-ui/react';
 import { Loader } from './prompt-kit/Loader';
 import { convertAssistantUiMessage, getComposerQuestion, toAssistantUiMessages } from '../utils/chatAssistantUi';
@@ -13,6 +13,7 @@ import ChatMessageMarkdown from './chat/ChatMessageMarkdown';
 import ChatQueryCard from './chat/ChatQueryCard';
 import ChatChartBoundary from './chat/ChatChartBoundary';
 import { canRetry } from '../utils/chatRetry';
+import { buildChatMarkdown, chatExportFilename } from '../utils/chatExport';
 import { buildFollowupSuggestions, getFallbackSuggestions } from '../utils/chatSuggestions';
 const ChatChart = lazy(() => import('./chat/ChatChart'));
 
@@ -257,6 +258,36 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
     abortRef.current?.abort();
   };
 
+  const hasConversation = messages.length > 0 || Boolean(pending) || Boolean(failedRequest);
+
+  // Context sent to the API is derived from `messages`, so emptying the state
+  // is what drops the whole session context.
+  const clearChat = () => {
+    if (!hasConversation) return;
+    if (!window.confirm('Xóa toàn bộ cuộc trò chuyện hiện tại? Trợ lý sẽ không còn nhớ ngữ cảnh này.')) return;
+    abortRef.current?.abort();
+    setMessages([]);
+    setPending(null);
+    setError(null);
+    setFailedRequest(null);
+    setStatus(null);
+    setAnnouncement('Đã xóa cuộc trò chuyện.');
+    runtime.thread.composer.setText('');
+  };
+
+  const exportChat = () => {
+    if (!messages.length) return;
+    const now = new Date();
+    const url = URL.createObjectURL(new Blob([buildChatMarkdown(messages, now)], { type: 'text/markdown;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = chatExportFilename(now);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const closePanel = () => {
     stopStreaming();
     setFocused(false);
@@ -446,6 +477,14 @@ export default function ChatPanel({ isOpen, onOpen, onClose, screenContext = nul
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="chat-icon-button" onClick={exportChat} disabled={!messages.length}
+            title="Xuất cuộc trò chuyện (.md)" aria-label="Xuất cuộc trò chuyện">
+            <Download size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className="chat-icon-button" onClick={clearChat} disabled={!hasConversation}
+            title="Xóa cuộc trò chuyện" aria-label="Xóa cuộc trò chuyện">
+            <Trash2 size={18} aria-hidden="true" />
+          </button>
           <button type="button" className="chat-icon-button" onClick={() => setIsExpanded(current => !current)}
             title={isExpanded ? 'Thu gọn cửa sổ' : 'Mở rộng cửa sổ'}
             aria-label={isExpanded ? 'Thu gọn cửa sổ' : 'Mở rộng cửa sổ'} aria-pressed={isExpanded}>

@@ -14,7 +14,7 @@ export const WEEKLY_WEEKS = 9; // tuần hiện tại + 8 tuần nguyên trướ
 export const WEEKLY_METRICS = {
   p1st: { dataset: 'pick', title: '1ST PICKUP', total: 'mau_pu', ontime: 'ontime_pu_1st', target: 97 },
   popr: { dataset: 'pick', title: 'OPR', total: 'mau_pu', ontime: 'ontime_pu_opr', target: 90 },
-  pud: { dataset: 'reverse', title: 'PUD', total: 'mau_pud', ontime: 'pud', target: null },
+  pud: { dataset: 'reverse', title: 'PUD', total: 'mau_pu', ontime: 'pud', target: null },
   d1st: { dataset: 'deli', title: '1ST DELI', total: 'mau_deli', ontime: 'ontime_deli_1st', target: 95 },
   dodr: { dataset: 'deli', title: 'ODR', total: 'mau_deli', ontime: 'ontime_deli_odr', target: 90 },
   fd: { dataset: 'fd', title: 'FD', total: 'mau_fd', ontime: 'fd_hoan_thanh', target: null, isFd: true }
@@ -51,6 +51,45 @@ export function fetchWeeklyRows(client, dataset, weeks = WEEKLY_WEEKS) {
     cache.set(key, request);
   }
   return cache.get(key);
+}
+
+// "Theo tháng": đọc kas_*_monthly (không bị cắt 90 ngày) qua get_kas_monthly_compact. Mỗi dòng mang
+// report_date = ngày đầu tháng; payload trả danh sách tháng ở khoá `months` nhưng ở đây vẫn trả `weeks`
+// để dùng chung bộ dựng ma trận và bảng với "Theo tuần". Chỉ có Pick/Deli/FD (Reverse chưa có bảng tháng).
+export const MONTHLY_MONTHS = 6;
+
+export function fetchMonthlyRows(client, dataset, months = MONTHLY_MONTHS) {
+  const key = `${dataset}:month:${months}`;
+  if (!cache.has(key)) {
+    const request = (async () => {
+      const { data, error } = await client.rpc('get_kas_monthly_compact', { dataset, months });
+      if (error) throw error;
+      if (!data || !Array.isArray(data.months) || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_MONTHLY_PAYLOAD');
+      return { weeks: data.months, rows: normalizeDashboardRows(expandCompactRows(data.cols, data.rows)) };
+    })();
+    request.catch(() => cache.delete(key));
+    cache.set(key, request);
+  }
+  return cache.get(key);
+}
+
+// Ngày cuối của tháng bắt đầu từ `start` (YYYY-MM-01) và số ngày của tháng đó.
+export function monthEnd(start) {
+  const d = new Date(`${start}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1, 0);
+  return d.toISOString().slice(0, 10);
+}
+export const daysInMonth = start => Number(monthEnd(start).slice(8, 10));
+
+// "Tháng 10/2026"; tháng thiếu ngày (tháng đầu bị cắt, tháng đang chạy, ngày khuyết) ghi rõ "x/y ngày".
+export function monthLabel(start, days) {
+  const total = daysInMonth(start);
+  const [year, month] = start.split('-');
+  return {
+    title: `Tháng ${Number(month)}/${year}`,
+    range: `${formatShortDate(start)}–${formatShortDate(monthEnd(start))}`,
+    note: days > 0 && days < total ? `${days}/${total} ngày` : ''
+  };
 }
 
 // "Theo ngày" khi người dùng chọn khoảng ngày: đọc hub-ngày từ cùng bảng lịch sử qua

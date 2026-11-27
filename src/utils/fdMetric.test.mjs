@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { formatPct, formatVol, groupDatesByWeek, getContinuousColorStyle, getHigherIsWorseColorStyle, getTrailingDateRange, formatShortDate, getComparisonDateInfo } from './dataProcessor.js';
 import { METRIC_GLOSSARY } from '../data/metricGlossary.js';
 
-test('metricGlossary defines fd with target = null and percentage format', () => {
+test('metricGlossary defines fd with KPI target 3 (lower is better) and percentage format', () => {
   const fdDef = METRIC_GLOSSARY.fd;
   assert.ok(fdDef, 'fd definition should exist in METRIC_GLOSSARY');
   assert.equal(fdDef.key, 'fd');
-  assert.equal(fdDef.target, null);
+  assert.equal(fdDef.target, 3);
+  assert.equal(fdDef.direction, 'lower_is_better');
   assert.equal(fdDef.unit, 'percent');
   assert.equal(typeof fdDef.formula, 'string');
 });

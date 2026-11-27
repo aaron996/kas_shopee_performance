@@ -17,7 +17,9 @@ Mốc mặc định hiện theo cấu hình bảng: 1st Pickup 97%, OPR 90%, 1st
 
 Cài đặt lưu trong localStorage, khóa `ghn:kpi-formatting:v1:<email đã chuẩn hóa>`, tách riêng từng tài khoản và từng KPI. Tải lại trang và đăng nhập lại cùng tài khoản trên cùng trình duyệt sẽ khôi phục. Thay đổi ở tab khác cùng origin được đồng bộ qua sự kiện storage. Chưa đồng bộ giữa các thiết bị/trình duyệt; xóa dữ liệu trình duyệt sẽ mất cài đặt. Nếu không lưu được, bảng giữ lựa chọn cũ và bộ chỉnh báo lỗi để thử lại.
 
-PUD của SPE Reverse giữ hiển thị trung tính và không có công cụ tô màu vì chưa định nghĩa target.
+PUD của SPE Reverse mặc định vẫn trung tính (chưa có target) nhưng có nút bảng màu như các KPI khác; mốc tô màu mặc định 70% chỉ là mốc hiển thị, không phải target. Tab Backlog (số đơn tuyệt đối) có nút bảng màu riêng: tô cột Δ (tăng/giảm), tô mức tồn theo cấp (nhạt → đậm so với giá trị lớn nhất cùng cấp và cùng ngày), cả hai hoặc không tô; lưu ở khóa `ghn:backlog-formatting:v1:<email>`.
+
+Tab **Báo cáo tự động** (SPE Reverse) cũng có nút bảng màu cho các ô % OPR, dùng chung khoá `popr` với bảng OPR ở Chi tiết Vùng/Hub nên lựa chọn đã lưu áp dụng cho cả hai nơi. **Mặc định có tô**, theo thang màu liên tục lấy min/max từ chính số liệu trong từng bảng (loại Hub, BC KD theo tỉnh, vùng, mỗi bảng một thang, gồm cả dòng Tổng): ô thấp nhất là đỏ của bảng chuẩn (`#ef9184`), ô cao nhất là trắng, ở giữa nội suy tuyến tính; min/max ghi ở thanh tiêu đề bảng ("thang màu 4,2% → 83,3%"). Không dùng mốc target vì SPE Reverse chưa có target OPR và mốc 90% của khách khác sẽ tô đỏ đậm mọi ô (OPR Reverse chỉ khoảng 30–45%). Bảng chỉ có một giá trị (hoặc mọi giá trị bằng nhau) thì không tô. Khi người dùng chọn dải màu hoặc "Không tô màu" ở nút bảng màu thì cài đặt đó thay cho thang mặc định (so theo mốc tuyệt đối như các bảng khác) và chú giải đổi theo. Cột Vol 7N và bảng Gán lấy không tô. Ảnh `/snapshot` luôn dùng thang mặc định, độc lập với lựa chọn cá nhân.
 
 Chức năng chỉ đọc dữ liệu đã có, không gọi DB khi mở/chỉnh/lưu. Trang snapshot tự động dùng quy tắc màu có sẵn, độc lập với lựa chọn cá nhân.
 

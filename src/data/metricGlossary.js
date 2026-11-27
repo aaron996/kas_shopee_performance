@@ -3,8 +3,8 @@ import { TARGET_KPIS } from './defaultDataset.js';
 export const METRIC_GLOSSARY = Object.freeze({
   pud: {
     key: 'pud', label: 'PUD', dataset: 'reverse', unit: 'percent',
-    formula: 'sum(pud) / sum(mau_pud) * 100', target: null,
-    description: 'PUD của SPE Reverse dùng mẫu mau_pud riêng; thiếu mẫu hoặc mẫu bằng 0 hiển thị dấu –.'
+    formula: 'sum(pud) / sum(mau_pu) * 100', target: null,
+    description: 'PUD của SPE Reverse lấy pud chia mẫu mau_pu (cùng mẫu 1st Pickup/OPR); thiếu mẫu hoặc mẫu bằng 0 hiển thị dấu –.'
   },
   p1st: {
     key: 'p1st',
@@ -65,9 +65,10 @@ export const METRIC_GLOSSARY = Object.freeze({
     label: 'FD',
     dataset: 'fd',
     unit: 'percent',
-    formula: 'fd_hoan_thanh / mau_fd * 100',
-    target: null,
-    description: 'Tỷ lệ hoàn thành FD trên tổng mẫu FD.'
+    formula: 'SUM(fd_hoan_thanh) / SUM(mau_fd) * 100 (mẫu số là mau_fd, không dùng số đơn tạo)',
+    target: 3,
+    direction: 'lower_is_better',
+    description: 'Tỷ lệ Fail Delivery (FD) trên tổng mẫu FD. FD càng thấp càng tốt (ngược chiều P1ST/OPR/D1ST/ODR); KPI Shopee: đạt khi FD <= 3%. Dữ liệu FD có thể lùi hơn Pickup/Delivery nên luôn nêu ngày dữ liệu (as_of_date). Với FD, "hub" là kho giao (deliverywh).'
   }
 });
 

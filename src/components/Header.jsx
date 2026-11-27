@@ -6,21 +6,22 @@ import LoadingScreen from './LoadingScreen.jsx';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 import { formatRankingHubName } from '../utils/rankingHubName.js';
 import { CLIENT_ORDER } from '../utils/clientLabels';
+import { showsClientFilter, showsScopeFilters, hidesRegionHubFilters, supportsExport } from '../utils/scopeSupport';
 
 export default function Header({
-  activeTab, clientFilter, setClientFilter,
+  activeTab, laneView = 'deli', clientFilter, setClientFilter,
   selectedRegions, setSelectedRegions, allHubTypes, selectedHubTypes, setSelectedHubTypes,
   onResetFilters, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
   onRetryData, isDataStale = false, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses, codSuspicionRegions = [], codSuspicionProvinces
 }) {
-  const hideRegionHubFilters = ['report3', 'report-insight', 'cod-suspicion'].includes(activeTab);
+  const hideRegionHubFilters = hidesRegionHubFilters(activeTab);
   const [popover, setPopover] = useState(null);
   const [rankingControlsHidden, setRankingControlsHidden] = useState(false);
   const headerRef = useRef(null);
   const allRegions = useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
-  const supportsExport = ['home', 'report1', 'report5'].includes(activeTab);
+  const canShowExport = supportsExport(activeTab, laneView);
   const exportCsv = () => window.dispatchEvent(new CustomEvent('open-export-dialog', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
   useEffect(() => { setPopover(null); }, [activeTab]);
@@ -74,8 +75,8 @@ export default function Header({
       {/* On Tổng quan the scope chips on the page are the visible trigger, so the
           icons are hidden here — but the popovers stay mounted, because those
           chips open them. */}
-      {!['cod-suspicion', 'guide'].includes(activeTab) && <div className={`scope-filter-cluster ${activeTab === 'home' ? 'is-replaced' : ''}`} inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
-        {activeTab !== 'report5' && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter} badge="•">
+      {showsScopeFilters(activeTab) && <div className={`scope-filter-cluster ${activeTab === 'home' ? 'is-replaced' : ''}`} inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
+        {showsClientFilter(activeTab, laneView) && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter} badge="•">
           <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{CLIENT_ORDER.map(c => [c, c]).map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
         </HeaderPopover>}
         {!hideRegionHubFilters && <>
@@ -115,6 +116,7 @@ export default function Header({
 
       {activeTab === 'guide' && <span className="compact-header-page-title">Hướng dẫn</span>}
       {activeTab === 'report1' && <h1 className="compact-header-page-title">Chi tiết Vùng/Hub</h1>}
+      {activeTab === 'report5' && <h1 className="compact-header-page-title">Báo cáo theo Lane</h1>}
       {activeTab === 'ranking' ? <div id="ranking-header-controls" /> : <div className="compact-header-actions">
         {/* Phones reload with the browser's own pull-to-refresh; the stale-data
             alert is what tells people a new sync is worth doing. */}
@@ -130,7 +132,7 @@ export default function Header({
         <IconButton icon="Search" label="Tìm toàn hệ thống" detail="Tìm báo cáo, Hub và đơn hàng · Ctrl K" onClick={onOpenPalette} />
         <IconButton className="desktop-header-action" icon="Rows3" label={density === 'compact' ? 'Chuyển sang bảng thoáng' : 'Chuyển sang bảng dày'} onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')} aria-pressed={density === 'compact'} />
         <IconButton className="desktop-header-action" icon={isFullscreen ? 'Minimize2' : 'Maximize2'} label={isFullscreen ? 'Thoát toàn màn hình' : 'Mở rộng toàn màn hình'} onClick={() => setIsFullscreen(!isFullscreen)} aria-pressed={isFullscreen} />
-        {supportsExport && <IconButton className="primary" icon="Download" label={exportLabel} disabled={!canExport} onClick={exportCsv} />}
+        {canShowExport && <IconButton className="primary" icon="Download" label={exportLabel} disabled={!canExport} onClick={exportCsv} />}
       </div>}
     </div>
   </header>;

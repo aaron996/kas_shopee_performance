@@ -3,6 +3,8 @@ import { buildSuggestionPlanPool } from './suggestionPlans.js';
 
 const TABS = ['report1', 'report5', 'report3', 'report-insight'];
 const METRICS = ['odr', 'd1st', 'opr', 'p1st'];
+// User-facing names; p1st/d1st are internal codes.
+const METRIC_DISPLAY = Object.freeze({ p1st: '1st Pickup ontime', d1st: '1st Delivery ontime', opr: 'OPR', odr: 'ODR' });
 
 // Rank relevance, then diversify intent and metric; never rotate neighboring text.
 export function selectSuggestionItems(candidates, limit = 3) {
@@ -44,7 +46,7 @@ export function buildDynamicSuggestions({ activeTab = 'report1', client = 'SPB',
   const pool = buildSuggestionPlanPool(context, null, seed);
   const placeholder = activeTab === 'report3' ? 'Ví dụ: Leadtime 30 ngày qua tập trung ở chặng nào?'
     : activeTab === 'report5' ? 'Ví dụ: Lane nào cải thiện Ca 1 trong 7 ngày qua?'
-      : `Ví dụ: P1ST và OPR ${context.client} chênh nhau ở đâu?`;
+      : `Ví dụ: 1st Pickup ontime và OPR ${context.client} chênh nhau ở đâu?`;
   return suggestionResult(selectSuggestionItems(pool), { placeholder, context, scopeLabel: formatSuggestionScope(context), basis: 'template', dataAsOf: null });
 }
 export const FALLBACK_SUGGESTIONS = Object.freeze(Object.fromEntries(TABS.map(tab => [tab, buildDynamicSuggestions({ activeTab: tab })])));
@@ -57,6 +59,8 @@ export function getFallbackSuggestions(activeTab = 'report1', context = {}) {
 // from evidence rather than inferred from prose or the current dashboard filters.
 export function buildFollowupSuggestions(message) {
   if (!message || message.interaction || !message.sources?.length) return null;
+  const drivers = [...message.sources].reverse().find(item => item.tool === 'get_metric_change_drivers' && METRICS.includes(item.scope?.metric));
+  if (drivers) return buildDriverFollowups(drivers, message);
   const source = [...message.sources].reverse().find(item => METRICS.includes(item.scope?.metric)
     || ['get_ca1_summary', 'get_leadtime_summary'].includes(item.tool));
   if (!source) return null;
@@ -92,19 +96,49 @@ export function buildFollowupSuggestions(message) {
     });
   }
   const metric = scope.metric.toUpperCase();
+  const shown = METRIC_DISPLAY[scope.metric];
   const period = `từ ${scope.dateFrom} đến ${scope.dateTo}`;
   const subject = `${metric} ${context.client}`;
   const unit = scope.grain === 'region' || context.regions?.length === 1 ? 'hub' : 'vùng';
   const candidates = [
-    { id: `${metric}-follow-rank`, intent: 'ranking', metric: scope.metric, score: 90, label: `Xem ${metric} theo ${unit} trong cùng kỳ?`, question: `Xếp hạng ${unit} theo ${subject} ${period}, theo bộ lọc hiện tại.` },
-    { id: `${metric}-follow-trend`, intent: 'comparison', metric: scope.metric, score: 85, label: `So sánh ${metric} với kỳ liền trước?`, question: `So sánh ${subject} ${period} với kỳ liền trước có cùng số ngày, theo bộ lọc hiện tại.` },
-    { id: `${metric}-follow-target`, intent: 'target', metric: scope.metric, score: 80, label: `${metric} trong cùng kỳ còn cách target bao nhiêu?`, question: `So sánh ${subject} ${period} với target, theo bộ lọc hiện tại.` }
+    { id: `${metric}-follow-rank`, intent: 'ranking', metric: scope.metric, score: 90, label: `Xem ${shown} theo ${unit} trong cùng kỳ?`, question: `Xếp hạng ${unit} theo ${subject} ${period}, theo bộ lọc hiện tại.` },
+    { id: `${metric}-follow-trend`, intent: 'comparison', metric: scope.metric, score: 85, label: `So sánh ${shown} với kỳ liền trước?`, question: `So sánh ${subject} ${period} với kỳ liền trước có cùng số ngày, theo bộ lọc hiện tại.` },
+    { id: `${metric}-follow-target`, intent: 'target', metric: scope.metric, score: 80, label: `${shown} trong cùng kỳ còn cách target bao nhiêu?`, question: `So sánh ${subject} ${period} với target, theo bộ lọc hiện tại.` }
   ];
   const previous = message.requestQuestion || '';
   const askedIntent = /so sánh.*(?:kỳ|ngày trước)/i.test(previous) ? 'comparison'
     : /target/i.test(previous) ? 'target' : /xếp hạng/i.test(previous) ? 'ranking' : null;
   return suggestionResult(selectSuggestionItems(candidates.filter(item => item.intent !== askedIntent && (context.client !== 'SPE Reverse' || item.intent !== 'target'))), {
-    placeholder: `Ví dụ: ${metric} theo ${unit} trong cùng kỳ?`, context,
+    placeholder: `Ví dụ: ${shown} theo ${unit} trong cùng kỳ?`, context,
     scopeLabel: formatSuggestionScope(context), dataAsOf: source.dataAsOf, basis: 'followup'
+  });
+}
+
+// After a "why did it change" answer, offer the natural next drill-down, not
+// the generic ranking/target prompts.
+function buildDriverFollowups(source, message) {
+  const { metric, client = 'SPB', grain, topDriver, changePp } = source.scope;
+  const label = METRIC_DISPLAY[metric];
+  const dir = changePp < 0 ? 'giảm' : 'tăng';
+  const regions = source.scope.regions?.length ? source.scope.regions : null;
+  const target = topDriver || regions?.[0] || '';
+  const items = [];
+  if (grain === 'region' && topDriver) {
+    items.push({ id: 'drivers-hub', intent: 'drilldown', score: 95, label: `Hub nào kéo ${label} ${topDriver} ${dir}?`,
+      question: `Vì sao ${label} ${client} của ${topDriver} ${dir} so với kỳ trước? Phân tích theo hub.` });
+  }
+  if (target) {
+    items.push({ id: 'drivers-trend', intent: 'trend', score: 90, label: `Diễn biến ${label} ${target} 7 ngày gần nhất`,
+      question: `Vẽ xu hướng ${label} ${client} của ${target} theo ngày trong 7 ngày dữ liệu mới nhất.` });
+    items.push({ id: 'drivers-target', intent: 'target', score: 80, label: `${label} ${target} còn cách target bao nhiêu?`,
+      question: `So sánh ${label} ${client} của ${target} từ ${source.scope.dateFrom} đến ${source.scope.dateTo} với target.` });
+  }
+  const asked = message.requestQuestion || '';
+  const filtered = items.filter(item => !(item.intent === 'trend' && /xu hướng|theo ngày/i.test(asked))
+    && !(item.intent === 'target' && /target/i.test(asked)) && !(client === 'SPE Reverse' && item.intent === 'target'));
+  if (!filtered.length) return null;
+  return suggestionResult(selectSuggestionItems(filtered), {
+    context: { activeTab: 'report1', client, regions, hubTypes: null }, placeholder: `Ví dụ: ${label} ${target} theo hub?`,
+    scopeLabel: [client, target].filter(Boolean).join(' · '), dataAsOf: source.dataAsOf, basis: 'followup'
   });
 }

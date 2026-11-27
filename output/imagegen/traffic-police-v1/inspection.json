@@ -1,0 +1,50 @@
+{
+  "bytes": 3201628,
+  "triangles": 10638,
+  "meshes": 1,
+  "nodes": 1,
+  "materials": 1,
+  "images": 1,
+  "skins": 0,
+  "animations": 0,
+  "parts": [
+    {
+      "mesh": null,
+      "triangles": 10638,
+      "connected_components_after_position_weld": 91,
+      "largest_component_triangles": [
+        3232,
+        962,
+        606,
+        604,
+        396,
+        394,
+        346,
+        334,
+        331,
+        162,
+        151,
+        148,
+        132,
+        90,
+        86,
+        84,
+        84,
+        83,
+        72,
+        68,
+        60,
+        54,
+        52,
+        50,
+        46,
+        44,
+        42,
+        42,
+        40,
+        40
+      ]
+    }
+  ],
+  "limitation": "Connected components are geometric evidence only; they do not identify a complete officer or prove animation readiness."
+}

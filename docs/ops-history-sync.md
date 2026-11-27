@@ -282,3 +282,11 @@ browser QA uses the real hook/cards with controlled RPC fixtures: FD/Deli render
 while Pickup remains pending (local fixture with simulated RPC responses).
 This browser check uses simulated data; live data equivalence is verified in SQL.
 Frontend release uses the existing identity/role scope and stale-refresh notice from main.
+
+## Theo tháng (16/11/2026)
+
+- Bảng `kas_{pick,deli,fd}_monthly` (migration [20261116090000](../supabase/migrations/20261116090000_kas_monthly_rollup.sql)), cùng khoá nhóm với bảng tuần, khoá thời gian là `month_start`, kèm `days`. **Không bị cắt**: `prune_kas_history` (90 ngày) chỉ xoá bảng ngày.
+- Khác bảng tuần: trigger chỉ chạy ở INSERT/UPDATE của bảng lịch sử (không có DELETE/TRUNCATE), và `refresh_kas_*_monthly(months, force)` chỉ tính lại tháng mà bảng lịch sử còn phủ từ ngày 1 (`min(report_date) <= đầu tháng`). Tháng đã bị prune cắt dở thì đóng băng. Điền ban đầu dùng `force = true` để ghi cả tháng đầu (18/08). **Không chạy lại force sau khi prune đã cắt dở một tháng**, vì sẽ ghi đè bằng số thiếu.
+- Đã điền 16/11: T8 (từ 18/08), T9, T10, T11 (đang chạy). Tổng T9/T10 khớp số tính trực tiếp từ bảng ngày. Tháng thiếu ngày ghi "x/y ngày" (Deli T9 25/30, T10 27/31; FD T11 mới 8 ngày).
+- RPC `get_kas_monthly_compact(dataset, months default 6)` (tối đa 24, `authenticated`), payload có khoá `months`. 6 tháng Deli khoảng 11,6 nghìn dòng, ~1 MB.
+- App: nút "Theo tháng" cạnh "Theo ngày / Theo tuần" (`WeeklyKpiTable period="month"`, `fetchMonthlyRows`). Chỉ Pick/Deli/FD; Reverse và PUD chưa có bảng tháng nên giữ view tuần.

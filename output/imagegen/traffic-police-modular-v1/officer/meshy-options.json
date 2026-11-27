@@ -1,0 +1,12 @@
+{
+  "model_type": "smart-topology",
+  "ai_model": "meshy-t2",
+  "target_polycount": 8000,
+  "topology": "triangle",
+  "should_texture": true,
+  "enable_pbr": false,
+  "texture_resolution": "2k",
+  "pose_mode": "a-pose",
+  "target_formats": ["glb"],
+  "texture_prompt": "Single stylized low-poly Vietnamese traffic police officer. Warm tan uniform, red collar and epaulettes, yellow helmet, dark belt and radio, white gloves and tall black boots. Clean broad flat colors, friendly faceted cartoon style. No motorcycle or vehicle parts."
+}

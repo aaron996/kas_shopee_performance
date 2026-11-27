@@ -42,6 +42,7 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
   const sunGlowRef = useRef(null), moonGlowRef = useRef(null), lightRef = useRef(null), ambientRef = useRef(null), fogRef = useRef(null);
   const invalidate = useThree(state => state.invalidate);
   const target = useMemo(() => new THREE.Object3D(), []);
+  const shadowFrame = useMemo(() => ({ direction:new THREE.Vector3(),right:new THREE.Vector3(),up:new THREE.Vector3(),focus:new THREE.Vector3(), worldUp:new THREE.Vector3(0,1,0) }), []);
   const moonTexture = useMemo(makeMoonTexture, []);
   const skyUniforms = useMemo(() => ({ topColor: { value: new THREE.Color() }, horizonColor: { value: new THREE.Color() } }), []);
   const sunGlow = useMemo(() => ({ color: { value: new THREE.Color('#ffbb69') }, opacity: { value: 0.65 } }), []);
@@ -113,10 +114,21 @@ export default function SceneLighting({ mode, phaseRef, lightingRef, clockRef, r
     fogRef.current.near = fogRange.near;
     fogRef.current.far = fogRange.far;
     // Track the viewed road segment, including Best/Worst and follow camera.
-    const extent = Math.max(24, camera.position.distanceTo(focus) * Math.max(1, camera.aspect) * 0.75);
+    const requestedExtent = Math.max(24, camera.position.distanceTo(focus) * Math.max(1, camera.aspect) * 0.75);
+    // Stable buckets avoid rescaling the shadow texture on every camera step.
+    const extent = !cache.extent || requestedExtent>cache.extent || requestedExtent<cache.extent*.5
+      ? Math.ceil(requestedExtent/16)*16 : cache.extent;
     const distance = extent * 3;
-    target.position.copy(focus); target.updateMatrixWorld();
-    light.position.set(...state.keyDirection).multiplyScalar(distance).add(focus);
+    const sf = shadowFrame;
+    sf.direction.set(...state.keyDirection).normalize();
+    sf.right.crossVectors(sf.worldUp,sf.direction).normalize();
+    sf.up.crossVectors(sf.direction,sf.right).normalize();
+    const texel = extent*2/(compact?1024:2048);
+    sf.focus.copy(focus)
+      .addScaledVector(sf.right,Math.round(focus.dot(sf.right)/texel)*texel-focus.dot(sf.right))
+      .addScaledVector(sf.up,Math.round(focus.dot(sf.up)/texel)*texel-focus.dot(sf.up));
+    target.position.copy(sf.focus); target.updateMatrixWorld();
+    light.position.copy(sf.direction).multiplyScalar(distance).add(sf.focus);
     light.color.set(state.keyColor); light.intensity = state.keyIntensity;
     const shadow = light.shadow;
     shadow.intensity = state.shadowIntensity;

@@ -54,7 +54,7 @@ export default function UserGuide({ onNavigate }) {
       <ol className="guide-steps">
         <li><div><h3>Chọn phạm vi cần xem</h3><p>Chọn client SPB hoặc SPE, sau đó lọc Vùng và Loại Hub trên thanh đầu trang của báo cáo. Kiểm tra phạm vi trước khi đọc số liệu.</p></div></li>
         <li><div><h3>Mở báo cáo phù hợp</h3><p>Bắt đầu từ Tổng quan để xem KPI và xu hướng. Vào Chi tiết Vùng/Hub để đối chiếu từng địa bàn; dùng % Ca 1 theo lane để xem tỷ lệ đơn về ca 1.</p>
-          <div className="guide-report-links">{[['home', 'Tổng quan'], ['report1', 'Chi tiết Vùng/Hub'], ['report5', '% Ca 1 theo lane']].map(([id, label]) => <button type="button" key={id} onClick={() => onNavigate(id)}>{label}<ArrowUpRight size={14} aria-hidden="true" /></button>)}</div>
+          <div className="guide-report-links">{[['home', 'Tổng quan'], ['report1', 'Chi tiết Vùng/Hub'], ['report5', 'Báo cáo theo Lane']].map(([id, label]) => <button type="button" key={id} onClick={() => onNavigate(id)}>{label}<ArrowUpRight size={14} aria-hidden="true" /></button>)}</div>
         </div></li>
         <li><div><h3>Kiểm tra ngày dữ liệu, rồi xuất báo cáo</h3><p>Mở trạng thái đồng bộ để xem dữ liệu đang có đến ngày nào. Ở báo cáo hỗ trợ xuất, bấm nút tải, chọn bộ lọc và bấm tải trong hộp thoại để tạo file.</p></div></li>
       </ol>

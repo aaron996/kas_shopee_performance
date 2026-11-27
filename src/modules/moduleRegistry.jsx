@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { ArrowRightLeft, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck, CircleHelp } from 'lucide-react';
+import { ArrowRightLeft, FileImage, Clock, LayoutDashboard, ChartNoAxesColumnIncreasing, ShieldAlert, Sparkles, Truck, CircleHelp } from 'lucide-react';
 import { MODULE_IDS } from './moduleIds.js';
 import { REVERSE_CLIENT } from '../utils/clientLabels.js';
 
@@ -44,13 +44,13 @@ export const moduleRegistry = Object.freeze([
     id: 'report5',
     requiredDatasets: ['ca1'],
     motionIcon: 'ArrowRightLeft',
-    description: 'Ca 1 theo lane vận hành',
-    label: '% Ca 1 theo lane',
-    mobileLabel: '% Ca 1',
+    description: 'Deli performance (1st Deli, ODR) và % Ca 1 theo lane vận hành',
+    label: 'Báo cáo theo Lane',
+    mobileLabel: 'Lane',
     icon: ArrowRightLeft,
     group: 'ka-performance-metrics',
     navigation: { sidebar: true, commandPalette: true, mobile: true },
-    surface: startupSurface(() => import('../components/Report5LaneCa1.jsx'))
+    surface: startupSurface(() => import('./lane/LaneReport.jsx'))
   },
   {
     id: 'report3',
@@ -98,6 +98,20 @@ export const moduleRegistry = Object.freeze([
     keepMounted: true,
     requiresAuth: true,
     surface: startupSurface(() => import('../components/CodSuspicionReport.jsx'))
+  },
+  {
+    // Tự tải dữ liệu riêng (/api/snapshot-summary?view=reverse-report), không dùng dataset chung nên không có requiredDatasets.
+    id: 'auto-report',
+    motionIcon: 'FileImage',
+    description: 'Xem lại các bảng báo cáo tự động gửi Telegram (SPE Reverse)',
+    label: 'Báo cáo tự động',
+    mobileLabel: 'Tự động',
+    icon: FileImage,
+    group: 'operation-insights',
+    navigation: { sidebar: true, commandPalette: true, mobile: true },
+    loadingText: 'Đang mở tab Báo cáo tự động...',
+    requiresAuth: true,
+    surface: startupSurface(() => import('./auto-report/AutoReportTab.jsx'))
   },
   {
     id: 'ranking',

@@ -4,6 +4,10 @@ PUD dùng `SUM(pud) / SUM(mau_pud) × 100%`, với mẫu riêng ở cột J củ
 Không dùng `mau_pu`, không lấy trung bình tỷ lệ giữa các hub/ngày và chưa gán target.
 Các dòng có `mau_pu = 0` vẫn có thể có mẫu PUD.
 
+> **Cập nhật 12/11/2026:** theo #265, PUD hiện = `SUM(pud) / SUM(mau_pu)` (không dùng `mau_pud`; `mau_pud` chỉ dùng cho tab Backlog).
+> `pud` không phải tập con của `mau_pu` (11/11: 268/1.275 dòng có `pud > mau_pu`), nên không còn ràng buộc `pud <= mau_pu`;
+> chỉ giá trị thiếu/âm mới là "–". Tỷ lệ một hub có thể vượt 100%. Các đoạn bên dưới nói về mẫu riêng `mau_pud` là mô tả cũ.
+
 ## Luồng dữ liệu
 
 - File Apps Script `reverse-history-sync.gs`: `REVERSE_COLUMNS` nhận cả `pud` và `mau_pud` theo tên header, không theo vị trí.

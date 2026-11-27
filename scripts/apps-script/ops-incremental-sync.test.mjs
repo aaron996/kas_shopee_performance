@@ -24,6 +24,17 @@ for (const value of ['', 'abc', 'Hub Việt Nam', '🚚', 'x'.repeat(55),'x'.rep
 liveCtx.verifyOpsSyncRetry();
 check(JSON.parse(liveLogs.at(-1)).retryChecksPassed===16);
 check(liveCtx.opsDeltaMd5_('Hub Việt Nam')===md5('Hub Việt Nam'));
+{
+  const cols=[{name:'hub',type:'text'},{name:'hub_type',type:'text'}];
+  const norm=(hub,type)=>JSON.stringify(ctx.opsDeltaNormalizeRows_(['hub','hub_type'],[[hub,type]],cols,'UTC')[0]);
+  check(norm('(HCM) KD Thủ Đức','BC')===JSON.stringify(['(HCM) KD Thủ Đức','BC KD']));
+  check(norm(' (HNO) KT Cầu Giấy','CK')===JSON.stringify([' (HNO) KT Cầu Giấy','BC KD']));
+  check(norm('(HCM) KD Ahamove Q1','Ahamove')===JSON.stringify(['(HCM) KD Ahamove Q1','Ahamove']));
+  check(norm('(HCM) BC Tân Bình','BC')===JSON.stringify(['(HCM) BC Tân Bình','BC']));
+  check(norm('(HCM) KDX Tân Bình','BC')===JSON.stringify(['(HCM) KDX Tân Bình','BC']));
+  const noType=ctx.opsDeltaNormalizeRows_(['hub'],[['(HCM) KD A']],[{name:'hub',type:'text'}],'UTC');
+  check(JSON.stringify(noType)===JSON.stringify([['(HCM) KD A']]));
+}
 const sync=async(remote,rows)=>{
   const source=ctx.opsDeltaDayManifest_(remote.columns,rows,remote.date_column,ctx.opsDeltaMd5_);
   const changed=source.days.filter(d=>!remote.days.some(r=>r.day===d.day&&r.count===d.count&&r.hash===d.hash));

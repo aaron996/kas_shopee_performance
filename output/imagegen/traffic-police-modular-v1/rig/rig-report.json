@@ -1,0 +1,325 @@
+{
+  "weights": {
+    "verts": 6581,
+    "groups": 19,
+    "unweighted": 0,
+    "sum_dev": 0,
+    "max_influences": 3,
+    "over4": 0,
+    "non_deform_groups": [],
+    "empty_inside": [],
+    "empty_major": [],
+    "mirror_pairs_sampled": 0,
+    "mirror_err": null,
+    "ok": true
+  },
+  "rigid_pelvis_vertices": 336,
+  "bones": [
+    {
+      "name": "root",
+      "head": [
+        0,
+        0,
+        0
+      ],
+      "tail": [
+        0,
+        0,
+        0.15
+      ],
+      "parent": null,
+      "deform": false
+    },
+    {
+      "name": "pelvis",
+      "head": [
+        0,
+        0.04,
+        0.85
+      ],
+      "tail": [
+        0,
+        0.04,
+        0.98
+      ],
+      "parent": "root",
+      "deform": true
+    },
+    {
+      "name": "spine",
+      "head": [
+        0,
+        0.04,
+        0.98
+      ],
+      "tail": [
+        0,
+        0.03,
+        1.17
+      ],
+      "parent": "pelvis",
+      "deform": true
+    },
+    {
+      "name": "chest",
+      "head": [
+        0,
+        0.03,
+        1.17
+      ],
+      "tail": [
+        0,
+        0.02,
+        1.36
+      ],
+      "parent": "spine",
+      "deform": true
+    },
+    {
+      "name": "neck",
+      "head": [
+        0,
+        0.02,
+        1.36
+      ],
+      "tail": [
+        0,
+        0.015,
+        1.46
+      ],
+      "parent": "chest",
+      "deform": true
+    },
+    {
+      "name": "head",
+      "head": [
+        0,
+        0.015,
+        1.46
+      ],
+      "tail": [
+        0,
+        0.015,
+        1.76
+      ],
+      "parent": "neck",
+      "deform": true
+    },
+    {
+      "name": "clavicle.L",
+      "head": [
+        0,
+        0.02,
+        1.32
+      ],
+      "tail": [
+        0.18,
+        0.04,
+        1.34
+      ],
+      "parent": "chest",
+      "deform": true
+    },
+    {
+      "name": "upper_arm.L",
+      "head": [
+        0.18,
+        0.04,
+        1.34
+      ],
+      "tail": [
+        0.32,
+        0.05,
+        1.105
+      ],
+      "parent": "clavicle.L",
+      "deform": true
+    },
+    {
+      "name": "forearm.L",
+      "head": [
+        0.32,
+        0.05,
+        1.105
+      ],
+      "tail": [
+        0.437,
+        0.05,
+        0.933
+      ],
+      "parent": "upper_arm.L",
+      "deform": true
+    },
+    {
+      "name": "hand.L",
+      "head": [
+        0.437,
+        0.05,
+        0.933
+      ],
+      "tail": [
+        0.49,
+        0.04,
+        0.85
+      ],
+      "parent": "forearm.L",
+      "deform": true
+    },
+    {
+      "name": "thigh.L",
+      "head": [
+        0.09,
+        0.04,
+        0.9
+      ],
+      "tail": [
+        0.112,
+        0.068,
+        0.506
+      ],
+      "parent": "pelvis",
+      "deform": true
+    },
+    {
+      "name": "shin.L",
+      "head": [
+        0.112,
+        0.068,
+        0.506
+      ],
+      "tail": [
+        0.133,
+        0.074,
+        0.108
+      ],
+      "parent": "thigh.L",
+      "deform": true
+    },
+    {
+      "name": "foot.L",
+      "head": [
+        0.133,
+        0.074,
+        0.108
+      ],
+      "tail": [
+        0.16,
+        -0.13,
+        0.055
+      ],
+      "parent": "shin.L",
+      "deform": true
+    },
+    {
+      "name": "clavicle.R",
+      "head": [
+        0,
+        0.02,
+        1.32
+      ],
+      "tail": [
+        -0.18,
+        0.04,
+        1.34
+      ],
+      "parent": "chest",
+      "deform": true
+    },
+    {
+      "name": "upper_arm.R",
+      "head": [
+        -0.18,
+        0.04,
+        1.34
+      ],
+      "tail": [
+        -0.32,
+        0.05,
+        1.105
+      ],
+      "parent": "clavicle.R",
+      "deform": true
+    },
+    {
+      "name": "forearm.R",
+      "head": [
+        -0.32,
+        0.05,
+        1.105
+      ],
+      "tail": [
+        -0.437,
+        0.05,
+        0.933
+      ],
+      "parent": "upper_arm.R",
+      "deform": true
+    },
+    {
+      "name": "hand.R",
+      "head": [
+        -0.437,
+        0.05,
+        0.933
+      ],
+      "tail": [
+        -0.49,
+        0.04,
+        0.85
+      ],
+      "parent": "forearm.R",
+      "deform": true
+    },
+    {
+      "name": "thigh.R",
+      "head": [
+        -0.09,
+        0.04,
+        0.9
+      ],
+      "tail": [
+        -0.112,
+        0.068,
+        0.506
+      ],
+      "parent": "pelvis",
+      "deform": true
+    },
+    {
+      "name": "shin.R",
+      "head": [
+        -0.112,
+        0.068,
+        0.506
+      ],
+      "tail": [
+        -0.133,
+        0.074,
+        0.108
+      ],
+      "parent": "thigh.R",
+      "deform": true
+    },
+    {
+      "name": "foot.R",
+      "head": [
+        -0.133,
+        0.074,
+        0.108
+      ],
+      "tail": [
+        -0.16,
+        -0.13,
+        0.055
+      ],
+      "parent": "shin.R",
+      "deform": true
+    }
+  ],
+  "method": "manually placed compact FK skeleton; analytic spatial skin weights; three pose clips pending visual acceptance",
+  "limitations": [
+    "No finger or facial rig",
+    "No walking/dismount clip",
+    "No runtime integration"
+  ]
+}

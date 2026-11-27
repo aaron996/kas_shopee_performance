@@ -1,4 +1,4 @@
-import { fetchSnapshotRows, packRows } from '../server/snapshot/data.js';
+import { fetchSnapshotRows, packSnapshotPayload } from '../server/snapshot/data.js';
 import { readSnapshotConfig, createSnapshotServiceClient, resolveSnapshotRequest } from '../server/snapshot/request.js';
 import { embedSnapshotPayload, resolveAppOrigin } from '../server/snapshot/page.js';
 
@@ -39,7 +39,7 @@ export function createSnapshotPageHandler(dependencies = {}) {
       payload = { error: request.error.message };
     } else {
       try {
-        payload = packRows(await fetchRows(createServiceClient(config), request));
+        payload = packSnapshotPayload(request.report, await fetchRows(createServiceClient(config), request));
       } catch (error) {
         console.error('Snapshot data read failed:', error);
         status = 503;

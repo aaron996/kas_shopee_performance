@@ -21,6 +21,7 @@ import useSceneIdle from './useSceneIdle.js';
 import { idleModeControl } from '../../utils/sceneIdleMode.js';
 import { createTrafficExtras } from '../../utils/sceneIdle.js';
 import TrafficUnloading from './TrafficUnloading.jsx';
+import PoliceTraffic from './PoliceTraffic.jsx';
 import { createDriveClock, DEFAULT_DRIVE_RATE } from '../../utils/sceneDriving.js';
 import { WORLD_REGIONS, worldTheme, initialWorld, createWorldJourney } from '../../utils/sceneWorld.js';
 import WorldEnvironment, { TruckEnvironment } from './WorldEnvironment.jsx';
@@ -33,7 +34,7 @@ import RankingLeaderboard from './RankingLeaderboard.jsx';
 import './sceneLighting.css';
 import { sampleRoadFrame, getRoadCurveRadius } from '../../utils/sceneRoadCurve.js';
 import { followCameraGoal, tvCameraGoal } from '../../utils/sceneCamera.js';
-import { cinematicBeat, cinematicCameraGoal, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
+import { cinematicBeat, cinematicCameraGoal, cinematicPoliceSubject, cinematicInspectionGoal, CINEMATIC_BLEND_SECONDS, resolveCameraMode } from '../../utils/sceneCinematic.js';
 import { createTourConvoy, tourProgress, tourShot, viewOffset, RANKING_ROAD_LENGTH, VIEW_TOUR_DURATION_MS, VIEW_TOUR_REVEAL } from '../../utils/rankingViewTour.js';
 import {
   LabelProjector,
@@ -177,7 +178,7 @@ function CanvasSetup({ label }) {
  * or flies to a followed truck. Orbiting stays inside sane limits; the flight is skipped (camera
  * jumps) under prefers-reduced-motion, and any user drag cancels a flight.
  */
-function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd, cinematicItems, cinematicSubjectId, onManualCamera }) {
+function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, running, reducedMotion, animateViewChange, positionsRef, motion, clockRef, tour, onTourReveal, onTourEnd, cinematicItems, cinematicSubjectId, onManualCamera, trafficRef }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -340,29 +341,40 @@ function CameraRig({ roadLength, localLength, rankView, roadWidth, focus, mode, 
       if (document.hidden || !running) return;
       cinema.elapsed += Math.min(delta, 0.1);
       const beat = cinematicBeat(cinema.elapsed);
+      const police = trafficRef?.current?.police;
+      const policeId = cinematicPoliceSubject(police, positionsRef.current);
+      const inspectionId = policeId && ['pull', 'check', 'release'].includes(police.phase) ? policeId : null;
+      let resetShot = false;
       let subject = positionsRef.current.get(cinema.subjectId);
-      if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65) {
+      if (beat.index !== cinema.beat || !subject || subject.alpha < 0.65 || (policeId && policeId !== cinema.subjectId)) {
         const candidates = cinematicItems.filter(item => {
           const pose = positionsRef.current.get(item.id);
           return !item.ghost && !item.ambient && pose && pose.alpha >= 0.65;
         });
-        const next = candidates.find(item => item.id === cinematicSubjectId) || candidates[beat.index % Math.max(1, Math.min(3, candidates.length))];
+        const next = candidates.find(item => item.id === policeId) || candidates.find(item => item.id === cinematicSubjectId) || candidates[beat.index % Math.max(1, Math.min(3, candidates.length))];
         cinema.subjectId = next?.id;
         subject = positionsRef.current.get(cinema.subjectId);
         cinema.beat = beat.index;
+        resetShot = true;
+      }
+      if (!subject) return;
+      const frame = { x: subject.x, y: subject.lift, z: subject.z, heading: subject.heading, pitch: subject.pitch };
+      const shot = inspectionId
+        ? cinematicInspectionGoal(frame, sampleRoadFrame(police.x, police.z, roadLength), cinema.elapsed, aspectRatio)
+        : cinematicCameraGoal(frame, cinema.elapsed, aspectRatio, policeId ? 1.5 : 1);
+      const anchor = new THREE.Vector3(shot.target[0], shot.target[1] - 1, shot.target[2]);
+      if (resetShot || cinema.inspectionId !== inspectionId) {
+        cinema.inspectionId = inspectionId;
         cinema.blendStart = cinema.elapsed;
         cinema.startPosition = camera.position.clone();
         cinema.startTarget = controls.target.clone();
         cinema.startFov = camera.fov;
-        cinema.startSubject = subject ? new THREE.Vector3(subject.x, subject.lift, subject.z) : null;
+        cinema.startSubject = anchor.clone();
       }
-      if (!subject) return;
-      const shot = cinematicCameraGoal({ x: subject.x, y: subject.lift, z: subject.z,
-        heading: subject.heading, pitch: subject.pitch }, cinema.elapsed, aspectRatio);
       const p = easeInOutCubic(Math.min(1, (cinema.elapsed - cinema.blendStart) / CINEMATIC_BLEND_SECONDS));
       // Translate the source pose with the moving subject during a blend so
       // a fast idle vehicle cannot outrun its framing between two shots.
-      const shift = new THREE.Vector3(subject.x, subject.lift, subject.z).sub(cinema.startSubject);
+      const shift = anchor.sub(cinema.startSubject);
       camera.position.copy(cinema.startPosition).add(shift).lerp(new THREE.Vector3(...shot.position), p);
       controls.target.copy(cinema.startTarget).add(shift).lerp(new THREE.Vector3(...shot.target), p);
       camera.fov = THREE.MathUtils.lerp(cinema.startFov, shot.fov, p);
@@ -511,6 +523,8 @@ export default function RoadScene3D({
 }) {
   const colors = useThemeColors();
   const idle = useSceneIdle(reducedMotion);
+  const [policeRequested, setPoliceRequested] = useState(false);
+  useEffect(() => { if (idle.active) setPoliceRequested(true); }, [idle.active]);
   const idleControl = idleModeControl(idle.mode);
   // UI theme changes label/status colours; the world follows its own solar time.
   const [world, setWorld] = useState(() => {
@@ -812,7 +826,7 @@ export default function RoadScene3D({
         }}
       >
         <DriveClock clockRef={clockRef} items={drawItems} motion={scene.motion} running={running && !reducedMotion} playbackRate={playbackRate}
-          trafficRef={trafficRef} idleActive={idle.active && !scene.motion && !scene.tour} roadWidth={roadWidth} reducedMotion={reducedMotion} />
+          trafficRef={trafficRef} idleActive={idle.active && !scene.motion && !scene.tour} roadWidth={roadWidth} roadLength={roadLength} reducedMotion={reducedMotion} />
         <TruckEnvironment lightingRef={lightingRef} />
         <WorldEnvironment world={world} journeyRef={journeyRef} roadLength={roadLength} roadWidth={roadWidth} clockRef={clockRef}
           lightingRef={lightingRef} streetlightCount={streetlightCount} castShadow={shadowsOn} compact={compact || lowQuality} running={running}
@@ -846,6 +860,9 @@ export default function RoadScene3D({
           paintMode={paintMode}
         />
         <TrafficUnloading positionsRef={positionsRef} roadLength={roadLength} />
+        <React.Suspense fallback={null}>
+          {policeRequested && <PoliceTraffic trafficRef={trafficRef} clockRef={clockRef} roadLength={roadLength} reducedMotion={reducedMotion} />}
+        </React.Suspense>
         <LeaderTrail items={fleetItems} positionsRef={positionsRef} clockRef={clockRef} roadLength={roadLength}
           journeyRef={journeyRef} compact={compact || lowQuality} reducedMotion={reducedMotion} motion={scene.motion} />
         <TruckRoadLighting key={`lighting-${drawItems.length}`} items={drawItems} positionsRef={positionsRef} roadLength={roadLength} lightingRef={lightingRef} />
@@ -853,13 +870,13 @@ export default function RoadScene3D({
           <SelectionRing id={selectedTruck.id} x={selectedTruck.x} z={selectedTruck.z} positionsRef={positionsRef} roadLength={roadLength} />
         )}
 
-        <LabelProjector hudRef={hudRef} labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
+        <LabelProjector cinematic={activeCamMode === 'cinematic'} hudRef={hudRef} labels={labels} overlayRef={overlayRef} positionsRef={positionsRef} replayRef={replayRef} replayLabels={replayLabels} />
         <ContextWatcher onLost={handleContextLost} />
         <SharedTextureRelease />
         <CanvasSetup label={canvasLabel} />
         <CameraRig roadLength={roadLength} localLength={localLength} rankView={rankView} roadWidth={roadWidth} focus={focus} mode={activeCamMode} running={running} reducedMotion={reducedMotion} animateViewChange={animateViewChange} positionsRef={positionsRef}
           motion={scene.motion} clockRef={clockRef} tour={scene.tour} onTourReveal={revealTour} onTourEnd={finishTour}
-          cinematicItems={fleetItems} cinematicSubjectId={selectedHubId} onManualCamera={takeManualCamera} />
+          cinematicItems={fleetItems} cinematicSubjectId={selectedHubId} onManualCamera={takeManualCamera} trafficRef={trafficRef} />
       </Canvas>
 
       <canvas ref={overlayRef} className="prr-3d-labels" aria-hidden="true" />

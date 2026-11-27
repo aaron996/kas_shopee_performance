@@ -8,15 +8,20 @@ import { resolveEffectiveScope, normalizeToolScope } from './scope.js';
 import { MAX_SCOPE_ITEMS } from './protocol.js';
 import { PUBLIC_SEARCH_TOOL } from './public-search.js';
 import { createHash } from 'node:crypto';
+import { computeDrivers, evidenceIdFor } from './drivers.js';
+import { FD_KPI_TARGET } from '../../src/data/fdKpi.js';
+
+const DRIVER_GRAINS = new Set(['region', 'hub']);
+const DRIVER_MAX_PAGES = 4;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CLIENTS = new Set(CHAT_CLIENT_CODES);
-const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr']);
+const METRICS = new Set(['p1st', 'opr', 'd1st', 'odr', 'fd']);
 const GRAINS = new Set(['nationwide', 'region', 'hub']);
 const SORTS = new Set(['worst', 'best', 'volume_desc']);
-const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime']);
+const DATASETS = new Set(['pick', 'deli', 'ca1', 'leadtime', 'fd']);
 const HELP_TOPICS = new Set(Object.keys(DASHBOARD_HELP));
-const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli' });
+const METRIC_DATASETS = Object.freeze({ p1st: 'pick', opr: 'pick', d1st: 'deli', odr: 'deli', fd: 'fd' });
 
 function invalid(message) {
   throw new ChatError('CHAT_TOOL_ARGUMENTS_INVALID', message, 400);
@@ -82,7 +87,7 @@ const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function', name: 'get_metric_trend', strict: true,
-    description: 'Đọc KPI P1ST/OPR/D1ST/ODR theo từng ngày để vẽ biểu đồ đường. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
+    description: 'Đọc KPI P1ST/OPR/D1ST/ODR/FD theo từng ngày để vẽ biểu đồ đường. Tối đa 14 ngày trong một lượt; bắt buộc đủ metric, client và khoảng ngày. Không chia nhỏ nhiều lần để vượt giới hạn. Muốn 7 ngày mới nhất: lấy dataAsOf qua get_data_coverage trước. Ngày không có dữ liệu giữ NULL.',
     parameters: {
       type: 'object', additionalProperties: false,
       required: ['metric', 'client', 'date_from', 'date_to', 'regions', 'hub_types'],
@@ -97,9 +102,28 @@ export const CHAT_TOOLS = Object.freeze([
     },
   },
   {
+    type: 'function', name: 'get_metric_change_drivers', strict: true,
+    description: 'Dùng cho câu hỏi "vì sao KPI tăng/giảm". So sánh hai kỳ (kỳ hiện tại và kỳ trước) của P1ST/OPR/D1ST/ODR/FD và trả về tổng thay đổi (điểm %) cùng danh sách vùng/hub đóng góp nhiều nhất vào thay đổi đó, tách hiệu ứng tỷ lệ (chính nó tốt/xấu đi) và hiệu ứng cơ cấu (tỷ trọng sản lượng dịch chuyển). Với FD (càng thấp càng tốt) contributionPp dương = FD tăng = xấu; xem trường effect/overall. Kết quả đã tính sẵn, không cần gọi thêm summary/trend; chart không tự vẽ cho tool này.',
+    parameters: {
+      type: 'object', additionalProperties: false,
+      required: ['metric', 'client', 'current_from', 'current_to', 'previous_from', 'previous_to', 'grain', 'regions', 'hub_types'],
+      properties: {
+        metric: { type: 'string', enum: [...METRICS] },
+        client: { type: 'string', enum: [...CLIENTS] },
+        current_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        current_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        previous_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        previous_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        grain: { type: 'string', enum: [...DRIVER_GRAINS], description: 'region để tìm vùng kéo tụt; hub để xuống từng kho.' },
+        regions: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+        hub_types: { type: 'array', items: { type: 'string' }, maxItems: MAX_SCOPE_ITEMS },
+      },
+    },
+  },
+  {
     type: 'function',
     name: 'get_data_coverage',
-    description: 'Lấy ngày dữ liệu sớm nhất, mới nhất và thời điểm đồng bộ của một bộ dữ liệu.',
+    description: 'Lấy ngày dữ liệu sớm nhất, mới nhất và thời điểm đồng bộ của một bộ dữ liệu (pick, deli, ca1, leadtime, fd). FD có thể lùi ngày hơn pick/deli.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false, required: ['dataset', 'client'],
@@ -112,7 +136,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_metric_summary',
-    description: 'Đọc KPI pickup/delivery từ database theo client, ngày và cấp tổng hợp. Kết quả trả về totalEntities (tổng số dòng có thật, trước khi cắt theo limit/offset) và offset đã dùng — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết, giữ nguyên các tham số khác và cùng một sort.',
+    description: 'Đọc KPI pickup/delivery/FD (metric p1st, opr, d1st, odr, fd) từ database theo client, ngày và cấp tổng hợp. FD = SUM(fd_hoan_thanh)/SUM(mau_fd), càng thấp càng tốt, đạt khi <= 3%; với FD hub là kho giao (deliverywh), sort worst = FD cao nhất; nếu kỳ vượt phạm vi dữ liệu FD thì trả periodNote nêu kỳ thực tế, kỳ không có dữ liệu trả noData (không phải 0%). Kết quả trả về totalEntities (tổng số dòng có thật, trước khi cắt theo limit/offset) và offset đã dùng — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết, giữ nguyên các tham số khác và cùng một sort.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
@@ -134,7 +158,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_latest_metric_summary',
-    description: 'Đọc KPI pickup/delivery ở ngày mới nhất hiện có trong database. Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn. Kết quả trả về totalEntities và offset — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết.',
+    description: 'Đọc KPI pickup/delivery/FD ở ngày mới nhất hiện có trong database (FD dùng ngày mới nhất của chính FD, nêu rõ ở as_of_date). Chỉ dùng khi người dùng nói rõ hiện tại/hôm nay/mới nhất hoặc đã chọn dateMode=latest; nếu chưa nêu thời gian thì phải yêu cầu lựa chọn. Kết quả trả về totalEntities và offset — nếu totalEntities > offset + số dòng trả về, gọi lại với offset tăng thêm limit để lấy hết.',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false,
@@ -190,7 +214,7 @@ export const CHAT_TOOLS = Object.freeze([
   {
     type: 'function',
     name: 'get_metric_definition',
-    description: 'Lấy định nghĩa, công thức và target của một chỉ số dashboard.',
+    description: 'Lấy định nghĩa, công thức và target của một chỉ số dashboard (FD: càng thấp càng tốt, KPI <= 3%).',
     strict: true,
     parameters: {
       type: 'object', additionalProperties: false, required: ['metric'],
@@ -262,7 +286,64 @@ export async function executeChatTool(call, context = {}) {
       return {
         evidenceId: `db_${createHash('sha256').update(JSON.stringify(evidenceIds)).digest('hex').slice(0, 16)}`,
         params: { ...params, p_date_from: from, p_date_to: to, p_grain: 'day' },
-        data: { metric: params.p_metric, scope: { client: params.p_client, dateFrom: from, dateTo: to, grain: 'day' }, dataAsOf, syncedAt, rows },
+        data: { metric: params.p_metric, scope: { client: params.p_client, dateFrom: from, dateTo: to, grain: 'day' }, dataAsOf, syncedAt, rows,
+          ...(params.p_metric === 'fd' ? { as_of_date: dataAsOf, direction: 'lower_is_better', kpiTarget: FD_KPI_TARGET, kpiRule: `Đạt khi FD <= ${FD_KPI_TARGET}%` } : {}) },
+      };
+    }
+    case 'get_metric_change_drivers': {
+      const metric = enumValue(args.metric, METRICS, 'metric');
+      const client = enumValue(args.client, CLIENTS, 'client');
+      const grain = enumValue(args.grain, DRIVER_GRAINS, 'grain');
+      const [curFrom, curTo] = dateRange(args.current_from, args.current_to);
+      const [prevFrom, prevTo] = dateRange(args.previous_from, args.previous_to);
+      if (prevTo >= curFrom) invalid('Kỳ trước phải kết thúc trước khi kỳ hiện tại bắt đầu.');
+      const base = { p_metric: metric, p_client: client,
+        p_regions: textList(args.rpcRegions, 'regions'), p_hub_types: textList(args.rpcHubTypes, 'hub_types') };
+      const scopedClient = { rpc(name, rpcParams) {
+        const request = userClient.rpc(name, rpcParams);
+        return context.signal && typeof request.abortSignal === 'function' ? request.abortSignal(context.signal) : request;
+      } };
+      const evidenceIds = [];
+      let dataAsOf = null, syncedAt = null;
+      const read = async params => {
+        if (context.signal?.aborted) throw new ChatError('CHAT_TIMEOUT', 'Đã dừng tra cứu.', 504);
+        const result = await callDashboardRpc(scopedClient, DASHBOARD_RPCS.metric, params);
+        evidenceIds.push(result.evidenceId);
+        if (result.data?.dataAsOf && (!dataAsOf || result.data.dataAsOf > dataAsOf)) dataAsOf = result.data.dataAsOf;
+        if (result.data?.syncedAt && (!syncedAt || result.data.syncedAt > syncedAt)) syncedAt = result.data.syncedAt;
+        if (!Array.isArray(result.data?.rows)) throw new ChatError('CHAT_DATA_UNAVAILABLE', 'Dữ liệu phân rã chưa đúng định dạng.', 503);
+        return result.data;
+      };
+      const period = async (from, to) => {
+        const total = await read({ ...base, p_date_from: from, p_date_to: to, p_grain: 'nationwide', p_limit: 1, p_offset: 0, p_sort: 'volume_desc' });
+        const rows = [];
+        let complete = true;
+        for (let page = 0; page < DRIVER_MAX_PAGES; page += 1) {
+          const data = await read({ ...base, p_date_from: from, p_date_to: to, p_grain: grain, p_limit: 50, p_offset: page * 50, p_sort: 'volume_desc' });
+          rows.push(...data.rows);
+          if (rows.length >= (data.totalEntities ?? rows.length) || !data.rows.length) break;
+          if (page === DRIVER_MAX_PAGES - 1) complete = false;
+        }
+        return { total: total.rows[0] ?? null, rows, complete };
+      };
+      const previous = await period(prevFrom, prevTo);
+      const current = await period(curFrom, curTo);
+      const analysis = previous.total && current.total
+        ? computeDrivers({ previous: previous.total, current: current.total, previousRows: previous.rows, currentRows: current.rows, lowerIsBetter: metric === 'fd' })
+        : null;
+      return {
+        evidenceId: evidenceIdFor(evidenceIds),
+        queriedAt: new Date().toISOString(),
+        params: { ...base, p_grain: grain, p_date_from: curFrom, p_date_to: curTo, p_previous_from: prevFrom, p_previous_to: prevTo },
+        data: {
+          metric, dataAsOf, syncedAt,
+          scope: { client, dateFrom: curFrom, dateTo: curTo, previousFrom: prevFrom, previousTo: prevTo, grain,
+            ...(analysis?.drivers[0] ? { topDriver: analysis.drivers[0].entity, changePp: analysis.changePp } : {}) },
+          partial: !(previous.complete && current.complete),
+          ...(metric === 'fd' ? { as_of_date: dataAsOf, direction: 'lower_is_better', kpiTarget: FD_KPI_TARGET,
+            ...(analysis ? {} : { noData: true, message: 'Một trong hai kỳ chưa có dữ liệu FD nên không so sánh được (không phải 0%).' }) } : {}),
+          analysis
+        }
       };
     }
     case 'get_data_coverage': {

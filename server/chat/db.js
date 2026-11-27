@@ -1,5 +1,6 @@
 import { normalizeChatClient, REVERSE_CLIENT } from '../../src/utils/chatClients.js';
 import { callReverseRpc } from './reverse-data.js';
+import { callFdRpc } from './fd-data.js';
 import { createHash } from 'node:crypto';
 import { ChatError } from './errors.js';
 
@@ -11,13 +12,22 @@ function stableHash(value) {
 
 export async function callDashboardRpc(userClient, rpcName, params) {
   const startedAt = Date.now();
+  const isFd = params.p_metric === 'fd' || params.p_dataset === 'fd';
   const { data, error } = normalizeChatClient(params.p_client) === REVERSE_CLIENT
     ? await callReverseRpc(userClient, rpcName, params)
+    : isFd ? await callFdRpc(userClient, rpcName, params)
     : await userClient.rpc(rpcName, params);
   if (error) {
     if (error.code === '57014') {
       throw new ChatError('CHAT_DATA_TIMEOUT', 'Truy vấn dữ liệu mất quá lâu. Vui lòng thử lại hoặc thu hẹp khoảng ngày.', 503, { cause: error });
     }
+    console.error('[chat] dashboard rpc failed', {
+      rpcName,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
     throw new ChatError('CHAT_DATA_UNAVAILABLE', 'Không thể đọc dữ liệu dashboard lúc này.', 503, {
       cause: error
     });

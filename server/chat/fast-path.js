@@ -13,9 +13,9 @@ export const METRIC_DATASETS = Object.freeze({
 });
 
 export const METRIC_NAMES = Object.freeze({
-  p1st: '1st Pickup (P1ST)',
+  p1st: '1st Pickup ontime',
   opr: 'OPR',
-  d1st: '1st Delivery (D1ST)',
+  d1st: '1st Delivery ontime',
   odr: 'ODR'
 });
 

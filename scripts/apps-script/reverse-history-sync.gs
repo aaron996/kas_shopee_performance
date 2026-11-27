@@ -15,13 +15,16 @@ const REVERSE_BACKFILL_TAB = 'reverse_backfill_tmp';
 const REVERSE_BACKFILL_START = '2026-06-21';
 const REVERSE_DAILY_DAYS = 14;
 const REVERSE_BUDGET_MS = 4.5 * 60 * 1000;
-// BI đổ tab reverse khoảng 08:15 và syncAllTabs của OPS chạy sau 08:30, nên trigger Reverse đặt vào khoảng 09:00.
+// Tab reverse do datajob data_job_daily_reverse (#967, ai-portal) ghi, lịch 05:50 hằng ngày; syncAllTabs của OPS chạy sau 08:30, nên trigger
+// Reverse đặt vào khoảng 09:00. (Trước đây tab do BI đổ ~08:15.) Giờ ghi thực tế của job xem ở lịch sử run trên ai-portal.
 const REVERSE_TRIGGER_HOUR = 9;
 const REVERSE_COLUMNS = [
   {name:'report_date',type:'date'},{name:'region',type:'text'},{name:'hub',type:'text'},
   {name:'hub_type',type:'text'},{name:'client_name',type:'text'},
   {name:'mau_pu',type:'numeric'},{name:'ontime_pu_1st',type:'numeric'},{name:'ontime_pu_opr',type:'numeric'},
-  {name:'pud',type:'numeric'},{name:'mau_pud',type:'numeric'}
+  {name:'pud',type:'numeric'},{name:'mau_pud',type:'numeric'},
+  // wh_id (cột K của datajob data_job_daily_reverse): báo cáo tự động ghép tên kho của backlog theo mã kho. Nguồn thiếu cột thì null.
+  {name:'wh_id',type:'text'}
 ];
 
 /** Upsert rows trong [from, to]; không xoá dòng không còn trong nguồn. */

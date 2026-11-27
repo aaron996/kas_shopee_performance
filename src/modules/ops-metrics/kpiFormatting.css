@@ -53,3 +53,5 @@ body.dark-mode .report1-master-table table.mtx-table tbody tr td.kpi-custom-colo
 .kpi-format-colors > div { display: grid; grid-template-columns: 1fr 136px; align-items: center; gap: var(--space-2); }
 .kpi-format-footer { gap: var(--space-1); }
 .kpi-format-footer button { padding: var(--space-2); font-size: var(--type-meta); }
+.backlog-format-modes { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+.kpi-format-presets .backlog-format-modes button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; padding: var(--space-2); font: inherit; font-size: var(--type-meta); color: var(--text-primary); text-align: left; }

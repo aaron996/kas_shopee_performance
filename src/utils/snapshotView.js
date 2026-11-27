@@ -16,7 +16,9 @@ export const SNAPSHOT_VIEWS = {
   'ca1:intra_region': { data: 'ca1', module: 'report5', lane: 'Intra Region' },
   'ca1:cross_region': { data: 'ca1', module: 'report5', lane: 'Cross Region' },
   'ca1:cross_metro': { data: 'ca1', module: 'report5', lane: 'Cross Metro' },
-  'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' }
+  'ca1:cross_metro_star': { data: 'ca1', module: 'report5', lane: 'Cross Metro*' },
+  // Báo cáo tự động SPE Reverse (docs/reverse-auto-report.md): client cố định, không qua bộ lọc Vùng / Loại Hub của dashboard.
+  'reverse:all': { data: 'reverse', module: 'reverse', table: 'all' }
 };
 
 export const SNAPSHOT_CLIENT_LABELS = CLIENT_LABELS;
@@ -81,9 +83,9 @@ export function scopeSnapshotRows(rows, view, excludeHubTypes = [], onlyHubTypes
 // plus its CK vùng (CK hubs are reported inside HNO, not as a separate view), hub
 // types GXT, BC and CK, after reassignKaRegion. GXT is deliberately NOT moved to
 // its per-Miền vùng here (reassignGxtMienRegion): this report keeps the GXT rows
-// filed under the order's region HNO, as before. Only HNO - KA is left out.
+// filed under the order's region HNO, as before. Only HNO - KHL is left out.
 export const HNO_REPORT_REGIONS = ['HNO', 'HNO - CK'];
-export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK'];
+export const HNO_REPORT_HUB_TYPES = ['GXT', 'BC', 'CK', 'BC KD'];
 
 export function scopeHnoReportRows(rows) {
   const regions = new Set(HNO_REPORT_REGIONS);
