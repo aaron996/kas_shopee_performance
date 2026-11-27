@@ -13,6 +13,8 @@ async function readCompact(client, name, params) {
   }
   return data.rows.map(values => Object.fromEntries(data.cols.map((key, i) => [key, values[i]])));
 }
+// PUD = sum(pud) / sum(mau_pu) như dashboard (src/utils/pud.js); pud không phải tập con của mau_pu nên tỷ lệ có thể > 100%.
+const ONTIME_COLUMN = { p1st: 'ontime_pu_1st', opr: 'ontime_pu_opr', pud: 'pud' };
 function unsupported() {
   throw new ChatError('CHAT_DATASET_UNSUPPORTED', 'Shopee Reverse hiện chỉ có dữ liệu Pickup (P1ST/OPR), chưa có Delivery hoặc Leadtime.', 422);
 }
@@ -31,7 +33,7 @@ export async function callReverseRpc(client, name, args) {
     // dateFrom is unknown for full history; do not mislabel the latest week as total coverage.
     return { data: { dataset: 'pick', client: REVERSE_CLIENT, dataAsOf: dates.at(-1) ?? null, dateFrom: null, syncedAt: null }, error: null };
   }
-  if (name !== 'get_ai_chat_metric' || !['p1st', 'opr'].includes(args.p_metric)) return unsupported();
+  if (name !== 'get_ai_chat_metric' || !['p1st', 'opr', 'pud'].includes(args.p_metric)) return unsupported();
   const { p_date_from: from, p_date_to: to, p_grain: grain, p_sort: sort, p_limit: limit, p_offset: offset = 0 } = args;
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
   if (!Number.isFinite(days) || days < 0 || days > 90 || !['nationwide', 'region', 'hub'].includes(grain)
@@ -49,7 +51,7 @@ export async function callReverseRpc(client, name, args) {
     const entity = grain === 'nationwide' ? 'Toàn quốc' : (grain === 'region' ? row.region : row.hub) || 'Không rõ';
     const group = groups.get(entity) || { entity, volume: 0, ontime: 0 };
     group.volume += Number(row.mau_pu) || 0;
-    group.ontime += Number(row[args.p_metric === 'p1st' ? 'ontime_pu_1st' : 'ontime_pu_opr']) || 0;
+    group.ontime += Number(row[ONTIME_COLUMN[args.p_metric]]) || 0;
     groups.set(entity, group);
   }
   const grouped = [...groups.values()].map(row => ({ ...row, value: row.volume ? Math.round(10000 * row.ontime / row.volume) / 100 : null }));
@@ -59,6 +61,8 @@ export async function callReverseRpc(client, name, args) {
     return (sort === 'best' ? b.value - a.value : a.value - b.value) || a.entity.localeCompare(b.entity);
   });
   return { data: { metric: args.p_metric,
+    ...(args.p_metric === 'pud' ? { formula: 'sum(pud) / sum(mau_pu) * 100', kpiTarget: null,
+      note: 'PUD = tổng pud / tổng mau_pu × 100% (mẫu pickup, như dashboard); chưa có target; có thể > 100% vì pud không là tập con của mau_pu.' } : {}),
     scope: { client: REVERSE_CLIENT, dateFrom: from, dateTo: to, grain },
     dataAsOf: rows.map(row => row.report_date).sort().at(-1) ?? null,
     syncedAt: null, totalEntities: grouped.length, offset,
