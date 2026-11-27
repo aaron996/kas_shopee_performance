@@ -35,7 +35,9 @@ function reverseUpsertWindow_(from, to, rows, key) {
 function reverseRows_(sheet, timezone) {
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) throw new Error('Tab '+sheet.getName()+' trống hoặc chỉ có header');
-  return opsDeltaNormalizeRows_(values[0].map(h => String(h).trim()),values.slice(1),REVERSE_COLUMNS,timezone);
+  const headers = values[0].map(h => String(h).trim());
+  // KAS-317: tab có cột province thì gộp về grain hub-ngày-client (cộng các cột đếm) trước khi upsert.
+  return opsDeltaCollapseRows_(headers,opsDeltaNormalizeRows_(headers,values.slice(1),REVERSE_COLUMNS,timezone),REVERSE_COLUMNS);
 }
 
 /** Hằng ngày: upsert D-14..D-1 từ tab reverse. */
@@ -54,6 +56,8 @@ function syncReverseHistory() {
   }
   const result = reverseUpsertWindow_(lo,hi,rows,key);
   Logger.log(JSON.stringify({tab:REVERSE_TAB,mode:'daily-upsert',window:[lo,hi],result:result}));
+  // KAS-317: bảng chi tiết province (ops-province-lane-sync.gs). Chưa dán file đó thì bỏ qua.
+  if (typeof syncOpsDetailFromSheet_ === 'function') syncOpsDetailFromSheet_('reverse',sheet,timezone,key);
 }
 
 /** Backfill một lần từ tab reverse_backfill_tmp, từng tuần. Hết ngân sách thời gian thì dừng và báo chạy lại. */

@@ -2,9 +2,10 @@ import LoadingScreen from '../../components/LoadingScreen.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchWeeklyRows, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, fetchDetailRows, effectiveDetailScope, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 import { PUD_NOTE } from '../../utils/pud';
+import { ScopeBadges } from './DetailScopeFilter';
 
 const addDays = (day, n) => {
   const d = new Date(`${day}T00:00:00Z`);
@@ -23,20 +24,25 @@ export default function WeeklyKpiTable({
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
+  detailScope = null,
   fetchRows = fetchWeeklyRows,
   client = supabase
 }) {
   const metric = WEEKLY_METRICS[metricKey];
   const dataset = datasetFor(metric, clientFilter);
+  // KAS-317: bật Province/Lane thì cộng tuần từ bảng chi tiết (không benchmark), tắt thì giữ luồng cũ.
+  const scope = effectiveDetailScope(dataset, detailScope);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
-  const requestKey = `${dataset}:${attempt}`;
+  const requestKey = `${dataset}:${scope.key}:${attempt}`;
 
   useEffect(() => {
     let cancelled = false;
-    setState(prev => ({ key: requestKey, status: 'loading', data: prev.data && prev.data.dataset === dataset ? prev.data : null, error: null }));
-    fetchRows(client, dataset)
-      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset }, error: null }); })
+    setState(prev => ({ key: requestKey, status: 'loading', data: prev.data && prev.data.dataset === dataset && prev.data.scopeKey === scope.key ? prev.data : null, error: null }));
+    (scope.active
+      ? fetchDetailRows(client, dataset, 'week', { provinces: scope.provinces, lanes: scope.lanes })
+      : fetchRows(client, dataset))
+      .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset, scopeKey: scope.key }, error: null }); })
       .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
   }, [requestKey, dataset, attempt, fetchRows, client]);
@@ -89,6 +95,7 @@ export default function WeeklyKpiTable({
           <span className="metric-title-short">{metric.title}</span>
           {metric.target != null && <span className="kpi-badge">Target ≥ {metric.target.toFixed(0)}%</span>}
           <span className="kpi-badge weekly-kpi-badge">Theo tuần</span>
+          {scope.active && <ScopeBadges scope={scope} />}
           {isFiltered && <span className="kpi-badge weekly-kpi-badge">{visibleWeeks.length}/{allWeeks.length} tuần</span>}
         </div>
         {rangeFilter}
@@ -96,6 +103,7 @@ export default function WeeklyKpiTable({
       </div>
       {body}
       {metricKey === 'pud' && <div className="table-legend"><div>{PUD_NOTE}</div></div>}
+      {scope.active && <div className="table-legend"><div>* Đang lọc theo Province/Lane: số liệu lấy từ bảng chi tiết, không có benchmark ở mức tỉnh/lane.</div></div>}
     </div>
   );
 

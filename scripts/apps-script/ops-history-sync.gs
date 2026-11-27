@@ -60,7 +60,9 @@ function opsHistorySpec_(tabKey) {
 
 function opsHistoryRows_(spec, values, timezone) {
   if (values.length < 2) throw new Error('Tab trống hoặc chỉ có header');
-  return opsDeltaNormalizeRows_(values[0].map(h => String(h).trim()),values.slice(1),spec.columns,timezone);
+  const headers = values[0].map(h => String(h).trim());
+  // KAS-317: tab có cột province/lane thì gộp về grain hub-ngày (cộng các cột đếm) trước khi upsert history.
+  return opsDeltaCollapseRows_(headers,opsDeltaNormalizeRows_(headers,values.slice(1),spec.columns,timezone),spec.columns);
 }
 
 /** Gửi rows (mảng giá trị theo spec.columns) theo lô; cộng dồn kết quả RPC. */
@@ -104,6 +106,8 @@ function syncOpsHistoryFromTab_(ss, tabKey, gid) {
 function syncOpsTabWithHistory_(ss, tabKey, gid) {
   syncOpsDeltaTab_(ss,tabKey,gid);
   if (OPS_HISTORY_SPECS[tabKey]) syncOpsHistoryFromTab_(ss,tabKey,gid);
+  // KAS-317: bảng chi tiết province/lane (ops-province-lane-sync.gs). Chưa dán file đó thì bỏ qua.
+  if (typeof syncOpsDetailFromTab_ === 'function') syncOpsDetailFromTab_(ss,tabKey,gid);
 }
 
 /**
