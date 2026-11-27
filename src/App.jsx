@@ -337,6 +337,9 @@ export default function App() {
   const allRegions = React.useMemo(() => {
     return Object.values(MIEN_REGIONS).flat();
   }, []);
+  // KAS-317: Tỉnh thành / Lane của Chi tiết Vùng/Hub (bảng chi tiết). detailDataset do màn đó báo lên để header biết hiện Lane hay không.
+  const [detailScope, setDetailScope] = useState({ provinces: [], lanes: [] });
+  const [detailDataset, setDetailDataset] = useState(null);
   const [selectedRegions, setSelectedRegions] = useState(() => {
     if (initialView.regions === null) return allRegions;
     const saved = initialView.regions.filter(r => allRegions.includes(r));
@@ -843,7 +846,7 @@ export default function App() {
     'Khoảng dữ liệu': compositeCoverage,
     ...(['home', 'report1'].includes(activeTab) && scopedFd.length > 0 ? { 'Khoảng dữ liệu FD': dataCoverage(scopedFd) } : {})
   };
-  const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); };
+  const resetFilters = () => { setSelectedRegions(allRegions); setHubTypeSelection(null); setDetailScope({ provinces: [], lanes: [] }); };
   const runtimeByModule = {
     guide: { onNavigate: setActiveTab },
     report1: {
@@ -855,6 +858,8 @@ export default function App() {
       expandAllHubs,
       selectedRegions,
       selectedHubTypes,
+      detailScope,
+      onDetailDatasetChange: setDetailDataset,
       isHubTypeFiltered: selectedHubTypes.length < allHubTypes.length,
       emptyFilter: allHubTypes.length > 0 && selectedHubTypes.length === 0 ? 'hubTypes' : (selectedRegions.length === 0 ? 'regions' : null),
       onResetFilters: resetFilters,
@@ -1000,6 +1005,9 @@ export default function App() {
             selectedHubTypes={selectedHubTypes}
             setSelectedHubTypes={setSelectedHubTypes}
             onResetFilters={resetFilters}
+            detailDataset={detailDataset}
+            detailScope={detailScope}
+            setDetailScope={setDetailScope}
             d1DateFormatted={d1DateFormatted}
             fdD1DateFormatted={['home', 'report1'].includes(activeTab) ? fdD1DateFormatted : ''}
             syncStatus={syncStatus}

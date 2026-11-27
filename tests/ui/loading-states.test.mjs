@@ -208,3 +208,23 @@ test('Báo cáo tự động: OPR cells use a min→max scale by default and fol
   const off = render(components.reverseSheet, { tables, backlog: null, formattingRule: { ...rule, mode: 'off' } });
   assert.doesNotMatch(off, /kpi-custom-color/);
 });
+
+// KAS-317: Tỉnh thành là sub-filter của Vùng, Lane là bộ lọc riêng ở header (DESIGN.md: scope filters live in the header).
+test('header hosts Province inside Vùng and Lane only for Deli/FD metrics on Chi tiết Vùng/Hub', () => {
+  const regions = Object.values(components.MIEN_REGIONS).flat();
+  const base = { activeTab: 'report1', clientFilter: 'SPE', selectedRegions: regions, allHubTypes: ['BC'], selectedHubTypes: ['BC'],
+    syncStatus: { kind: 'idle' }, density: 'comfortable', detailScope: { provinces: [], lanes: [] } };
+  const html = props => render(components.header, { ...base, ...props });
+  const deli = html({ detailDataset: 'deli' });
+  assert.match(deli, /aria-label="Vùng và Tỉnh thành: Tất cả vùng"/);
+  assert.match(deli, /aria-label="Lane: Tất cả lane"/);
+  assert.doesNotMatch(html({ detailDataset: 'pick' }), /aria-label="Lane:/, 'Pick has no lane');
+  assert.match(html({ detailDataset: 'pick' }), /aria-label="Vùng và Tỉnh thành:/);
+  const none = html({ detailDataset: null });
+  assert.match(none, /aria-label="Vùng: Tất cả vùng"/);
+  assert.doesNotMatch(none, /aria-label="Lane:|Tỉnh thành/);
+  const filtered = html({ detailDataset: 'fd', detailScope: { provinces: ['HCM', 'BDG'], lanes: ['Nội tỉnh'] } });
+  assert.match(filtered, /aria-label="Vùng và Tỉnh thành: Tất cả vùng · 2 tỉnh thành"/);
+  assert.match(filtered, /aria-label="Lane: 1 lane được chọn"/);
+  assert.doesNotMatch(html({ activeTab: 'report5', detailDataset: 'deli' }), /Tỉnh thành|aria-label="Lane:/, 'only Chi tiết Vùng/Hub');
+});

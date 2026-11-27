@@ -5,7 +5,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { fetchWeeklyRows, fetchMonthlyRows, fetchDetailRows, effectiveDetailScope, monthEnd, monthLabel, datasetFor, buildWeeklyMatrix, WEEKLY_METRICS, clearWeeklyCache } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 import { PUD_NOTE } from '../../utils/pud';
-import { ScopeBadges } from './DetailScopeFilter';
+import ScopeBadges from './ScopeBadges';
 
 const addDays = (day, n) => {
   const d = new Date(`${day}T00:00:00Z`);
@@ -36,7 +36,7 @@ export default function WeeklyKpiTable({
   const metric = WEEKLY_METRICS[metricKey];
   const dataset = datasetFor(metric, clientFilter);
   // KAS-317: bật Province/Lane thì cộng tuần từ bảng chi tiết (không benchmark), tắt thì giữ luồng cũ.
-  const scope = effectiveDetailScope(dataset, detailScope);
+  const scope = useMemo(() => effectiveDetailScope(dataset, detailScope), [dataset, detailScope]);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${period}:${dataset}:${scope.key}:${attempt}`;
@@ -50,7 +50,7 @@ export default function WeeklyKpiTable({
       .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data: { ...data, dataset, period, scopeKey: scope.key }, error: null }); })
       .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [requestKey, dataset, period, attempt, fetchRows, client]);
+  }, [requestKey, dataset, period, scope, attempt, fetchRows, client]);
 
   // Khoảng ngày: dữ liệu theo tuần nên khoảng được hiểu là "các tuần có ngày nằm trong khoảng".
   const [range, setRange] = useState({ from: '', to: '' });
