@@ -4,11 +4,14 @@ PUD dùng `SUM(pud) / SUM(mau_pud) × 100%`, với mẫu riêng ở cột J củ
 Không dùng `mau_pu`, không lấy trung bình tỷ lệ giữa các hub/ngày và chưa gán target.
 Các dòng có `mau_pu = 0` vẫn có thể có mẫu PUD.
 
-> **Cập nhật 27/11/2026:** query nguồn mới đổi `mau_pud` thành số đơn **tạo trong ngày** (không tính đơn huỷ) và `pud` là số đơn của
-> chính nhóm đó đã lấy được (có `endpicktime`, trạng thái khác `cancel`/`ready_to_pick`/`picking`). Tử và mẫu cùng một tập đơn nên
-> PUD = `SUM(pud) / SUM(mau_pud)` trở lại (thay cho `pud / mau_pu` của #265). `mau_pu` vẫn là mẫu 1st Pickup/OPR (đơn theo ngày load).
-> Thiếu hoặc âm là "–". Dữ liệu cũ trong `kas_reverse_history` theo logic cũ cho tới khi sync lại bằng query mới.
-> **Tab Backlog (cộng `mau_pud` thành "số đơn tồn") không còn đúng với nghĩa mới của `mau_pud`**, cần quyết định riêng.
+> **Cập nhật 12/11/2026:** theo #265, PUD hiện = `SUM(pud) / SUM(mau_pu)` (không dùng `mau_pud`; `mau_pud` chỉ dùng cho tab Backlog).
+> `pud` không phải tập con của `mau_pu` (11/11: 268/1.275 dòng có `pud > mau_pu`), nên không còn ràng buộc `pud <= mau_pu`;
+> chỉ giá trị thiếu/âm mới là "–". Tỷ lệ một hub có thể vượt 100%. Các đoạn bên dưới nói về mẫu riêng `mau_pud` là mô tả cũ.
+
+> **Cập nhật 27/11/2026 (team KA):** PUD tính theo **ngày hẹn lấy** như 1st Pickup/OPR: `SUM(pud) / SUM(mau_pu)`.
+> Một ngày thử `mau_pud` = đơn tạo trong ngày (#289) đã được hoàn lại. Nguồn là `docs/sql/pick_reverse_14d.sql` (datajob hằng ngày):
+> `pud` = đơn trong pool (hẹn lấy <= ngày d, trong 14 ngày, còn mở đầu ngày d) đã lấy tới hết ngày d, `mau_pud` = `COUNT(*)` của pool
+> chỉ dùng cho tab Backlog. Lịch sử 01/10–12/11 được ghi lại bằng `docs/sql/pick_reverse_backfill_20261001.sql`.
 
 ## Luồng dữ liệu
 

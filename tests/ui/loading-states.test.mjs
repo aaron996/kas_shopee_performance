@@ -54,7 +54,7 @@ test('overview first render has a skeleton rather than a false empty notice', ()
 
 test('Reverse overview renders only supported metrics, pending MTD and no inherited target or risk', () => {
   const props = { overview: true, pickRows: [{ report_date: '2026-11-02', region: 'HCM', hub: 'A', hub_type: 'BC',
-    client_name: 'SPE Reverse', mau_pu: 100, mau_pud: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1 }],
+    client_name: 'SPE Reverse', mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 1 }],
     deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'], mtdScope: 'test:user' };
   const html = render(components.report, props);
   assert.equal((html.match(/class="overview-metric /g) || []).length, 3);
@@ -66,7 +66,7 @@ test('Reverse overview renders only supported metrics, pending MTD and no inheri
 
 test('MTD cards distinguish resolved numbers, errors and true empty results', () => {
   const row = { report_date: '2026-11-02', client_name: 'SPE Reverse', region: 'HCM', hub_type: 'BC',
-    mau_pu: 100, mau_pud: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 10 };
+    mau_pu: 100, ontime_pu_1st: 70, ontime_pu_opr: 50, pud: 10 };
   const cards = components.buildOverviewCards({ pick: [row] }, 'SPE Reverse');
   const renderCards = datasets => render(components.overviewCards, { cards: cards.map(card => components.resolveOverviewMtdCard(card, datasets)) });
   const loaded = renderCards({ reverse: { rows: [row] } });
@@ -117,8 +117,8 @@ test('PUD daily/week requests start with skeletons and Reverse declares its own 
 });
 
 test('PUD tab is visible in day view, keeps the day view, and uses the Reverse scope without target heat', () => {
-  const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pud: 1, pud: 1 },
-    { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pud: 9, pud: 0 }];
+  const rows = [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 1, pud: 1 },
+    { report_date: '2026-11-01', region: 'HCM', hub: 'B', hub_type: 'BC', client_name: 'SPE Reverse', mau_pu: 9, pud: 0 }];
   const props = { pickRows: rows, deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
   const day = render(components.report, props);
   assert.match(day, /id="ops-tab-pud" aria-selected="false"/, 'PUD stays visible in day view');
@@ -127,8 +127,8 @@ test('PUD tab is visible in day view, keeps the day view, and uses the Reverse s
   assert.match(week, /id="ops-tab-pud" aria-selected="true"/);
   assert.match(week, /aria-pressed="true"[^>]*>\s*Theo ngày/, 'PUD does not force the week view');
   const snapshot = render(components.report, { ...props, snapshotMetric: 'pud' });
-  assert.match(snapshot, /10,0%|10\.0%/, 'PUD = pud / mau_pud');
-  assert.match(snapshot, /Mẫu \(mau_pud\)/);
+  assert.match(snapshot, /10,0%|10\.0%/, 'PUD = pud / mau_pu');
+  assert.match(snapshot, /Mẫu \(mau_pu\)/);
   assert.doesNotMatch(snapshot, /Target ≥|heat heat-/);
   const other = render(components.report, { ...props, pickRows: rows.map(row => ({ ...row, client_name: 'SPB' })),
     clientFilter: 'SPB' });
@@ -152,7 +152,7 @@ test('Backlog tab shows absolute mau_pud after PUD; Backlog Reverse subtab holds
 
 test('PUD uses the shared default pickup table layout and motion hooks', () => {
   const props = { pickRows: [{ report_date: '2026-11-01', region: 'HCM', hub: 'A', hub_type: 'BC',
-    client_name: 'SPE Reverse', mau_pu: 2, mau_pud: 2, ontime_pu_1st: 0, ontime_pu_opr: 0, pud: 1 }],
+    client_name: 'SPE Reverse', mau_pu: 2, ontime_pu_1st: 0, ontime_pu_opr: 0, pud: 1 }],
     deliRows: [], clientFilter: 'SPE Reverse', selectedRegions: ['HCM'], selectedHubTypes: ['BC'] };
   for (const metricKey of ['p1st', 'popr', 'pud']) {
     // PUD chỉ có ở view tuần; bố cục bảng ngày dùng chung vẫn được kiểm qua trang snapshot.
@@ -167,7 +167,7 @@ test('PUD uses the shared default pickup table layout and motion hooks', () => {
 });
 
 test('shared PUD daily/WTD preserves unknown samples and includes unassigned regions', () => {
-  const row = (date, hub, region, pud, mau_pud) => ({ report_date: date, hub, region, pud, mau_pud,
+  const row = (date, hub, region, pud, mau_pu) => ({ report_date: date, hub, region, pud, mau_pu,
     client_name: 'SPE Reverse', hub_type: 'BC' });
   const props = { deliRows: [], clientFilter: 'SPE Reverse', selectedHubTypes: ['BC'],
     selectedRegions: Object.values(components.MIEN_REGIONS).flat(), snapshotMetric: 'pud' };
