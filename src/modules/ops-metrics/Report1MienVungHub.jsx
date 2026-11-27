@@ -1221,7 +1221,7 @@ export default function Report1MienVungHub({
               ))}
             </div>
           ) : isPud ? (
-            <div>{PUD_NOTE} Mẫu (mau_pud) hiển thị ở cột volume của D-1 và WTD.</div>
+            <div>{PUD_NOTE} Mẫu (mau_pu) hiển thị ở cột volume của D-1 và WTD.</div>
           ) : isFd ? (
             <div className="legend-items">
               <span className="legend-title" style={{ fontWeight: 600 }}>Chỉ số FD:</span>

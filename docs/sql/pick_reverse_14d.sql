@@ -1,138 +1,123 @@
--- KAS-291: SPE Reverse (client 224845) 1st Pickup / OPR / PUD theo hub-ngày, 14 ngày gần nhất (sync hằng ngày, replace D-14..D-1).
--- Cùng khung với pick_weekly_60d_test.sql, output thêm cột pud.
--- Ngày hẹn lấy = ngày lớn hơn giữa OrderDate và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1; rule giờ tạo để tránh đơn
--- tạo sau 16h mà OrderDate vẫn hẹn cùng ngày). Lọc shopee_business_type = 1 hoặc NULL. Không loại IsExpectedDropOff mà xử lý
--- DropAtStation: khách ra BC khác BC được gán đầu tiên thì tính cho BC được gán đầu tiên. Không có cutover 01/08 vì
--- created_date đã có shopee_business_type từ trước đó.
--- Range: report_date từ today-14 đến today-1. Cửa sổ quét nguồn nới thêm: partition 7 ngày, LoadDate 10, biz 2, end_pick_time 7.
+-- KAS-291: SPE Reverse (client 224845) 1st Pickup / OPR / PUD theo hub-ngày, 14 ngày gần nhất (datajob data_job_daily_reverse, sync hằng ngày D-14..D-1).
+-- Cập nhật 27/11/2026: tính theo NGÀY HẸN LẤY (loaddate_final). mau_pu dùng chung cho 1st Pickup, OPR và PUD;
+-- pud = số đơn trong pool (đơn hẹn lấy <= ngày d, trong 14 ngày, còn mở đầu ngày d) đã lấy được tới hết ngày d;
+-- mau_pud = COUNT(*) của pool (đơn tồn + đơn mới) dùng cho tab Backlog. PUD hiển thị = pud / mau_pu.
+-- Ngày hẹn lấy = ngày lớn hơn giữa LoadDate (hoặc OrderDate) và ngày theo giờ tạo đơn (trước 16h = D0, từ 16h = D+1).
+-- Lọc shopee_business_type = 1 hoặc NULL. DropAtStation: tính cho BC được gán đầu tiên.
 WITH ky_bao_cao AS (
-    SELECT
-        t.today_date,
-        CAST(t.today_date AS DATE) - INTERVAL '14' DAY AS win_start
-    FROM (
-        SELECT CAST(CONVERT_TZ(NOW(), 'UTC', 'Asia/Ho_Chi_Minh') AS DATE) AS today_date
-    ) t
+    SELECT t.today_date, DATE_SUB(t.today_date, INTERVAL 14 DAY) AS win_start, DATE_SUB(t.today_date, INTERVAL 1 DAY) AS win_end
+    FROM (SELECT CAST(CONVERT_TZ(NOW(), 'UTC', 'Asia/Ho_Chi_Minh') AS DATE) AS today_date) t
 ),
-
+cal AS (
+    SELECT DATE_ADD(k.win_start, INTERVAL x.n DAY) AS d
+    FROM ky_bao_cao k
+    CROSS JOIN (
+        SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+        UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+        UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
+        UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+        UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19
+        UNION ALL SELECT 20
+    ) x
+    WHERE DATE_ADD(k.win_start, INTERVAL x.n DAY) <= k.win_end
+),
 biz AS (
-    SELECT
-        order_code,
-        MAX(get_json_int(data, '$.shopee_business_type')) AS shopee_business_type
+    SELECT order_code, MAX(get_json_int(data, '$.shopee_business_type')) AS shopee_business_type
     FROM default_catalog.sr_clean.online_core__shipping_order__created_date
     WHERE client_id = 224845
-      AND dt >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '2' DAY
+      AND dt >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '21' DAY
       AND dt <= (SELECT today_date FROM ky_bao_cao)
     GROUP BY order_code
 ),
-
 Raw_Order AS (
     SELECT
-        A.`OrderCode`            AS ordercode,
-        MAX(A.`CurrentStatus`)   AS currentstatus,
-        MAX(A.`CancelTime`)      AS canceltime,
-        MAX(A.`ActualPickType`)  AS actualpicktype,
-        MAX(A.`PickWH`)          AS pickwh,
-        MAX(A.`EndPickTime`)     AS endpicktime,
-        MIN(A.`CreatedDate`)     AS createddate,
-        MAX(A.`OrderDate`)       AS orderdate
+        A.`OrderCode` AS ordercode, MAX(A.`CurrentStatus`) AS currentstatus, MAX(A.`CancelTime`) AS canceltime,
+        MAX(A.`ActualPickType`) AS actualpicktype, MAX(A.`PickWH`) AS pickwh, MAX(A.`PickWarehouseID`) AS pickwh_id,
+        MAX(A.`EndPickTime`) AS endpicktime, MIN(A.`CreatedDate`) AS createddate, MAX(A.`OrderDate`) AS orderdate
     FROM sr_ghn_reporting.ka.`Dtm_KA_V3_CreatedDate` A
     WHERE A.`ClientID` = 224845
-      AND A.`CreatedDate_Partition` >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '7' DAY
+      AND A.`CreatedDate_Partition` >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '21' DAY
     GROUP BY A.`OrderCode`
 ),
-
+shopee AS (
+    SELECT `OrderCode` AS ordercode, `LoadDate` AS loaddate, `Fromregion_new` AS fromregion_new,
+        `Fromprovince_new` AS fromprovince_new, `Fromward_new` AS fromward_new, `WeightRange` AS weightrange,
+        first_valid_pickup_time
+    FROM sr_ghn_reporting.ka.`Dtm_KA_Shopee`
+    WHERE `LoadDate` >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '24' DAY
+      AND `ClientID` LIKE '224845%'
+),
+b3 AS (
+    SELECT R.ordercode, R.currentstatus, R.canceltime, R.actualpicktype, R.pickwh, R.pickwh_id, R.endpicktime,
+        S.fromregion_new, S.fromprovince_new, S.fromward_new, S.weightrange, S.first_valid_pickup_time,
+        GREATEST(
+            COALESCE(DATE(S.loaddate), DATE(R.orderdate)),
+            CASE
+                WHEN HOUR(R.createddate) < 16 THEN DATE(R.createddate)
+                ELSE DATE(R.createddate) + INTERVAL '1' DAY
+            END
+        ) AS loaddate_final
+    FROM Raw_Order R
+    LEFT JOIN shopee S ON S.ordercode = R.ordercode
+    LEFT JOIN biz C ON C.order_code = R.ordercode
+    WHERE (C.shopee_business_type = 1 OR C.shopee_business_type IS NULL)
+),
+b3f AS (
+    SELECT b3.*, DATE(b3.endpicktime) AS pick_date, DATE(b3.canceltime) AS cancel_date,
+        CASE WHEN b3.currentstatus = 'cancel' THEN 1 ELSE 0 END AS is_cancel
+    FROM b3
+    WHERE b3.loaddate_final >= (SELECT win_start FROM ky_bao_cao) - INTERVAL 14 DAY
+      AND b3.loaddate_final <= (SELECT win_end FROM ky_bao_cao)
+),
 bc_first AS (
-    SELECT
-        o.order_code,
-        o.pick_warehouse_id AS bc_dropoff_id,
-        ELEMENT_AT(ARRAY_AGG(get_json_int(t.it, '$.pick_warehouse_id')
-                             ORDER BY get_json_string(t.it, '$.updated_date') ASC), 1) AS bc_first_id
+    SELECT o.order_code, o.pick_warehouse_id AS bc_dropoff_id,
+        ELEMENT_AT(ARRAY_AGG(get_json_int(t.it, '$.pick_warehouse_id') ORDER BY get_json_string(t.it, '$.updated_date') ASC), 1) AS bc_first_id
     FROM default_catalog.sr_clean.online_core__shipping_order__end_pick_time o
     CROSS JOIN UNNEST(CAST(parse_json(o.warehouse_log) AS ARRAY<JSON>)) AS t(it)
     WHERE o.client_id = 224845
-      AND o.dt >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '7' DAY
+      AND o.dt >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '21' DAY
       AND o.order_code IN (SELECT ordercode FROM Raw_Order WHERE actualpicktype = 'DropAtStation')
     GROUP BY o.order_code, o.pick_warehouse_id
 ),
-
-Raw_Pick AS (
-    SELECT
-        A.ordercode,
-        B.`Fromregion_new` AS fromregion_new,
-        -- TRIM: có hub chỉ khác nhau dấu cách cuối tên, Sheets cắt dấu cách nên hai dòng thành trùng khoá khi nạp.
-        TRIM(CASE
-            WHEN A.actualpicktype = 'DropAtStation'
-             AND m.bc_first_id <> m.bc_dropoff_id
-             AND w.warehouse_name IS NOT NULL
-            THEN w.warehouse_name
-            ELSE A.pickwh
-        END) AS hub,
-        A.currentstatus,
-        A.canceltime,
-        A.endpicktime,
-        B.first_valid_pickup_time,
-        C.shopee_business_type,
-        GREATEST(
-            DATE(A.orderdate),
-            CASE
-                WHEN HOUR(A.createddate) < 16 THEN DATE(A.createddate)
-                ELSE DATE(A.createddate) + INTERVAL '1' DAY
-            END
-        ) AS pickup_order_date
-    FROM Raw_Order A
-    LEFT JOIN sr_ghn_reporting.ka.`Dtm_KA_Shopee` B
-        ON A.ordercode = B.`OrderCode`
-        AND B.`LoadDate` >= (SELECT win_start FROM ky_bao_cao) - INTERVAL '10' DAY
-    LEFT JOIN biz C
-        ON C.order_code = A.ordercode
-    LEFT JOIN bc_first m
-        ON m.order_code = A.ordercode
-    LEFT JOIN default_catalog.sr_dim.dim_warehouse w
-        ON w.warehouse_id = m.bc_first_id
+b4 AS (
+    SELECT b3f.*,
+        TRIM(CASE WHEN b3f.actualpicktype = 'DropAtStation' AND m.bc_first_id <> m.bc_dropoff_id AND w.warehouse_name IS NOT NULL
+                  THEN w.warehouse_name ELSE b3f.pickwh END) AS pickwh_final,
+        CASE WHEN b3f.actualpicktype = 'DropAtStation' AND m.bc_first_id <> m.bc_dropoff_id AND w.warehouse_name IS NOT NULL
+             THEN m.bc_first_id ELSE b3f.pickwh_id END AS wh_id_final
+    FROM b3f
+    LEFT JOIN bc_first m ON m.order_code = b3f.ordercode
+    LEFT JOIN default_catalog.sr_dim.dim_warehouse w ON w.warehouse_id = m.bc_first_id
 ),
-
-Hub_Day AS (
-    SELECT
-        pickup_order_date AS report_date,
-        CASE
-            WHEN fromregion_new = 'HCM' AND hub LIKE '%Giao Hàng Nặng%' THEN 'HCM - GXT'
-            ELSE fromregion_new
-        END AS region,
-        hub,
-        CASE
-            WHEN hub LIKE '%Ahamove%' THEN 'Ahamove'
-            WHEN hub LIKE '%Key Account%' THEN 'KA'
-            WHEN hub LIKE '%Giao Hàng Nặng%' THEN 'GXT'
-            ELSE 'BC'
-        END AS hub_type,
-        'SPE Reverse' AS client_name,
-        COUNT(DISTINCT CASE
-            WHEN (currentstatus = 'cancel' AND DATE(canceltime) > pickup_order_date) OR currentstatus != 'cancel'
-            THEN ordercode
-        END) AS mau_pu,
-        COUNT(DISTINCT CASE
-            WHEN ((currentstatus = 'cancel' AND DATE(canceltime) > pickup_order_date) OR currentstatus != 'cancel')
-             AND DATE(COALESCE(first_valid_pickup_time, endpicktime)) <= pickup_order_date
-            THEN ordercode
-        END) AS ontime_pu_1st,
-        COUNT(DISTINCT CASE
-            WHEN ((currentstatus = 'cancel' AND DATE(canceltime) > pickup_order_date) OR currentstatus != 'cancel')
-             AND endpicktime IS NOT NULL AND DATE(endpicktime) <= pickup_order_date
-            THEN ordercode
-        END) AS ontime_pu_opr,
-        COUNT(DISTINCT CASE
-            WHEN ((currentstatus = 'cancel' AND DATE(canceltime) > pickup_order_date) OR currentstatus != 'cancel')
-             AND endpicktime IS NOT NULL
-            THEN ordercode
-        END) AS pud
-    FROM Raw_Pick
-    WHERE (shopee_business_type = 1 OR shopee_business_type IS NULL)
-      AND pickup_order_date >= (SELECT win_start FROM ky_bao_cao)
-      AND pickup_order_date <= (SELECT today_date FROM ky_bao_cao) - INTERVAL '1' DAY
-    GROUP BY 1, 2, 3, 4, 5
+pool AS (
+    SELECT c.d, b4.*,
+        CASE WHEN b4.loaddate_final = c.d THEN 1 ELSE 0 END AS is_new,
+        CASE WHEN b4.pick_date <= c.d THEN 1 ELSE 0 END AS is_picked,
+        CASE WHEN b4.loaddate_final = c.d AND DATE(COALESCE(b4.first_valid_pickup_time, b4.endpicktime)) <= c.d THEN 1 ELSE 0 END AS is_first_ontime
+    FROM cal c
+    JOIN b4 ON b4.loaddate_final <= c.d AND b4.loaddate_final >= c.d - INTERVAL 14 DAY
+        AND (b4.pick_date IS NULL OR b4.pick_date >= c.d OR b4.loaddate_final = c.d)
+    WHERE NOT (b4.is_cancel = 1 AND (b4.cancel_date IS NULL OR b4.cancel_date <= c.d)
+        AND (b4.loaddate_final = c.d OR b4.pick_date IS NULL OR b4.pick_date > c.d))
 )
-
-SELECT
-    report_date, region, hub, hub_type, mau_pu, ontime_pu_1st, ontime_pu_opr, pud, client_name
-FROM Hub_Day
-ORDER BY report_date DESC, region, hub
+SELECT /*+ SET_VAR(cbo_cte_reuse_rate=0) */
+    d AS report_date,
+    CASE WHEN fromregion_new = 'HCM' AND pickwh_final LIKE '%Giao Hàng Nặng%' THEN 'HCM - GXT' ELSE fromregion_new END AS region,
+    pickwh_final AS hub,
+    CASE
+        WHEN pickwh_final LIKE '%Ahamove%' THEN 'Ahamove'
+        WHEN pickwh_final LIKE '%Key Account%' OR pickwh_final LIKE '%(HNO) LH Long Biên%' THEN 'KA'
+        WHEN pickwh_final LIKE '%Giao Hàng Nặng%' THEN 'GXT'
+        ELSE 'BC'
+    END AS hub_type,
+    SUM(is_new) AS mau_pu,
+    SUM(is_first_ontime) AS ontime_pu_1st,
+    SUM(is_picked * is_new) AS ontime_pu_opr,
+    SUM(is_picked) AS pud,
+    'SPE Reverse' AS client_name,
+    COUNT(*) AS mau_pud,
+    wh_id_final AS wh_id,
+    fromprovince_new AS province
+FROM pool
+GROUP BY 1, 2, 3, 4, 11, 12
+ORDER BY report_date DESC, region, hub, wh_id
