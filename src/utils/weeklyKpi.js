@@ -149,6 +149,54 @@ export async function fetchDailyRows(client, dataset, from, to) {
   return normalizeDashboardRows(rows);
 }
 
+// KAS-317: bộ lọc Province / Lane. Khi bật, số liệu đọc từ bảng chi tiết (kas_*_detail) qua
+// get_kas_detail_compact: cộng được (mau_*, ontime_*, fd_hoan_thanh, pud), KHÔNG có benchmark nên
+// bảng không có cột "Tốt nhất 6 tuần" / "Cùng ngày tháng trước". Lane chỉ có ở Deli và FD.
+const LANE_DATASETS = new Set(['deli', 'fd']);
+export const hasLaneFilter = dataset => LANE_DATASETS.has(dataset);
+
+// Chuẩn hoá lựa chọn người dùng theo bảng nguồn: lane bị bỏ qua với Pick/Reverse. `key` dùng làm khoá cache/yêu cầu.
+export function effectiveDetailScope(dataset, scope) {
+  const provinces = [...new Set(scope?.provinces || [])].sort();
+  const lanes = LANE_DATASETS.has(dataset) ? [...new Set(scope?.lanes || [])].sort() : [];
+  return { provinces, lanes, active: provinces.length > 0 || lanes.length > 0, key: JSON.stringify([provinces, lanes]) };
+}
+
+// grain: 'day' | 'week' | 'month'. from/to trống = mặc định của RPC (ngày mới nhất của bảng, 14 ngày/9 tuần/6 tháng).
+export function fetchDetailRows(client, dataset, grain, { from = null, to = null, provinces = [], lanes = [] } = {}) {
+  const key = `detail:${dataset}:${grain}:${from}:${to}:${JSON.stringify([provinces, lanes])}`;
+  if (!cache.has(key)) {
+    const request = (async () => {
+      const { data, error } = await client.rpc('get_kas_detail_compact', {
+        dataset, grain, date_from: from, date_to: to,
+        provinces: provinces.length ? provinces : null, lanes: lanes.length ? lanes : null
+      });
+      if (error) throw error;
+      if (!data || !Array.isArray(data.weeks) || !Array.isArray(data.cols) || !Array.isArray(data.rows)) throw new Error('INVALID_DETAIL_PAYLOAD');
+      return { weeks: data.weeks, rows: normalizeDashboardRows(expandCompactRows(data.cols, data.rows)) };
+    })();
+    request.catch(() => cache.delete(key));
+    cache.set(key, request);
+  }
+  return cache.get(key);
+}
+
+// Danh sách Province / Lane có trong bảng chi tiết (30 ngày gần nhất của bảng).
+export function fetchDetailOptions(client, dataset) {
+  const key = `detail-options:${dataset}`;
+  if (!cache.has(key)) {
+    const request = (async () => {
+      const { data, error } = await client.rpc('get_kas_detail_options', { dataset });
+      if (error) throw error;
+      if (!data || !Array.isArray(data.provinces) || !Array.isArray(data.lanes)) throw new Error('INVALID_DETAIL_OPTIONS');
+      return { provinces: data.provinces, lanes: data.lanes, minDate: data.min_date, maxDate: data.max_date };
+    })();
+    request.catch(() => cache.delete(key));
+    cache.set(key, request);
+  }
+  return cache.get(key);
+}
+
 export function clearWeeklyCache() {
   cache.clear();
 }

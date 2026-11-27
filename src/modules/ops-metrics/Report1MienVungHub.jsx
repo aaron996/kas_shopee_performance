@@ -12,6 +12,7 @@ import { overviewTarget } from '../../data/overviewMetrics';
 import ReverseBacklogPanel from './ReverseBacklogPanel';
 import ReverseBacklogMatrix from './ReverseBacklogMatrix';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
+import DetailScopeFilter from './DetailScopeFilter';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
@@ -25,7 +26,7 @@ import { useToast } from '../../components/ui/Toast';
 import ExportFilterModal from '../../components/ExportFilterModal';
 import { supabase } from '../../utils/supabaseClient';
 import { REVERSE_CLIENT } from '../../utils/clientLabels';
-import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange } from '../../utils/weeklyKpi';
+import { fetchWeeklyRows, fetchDailyRows, clearWeeklyCache, WEEKLY_WEEKS, DAILY_EXPORT_DAYS, resolveDayRange, datasetFor, effectiveDetailScope, WEEKLY_METRICS } from '../../utils/weeklyKpi';
 
 const EXPORT_METRIC_DATASET = { '1st Pickup': 'pick', 'OPR': 'pick', 'PUD': 'pick', '1st Deli': 'deli', 'ODR': 'deli', 'FD': 'fd' };
 const REVERSE_EXPORT_METRICS = ['1st Pickup', 'OPR', 'PUD'];
@@ -110,6 +111,8 @@ export default function Report1MienVungHub({
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
   // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
   const [dayRange, setDayRange] = useState({ from: '', to: '', preset: 'Mặc định' });
+  // KAS-317: bộ lọc Province / Lane. Bật thì các bảng đọc bảng chi tiết (không benchmark); tắt thì như cũ.
+  const [detailScope, setDetailScope] = useState({ provinces: [], lanes: [] });
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -1245,7 +1248,15 @@ export default function Report1MienVungHub({
     const max = dates?.length ? dates[dates.length - 1] : '';
     return max ? { min: addIsoDays(max, -90), max } : null;
   }, [activeTableTab, pickDates, deliDates, fdDates]);
-  const activeDayRange = viewMode === 'day' && dayRangeBounds ? resolveDayRange(dayRange, dayRangeBounds) : null;
+  // Chỉ số đang xem -> bảng chi tiết tương ứng; lane bị bỏ qua với Pick/Reverse.
+  // Tab không phải chỉ số KPI (vd. backlog Reverse) không có bảng chi tiết: không lọc, ẩn bộ lọc.
+  const detailMetric = WEEKLY_METRICS[activeTableTab];
+  const detailDataset = detailMetric ? datasetFor(detailMetric, clientFilter) : null;
+  const scope = effectiveDetailScope(detailDataset, detailMetric ? detailScope : null);
+  // Bật bộ lọc ở "Theo ngày" mà chưa chọn khoảng ngày: lấy 14 ngày gần nhất (khớp bảng mặc định).
+  const activeDayRange = viewMode === 'day' && dayRangeBounds
+    ? (resolveDayRange(dayRange, dayRangeBounds) || (scope.active ? { from: addIsoDays(dayRangeBounds.max, -13), to: dayRangeBounds.max } : null))
+    : null;
 
   const metricTables = {
     pud: () => renderMetricTable('PUD', 'pud', false, refPud, 'pud'),
@@ -1363,6 +1374,7 @@ export default function Report1MienVungHub({
         ))}
       </div>}
       {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} /></div> : <div className={`density-${density} kpi-tab-container`}>
+        {detailDataset && <DetailScopeFilter dataset={detailDataset} value={detailScope} onChange={setDetailScope} />}
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
@@ -1435,6 +1447,7 @@ export default function Report1MienVungHub({
               clientFilter={clientFilter}
               selectedRegions={selectedRegions}
               selectedHubTypes={selectedHubTypes}
+              detailScope={detailScope}
             />
           ) : viewMode === 'week' || viewMode === 'month' ? (
             <WeeklyKpiTable
@@ -1446,6 +1459,7 @@ export default function Report1MienVungHub({
               clientFilter={clientFilter}
               selectedRegions={selectedRegions}
               selectedHubTypes={selectedHubTypes}
+              detailScope={detailScope}
             />
           ) : metricTables[activeTableTab]?.()}
         </div>

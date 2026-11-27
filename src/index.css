@@ -8129,6 +8129,10 @@ table.weekly-kpi-table td.weekly-kpi-more { color: var(--text-muted); font-size:
 table.weekly-kpi-table td.lbl { min-width: 150px; max-width: 220px; }
 .weekly-range { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-left: auto; }
 .weekly-range-sep { color: var(--text-muted); }
+/* KAS-317: bộ lọc Province / Lane phía trên các tab chỉ số. */
+.detail-scope-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0 0 0.6rem; }
+.detail-scope-filter .msd { min-width: 11rem; max-width: 18rem; }
+.detail-scope-empty { color: var(--text-muted); font-size: 0.8rem; }
 .weekly-range-presets { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .day-range-bar { display: flex; justify-content: flex-end; padding: 0.4rem 0.75rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle); }
 body.dark-mode .day-range-bar { background: transparent; }

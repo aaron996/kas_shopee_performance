@@ -91,6 +91,36 @@ function opsDeltaNormalizeRows_(headers, values, columns, timezone) {
   return opsHubTypeBcKd_(columns, rows);
 }
 
+/**
+ * KAS-317: BI giờ tách dòng theo province (và lane). Khi header có cột province, gộp về grain hub cũ
+ * trước khi đưa vào delta/history: cột đếm (numeric không phải benchmark) được CỘNG, benchmark
+ * (best_l6w_*, sameday_lm_*) lặp trên mọi dòng của cùng hub nên chỉ LẤY MỘT giá trị (không cộng,
+ * không trung bình); nếu các dòng cùng hub lệch benchmark thì dừng cả tab thay vì ghi số sai.
+ * Khoá gộp = mọi cột text/date trong `columns`. Header chưa có province (giai đoạn chuyển tiếp): trả nguyên rows.
+ */
+function opsDeltaCollapseRows_(headers, rows, columns) {
+  if (headers.indexOf('province') < 0) return rows;
+  const keyIdx = [], sumIdx = [], benchIdx = [];
+  columns.forEach((c,i) => {
+    if (c.type !== 'numeric') keyIdx.push(i);
+    else if (/^(best_l6w_|sameday_lm_)/.test(c.name)) benchIdx.push(i);
+    else sumIdx.push(i);
+  });
+  const seen = Object.create(null), out = [];
+  rows.forEach(row => {
+    const key = JSON.stringify(keyIdx.map(i => row[i]));
+    const hit = seen[key];
+    if (!hit) { const copy = row.slice(); seen[key] = copy; out.push(copy); return; }
+    sumIdx.forEach(i => {
+      if (row[i] !== null) hit[i] = (hit[i] === null ? 0 : hit[i]) + row[i];
+    });
+    benchIdx.forEach(i => {
+      if (hit[i] !== row[i]) throw new Error('Benchmark '+columns[i].name+' không đồng nhất trong cùng hub '+key+'; không ghi gì');
+    });
+  });
+  return out;
+}
+
 function opsDeltaValidateWindow_(tabKey, days, today) {
   const offset = tabKey === 'fd' ? [22,8] : [14,1];
   const shift = n => {const d = new Date(today+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10);};
@@ -134,7 +164,8 @@ function syncOpsDeltaTab_(ss,tabKey,gid) {
   if (values.length < 2) throw new Error('Tab trống hoặc chỉ có header; giữ nguyên snapshot cũ');
   const remote = opsDeltaRpc_('ops_kpi_sync_manifest',{tab_key:tabKey},key);
   const timezone = ss.getSpreadsheetTimeZone();
-  const rows = opsDeltaNormalizeRows_(values[0].map(h => String(h).trim()),values.slice(1),remote.columns,timezone);
+  const headers = values[0].map(h => String(h).trim());
+  const rows = opsDeltaCollapseRows_(headers,opsDeltaNormalizeRows_(headers,values.slice(1),remote.columns,timezone),remote.columns);
   const source = opsDeltaDayManifest_(remote.columns,rows,remote.date_column,opsDeltaMd5_);
   opsDeltaValidateWindow_(tabKey,source.days,Utilities.formatDate(new Date(),timezone,'yyyy-MM-dd'));
   const previous = {};

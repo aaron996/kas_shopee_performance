@@ -2,9 +2,10 @@ import LoadingScreen from '../../components/LoadingScreen.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import DateField from '../../components/ui/DateField';
 import { supabase } from '../../utils/supabaseClient';
-import { fetchDailyRangeRows, datasetFor, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
+import { fetchDailyRangeRows, fetchDetailRows, effectiveDetailScope, datasetFor, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 import { PUD_NOTE } from '../../utils/pud';
+import { ScopeBadges } from './DetailScopeFilter';
 
 // Cụm lọc khoảng ngày của "Theo ngày". `bounds` là ngày đầu/cuối có thể chọn của chỉ số đang xem.
 export function DayRangeFilter({ range, onChange, bounds }) {
@@ -46,14 +47,17 @@ export default function DailyRangeKpiTable({
   clientFilter = 'ALL',
   selectedRegions = null,
   selectedHubTypes = null,
+  detailScope = null,
   fetchRows = fetchDailyRangeRows,
   client = supabase
 }) {
   const metric = WEEKLY_METRICS[metricKey];
   const dataset = datasetFor(metric, clientFilter);
+  // KAS-317: bật Province/Lane thì đọc bảng chi tiết (không benchmark), tắt thì giữ luồng cũ.
+  const scope = effectiveDetailScope(dataset, detailScope);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
-  const requestKey = `${dataset}:${range.from}:${range.to}:${attempt}`;
+  const requestKey = `${dataset}:${scope.key}:${range.from}:${range.to}:${attempt}`;
   const rangeDays = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86400000) + 1;
   const defaultShowVolume = rangeDays > 0 && rangeDays <= 7;
   // A new range restores its default; manual toggles only affect this selection.
@@ -64,7 +68,9 @@ export default function DailyRangeKpiTable({
   useEffect(() => {
     let cancelled = false;
     setState({ key: requestKey, status: 'loading', data: null, error: null });
-    fetchRows(client, dataset, range.from, range.to)
+    (scope.active
+      ? fetchDetailRows(client, dataset, 'day', { from: range.from, to: range.to, provinces: scope.provinces, lanes: scope.lanes })
+      : fetchRows(client, dataset, range.from, range.to))
       .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data, error: null }); })
       .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
@@ -83,6 +89,7 @@ export default function DailyRangeKpiTable({
         <div className="metric-title">
           <span title={title}>{metric.title}</span>
           {metric.target != null && <span className="kpi-badge">Target ≥ {metric.target.toFixed(0)}%</span>}
+          {scope.active && <ScopeBadges scope={scope} />}
           {!rangeFilter && <span className="kpi-badge weekly-kpi-badge">{range.from.split('-').reverse().join('/')} → {range.to.split('-').reverse().join('/')}</span>}
         </div>
         {rangeFilter}
@@ -117,6 +124,7 @@ export default function DailyRangeKpiTable({
       <KpiMatrixTable matrix={matrix} formattingRule={formattingRule} lastLabel="ngày cuối khoảng" showVolume={showVolume} horizontalScroll />
       <div className="table-legend">
         <div>* Khoảng ngày đọc từ bảng lịch sử nên không có cột WTD, Tốt nhất 6 tuần và Cùng ngày tháng trước.</div>
+        {scope.active && <div>* Đang lọc theo Province/Lane: số liệu lấy từ bảng chi tiết, không có benchmark ở mức tỉnh/lane.</div>}
       </div>
     </>
   );
