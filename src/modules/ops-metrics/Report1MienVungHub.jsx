@@ -12,7 +12,6 @@ import { overviewTarget } from '../../data/overviewMetrics';
 import ReverseBacklogPanel from './ReverseBacklogPanel';
 import ReverseBacklogMatrix from './ReverseBacklogMatrix';
 import DailyRangeKpiTable, { DayRangeFilter } from './DailyRangeKpiTable';
-import DetailScopeFilter from './DetailScopeFilter';
 import AnimatedIcon from '../../components/ui/AnimatedIcon';
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
@@ -63,6 +62,9 @@ export default function Report1MienVungHub({
   isHubTypeFiltered = false,
   emptyFilter = null,
   onResetFilters = null,
+  // KAS-317: Tỉnh thành / Lane nằm ở header (App.jsx); màn này báo chỉ số đang xem để header biết có Lane hay không.
+  detailScope = { provinces: [], lanes: [] },
+  onDetailDatasetChange = null,
   density,
   isFullscreen,
   setIsFullscreen,
@@ -111,8 +113,6 @@ export default function Report1MienVungHub({
   // Khoảng ngày của "Theo ngày": hễ chọn là chuyển sang đọc bảng lịch sử (bỏ WTD, tốt nhất 6 tuần,
   // cùng ngày tháng trước). Để trống thì giữ bảng 14 ngày có benchmark.
   const [dayRange, setDayRange] = useState({ from: '', to: '', preset: 'Mặc định' });
-  // KAS-317: bộ lọc Province / Lane. Bật thì các bảng đọc bảng chi tiết (không benchmark); tắt thì như cũ.
-  const [detailScope, setDetailScope] = useState({ provinces: [], lanes: [] });
 
   const refP1st = useRef(null);
   const refPOpr = useRef(null);
@@ -1253,6 +1253,8 @@ export default function Report1MienVungHub({
   const detailMetric = WEEKLY_METRICS[activeTableTab];
   const detailDataset = detailMetric ? datasetFor(detailMetric, clientFilter) : null;
   const scope = effectiveDetailScope(detailDataset, detailMetric ? detailScope : null);
+  useEffect(() => { onDetailDatasetChange?.(detailDataset); }, [detailDataset, onDetailDatasetChange]);
+  useEffect(() => () => onDetailDatasetChange?.(null), [onDetailDatasetChange]);
   // Bật bộ lọc ở "Theo ngày" mà chưa chọn khoảng ngày: lấy 14 ngày gần nhất (khớp bảng mặc định).
   const activeDayRange = viewMode === 'day' && dayRangeBounds
     ? (resolveDayRange(dayRange, dayRangeBounds) || (scope.active ? { from: addIsoDays(dayRangeBounds.max, -13), to: dayRangeBounds.max } : null))
@@ -1374,7 +1376,6 @@ export default function Report1MienVungHub({
         ))}
       </div>}
       {detailSection === 'backlog-reverse' ? <div className={`density-${density} kpi-tab-container`}><ReverseBacklogPanel selectedRegions={selectedRegions} selectedHubTypes={selectedHubTypes} /></div> : <div className={`density-${density} kpi-tab-container`}>
-        {detailDataset && <DetailScopeFilter dataset={detailDataset} value={detailScope} onChange={setDetailScope} />}
         <div className="kpi-table-tabs" role="tablist" aria-label="Chọn chỉ số chi tiết Vùng/Hub" onKeyDown={event => {
           if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];

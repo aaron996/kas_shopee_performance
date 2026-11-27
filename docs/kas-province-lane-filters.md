@@ -17,9 +17,13 @@
 - Dữ liệu chi tiết bắt đầu từ lần chạy đầu sau khi datajob đổi; lịch sử cũ không có province nên không backfill được từ bảng hiện có.
 
 ## Front-end
-- `DetailScopeFilter` (Province cho 4 luồng, Lane chỉ cho 1st Deli/ODR/FD) nằm phía trên các tab chỉ số của Chi tiết Vùng/Hub; danh sách lấy từ `get_kas_detail_options`.
-- Bật bộ lọc: "Theo ngày" chuyển sang `DailyRangeKpiTable` (mặc định 14 ngày gần nhất), "Theo tuần" sang `WeeklyKpiTable`, cả hai đọc `get_kas_detail_compact`. Không có benchmark; bảng ghi chú rõ. Tắt bộ lọc: luồng cũ không đổi.
-- Chưa áp dụng cho Tổng quan MTD, xếp hạng 3D, chat AI và export.
+- Theo `DESIGN.md` ("Scope filters live in the header"), bộ lọc nằm ở header (`src/components/Header.jsx`), không vẽ trong module:
+  - **Tỉnh thành** là sub-filter của popover Vùng (icon MapPin), hai tab con "Vùng" và "Tỉnh thành". Chỉ có ở Chi tiết Vùng/Hub.
+  - **Lane** là popover riêng (icon Route) cạnh Loại Hub, chỉ hiện khi chỉ số đang xem thuộc Deli/FD (1st Deli, ODR, FD).
+  - Danh sách lấy từ `get_kas_detail_options` qua `useDetailOptions`; không chọn gì nghĩa là không lọc. "Đặt lại" xoá cả Tỉnh thành và Lane.
+- State `detailScope` nằm ở `App.jsx`; `Report1MienVungHub` nhận `detailScope` và báo chỉ số đang xem qua `onDetailDatasetChange` để header biết có Lane hay không.
+- Bật bộ lọc: "Theo ngày" chuyển sang `DailyRangeKpiTable` (mặc định 14 ngày gần nhất), "Theo tuần"/"Theo tháng" sang `WeeklyKpiTable` (grain = `period`), cả hai đọc `get_kas_detail_compact`. Không có benchmark; bảng ghi chú rõ và có huy hiệu `Province:` / `Lane:` (`ScopeBadges`). Tắt bộ lọc: luồng cũ không đổi.
+- Chưa áp dụng cho Tổng quan MTD, xếp hạng 3D, chat AI, export và tab Backlog Reverse.
 
 ## Kiểm tra sau khi áp migration và có dữ liệu
 Tổng bảng chi tiết (không lọc) phải bằng bảng hub-level cùng ngày, sai lệch 0 (đổi `deli` thành `pick`, `fd`, `reverse` và cột tương ứng):

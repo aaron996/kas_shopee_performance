@@ -21,3 +21,6 @@ export const showsScopeFilters = activeTab => !SCOPE_FILTERLESS_TABS.includes(ac
 export const hidesRegionHubFilters = activeTab => ['report3', 'report-insight'].includes(activeTab) || !showsScopeFilters(activeTab);
 
 export const usesCa1Source = isLaneCa1;
+
+/** Tỉnh thành và Lane (bảng chi tiết KAS-317) chỉ có ở Chi tiết Vùng/Hub; Lane chỉ cho Deli và FD (xem hasLaneFilter). */
+export const showsDetailScope = activeTab => activeTab === 'report1';

@@ -12,3 +12,4 @@ export { MIEN_REGIONS } from '../../src/data/defaultDataset.js';
 export { default as overviewCards } from '../../src/modules/ops-metrics/OverviewKpiCards.jsx';
 export { buildOverviewCards, resolveOverviewMtdCard } from '../../src/utils/overviewMtd.js';
 export { default as backlogPanel } from '../../src/modules/ops-metrics/ReverseBacklogPanel.jsx';
+export { default as header } from '../../src/components/Header.jsx';

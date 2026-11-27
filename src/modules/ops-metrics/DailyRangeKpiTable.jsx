@@ -5,7 +5,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { fetchDailyRangeRows, fetchDetailRows, effectiveDetailScope, datasetFor, buildWeeklyMatrix, dayLabel, WEEKLY_METRICS, clearWeeklyCache, DAILY_MAX_DAYS, addDays } from '../../utils/weeklyKpi';
 import KpiMatrixTable from './KpiMatrixTable';
 import { PUD_NOTE } from '../../utils/pud';
-import { ScopeBadges } from './DetailScopeFilter';
+import ScopeBadges from './ScopeBadges';
 
 // Cụm lọc khoảng ngày của "Theo ngày". `bounds` là ngày đầu/cuối có thể chọn của chỉ số đang xem.
 export function DayRangeFilter({ range, onChange, bounds }) {
@@ -54,7 +54,7 @@ export default function DailyRangeKpiTable({
   const metric = WEEKLY_METRICS[metricKey];
   const dataset = datasetFor(metric, clientFilter);
   // KAS-317: bật Province/Lane thì đọc bảng chi tiết (không benchmark), tắt thì giữ luồng cũ.
-  const scope = effectiveDetailScope(dataset, detailScope);
+  const scope = useMemo(() => effectiveDetailScope(dataset, detailScope), [dataset, detailScope]);
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${dataset}:${scope.key}:${range.from}:${range.to}:${attempt}`;
@@ -74,7 +74,7 @@ export default function DailyRangeKpiTable({
       .then(data => { if (!cancelled) setState({ key: requestKey, status: 'ready', data, error: null }); })
       .catch(error => { if (!cancelled) setState({ key: requestKey, status: 'error', data: null, error }); });
     return () => { cancelled = true; };
-  }, [requestKey, dataset, range.from, range.to, attempt, fetchRows, client]);
+  }, [requestKey, dataset, scope, range.from, range.to, attempt, fetchRows, client]);
 
   const matrix = useMemo(() => {
     if (state.key !== requestKey || state.status !== 'ready') return null;

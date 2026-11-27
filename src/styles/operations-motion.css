@@ -107,6 +107,8 @@
 .scope-option{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px;border-radius:var(--radius-control);font-size:var(--type-body);line-height:1.5;cursor:pointer}
 .scope-option:hover{background:var(--surface-subtle)}.scope-option:has(input:checked){background:var(--info-box-bg)}
 .scope-option input{width:16px;height:16px;flex:none;accent-color:var(--action-primary)}
+.scope-subfilters{display:flex;width:100%;margin:0 0 12px}.scope-subfilters .kpi-table-tab{flex:1;justify-content:center}
+.scope-search{margin:0 0 8px}.scope-empty-note{margin:8px 0;color:var(--text-muted);font-size:var(--type-caption)}
 .scope-select-all{font-weight:600;margin-bottom:12px}
 .popover-text-action{display:block;width:100%;padding:12px 4px 0;text-align:left;background:transparent;border:0;border-top:1px solid var(--border-subtle);color:var(--info-box-text);font:500 var(--type-caption)/1.5 var(--font-sans);cursor:pointer;margin-top:12px}
 .sync-details{font-size:var(--type-caption);margin:0 0 16px}.sync-details>div{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:12px}.sync-details dt{color:var(--text-secondary)}.sync-details dd{margin:0;font-family:var(--font-mono);text-align:right}

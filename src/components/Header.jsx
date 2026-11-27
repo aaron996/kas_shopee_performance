@@ -3,21 +3,30 @@ import IconButton from './ui/IconButton';
 import MultiSelectDropdown from './ui/MultiSelectDropdown';
 import HeaderPopover from './ui/HeaderPopover';
 import LoadingScreen from './LoadingScreen.jsx';
+import AnimatedIcon from './ui/AnimatedIcon';
 import { MIEN_REGIONS } from '../data/defaultDataset';
 import { formatRankingHubName } from '../utils/rankingHubName.js';
 import { CLIENT_ORDER } from '../utils/clientLabels';
-import { showsClientFilter, showsScopeFilters, hidesRegionHubFilters, supportsExport } from '../utils/scopeSupport';
+import { showsClientFilter, showsScopeFilters, hidesRegionHubFilters, supportsExport, showsDetailScope } from '../utils/scopeSupport';
+import { hasLaneFilter } from '../utils/weeklyKpi';
+import useDetailOptions from '../hooks/useDetailOptions';
 
 export default function Header({
   activeTab, laneView = 'deli', clientFilter, setClientFilter,
   selectedRegions, setSelectedRegions, allHubTypes, selectedHubTypes, setSelectedHubTypes,
-  onResetFilters, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
+  onResetFilters, detailDataset = null, detailScope = { provinces: [], lanes: [] }, setDetailScope = () => {}, d1DateFormatted, fdD1DateFormatted, syncStatus, lastSyncedAt,
   onOpenSummary, onOpenPalette, isDarkMode,
   setIsDarkMode, density, setDensity, isFullscreen, setIsFullscreen,
   onRetryData, isDataStale = false, canExport, exportContext, codSuspicionFilters, setCodSuspicionFilters, codSuspicionWarehouses, codSuspicionRegions = [], codSuspicionProvinces
 }) {
   const hideRegionHubFilters = hidesRegionHubFilters(activeTab);
   const [popover, setPopover] = useState(null);
+  // KAS-317: Tỉnh thành là sub-filter của Vùng, Lane là bộ lọc riêng (Deli/FD); cả hai chỉ ở Chi tiết Vùng/Hub.
+  const [regionSub, setRegionSub] = useState('region');
+  const [detailQuery, setDetailQuery] = useState('');
+  const detailActive = showsDetailScope(activeTab) && !hideRegionHubFilters && Boolean(detailDataset);
+  const showLane = detailActive && hasLaneFilter(detailDataset);
+  const detail = useDetailOptions(detailActive ? detailDataset : null);
   const [rankingControlsHidden, setRankingControlsHidden] = useState(false);
   const headerRef = useRef(null);
   const allRegions = useMemo(() => Object.values(MIEN_REGIONS).flat(), []);
@@ -25,6 +34,7 @@ export default function Header({
   const exportCsv = () => window.dispatchEvent(new CustomEvent('open-export-dialog', { detail: exportContext }));
   const exportLabel = `Xuất CSV · ${exportContext?.['Phạm vi Client']} · ${exportContext?.['Khoảng dữ liệu']}`;
   useEffect(() => { setPopover(null); }, [activeTab]);
+  useEffect(() => { setDetailQuery(''); }, [popover?.name, detailDataset]);
   useEffect(() => {
     const onPresentationChange = event => {
       setRankingControlsHidden(Boolean(event.detail?.hidden));
@@ -63,6 +73,31 @@ export default function Header({
   const toggle = (value, selected, setter) => setter(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
   const regionSummary = selectedRegions.length === allRegions.length ? 'Tất cả vùng' : selectedRegions.length ? `${selectedRegions.length}/${allRegions.length} vùng được chọn` : 'Chưa chọn vùng nào';
   const hubSummary = selectedHubTypes.length === allHubTypes.length ? 'Tất cả loại Hub' : selectedHubTypes.length ? `${selectedHubTypes.length}/${allHubTypes.length} loại Hub được chọn` : 'Chưa chọn loại Hub nào';
+  const provinceCount = detailActive ? detailScope.provinces.length : 0;
+  const laneCount = showLane ? detailScope.lanes.length : 0;
+  const regionAll = selectedRegions.length === allRegions.length;
+  const regionSummaryFull = provinceCount ? `${regionSummary} · ${provinceCount} tỉnh thành` : regionSummary;
+  const laneSummary = laneCount ? `${laneCount} lane được chọn` : 'Tất cả lane';
+  const normalize = text => String(text).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const detailList = (kind, selected) => {
+    const all = detail.options ? detail.options[kind] : [];
+    const merged = [...new Set([...all, ...selected])].sort();
+    const q = normalize(detailQuery.trim());
+    return q ? merged.filter(value => normalize(value).includes(q)) : merged;
+  };
+  const toggleDetail = (kind, value) => setDetailScope(scope => ({ ...scope, [kind]: scope[kind].includes(value) ? scope[kind].filter(item => item !== value) : [...scope[kind], value] }));
+  // Danh sách tìm kiếm + chọn nhiều cho Tỉnh thành / Lane. Không chọn gì nghĩa là không lọc.
+  const detailPicker = (kind, label, selected, searchLabel) => {
+    if (detail.status === 'loading') return <LoadingScreen variant="inline" />;
+    if (detail.status === 'error') return <p className="sync-error-note">Không tải được danh sách {label}. <button type="button" className="popover-text-action" onClick={detail.retry}>Thử lại</button></p>;
+    const list = detailList(kind, selected);
+    if (!detail.options || (!detail.options[kind].length && !selected.length)) return <p className="scope-empty-note">Bảng chi tiết chưa có dữ liệu {label} cho chỉ số này.</p>;
+    return <>
+      <label className="msd-search scope-search"><AnimatedIcon name="Search" size={14} /><input type="text" value={detailQuery} placeholder={searchLabel} aria-label={searchLabel} onChange={event => setDetailQuery(event.target.value)} /></label>
+      <div className="scope-options-scroll">{list.map(value => <label key={value} className="scope-option"><input type="checkbox" checked={selected.includes(value)} onChange={() => toggleDetail(kind, value)} /><span>{value}</span></label>)}{list.length === 0 && <p className="scope-empty-note">Không có kết quả</p>}</div>
+      <button className="popover-text-action" type="button" disabled={!selected.length} onClick={() => setDetailScope(scope => ({ ...scope, [kind]: [] }))}>Bỏ lọc {label}</button>
+    </>;
+  };
   const sharedPopover = { state: popover, setState: setPopover };
   return <header ref={headerRef} className="navbar app-header compact-header">
     {/* Phone header is one row. Dev Panel and Đăng xuất live in the "Thêm" menu
@@ -75,20 +110,28 @@ export default function Header({
       {/* On Tổng quan the scope chips on the page are the visible trigger, so the
           icons are hidden here — but the popovers stay mounted, because those
           chips open them. */}
-      {showsScopeFilters(activeTab) && <div className={`scope-filter-cluster ${activeTab === 'home' ? 'is-replaced' : ''}`} inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng và Loại Hub">
+      {showsScopeFilters(activeTab) && <div className={`scope-filter-cluster ${activeTab === 'home' ? 'is-replaced' : ''}`} inert={activeTab === 'ranking' && rankingControlsHidden || undefined} role="group" aria-label="Bộ lọc Client, Vùng, Loại Hub và Lane">
         {showsClientFilter(activeTab, laneView) && <HeaderPopover {...sharedPopover} name="client" icon="UsersRound" label="Client" summary={clientFilter} badge="•">
           <fieldset className="scope-options"><legend className="sr-only">Chọn Client</legend>{CLIENT_ORDER.map(c => [c, c]).map(([value, label]) => <label key={value} className="scope-option"><input type="radio" name="scope-client" value={value} checked={clientFilter === value} onChange={() => setClientFilter(value)} /><span>{label}</span></label>)}</fieldset>
         </HeaderPopover>}
         {!hideRegionHubFilters && <>
-          <HeaderPopover {...sharedPopover} name="region" icon="MapPin" label="Vùng" summary={regionSummary} badge={selectedRegions.length === allRegions.length ? undefined : selectedRegions.length}>
+          <HeaderPopover {...sharedPopover} name="region" icon="MapPin" label={detailActive ? 'Vùng và Tỉnh thành' : 'Vùng'} summary={regionSummaryFull} badge={regionAll ? (provinceCount || undefined) : selectedRegions.length}>
+            {detailActive && <div className="kpi-tab-group scope-subfilters" role="group" aria-label="Chọn bộ lọc con">
+              {[['region', 'Vùng'], ['province', 'Tỉnh thành']].map(([key, text]) => <button type="button" key={key} aria-pressed={regionSub === key} className={`kpi-table-tab ${regionSub === key ? 'active' : ''}`} onClick={() => { setRegionSub(key); setDetailQuery(''); }}>{text}{key === 'province' && provinceCount > 0 ? ` (${provinceCount})` : ''}</button>)}
+            </div>}
+            {detailActive && regionSub === 'province' ? detailPicker('provinces', 'tỉnh thành', detailScope.provinces, 'Tìm tỉnh thành…') : <>
             <label className="scope-option scope-select-all"><input type="checkbox" checked={selectedRegions.length === allRegions.length} onChange={() => setSelectedRegions(selectedRegions.length === allRegions.length ? [] : [...allRegions])} /><span>Chọn tất cả vùng</span></label>
             <div className="scope-options-scroll">{Object.entries(MIEN_REGIONS).map(([mien, regions]) => <fieldset key={mien} className="scope-options"><legend>{mien}</legend>{regions.map(region => <label key={region} className="scope-option"><input type="checkbox" checked={selectedRegions.includes(region)} onChange={() => toggle(region, selectedRegions, setSelectedRegions)} /><span>{region}</span></label>)}</fieldset>)}</div>
+            </>}
           </HeaderPopover>
           <HeaderPopover {...sharedPopover} name="hub" icon="Warehouse" label="Loại Hub" summary={hubSummary} badge={selectedHubTypes.length === allHubTypes.length ? undefined : selectedHubTypes.length}>
             <label className="scope-option scope-select-all"><input type="checkbox" checked={selectedHubTypes.length === allHubTypes.length} onChange={() => setSelectedHubTypes(selectedHubTypes.length === allHubTypes.length ? [] : [...allHubTypes])} /><span>Chọn tất cả loại Hub</span></label>
             <div className="scope-options-scroll">{allHubTypes.map(type => <label key={type} className="scope-option"><input type="checkbox" checked={selectedHubTypes.includes(type)} onChange={() => toggle(type, selectedHubTypes, setSelectedHubTypes)} /><span>{activeTab === 'ranking' ? formatRankingHubName(type) : type}</span></label>)}</div>
-            <button className="popover-text-action" type="button" onClick={onResetFilters}>Đặt lại Vùng và Loại Hub</button>
+            <button className="popover-text-action" type="button" onClick={onResetFilters}>{detailActive ? 'Đặt lại Vùng, Tỉnh thành, Lane và Loại Hub' : 'Đặt lại Vùng và Loại Hub'}</button>
           </HeaderPopover>
+          {showLane && <HeaderPopover {...sharedPopover} name="lane" icon="Route" label="Lane" summary={laneSummary} badge={laneCount || undefined}>
+            {detailPicker('lanes', 'lane', detailScope.lanes, 'Tìm lane…')}
+          </HeaderPopover>}
         </>}
       </div>}
           {activeTab === 'cod-suspicion' && (
